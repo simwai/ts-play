@@ -1,5 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { CatppuccinTheme } from '../lib/theme';
+import { Badge } from './ui/Badge';
+import { Button } from './ui/Button';
+import { Input } from './ui/Input';
+import { PanelHeader } from './ui/PanelHeader';
 
 export type CdnProvider = 'esm.sh' | 'unpkg' | 'jsdelivr';
 
@@ -53,6 +57,8 @@ async function searchNpm(q: string): Promise<SearchResult[]> {
   }
 }
 
+const FONT = "'JetBrains Mono','Fira Code','Cascadia Code',monospace";
+
 export function PackageManager({
   theme: t, packages, onAddPackage, onRemovePackage, isOpen, onToggle, contentHeight,
 }: Props) {
@@ -65,9 +71,8 @@ export function PackageManager({
   const [error,       setError]       = useState('');
   const [dropVisible, setDropVisible] = useState(false);
 
-  const timerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inputRef    = useRef<HTMLInputElement>(null);
-  const dropRef     = useRef<HTMLDivElement>(null);
+  const timerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef     = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -81,12 +86,12 @@ export function PackageManager({
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // Cleanup debounce timer
+  // Cleanup debounce timer on unmount
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
   // Focus input when panel opens
   useEffect(() => {
-    if (isOpen) setTimeout(() => inputRef.current?.focus(), 50);
+    if (isOpen) setTimeout(() => inputRef.current?.focus(), 60);
   }, [isOpen]);
 
   const handleSearchChange = useCallback((v: string) => {
@@ -94,10 +99,8 @@ export function PackageManager({
     setSelected(null);
     setError('');
     setDropVisible(true);
-
     if (timerRef.current) clearTimeout(timerRef.current);
     if (!v.trim()) { setResults([]); setLoading(false); return; }
-
     setLoading(true);
     timerRef.current = setTimeout(async () => {
       const res = await searchNpm(v);
@@ -129,89 +132,55 @@ export function PackageManager({
     if (e.key === 'Enter' && selected) handleAdd();
   }, [selected, handleAdd]);
 
-  const inp: React.CSSProperties = {
-    width:       '100%',
-    padding:     '9px 11px',
-    fontSize:    13,
-    fontFamily:  'inherit',
-    background:  t.base,
-    border:      `1px solid ${t.surface1}`,
+  const selectStyle: React.CSSProperties = {
+    padding:      '8px 10px',
+    fontSize:     13,
+    fontFamily:   'inherit',
+    background:   t.base,
+    border:       `1px solid ${t.surface1}`,
     borderRadius: 5,
-    color:       t.text,
-    outline:     'none',
-    boxSizing:   'border-box',
+    color:        t.text,
+    outline:      'none',
+    cursor:       'pointer',
+    appearance:   'auto' as const,
+    flex:         '1 1 90px',
+    boxSizing:    'border-box' as const,
   };
 
   return (
     <div style={{ borderTop: `1px solid ${t.surface0}`, background: t.mantle, flexShrink: 0 }}>
 
-      {/* ── Toggle header ── */}
-      <button
-        onClick={onToggle}
-        aria-expanded={isOpen}
-        style={{
-          width:          '100%',
-          display:        'flex',
-          alignItems:     'center',
-          justifyContent: 'space-between',
-          padding:        '7px 14px',
-          background:     'transparent',
-          border:         'none',
-          cursor:         'pointer',
-          color:          t.subtext0,
-          userSelect:     'none',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            fontFamily:    'monospace',
-            fontSize:      11,
-            fontWeight:    700,
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
-          }}>
-            📦 Packages
-          </span>
-          {packages.length > 0 && (
-            <span style={{
-              fontSize:     10,
-              color:        t.overlay1,
-              background:   t.surface0,
-              borderRadius: 3,
-              padding:      '1px 5px',
-            }}>
-              {packages.length}
-            </span>
-          )}
-        </div>
-        <span style={{
-          fontSize:   13,
-          color:      t.overlay1,
-          transform:  isOpen ? 'rotate(180deg)' : 'none',
-          transition: 'transform 200ms',
-          display:    'inline-block',
-        }}>▾</span>
-      </button>
+      <PanelHeader
+        label="📦 Packages"
+        isOpen={isOpen}
+        onToggle={onToggle}
+        theme={t}
+        left={
+          packages.length > 0 ? (
+            <Badge label={String(packages.length)} theme={t} />
+          ) : undefined
+        }
+      />
 
-      {/* ── Panel body ── */}
       {isOpen && (
         <div style={{
-          height:    contentHeight,
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          borderTop: `1px solid ${t.surface0}`,
-          padding:   '12px 14px 14px',
-          display:   'flex',
+          height:        contentHeight,
+          overflowY:     'auto',
+          overflowX:     'hidden',
+          borderTop:     `1px solid ${t.surface0}`,
+          padding:       '12px 14px 14px',
+          display:       'flex',
           flexDirection: 'column',
-          gap:       12,
+          gap:           12,
+          boxSizing:     'border-box',
         }}>
 
-          {/* Search + controls row */}
+          {/* ── Search section ── */}
           <div ref={containerRef} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
 
             {/* Search input + dropdown */}
             <div style={{ position: 'relative' }}>
-              <input
+              <Input
                 ref={inputRef}
                 type="text"
                 value={search}
@@ -219,12 +188,12 @@ export function PackageManager({
                 onKeyDown={handleKeyDown}
                 onFocus={() => results.length > 0 && setDropVisible(true)}
                 placeholder="Search npm packages…"
-                style={inp}
+                theme={t}
                 autoComplete="off"
                 spellCheck={false}
               />
 
-              {/* Loading spinner */}
+              {/* Spinner */}
               {loading && (
                 <span style={{
                   position:  'absolute',
@@ -234,59 +203,57 @@ export function PackageManager({
                   color:     t.overlay0,
                   fontSize:  14,
                   animation: 'spin 1s linear infinite',
+                  lineHeight: 1,
                 }}>⟳</span>
               )}
 
-              {/* Dropdown */}
+              {/* Dropdown results */}
               {dropVisible && results.length > 0 && (
-                <div
-                  ref={dropRef}
-                  style={{
-                    position:  'absolute',
-                    top:       'calc(100% + 4px)',
-                    left:      0,
-                    right:     0,
-                    background: t.surface0,
-                    border:    `1px solid ${t.surface1}`,
-                    borderRadius: 6,
-                    overflowY:  'auto',
-                    maxHeight:  220,
-                    zIndex:     200,
-                    boxShadow:  `0 8px 24px ${t.crust}88`,
-                  }}
-                >
+                <div style={{
+                  position:     'absolute',
+                  top:          'calc(100% + 4px)',
+                  left:         0,
+                  right:        0,
+                  background:   t.surface0,
+                  border:       `1px solid ${t.surface1}`,
+                  borderRadius: 6,
+                  overflowY:    'auto',
+                  maxHeight:    220,
+                  zIndex:       200,
+                  boxShadow:    `0 8px 24px ${t.crust}88`,
+                }}>
                   {results.map(pkg => (
                     <button
                       key={pkg.name}
                       onMouseDown={e => { e.preventDefault(); handleSelect(pkg); }}
                       style={{
-                        width:      '100%',
-                        padding:    '9px 12px',
-                        background: 'transparent',
-                        border:     'none',
-                        borderBottom: `1px solid ${t.surface1}44`,
-                        textAlign:  'left',
-                        cursor:     'pointer',
-                        display:    'flex',
+                        width:         '100%',
+                        padding:       '9px 12px',
+                        background:    'transparent',
+                        border:        'none',
+                        borderBottom:  `1px solid ${t.surface1}44`,
+                        textAlign:     'left',
+                        cursor:        'pointer',
+                        display:       'flex',
                         flexDirection: 'column',
-                        gap:        2,
+                        gap:           2,
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ color: t.text, fontWeight: 600, fontSize: 12, fontFamily: 'monospace' }}>
+                        <span style={{ color: t.text, fontWeight: 600, fontSize: 12, fontFamily: FONT }}>
                           {pkg.name}
                         </span>
-                        <span style={{ color: t.overlay1, fontSize: 10, fontFamily: 'monospace' }}>
+                        <span style={{ color: t.overlay1, fontSize: 10, fontFamily: FONT }}>
                           @{pkg.version}
                         </span>
                       </div>
                       {pkg.description && (
                         <span style={{
-                          color:     t.overlay0,
-                          fontSize:  11,
-                          overflow:  'hidden',
+                          color:        t.overlay0,
+                          fontSize:     11,
+                          overflow:     'hidden',
                           textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
+                          whiteSpace:   'nowrap',
                         }}>
                           {pkg.description.length > 72
                             ? pkg.description.slice(0, 72) + '…'
@@ -299,54 +266,39 @@ export function PackageManager({
               )}
             </div>
 
-            {/* Version + CDN + Add — responsive row */}
+            {/* Version + CDN + Add row */}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <input
+              <Input
                 type="text"
                 value={version}
                 onChange={e => setVersion(e.target.value)}
                 placeholder="Version"
-                style={{ ...inp, width: 90, flex: 'none' }}
+                theme={t}
+                style={{ width: 90, flex: 'none' }}
               />
 
               <select
                 value={cdn}
                 onChange={e => setCdn(e.target.value as CdnProvider)}
-                style={{
-                  ...inp,
-                  width:  'auto',
-                  flex:   '1 1 90px',
-                  cursor: 'pointer',
-                  appearance: 'auto',
-                }}
+                style={selectStyle}
               >
                 <option value="esm.sh">esm.sh</option>
                 <option value="unpkg">unpkg</option>
                 <option value="jsdelivr">jsdelivr</option>
               </select>
 
-              <button
+              <Button
                 onClick={handleAdd}
                 disabled={!selected}
-                style={{
-                  flex:         '1 1 70px',
-                  padding:      '9px 14px',
-                  fontSize:     12,
-                  fontWeight:   700,
-                  fontFamily:   'monospace',
-                  background:   selected ? t.green : t.surface1,
-                  color:        selected ? t.crust  : t.overlay0,
-                  border:       'none',
-                  borderRadius: 5,
-                  cursor:       selected ? 'pointer' : 'not-allowed',
-                  transition:   'background 150ms',
-                }}
+                variant="primary"
+                theme={t}
+                style={{ flex: '1 1 70px', justifyContent: 'center', fontFamily: FONT }}
               >
                 + Add
-              </button>
+              </Button>
             </div>
 
-            {/* Error */}
+            {/* Error message */}
             {error && (
               <div style={{
                 padding:      '6px 10px',
@@ -368,7 +320,7 @@ export function PackageManager({
                 color:        t.overlay1,
                 background:   t.surface0,
                 borderRadius: 4,
-                fontFamily:   'monospace',
+                fontFamily:   FONT,
                 wordBreak:    'break-all',
               }}>
                 {cdnUrl(selected.name, version || selected.version, cdn)}
@@ -376,7 +328,7 @@ export function PackageManager({
             )}
           </div>
 
-          {/* Installed list */}
+          {/* ── Installed packages list ── */}
           {packages.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <span style={{
@@ -388,6 +340,7 @@ export function PackageManager({
               }}>
                 Installed ({packages.length})
               </span>
+
               {packages.map(pkg => (
                 <div
                   key={pkg.name}
@@ -395,36 +348,26 @@ export function PackageManager({
                     display:      'flex',
                     alignItems:   'center',
                     gap:          10,
-                    padding:      '7px 10px',
+                    padding:      '8px 10px',
                     background:   t.surface0,
                     border:       `1px solid ${t.surface1}`,
                     borderRadius: 5,
                   }}
                 >
-                  <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <span style={{ color: t.text, fontSize: 12, fontWeight: 600, fontFamily: 'monospace' }}>
+                      <span style={{ color: t.text, fontSize: 12, fontWeight: 600, fontFamily: FONT }}>
                         {pkg.name}
                       </span>
-                      <span style={{ color: t.overlay1, fontSize: 10, fontFamily: 'monospace' }}>
+                      <span style={{ color: t.overlay1, fontSize: 10, fontFamily: FONT }}>
                         @{pkg.version}
                       </span>
-                      <span style={{
-                        color:        t.blue,
-                        fontSize:     9,
-                        fontFamily:   'monospace',
-                        background:   `${t.blue}18`,
-                        border:       `1px solid ${t.blue}30`,
-                        borderRadius: 3,
-                        padding:      '1px 4px',
-                      }}>
-                        {pkg.cdn}
-                      </span>
+                      <Badge label={pkg.cdn} variant="info" theme={t} />
                     </div>
                     <span style={{
                       color:        t.overlay0,
                       fontSize:     9,
-                      fontFamily:   'monospace',
+                      fontFamily:   FONT,
                       overflow:     'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace:   'nowrap',
@@ -432,23 +375,16 @@ export function PackageManager({
                       {pkg.url}
                     </span>
                   </div>
-                  <button
+
+                  <Button
                     onClick={() => onRemovePackage(pkg.name)}
-                    title="Remove"
-                    style={{
-                      background: 'none',
-                      border:     `1px solid ${t.red}44`,
-                      borderRadius: 4,
-                      color:      t.red,
-                      cursor:     'pointer',
-                      padding:    '3px 7px',
-                      fontSize:   12,
-                      flexShrink: 0,
-                      lineHeight: 1,
-                    }}
+                    variant="danger"
+                    theme={t}
+                    title="Remove package"
+                    style={{ padding: '4px 8px', fontSize: 12 }}
                   >
                     ✕
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>
@@ -456,8 +392,8 @@ export function PackageManager({
 
           {/* Footer hint */}
           <div style={{ fontSize: 10, color: t.overlay0, fontStyle: 'italic', marginTop: 'auto' }}>
-            Imports as:{' '}
-            <code style={{ color: t.mauve }}>import * as name from 'url'</code>
+            Auto-imported as a smart alias:{' '}
+            <code style={{ color: t.mauve, fontFamily: FONT }}>const name = mod.default ?? mod</code>
           </div>
         </div>
       )}

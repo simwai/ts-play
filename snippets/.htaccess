@@ -1,0 +1,11 @@
+# Prevent direct access to stored snippets.
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>
+
+<IfModule !mod_authz_core.c>
+  Deny from all
+</IfModule>
+
+# Never execute anything from this directory.
+php_flag engine off
