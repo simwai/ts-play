@@ -14,11 +14,12 @@ import { formatAllFiles, loadPrettier } from './lib/formatter';
 
 // ── Auto-detect imports ───────────────────────────────────────────────────────
 function detectImports(code: string): string[] {
+  const noComments = code.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
   const imports = new Set<string>();
   // Matches: import { x } from 'pkg', import x from 'pkg', export { x } from 'pkg', import('pkg')
   const regex = /(?:import|export)\s+(?:[\s\S]*?)\s+from\s+['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
   let match;
-  while ((match = regex.exec(code)) !== null) {
+  while ((match = regex.exec(noComments)) !== null) {
     const pkg = match[1] || match[2];
     if (pkg && !pkg.startsWith('.') && !pkg.startsWith('/') && !pkg.startsWith('http')) {
       // Extract base package name (handle scoped packages like @types/react vs react/jsx-runtime)
@@ -550,16 +551,17 @@ export function App() {
         try {
           data = JSON.parse(text);
         } catch {
+          const preview = text.slice(0, 150).replace(/\n/g, ' ');
           if (!res.ok) {
-            lastError = new Error(`Share service unavailable (${res.status}). Ensure the PHP API is served correctly.`);
+            lastError = new Error(`Share API failed (${res.status}). Raw response: ${preview}...`);
             continue;
           }
-          lastError = new Error('Share service returned a non-JSON response. Ensure the PHP API is served correctly.');
+          lastError = new Error(`Share API returned invalid JSON. Raw response: ${preview}...`);
           continue;
         }
 
         if (!res.ok) {
-          lastError = new Error(data?.error || `Share service unavailable (${res.status}). Ensure the PHP API is served correctly.`);
+          lastError = new Error(data?.error || `Share API failed (${res.status}).`);
           continue;
         }
 
@@ -656,10 +658,11 @@ export function App() {
     try {
       data = JSON.parse(text);
     } catch {
+      const preview = text.slice(0, 150).replace(/\n/g, ' ');
       throw new Error(
         res.ok
-          ? 'Share service returned a non-JSON response. Ensure the PHP API is served correctly.'
-          : `Share service unavailable (${res.status}). Ensure the PHP API is served correctly.`
+          ? `Share API returned invalid JSON. Raw response: ${preview}...`
+          : `Share API failed (${res.status}). Raw response: ${preview}...`
       );
     }
     if (!res.ok) {
@@ -789,10 +792,17 @@ export function App() {
     const origError = console.error;
     const origWarn  = console.warn;
     const origInfo  = console.info;
+    const origDebug = console.debug;
+    const origTrace = console.trace;
+    const origDir   = console.dir;
+
     console.log   = (...a) => { addMessage('log',   a); origLog(...a); };
     console.error = (...a) => { addMessage('error', a); origError(...a); };
     console.warn  = (...a) => { addMessage('warn',  a); origWarn(...a); };
     console.info  = (...a) => { addMessage('info',  a); origInfo(...a); };
+    console.debug = (...a) => { addMessage('debug', a); origDebug(...a); };
+    console.trace = (...a) => { addMessage('trace', a); origTrace(...a); };
+    console.dir   = (...a) => { addMessage('dir',   a); origDir(...a); };
 
     try {
       const blob = new Blob([compiled.js], { type: 'application/javascript' });
@@ -806,6 +816,9 @@ export function App() {
       console.error = origError;
       console.warn  = origWarn;
       console.info  = origInfo;
+      console.debug = origDebug;
+      console.trace = origTrace;
+      console.dir   = origDir;
       setIsRunning(false);
     }
   }, [tsCode, jsDirty, addMessage]);
@@ -858,6 +871,21 @@ export function App() {
     }
     swiping.current = false;
   }, [activeTab, compactForKeyboard]);
+
+  // Toggle handlers that blur active element to prevent keyboard loop
+  const toggleConsole = useCallback(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    setConsoleOpen(o => !o);
+  }, []);
+
+  const togglePackageManager = useCallback(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    setPackageManagerOpen(o => !o);
+  }, []);
 
   const t = theme;
 
@@ -1273,7 +1301,7 @@ export function App() {
           onClear={() => setMessages([])}
           theme={t}
           isOpen={consoleOpen}
-          onToggle={() => setConsoleOpen(o => !o)}
+          onToggle={toggleConsole}
           contentHeight={panelHeight}
         />
 
@@ -1282,7 +1310,7 @@ export function App() {
           theme={t}
           packages={installedPackages}
           isOpen={packageManagerOpen}
-          onToggle={() => setPackageManagerOpen(o => !o)}
+          onToggle={togglePackageManager}
           contentHeight={panelHeight}
         />
       </div>

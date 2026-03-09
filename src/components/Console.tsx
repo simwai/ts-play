@@ -5,7 +5,7 @@ import { IconButton } from './ui/IconButton';
 import { PanelHeader } from './ui/PanelHeader';
 
 export interface ConsoleMessage {
-  type: 'log' | 'error' | 'warn' | 'info';
+  type: 'log' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'dir';
   args: string[];
   ts: number;
 }
@@ -23,8 +23,8 @@ const FONT = "'JetBrains Mono','Fira Code','Cascadia Code',monospace";
 
 function typeVariant(type: ConsoleMessage['type']): 'error' | 'warn' | 'info' | 'default' {
   if (type === 'error') return 'error';
-  if (type === 'warn')  return 'warn';
-  if (type === 'info')  return 'info';
+  if (type === 'warn' || type === 'trace')  return 'warn';
+  if (type === 'info' || type === 'debug' || type === 'dir')  return 'info';
   return 'default';
 }
 
@@ -32,13 +32,16 @@ function typeLabel(type: ConsoleMessage['type']): string {
   if (type === 'error') return 'ERR';
   if (type === 'warn')  return 'WRN';
   if (type === 'info')  return 'INF';
+  if (type === 'debug') return 'DBG';
+  if (type === 'trace') return 'TRC';
+  if (type === 'dir')   return 'DIR';
   return 'LOG';
 }
 
 function typeColor(type: ConsoleMessage['type'], t: CatppuccinTheme): string {
   if (type === 'error') return t.red;
-  if (type === 'warn')  return t.yellow;
-  if (type === 'info')  return t.blue;
+  if (type === 'warn' || type === 'trace')  return t.yellow;
+  if (type === 'info' || type === 'debug' || type === 'dir')  return t.blue;
   return t.text;
 }
 

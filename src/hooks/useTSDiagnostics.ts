@@ -20,6 +20,10 @@ const libFiles: Record<string, { version: number; content: string }> = {};
 let libsLoaded = false;
 let libsLoadingPromise: Promise<void> | null = null;
 
+export function getLanguageService() {
+  return ls;
+}
+
 function normalizeVirtualPath(fileName: string): string {
   return fileName.replace(/\\/g, '/').replace(/^\/+/, '');
 }
@@ -305,7 +309,7 @@ export function useTSDiagnostics(
           console.error("Diagnostic pipeline error", e);
         }
       });
-    }, 400); // debounce compiling diagnostics
+    }, 150); // debounce compiling diagnostics
 
     return () => {
       if (timerRef.current) window.clearTimeout(timerRef.current);
