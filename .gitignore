@@ -30,3 +30,5 @@ snippets/*.json
 
 # PHP
 *.php.bak
+.aider*
+*.old
