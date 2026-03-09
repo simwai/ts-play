@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 
 type VKState = {
   keyboardOpen: boolean;
@@ -16,28 +16,28 @@ function activeTextTarget() {
 
 export function useVirtualKeyboard(): VKState {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [baselineHeight, setBaselineHeight] = useState(0);
+  const baselineHeight = useRef(0);
 
   useEffect(() => {
     const vv = window.visualViewport;
     const handleOrientation = () => {
       setKeyboardHeight(0);
-      setBaselineHeight(vv?.height ?? window.innerHeight);
+      baselineHeight.current = vv?.height ?? window.innerHeight;
     };
     const handleFocusOut = () => {
       setKeyboardHeight(0);
-      const viewportHeight = vv?.height ?? window.innerHeight;
-      setBaselineHeight(viewportHeight);
+      baselineHeight.current = vv?.height ?? window.innerHeight;
     };
     const measure = () => {
       const viewportHeight = vv?.height ?? window.innerHeight;
-      setBaselineHeight((prev) => {
-        if (!prev) return viewportHeight;
-        if (!activeTextTarget() && viewportHeight > prev) return viewportHeight;
-        return prev;
-      });
+      
+      if (!baselineHeight.current) {
+        baselineHeight.current = viewportHeight;
+      } else if (!activeTextTarget() && viewportHeight > baselineHeight.current) {
+        baselineHeight.current = viewportHeight;
+      }
 
-      const base = baselineHeight || viewportHeight;
+      const base = baselineHeight.current || viewportHeight;
       const delta = Math.max(0, Math.round(base - viewportHeight));
       const open = activeTextTarget() && delta > 120;
       setKeyboardHeight(open ? delta : 0);
@@ -57,7 +57,7 @@ export function useVirtualKeyboard(): VKState {
       window.removeEventListener('focusout', handleFocusOut);
       window.removeEventListener('orientationchange', handleOrientation);
     };
-  }, [baselineHeight]);
+  }, []);
 
   const isMobileLike = useMemo(() => {
     return window.matchMedia?.('(max-width: 820px)').matches ?? window.innerWidth <= 820;

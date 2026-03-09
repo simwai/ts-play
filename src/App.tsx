@@ -16,13 +16,12 @@ import { formatAllFiles, loadPrettier } from './lib/formatter';
 function detectImports(code: string): string[] {
   const noComments = code.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
   const imports = new Set<string>();
-  // Matches: import { x } from 'pkg', import x from 'pkg', export { x } from 'pkg', import('pkg')
-  const regex = /(?:import|export)\s+(?:[\s\S]*?)\s+from\s+['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+  // Matches: import { x } from 'pkg', import x from 'pkg', export { x } from 'pkg', import('pkg'), import "pkg"
+  const regex = /(?:import|export)\s+(?:[\s\S]*?)\s+from\s+['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)|import\s+['"]([^'"]+)['"]/g;
   let match;
   while ((match = regex.exec(noComments)) !== null) {
-    const pkg = match[1] || match[2];
+    const pkg = match[1] || match[2] || match[3];
     if (pkg && !pkg.startsWith('.') && !pkg.startsWith('/') && !pkg.startsWith('http')) {
-      // Extract base package name (handle scoped packages like @types/react vs react/jsx-runtime)
       const parts = pkg.split('/');
       const name = pkg.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0];
       if (name) imports.add(name);
@@ -40,7 +39,6 @@ async function loadEsbuild() {
   if (!esbuildPromise) {
     esbuildPromise = (async () => {
       try {
-        // Verify esbuild is loaded
         if (!esbuild || typeof esbuild.initialize !== 'function') {
           throw new Error('esbuild-wasm not properly loaded');
         }
@@ -81,12 +79,9 @@ function loadTS(): Promise<void> {
 }
 
 // ── Compiler ─────────────────────────────────────────────────────────────────
-// Uses esbuild-wasm for JS and .d.ts (via TypeScript type analysis).
-
 async function compile(tsCode: string): Promise<{ js: string; dts: string }> {
   await loadEsbuild();
 
-  // Verify esbuild is ready and has required methods
   if (!esbuildReady || typeof esbuild.build !== 'function') {
     throw new Error('esbuild not properly initialized');
   }
@@ -99,7 +94,6 @@ async function compile(tsCode: string): Promise<{ js: string; dts: string }> {
         namespace: 'http-url',
       }));
 
-      // Absolute paths from CDN responses (e.g. "/pkg@1.0.0?target=es2020")
       build.onResolve({ filter: /^\//, namespace: 'http-url' }, (args) => {
         const base = new URL(args.importer).origin;
         return { path: new URL(args.path, base).toString(), namespace: 'http-url' };
@@ -111,7 +105,6 @@ async function compile(tsCode: string): Promise<{ js: string; dts: string }> {
         return { path: resolved, namespace: 'http-url' };
       });
 
-      // Auto-resolve bare imports to esm.sh
       build.onResolve({ filter: /^[^./].*/ }, (args) => {
         const fallback = `https://esm.sh/${args.path}`;
         return { path: fallback, namespace: 'http-url' };
@@ -159,10 +152,6 @@ async function compile(tsCode: string): Promise<{ js: string; dts: string }> {
   }
 }
 
-/**
- * Generates TypeScript declaration file content from source code.
- * Extracts interfaces, types, functions, classes, enums, and variables.
- */
 function generateDeclarations(code: string): string {
   const lines = code.split('\n');
   const dtsLines: string[] = [];
@@ -177,7 +166,6 @@ function generateDeclarations(code: string): string {
     const line = lines[i];
     const trimmed = line.trim();
 
-    // Track block comments / JSDoc
     if (inBlockComment) {
       if (capturing) captureLines.push(line);
       else pendingJsDoc.push(line);
@@ -192,14 +180,12 @@ function generateDeclarations(code: string): string {
       continue;
     }
 
-    // If we're capturing a multi-line block (interface, type, class, enum)
     if (capturing) {
       captureLines.push(line);
       braceDepth += (line.match(/\{/g) || []).length;
       braceDepth -= (line.match(/\}/g) || []).length;
       if (braceDepth <= 0) {
         if (captureType === 'class') {
-          // For classes, re-emit as declare class with method signatures only
           dtsLines.push(...pendingJsDoc);
           dtsLines.push(...extractClassDeclaration(captureLines));
         } else {
@@ -215,16 +201,10 @@ function generateDeclarations(code: string): string {
       continue;
     }
 
-    // Skip single-line comments (preserve for JSDoc)
     if (trimmed.startsWith('//')) continue;
-
-    // Skip empty lines
     if (!trimmed) continue;
-
-    // Skip import/require statements
     if (trimmed.startsWith('import ') || trimmed.startsWith('require(')) continue;
 
-    // ── Interface ──
     if (/^(export\s+)?interface\s+/.test(trimmed)) {
       capturing = true;
       captureType = 'interface';
@@ -239,10 +219,8 @@ function generateDeclarations(code: string): string {
       continue;
     }
 
-    // ── Type alias ──
     if (/^(export\s+)?type\s+\w+/.test(trimmed)) {
       dtsLines.push(...pendingJsDoc);
-      // Multi-line type
       if (!trimmed.includes(';') && trimmed.includes('{')) {
         capturing = true;
         captureType = 'type';
@@ -256,7 +234,6 @@ function generateDeclarations(code: string): string {
       continue;
     }
 
-    // ── Enum ──
     if (/^(export\s+)?(const\s+)?enum\s+/.test(trimmed)) {
       capturing = true;
       captureType = 'enum';
@@ -266,7 +243,6 @@ function generateDeclarations(code: string): string {
       continue;
     }
 
-    // ── Class ──
     if (/^(export\s+)?(abstract\s+)?class\s+/.test(trimmed)) {
       capturing = true;
       captureType = 'class';
@@ -275,7 +251,6 @@ function generateDeclarations(code: string): string {
       continue;
     }
 
-    // ── Function ──
     const fnMatch = trimmed.match(/^(export\s+)?(async\s+)?function\s+(\w+)\s*(<[^>]*>)?\s*\(([^)]*)\)\s*(?::\s*([^{]+?))?/);
     if (fnMatch) {
       const [, exp, isAsync, name, generics, params, returnType] = fnMatch;
@@ -287,7 +262,6 @@ function generateDeclarations(code: string): string {
       dtsLines.push(`${prefix} ${asyncPrefix}function ${name}${gen}(${params}): ${ret};`);
       dtsLines.push('');
       pendingJsDoc = [];
-      // Skip function body
       if (trimmed.includes('{')) {
         let depth = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
         while (depth > 0 && i + 1 < lines.length) {
@@ -299,7 +273,6 @@ function generateDeclarations(code: string): string {
       continue;
     }
 
-    // ── Arrow function / const ──
     const constMatch = trimmed.match(/^(export\s+)?(const|let|var)\s+(\w+)\s*(?::\s*([^=]+?))?\s*=/);
     if (constMatch) {
       const [, exp, _kind, name, explicitType] = constMatch;
@@ -310,7 +283,6 @@ function generateDeclarations(code: string): string {
         dtsLines.push(`${prefix} const ${name}: ${explicitType.trim()};`);
         dtsLines.push('');
       } else {
-        // Try to infer type from value
         const valueMatch = trimmed.match(/=\s*(.+?)(?:;|$)/);
         if (valueMatch) {
           const val = valueMatch[1].trim();
@@ -324,7 +296,6 @@ function generateDeclarations(code: string): string {
             const className = val.match(/new\s+(\w+)/)?.[1];
             inferredType = className || 'unknown';
           }
-          // Check if it's an arrow function
           if (val.includes('=>') || val.startsWith('function') || val.startsWith('async')) {
             const arrowMatch = val.match(/(?:async\s+)?\(([^)]*)\)\s*(?::\s*([^=]+?))?\s*=>/);
             if (arrowMatch) {
@@ -336,7 +307,6 @@ function generateDeclarations(code: string): string {
               dtsLines.push(`${prefix} const ${name}: (${aParams}) => ${retType};`);
               dtsLines.push('');
               pendingJsDoc = [];
-              // Skip body
               if (trimmed.includes('{')) {
                 let depth = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
                 while (depth > 0 && i + 1 < lines.length) {
@@ -354,7 +324,6 @@ function generateDeclarations(code: string): string {
         }
       }
       pendingJsDoc = [];
-      // Skip multi-line initializers
       if (trimmed.includes('{') && !trimmed.includes('}')) {
         let depth = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
         while (depth > 0 && i + 1 < lines.length) {
@@ -366,14 +335,12 @@ function generateDeclarations(code: string): string {
       continue;
     }
 
-    // Clear pending JSDoc if nothing matched
     pendingJsDoc = [];
   }
 
   return dtsLines.join('\n').trim() || '// No exported declarations found';
 }
 
-/** Extract class declaration with method/property signatures only */
 function extractClassDeclaration(lines: string[]): string[] {
   const result: string[] = [];
   const firstLine = lines[0].trim();
@@ -388,14 +355,12 @@ function extractClassDeclaration(lines: string[]): string[] {
     const line = lines[i].trim();
     if (!line || line === '{' || line === '}') continue;
 
-    // Property declarations
     const propMatch = line.match(/^(public|private|protected|readonly|static|\s)*(\w+)\s*[?!]?\s*:\s*([^;=]+)/);
     if (propMatch) {
       result.push(`  ${propMatch[2]}: ${propMatch[3].trim()};`);
       continue;
     }
 
-    // Method declarations  
     const methMatch = line.match(/^(public|private|protected|static|async|\s)*(\w+)\s*(<[^>]*>)?\s*\(([^)]*)\)\s*(?::\s*([^{;]+))?/);
     if (methMatch) {
       const [, , name, gen, params, ret] = methMatch;
@@ -404,7 +369,6 @@ function extractClassDeclaration(lines: string[]): string[] {
       } else {
         result.push(`  ${name}${gen || ''}(${params}): ${ret?.trim() || 'void'};`);
       }
-      // Skip method body
       if (line.includes('{')) {
         let depth = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
         while (depth > 0 && i + 1 < lines.length - 1) {
@@ -481,37 +445,65 @@ export function App() {
   const [jsDirty, setJsDirty] = useState(false);
   const [showModal, setShowModal] = useState(false);
   
-  // Package manager state
   const [installedPackages, setInstalledPackages] = useState<InstalledPackage[]>([]);
   const [packageTypings, setPackageTypings] = useState<Record<string, string>>({});
 
-  // Resize state for the open panel
   const [panelHeight, setPanelHeight] = useState(180);
   const [isResizing, setIsResizing] = useState(false);
   const resizeStartY = useRef(0);
   const resizeStartHeight = useRef(0);
   
-  // Track which panels are open
   const [packageManagerOpen, setPackageManagerOpen] = useState(false);
   const { keyboardOpen, keyboardHeight, isMobileLike } = useVirtualKeyboard();
   const compactForKeyboard = keyboardOpen && isMobileLike;
 
-  // Copy feedback
   const [copied, setCopied] = useState(false);
-  
-  // Share feedback
   const [sharing, setSharing] = useState(false);
   const [shareSuccess, setShareSuccess] = useState(false);
-
-  // Format feedback
   const [formatting, setFormatting] = useState(false);
   const [formatSuccess, setFormatSuccess] = useState(false);
 
-  // Swipe state
   const swipeRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const swiping = useRef(false);
+
+  // Console capture (Global)
+  const addMessage = useCallback((type: ConsoleMessage['type'], args: unknown[]) => {
+    const formatted = args.map(a => {
+      if (typeof a === 'string') return a;
+      try { return JSON.stringify(a, null, 2); } catch { return String(a); }
+    });
+    setMessages(prev => [...prev, { type, args: formatted, ts: Date.now() }]);
+  }, []);
+
+  useEffect(() => {
+    const origLog   = console.log;
+    const origError = console.error;
+    const origWarn  = console.warn;
+    const origInfo  = console.info;
+    const origDebug = console.debug;
+    const origTrace = console.trace;
+    const origDir   = console.dir;
+
+    console.log   = (...a) => { addMessage('log',   a); origLog(...a); };
+    console.error = (...a) => { addMessage('error', a); origError(...a); };
+    console.warn  = (...a) => { addMessage('warn',  a); origWarn(...a); };
+    console.info  = (...a) => { addMessage('info',  a); origInfo(...a); };
+    console.debug = (...a) => { addMessage('debug', a); origDebug(...a); };
+    console.trace = (...a) => { addMessage('trace', a); origTrace(...a); };
+    console.dir   = (...a) => { addMessage('dir',   a); origDir(...a); };
+
+    return () => {
+      console.log   = origLog;
+      console.error = origError;
+      console.warn  = origWarn;
+      console.info  = origInfo;
+      console.debug = origDebug;
+      console.trace = origTrace;
+      console.dir   = origDir;
+    };
+  }, [addMessage]);
 
   // Auto-detect imports
   useEffect(() => {
@@ -551,12 +543,12 @@ export function App() {
         try {
           data = JSON.parse(text);
         } catch {
-          const preview = text.slice(0, 150).replace(/\n/g, ' ');
+          const preview = text.slice(0, 300).replace(/\n/g, ' ');
           if (!res.ok) {
-            lastError = new Error(`Share API failed (${res.status}). Raw response: ${preview}...`);
+            lastError = new Error(`Share API failed (${res.status} ${res.statusText}) at ${url}. Raw response: ${preview}...`);
             continue;
           }
-          lastError = new Error(`Share API returned invalid JSON. Raw response: ${preview}...`);
+          lastError = new Error(`Share API returned invalid JSON at ${url}. Raw response: ${preview}...`);
           continue;
         }
 
@@ -574,7 +566,6 @@ export function App() {
     throw lastError ?? new Error('Share service unavailable. Ensure the PHP API is served correctly.');
   }, [getApiCandidates]);
 
-  // Resize handlers
   const handleResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if (!consoleOpen && !packageManagerOpen) return;
     e.preventDefault();
@@ -614,7 +605,6 @@ export function App() {
     };
   }, [isResizing, handleResizeMove, handleResizeEnd]);
 
-  // Theme
   useEffect(() => {
     setTheme(getTheme(themeMode));
   }, [themeMode]);
@@ -624,16 +614,6 @@ export function App() {
     document.body.style.margin = '0';
   }, [theme]);
 
-  // Console capture
-  const addMessage = useCallback((type: ConsoleMessage['type'], args: unknown[]) => {
-    const formatted = args.map(a => {
-      if (typeof a === 'string') return a;
-      try { return JSON.stringify(a, null, 2); } catch { return String(a); }
-    });
-    setMessages(prev => [...prev, { type, args: formatted, ts: Date.now() }]);
-  }, []);
-
-  // Load compiler
   useEffect(() => {
     Promise.all([loadEsbuild(), loadTS()])
       .then(() => setCompilerStatus('ready'))
@@ -658,7 +638,7 @@ export function App() {
     try {
       data = JSON.parse(text);
     } catch {
-      const preview = text.slice(0, 150).replace(/\n/g, ' ');
+      const preview = text.slice(0, 300).replace(/\n/g, ' ');
       throw new Error(
         res.ok
           ? `Share API returned invalid JSON. Raw response: ${preview}...`
@@ -671,7 +651,6 @@ export function App() {
     return data;
   }, []);
 
-  // Load shared snippet from URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const embedded = params.get('code') || window.location.hash.replace(/^#code=/, '');
@@ -708,9 +687,8 @@ export function App() {
           addMessage('error', [`Failed to load shared snippet: ${err.message}`]);
         });
     }
-  }, [addMessage, fetchApiJson]);
+  }, [addMessage, fetchApiJson, getApiUrl, parseJsonResponse]);
 
-  // Copy & Delete
   const handleCopyAll = useCallback(() => {
     const code = activeTab === 'ts' ? tsCode : activeTab === 'js' ? jsCode : dtsCode;
     navigator.clipboard.writeText(code).then(() => {
@@ -760,14 +738,12 @@ export function App() {
     }
   }, [tsCode, jsCode, dtsCode, addMessage]);
 
-  // Preload prettier in background after compiler is ready
   useEffect(() => {
     if (compilerStatus === 'ready') {
       loadPrettier().catch(() => {/* silent */});
     }
   }, [compilerStatus]);
 
-  // Run
   const doRun = useCallback(async (skipDirtyCheck = false) => {
     if (!skipDirtyCheck && jsDirty) { setShowModal(true); return; }
     setShowModal(false);
@@ -787,23 +763,6 @@ export function App() {
     setDtsCode(compiled.dts);
     setJsDirty(false);
 
-    // Execute
-    const origLog   = console.log;
-    const origError = console.error;
-    const origWarn  = console.warn;
-    const origInfo  = console.info;
-    const origDebug = console.debug;
-    const origTrace = console.trace;
-    const origDir   = console.dir;
-
-    console.log   = (...a) => { addMessage('log',   a); origLog(...a); };
-    console.error = (...a) => { addMessage('error', a); origError(...a); };
-    console.warn  = (...a) => { addMessage('warn',  a); origWarn(...a); };
-    console.info  = (...a) => { addMessage('info',  a); origInfo(...a); };
-    console.debug = (...a) => { addMessage('debug', a); origDebug(...a); };
-    console.trace = (...a) => { addMessage('trace', a); origTrace(...a); };
-    console.dir   = (...a) => { addMessage('dir',   a); origDir(...a); };
-
     try {
       const blob = new Blob([compiled.js], { type: 'application/javascript' });
       const url  = URL.createObjectURL(blob);
@@ -812,18 +771,10 @@ export function App() {
     } catch (e) {
       addMessage('error', [`Runtime error: ${(e as Error).message}`]);
     } finally {
-      console.log   = origLog;
-      console.error = origError;
-      console.warn  = origWarn;
-      console.info  = origInfo;
-      console.debug = origDebug;
-      console.trace = origTrace;
-      console.dir   = origDir;
       setIsRunning(false);
     }
   }, [tsCode, jsDirty, addMessage]);
 
-  // Swipe
   const isEditorTarget = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) return false;
     return !!target.closest('textarea');
@@ -861,18 +812,15 @@ export function App() {
     const currentIndex = tabs.indexOf(activeTab);
     
     if (dx < 0) {
-      // Swipe left - go to next tab
       const nextIndex = (currentIndex + 1) % tabs.length;
       setActiveTab(tabs[nextIndex]);
     } else {
-      // Swipe right - go to previous tab
       const prevIndex = (currentIndex - 1 + tabs.length) % tabs.length;
       setActiveTab(tabs[prevIndex]);
     }
     swiping.current = false;
   }, [activeTab, compactForKeyboard]);
 
-  // Toggle handlers that blur active element to prevent keyboard loop
   const toggleConsole = useCallback(() => {
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();

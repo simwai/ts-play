@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { getLanguageService } from './useTSDiagnostics';
+import { getLanguageService, updateTSFile } from './useTSDiagnostics';
 
 export interface TypeInfo {
   name:           string;
@@ -16,6 +16,9 @@ export function useTypeInfo() {
     if (!ls) return null;
 
     try {
+      // Ensure the language service has the exact current code before querying
+      updateTSFile('main.ts', code);
+
       const info = ls.getQuickInfoAtPosition('main.ts', offset);
       if (!info) return null;
 
