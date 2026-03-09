@@ -12,25 +12,22 @@ import { decodeSharePayload, encodeSharePayload } from './lib/shareCodec';
 import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
 import { formatAllFiles, loadPrettier } from './lib/formatter';
 
-function packageImportAlias(pkgName: string) {
-  return pkgName
-    .replace(/^@[^/]+\//, '')
-    .replace(/-([a-z])/g, (_, c) => c.toUpperCase())
-    .replace(/[^a-zA-Z0-9]/g, '') || 'pkg';
-}
-
-function packageNamespaceAlias(pkgName: string) {
-  return `__${packageImportAlias(pkgName)}Ns`;
-}
-
-function buildPackageImportBlock(pkg: InstalledPackage) {
-  const alias = packageImportAlias(pkg.name);
-  const ns = packageNamespaceAlias(pkg.name);
-  return [
-    `import * as ${ns} from '${pkg.name}';`,
-    `const ${alias}: (typeof ${ns} extends { default: infer D } ? D : typeof ${ns}) = ((${ns} as any).default ?? ${ns});`,
-    '',
-  ].join('\n');
+// ── Auto-detect imports ───────────────────────────────────────────────────────
+function detectImports(code: string): string[] {
+  const imports = new Set<string>();
+  // Matches: import { x } from 'pkg', import x from 'pkg', export { x } from 'pkg', import('pkg')
+  const regex = /(?:import|export)\s+(?:[\s\S]*?)\s+from\s+['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+  let match;
+  while ((match = regex.exec(code)) !== null) {
+    const pkg = match[1] || match[2];
+    if (pkg && !pkg.startsWith('.') && !pkg.startsWith('/') && !pkg.startsWith('http')) {
+      // Extract base package name (handle scoped packages like @types/react vs react/jsx-runtime)
+      const parts = pkg.split('/');
+      const name = pkg.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0];
+      if (name) imports.add(name);
+    }
+  }
+  return Array.from(imports);
 }
 
 // ── esbuild-wasm loader ───────────────────────────────────────────────────────
@@ -85,7 +82,7 @@ function loadTS(): Promise<void> {
 // ── Compiler ─────────────────────────────────────────────────────────────────
 // Uses esbuild-wasm for JS and .d.ts (via TypeScript type analysis).
 
-async function compile(tsCode: string, packages: InstalledPackage[]): Promise<{ js: string; dts: string }> {
+async function compile(tsCode: string): Promise<{ js: string; dts: string }> {
   await loadEsbuild();
 
   // Verify esbuild is ready and has required methods
@@ -113,14 +110,8 @@ async function compile(tsCode: string, packages: InstalledPackage[]): Promise<{ 
         return { path: resolved, namespace: 'http-url' };
       });
 
+      // Auto-resolve bare imports to esm.sh
       build.onResolve({ filter: /^[^./].*/ }, (args) => {
-        const matching = packages.find((pkg) => args.path === pkg.name || args.path.startsWith(`${pkg.name}/`));
-        if (matching) {
-          const suffix = args.path.slice(matching.name.length);
-          const base = matching.url.replace(/\/+$/, '');
-          const url = suffix ? `${base}${suffix}` : base;
-          return { path: url, namespace: 'http-url' };
-        }
         const fallback = `https://esm.sh/${args.path}`;
         return { path: fallback, namespace: 'http-url' };
       });
@@ -521,6 +512,20 @@ export function App() {
   const touchStartY = useRef(0);
   const swiping = useRef(false);
 
+  // Auto-detect imports
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const detected = detectImports(tsCode);
+      setInstalledPackages(detected.map(name => ({
+        name,
+        version: 'latest',
+        cdn: 'esm.sh',
+        url: `https://esm.sh/${name}`
+      })));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [tsCode]);
+
   const getApiCandidates = useCallback((path: string) => {
     const normalized = path.replace(/^\/+/, '');
     const base = new URL(document.baseURI || window.location.href);
@@ -672,7 +677,6 @@ export function App() {
         .then((payload) => {
           setTsCode(payload.tsCode || '');
           setJsCode(payload.jsCode || '');
-          setInstalledPackages(Array.isArray(payload.packages) ? payload.packages as InstalledPackage[] : []);
           addMessage('info', ['Loaded embedded share link (client-side, no server storage).']);
         })
         .catch((err) => {
@@ -689,7 +693,6 @@ export function App() {
           if (data.success) {
             setTsCode(data.tsCode);
             if (data.jsCode) setJsCode(data.jsCode);
-            if (data.packages) setInstalledPackages(data.packages);
             addMessage('info', [`✓ Loaded shared snippet (${data.remainingDays} days remaining)`]);
             const url = new URL(window.location.href);
             url.searchParams.delete('share');
@@ -770,7 +773,7 @@ export function App() {
 
     let compiled = { js: '', dts: '' };
     try {
-      compiled = await compile(tsCode, installedPackages);
+      compiled = await compile(tsCode);
     } catch (e) {
       setMessages([{ type: 'error', args: [`Compilation error: ${(e as Error).message}`], ts: Date.now() }]);
       setIsRunning(false);
@@ -855,51 +858,6 @@ export function App() {
     }
     swiping.current = false;
   }, [activeTab, compactForKeyboard]);
-
-  // Package Manager
-  const handleAddPackage = useCallback((pkg: InstalledPackage) => {
-    setInstalledPackages(prev => [...prev, pkg]);
-
-    const importBlock = buildPackageImportBlock(pkg);
-    setTsCode(prev => {
-      if (prev.includes(`from '${pkg.name}'`) || prev.includes(`from \"${pkg.name}\"`)) return prev;
-      const importMatch = prev.match(/^((?:import[^;]+;?\n)+)/);
-      if (importMatch) {
-        return prev.replace(importMatch[0], importMatch[0] + importBlock);
-      }
-      return importBlock + prev;
-    });
-  }, []);
-
-  const handleRemovePackage = useCallback((name: string) => {
-    const pkg = installedPackages.find(p => p.name === name);
-    if (pkg) {
-      const ns = packageNamespaceAlias(pkg.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const alias = packageImportAlias(pkg.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const escapedName = pkg.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const escapedUrl = pkg.url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      setTsCode(prev => {
-        const blockRegex = new RegExp(
-          `import\\s+\\*\\s+as\\s+${ns}\\s+from\\s+['\"]${escapedName}['\"];?\\n` +
-          `const\\s+${alias}\\s*:[^\n]+?=\\s*\\(\\(${ns}\\s+as\\s+any\\)\\.default\\s*\\?\\?\\s*${ns}\\)\\;?\\n?`,
-          'g'
-        );
-        const blockUrlRegex = new RegExp(
-          `import\\s+\\*\\s+as\\s+${ns}\\s+from\\s+['\"]${escapedUrl}['\"];?\\n` +
-          `const\\s+${alias}\\s*:[^\n]+?=\\s*\\(\\(${ns}\\s+as\\s+any\\)\\.default\\s*\\?\\?\\s*${ns}\\)\\;?\\n?`,
-          'g'
-        );
-        const bareImportRegex = new RegExp(`import\\s+[^\n]+from\\s+['\"]${escapedName}['\"];?\\n?`, 'g');
-        const legacyRegex = new RegExp(`import\\s+\\*\\s+as\\s+\\w+\\s+from\\s+['\"]${escapedUrl}['\"];?\\n?`, 'g');
-        return prev
-          .replace(blockRegex, '')
-          .replace(blockUrlRegex, '')
-          .replace(bareImportRegex, '')
-          .replace(legacyRegex, '');
-      });
-    }
-    setInstalledPackages(prev => prev.filter(p => p.name !== name));
-  }, [installedPackages]);
 
   const t = theme;
 
@@ -1323,8 +1281,6 @@ export function App() {
         <PackageManager
           theme={t}
           packages={installedPackages}
-          onAddPackage={handleAddPackage}
-          onRemovePackage={handleRemovePackage}
           isOpen={packageManagerOpen}
           onToggle={() => setPackageManagerOpen(o => !o)}
           contentHeight={panelHeight}
