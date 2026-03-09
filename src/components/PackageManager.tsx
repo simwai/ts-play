@@ -1,3 +1,4 @@
+import React from 'react';
 import { CatppuccinTheme } from '../lib/theme';
 import { Badge } from './ui/Badge';
 import { PanelHeader } from './ui/PanelHeader';
@@ -21,7 +22,7 @@ interface Props {
 
 const FONT = "'JetBrains Mono','Fira Code','Cascadia Code',monospace";
 
-export function PackageManager({
+export const PackageManager = React.memo(function PackageManager({
   theme: t, packages, isOpen, onToggle, contentHeight,
 }: Props) {
   return (
@@ -123,4 +124,4 @@ export function PackageManager({
       )}
     </div>
   );
-}
+});

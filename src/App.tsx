@@ -12,21 +12,53 @@ import { decodeSharePayload, encodeSharePayload } from './lib/shareCodec';
 import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
 import { formatAllFiles, loadPrettier } from './lib/formatter';
 
-// ── Auto-detect imports ───────────────────────────────────────────────────────
+// ── Auto-detect imports (AST based) ───────────────────────────────────────────
 function detectImports(code: string): string[] {
-  const noComments = code.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
-  const imports = new Set<string>();
-  // Matches: import { x } from 'pkg', import x from 'pkg', export { x } from 'pkg', import('pkg'), import "pkg"
-  const regex = /(?:import|export)\s+(?:[\s\S]*?)\s+from\s+['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)|import\s+['"]([^'"]+)['"]/g;
-  let match;
-  while ((match = regex.exec(noComments)) !== null) {
-    const pkg = match[1] || match[2] || match[3];
-    if (pkg && !pkg.startsWith('.') && !pkg.startsWith('/') && !pkg.startsWith('http')) {
-      const parts = pkg.split('/');
-      const name = pkg.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0];
-      if (name) imports.add(name);
+  const ts = (window as any).ts;
+  if (!ts) {
+    // Fallback to regex if TS is not loaded yet
+    const noComments = code.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
+    const imports = new Set<string>();
+    const regex = /(?:import|export)\s+(?:[\s\S]*?)\s+from\s+['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)|import\s+['"]([^'"]+)['"]/g;
+    let match;
+    while ((match = regex.exec(noComments)) !== null) {
+      const pkg = match[1] || match[2] || match[3];
+      if (pkg && !pkg.startsWith('.') && !pkg.startsWith('/') && !pkg.startsWith('http')) {
+        const parts = pkg.split('/');
+        const name = pkg.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0];
+        if (name) imports.add(name);
+      }
     }
+    return Array.from(imports);
   }
+
+  // Use AST for robust parsing
+  const sourceFile = ts.createSourceFile('temp.ts', code, ts.ScriptTarget.Latest, true);
+  const imports = new Set<string>();
+
+  function visit(node: any) {
+    if (ts.isImportDeclaration(node)) {
+      const text = node.moduleSpecifier?.text;
+      if (text && !text.startsWith('.') && !text.startsWith('/') && !text.startsWith('http')) {
+        const parts = text.split('/');
+        const name = text.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0];
+        if (name) imports.add(name);
+      }
+    } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+      const arg = node.arguments[0];
+      if (arg && ts.isStringLiteral(arg)) {
+        const text = arg.text;
+        if (text && !text.startsWith('.') && !text.startsWith('/') && !text.startsWith('http')) {
+          const parts = text.split('/');
+          const name = text.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0];
+          if (name) imports.add(name);
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
   return Array.from(imports);
 }
 
@@ -474,7 +506,8 @@ export function App() {
       if (typeof a === 'string') return a;
       try { return JSON.stringify(a, null, 2); } catch { return String(a); }
     });
-    setMessages(prev => [...prev, { type, args: formatted, ts: Date.now() }]);
+    // Limit to 500 messages to prevent O(N^2) memory/render bloat
+    setMessages(prev => [...prev, { type, args: formatted, ts: Date.now() }].slice(-500));
   }, []);
 
   useEffect(() => {

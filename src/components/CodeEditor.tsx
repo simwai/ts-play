@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, useState, useMemo, useLayoutEffect } from 'react';
+import React, { useRef, useCallback, useEffect, useState, useMemo, useLayoutEffect } from 'react';
 import { CatppuccinTheme, getSyntaxColors } from '../lib/theme';
 import { tokenize } from '../lib/tokenizer';
 import { useTypeInfo, type TypeInfo } from '../hooks/useTypeInfo';
@@ -122,7 +122,7 @@ const layerStyle = (contentHeight: number): React.CSSProperties => ({
   tabSize:       2,
 });
 
-export function CodeEditor({
+export const CodeEditor = React.memo(function CodeEditor({
   value,
   onChange,
   language,
@@ -485,6 +485,4 @@ export function CodeEditor({
       />
     </div>
   );
-}
-
-
+});

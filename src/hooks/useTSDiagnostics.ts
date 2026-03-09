@@ -258,12 +258,24 @@ export function useTSDiagnostics(
 
           const filtered = all.filter((d: any) => !ignoredCodes.has(d.code));
 
+          // O(N) pre-calculation of line starts for O(log N) lookups
+          const lineStarts = [0];
+          for (let i = 0; i < code.length; i++) {
+            if (code[i] === '\n') lineStarts.push(i + 1);
+          }
+
           const formatted: TSDiagnostic[] = filtered.map((d: any) => {
             const start = d.start || 0;
-            const before = code.slice(0, start);
-            const line = (before.match(/\n/g) || []).length;
-            const lastNL = before.lastIndexOf('\n');
-            const character = lastNL === -1 ? start : start - lastNL - 1;
+            
+            // Binary search for line number
+            let l = 0, r = lineStarts.length - 1;
+            while (l <= r) {
+              const m = (l + r) >> 1;
+              if (lineStarts[m] <= start) l = m + 1;
+              else r = m - 1;
+            }
+            const line = r;
+            const character = start - lineStarts[line];
             
             let message = 'Unknown error';
             try {

@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { CatppuccinTheme } from '../lib/theme';
 import { Badge } from './ui/Badge';
 import { IconButton } from './ui/IconButton';
@@ -45,7 +45,7 @@ function typeColor(type: ConsoleMessage['type'], t: CatppuccinTheme): string {
   return t.text;
 }
 
-export function Console({ messages, onClear, theme: t, isOpen, onToggle, contentHeight }: Props) {
+export const Console = React.memo(function Console({ messages, onClear, theme: t, isOpen, onToggle, contentHeight }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom on new messages
@@ -161,4 +161,4 @@ export function Console({ messages, onClear, theme: t, isOpen, onToggle, content
       )}
     </div>
   );
-}
+});
