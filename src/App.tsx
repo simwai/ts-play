@@ -12,7 +12,7 @@ import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
 import { formatAllFiles, loadPrettier } from './lib/formatter';
 import { Sun, Moon, Copy, Check, Trash2, Wand2, Loader2, Play, Share2 } from 'lucide-react';
 import { workerClient } from './lib/workerClient';
-import { writeFiles, runCommand } from './lib/webcontainer';
+import { writeFiles, runCommand, getWebContainer } from './lib/webcontainer';
 
 const FONT = "'Victor Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace";
 
@@ -137,7 +137,7 @@ function useCompilerManager(tsCode: string, addMessage: (type: ConsoleMessage['t
   }, [compilerStatus]);
 
   const runCode = useCallback(async (
-    packages: InstalledPackage[],
+    pendingInstalls: Promise<void>,
     onSuccess: (js: string, dts: string) => void,
     onError: (err: Error) => void
   ) => {
@@ -146,30 +146,12 @@ function useCompilerManager(tsCode: string, addMessage: (type: ConsoleMessage['t
       const compiled = await workerClient.compile(tsCode);
       onSuccess(compiled.js, compiled.dts);
       
-      const deps: Record<string, string> = {};
-      packages.forEach(pkg => {
-        deps[pkg.name] = pkg.version === 'latest' ? '*' : pkg.version;
-      });
-
       await writeFiles({
-        'index.js': compiled.js,
-        'package.json': JSON.stringify({
-          name: 'playground',
-          type: 'module',
-          dependencies: deps
-        }, null, 2)
+        'index.js': compiled.js
       });
 
-      if (packages.length > 0) {
-        addMessage('info', ['Installing dependencies via npm...']);
-        const installExit = await runCommand('npm', ['install'], (out) => {
-          const clean = out.replace(/\x1b\[[0-9;]*m/g, '').trim();
-          if (clean) addMessage('info', [clean]);
-        });
-        if (installExit !== 0) {
-          throw new Error(`npm install failed with exit code ${installExit}`);
-        }
-      }
+      // Wait for any background npm installs/uninstalls to finish
+      await pendingInstalls;
 
       addMessage('info', ['Executing via Node.js...']);
       const exitCode = await runCommand('node', ['index.js'], (out) => {
@@ -205,6 +187,9 @@ export function App() {
   
   const [installedPackages, setInstalledPackages] = useState<InstalledPackage[]>([]);
   const [packageTypings, setPackageTypings] = useState<Record<string, string>>({});
+
+  const prevPkgsRef = useRef<Set<string>>(new Set());
+  const installQueue = useRef<Promise<void>>(Promise.resolve());
 
   const [panelHeight, setPanelHeight] = useState(180);
   const [isResizing, setIsResizing] = useState(false);
@@ -254,6 +239,17 @@ export function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Initialize base package.json for WebContainer
+  useEffect(() => {
+    getWebContainer().then(async (instance) => {
+      try {
+        await instance.fs.readFile('package.json', 'utf-8');
+      } catch {
+        await instance.fs.writeFile('package.json', JSON.stringify({ name: 'playground', type: 'module' }, null, 2));
+      }
+    });
+  }, []);
+
   // Auto-detect imports via Worker
   useEffect(() => {
     const timer = setTimeout(async () => {
@@ -269,6 +265,41 @@ export function App() {
     }, 500);
     return () => clearTimeout(timer);
   }, [tsCode]);
+
+  // Background NPM Install/Uninstall Queue
+  useEffect(() => {
+    const currentNames = new Set(installedPackages.map(p => p.name));
+    const prevNames = prevPkgsRef.current;
+
+    const added = [...currentNames].filter(x => !prevNames.has(x));
+    const removed = [...prevNames].filter(x => !currentNames.has(x));
+
+    if (added.length === 0 && removed.length === 0) return;
+
+    prevPkgsRef.current = currentNames;
+
+    if (added.length > 0) {
+      installQueue.current = installQueue.current.then(async () => {
+        addMessage('info', [`npm install ${added.join(' ')}...`]);
+        const code = await runCommand('npm', ['install', ...added], (out) => {
+          const clean = out.replace(/\x1b\[[0-9;]*m/g, '').trim();
+          if (clean) addMessage('info', [clean]);
+        });
+        if (code !== 0) addMessage('error', [`npm install failed with code ${code}`]);
+      });
+    }
+
+    if (removed.length > 0) {
+      installQueue.current = installQueue.current.then(async () => {
+        addMessage('info', [`npm uninstall ${removed.join(' ')}...`]);
+        const code = await runCommand('npm', ['uninstall', ...removed], (out) => {
+          const clean = out.replace(/\x1b\[[0-9;]*m/g, '').trim();
+          if (clean) addMessage('info', [clean]);
+        });
+        if (code !== 0) addMessage('error', [`npm uninstall failed with code ${code}`]);
+      });
+    }
+  }, [installedPackages, addMessage]);
 
   const getApiCandidates = useCallback((path: string) => {
     const normalized = path.replace(/^\/+/, '');
@@ -489,7 +520,7 @@ export function App() {
     clearMessages();
 
     runCode(
-      installedPackages,
+      installQueue.current,
       (js, dts) => {
         setJsCode(js);
         setDtsCode(dts);
@@ -499,7 +530,7 @@ export function App() {
         addMessage('error', [`Compilation error: ${err.message}`]);
       }
     );
-  }, [jsDirty, runCode, clearMessages, addMessage, installedPackages]);
+  }, [jsDirty, runCode, clearMessages, addMessage]);
 
   const isEditorTarget = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) return false;
