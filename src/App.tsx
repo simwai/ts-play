@@ -196,6 +196,30 @@ export function App() {
   const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } = useConsoleManager();
   const { compilerStatus, isRunning, runCode } = useCompilerManager(tsCode, addMessage);
 
+  // Global Keyboard Shortcuts (Tab Switching)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isInput = document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'INPUT';
+      
+      // Switch tabs with ArrowLeft/ArrowRight. 
+      // If focused in an editor, require Alt key to prevent breaking text navigation.
+      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && (!isInput || e.altKey)) {
+        e.preventDefault();
+        setActiveTab(prev => {
+          const tabs: ('ts' | 'js' | 'dts')[] = ['ts', 'js', 'dts'];
+          const idx = tabs.indexOf(prev);
+          if (e.key === 'ArrowLeft') {
+            return tabs[(idx - 1 + tabs.length) % tabs.length];
+          } else {
+            return tabs[(idx + 1) % tabs.length];
+          }
+        });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // Auto-detect imports via Worker
   useEffect(() => {
     const timer = setTimeout(async () => {

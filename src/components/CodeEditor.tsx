@@ -150,6 +150,50 @@ export const CodeEditor = React.memo(function CodeEditor({
   const diagnostics = useTSDiagnostics(value, language === 'typescript', extraLibs);
   const [activeDiag, setActiveDiag] = useState<TSDiagnostic | null>(null);
 
+  // ── Undo / Redo State ─────────────────────────────────────────────────────
+  const undoStack = useRef<{ v: string; c: number }[]>([]);
+  const redoStack = useRef<{ v: string; c: number }[]>([]);
+  const lastSaveTime = useRef<number>(0);
+
+  const saveState = useCallback((val: string, cursor: number, force = false) => {
+    const now = Date.now();
+    // Save state if forced (e.g. paste/cut/tab) or if 500ms have passed since last save
+    if (force || now - lastSaveTime.current > 500) {
+      undoStack.current.push({ v: val, c: cursor });
+      redoStack.current = [];
+      lastSaveTime.current = now;
+    }
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    if (undoStack.current.length === 0) return;
+    const ta = textareaRef.current;
+    redoStack.current.push({ v: value, c: ta?.selectionStart || 0 });
+    const prev = undoStack.current.pop()!;
+    onChange(prev.v);
+    requestAnimationFrame(() => {
+      if (ta) ta.selectionStart = ta.selectionEnd = prev.c;
+    });
+  }, [value, onChange]);
+
+  const handleRedo = useCallback(() => {
+    if (redoStack.current.length === 0) return;
+    const ta = textareaRef.current;
+    undoStack.current.push({ v: value, c: ta?.selectionStart || 0 });
+    const next = redoStack.current.pop()!;
+    onChange(next.v);
+    requestAnimationFrame(() => {
+      if (ta) ta.selectionStart = ta.selectionEnd = next.c;
+    });
+  }, [value, onChange]);
+
+  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newVal = e.target.value;
+    const isPasteOrCut = Math.abs(newVal.length - value.length) > 1;
+    saveState(value, e.target.selectionStart, isPasteOrCut);
+    onChange(newVal);
+  }, [value, onChange, saveState]);
+
   // Split value into logical lines once
   const linesArray = useMemo(() => value.split('\n'), [value]);
   const lineCount  = linesArray.length;
@@ -244,19 +288,36 @@ export const CodeEditor = React.memo(function CodeEditor({
     }
   }, [keyboardHeight, keyboardOpen, measuredLineHeights, value]);
 
-  // ── Tab key ───────────────────────────────────────────────────────────────
+  // ── Keyboard Shortcuts ────────────────────────────────────────────────────
   const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key !== 'Tab') return;
-    e.preventDefault();
-    const ta    = e.currentTarget;
-    const start = ta.selectionStart;
-    const end   = ta.selectionEnd;
-    const next  = value.slice(0, start) + '  ' + value.slice(end);
-    onChange(next);
-    requestAnimationFrame(() => {
-      ta.selectionStart = ta.selectionEnd = start + 2;
-    });
-  }, [value, onChange]);
+    // Undo / Redo
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      if (e.shiftKey) handleRedo();
+      else handleUndo();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+      e.preventDefault();
+      handleRedo();
+      return;
+    }
+
+    // Tab
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const ta = e.currentTarget;
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      saveState(value, start, true);
+      const next = value.slice(0, start) + '  ' + value.slice(end);
+      onChange(next);
+      requestAnimationFrame(() => {
+        ta.selectionStart = ta.selectionEnd = start + 2;
+      });
+      return;
+    }
+  }, [value, onChange, handleUndo, handleRedo, saveState]);
 
   // ── Type info (debounced) ─────────────────────────────────────────────────
   const updateTypeInfo = useCallback(() => {
@@ -442,7 +503,7 @@ export const CodeEditor = React.memo(function CodeEditor({
             ref={textareaRef}
             value={value}
             readOnly={readOnly}
-            onChange={e => onChange(e.target.value)}
+            onChange={handleTextChange}
             onKeyDown={onKeyDown}
             onSelect={updateTypeInfo}
             onClick={updateTypeInfo}
