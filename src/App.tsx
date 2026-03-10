@@ -648,8 +648,9 @@ export function App() {
             color: t.text,
             letterSpacing: '-0.02em',
             fontFamily: FONT,
+            textShadow: `0 0 10px ${t.mauve}40`
           }}>
-            TS<span style={{ color: t.mauve }}>Play</span>
+            TS<span style={{ color: t.mauve, animation: 'lit-purple-glow 2s ease-in-out infinite' }}>Play</span>
           </span>
         </div>
 
@@ -676,8 +677,9 @@ export function App() {
                 cursor: 'pointer',
                 letterSpacing: '0.02em',
                 textTransform: 'uppercase',
-                background: activeTab === tab ? t.base : 'transparent',
-                color: activeTab === tab ? t.text : t.overlay1,
+                background: activeTab === tab ? `${t.mauve}20` : 'transparent',
+                color: activeTab === tab ? t.mauve : t.overlay1,
+                boxShadow: activeTab === tab ? `0 0 10px ${t.mauve}40, inset 0 0 5px ${t.mauve}20` : 'none',
                 transition: 'all 160ms',
               }}
             >
@@ -1060,6 +1062,10 @@ export function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Victor+Mono:ital,wght@0,100..700;1,100..700&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes lit-purple-glow {
+          0%, 100% { text-shadow: 0 0 5px ${t.mauve}40, 0 0 10px ${t.mauve}20; }
+          50% { text-shadow: 0 0 10px ${t.mauve}aa, 0 0 20px ${t.mauve}66, 0 0 30px ${t.mauve}40; }
+        }
         * { box-sizing: border-box; }
         body { margin: 0; overflow: hidden; }
         textarea { -webkit-text-fill-color: transparent !important; }
