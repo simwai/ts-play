@@ -285,12 +285,12 @@ function generateDeclarations(code: string): string {
     const fnMatch = trimmed.match(/^(export\s+)?(async\s+)?function\s+(\w+)\s*(<[^>]*>)?\s*\(([^)]*)\)\s*(?::\s*([^{]+?))?/);
     if (fnMatch) {
       const [, exp, isAsync, name, generics, params, returnType] = fnMatch;
-      const asyncPrefix = isAsync ? 'async ' : '';
       const gen = generics || '';
       const ret = returnType?.trim() || (isAsync ? 'Promise<void>' : 'void');
       const prefix = exp ? 'export declare' : 'declare';
       dtsLines.push(...pendingJsDoc);
-      dtsLines.push(`${prefix} ${asyncPrefix}function ${name}${gen}(${params}): ${ret};`);
+      // Removed asyncPrefix because 'async' modifier cannot be used in an ambient context
+      dtsLines.push(`${prefix} function ${name}${gen}(${params}): ${ret};`);
       dtsLines.push('');
       pendingJsDoc = [];
       if (trimmed.includes('{')) {
@@ -395,10 +395,12 @@ function extractClassDeclaration(lines: string[]): string[] {
     const methMatch = line.match(/^(public|private|protected|static|async|\s)*(\w+)\s*(<[^>]*>)?\s*\(([^)]*)\)\s*(?::\s*([^{;]+))?/);
     if (methMatch) {
       const [, , name, gen, params, ret] = methMatch;
+      const isAsync = /\basync\s+/.test(line);
       if (name === 'constructor') {
         result.push(`  constructor(${params});`);
       } else {
-        result.push(`  ${name}${gen || ''}(${params}): ${ret?.trim() || 'void'};`);
+        const finalRet = ret?.trim() || (isAsync ? 'Promise<void>' : 'void');
+        result.push(`  ${name}${gen || ''}(${params}): ${finalRet};`);
       }
       if (line.includes('{')) {
         let depth = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
