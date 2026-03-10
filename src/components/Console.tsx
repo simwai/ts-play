@@ -20,7 +20,7 @@ interface Props {
   contentHeight: number;
 }
 
-const FONT = "'JetBrains Mono','Fira Code','Cascadia Code',monospace";
+const FONT = "'Victor Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace";
 
 function typeVariant(type: ConsoleMessage['type']): 'error' | 'warn' | 'info' | 'default' {
   if (type === 'error') return 'error';

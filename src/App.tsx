@@ -13,6 +13,8 @@ import { formatAllFiles, loadPrettier } from './lib/formatter';
 import { Sun, Moon, Copy, Check, Trash2, Wand2, Loader2, Play, Share2 } from 'lucide-react';
 import { workerClient } from './lib/workerClient';
 
+const FONT = "'Victor Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace";
+
 const DEFAULT_TS = `// TypeScript Playground
 // Long-press any word on mobile to see type info ✨
 
@@ -559,7 +561,7 @@ export function App() {
             fontWeight: 700,
             color: t.text,
             letterSpacing: '-0.02em',
-            fontFamily: 'monospace',
+            fontFamily: FONT,
           }}>
             TS<span style={{ color: t.mauve }}>Play</span>
           </span>
@@ -584,7 +586,7 @@ export function App() {
                 border: 'none',
                 fontSize: 9,
                 fontWeight: 600,
-                fontFamily: 'monospace',
+                fontFamily: FONT,
                 cursor: 'pointer',
                 letterSpacing: '0.02em',
                 textTransform: 'uppercase',
@@ -697,7 +699,7 @@ export function App() {
             theme={t}
             title="Run (compile + execute)"
             style={{
-              fontFamily:    'monospace',
+              fontFamily:    FONT,
               letterSpacing: '0.02em',
               background:    isRunning || compilerStatus !== 'ready' ? t.surface0 : `${t.green}18`,
               color:         isRunning || compilerStatus !== 'ready' ? t.overlay0 : t.green,
@@ -821,17 +823,17 @@ export function App() {
         flexShrink: 0,
         overflow: 'hidden',
       }}>
-        <span style={{ fontSize: 10, color: statusColor, fontFamily: 'monospace', letterSpacing: '0.04em' }}>
+        <span style={{ fontSize: 10, color: statusColor, fontFamily: FONT, letterSpacing: '0.04em' }}>
           {statusLabel}
         </span>
-        <span style={{ fontSize: 10, color: t.overlay0, fontFamily: 'monospace' }}>
+        <span style={{ fontSize: 10, color: t.overlay0, fontFamily: FONT }}>
           {activeTab === 'ts' ? 'TypeScript' : activeTab === 'js' ? 'JavaScript' : 'Declarations'}
           {activeTab === 'js' && jsDirty && (
             <span style={{ marginLeft: 6, color: t.peach }}>● modified</span>
           )}
         </span>
         {!compactForKeyboard && (
-          <span style={{ fontSize: 10, color: t.overlay0, fontFamily: 'monospace' }}>
+          <span style={{ fontSize: 10, color: t.overlay0, fontFamily: FONT }}>
             swipe to switch tabs
           </span>
         )}
@@ -966,6 +968,7 @@ export function App() {
       )}
 
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Victor+Mono:ital,wght@0,100..700;1,100..700&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
         * { box-sizing: border-box; }
         body { margin: 0; overflow: hidden; }

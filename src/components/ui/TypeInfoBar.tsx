@@ -3,7 +3,7 @@ import { CatppuccinTheme } from '../../lib/theme';
 import { TypeInfo } from '../../hooks/useTypeInfo';
 import { TSDiagnostic } from '../../hooks/useTSDiagnostics';
 
-const FONT = "'JetBrains Mono','Fira Code','Cascadia Code',monospace";
+const FONT = "'Victor Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace";
 
 interface TypeInfoBarProps {
   typeInfo:   TypeInfo | null;

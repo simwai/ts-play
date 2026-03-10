@@ -4,6 +4,7 @@ import { tokenize } from '../lib/tokenizer';
 import { useTypeInfo, type TypeInfo } from '../hooks/useTypeInfo';
 import { useTSDiagnostics, type TSDiagnostic } from '../hooks/useTSDiagnostics';
 import { TypeInfoBar } from './ui/TypeInfoBar';
+import { workerClient } from '../lib/workerClient';
 
 interface Props {
   value: string;
@@ -20,144 +21,91 @@ const LINE_H    = 20;
 const PAD_TOP   = 12;
 const PAD_X     = 12;
 const GUTTER_W  = 44;
-const FONT      = "'JetBrains Mono','Fira Code','Cascadia Code',monospace";
+const FONT      = "'Victor Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace";
 const FONT_SIZE = 13;
+const CHAR_W    = 7.8; // Approx width of a monospace char at 13px
 
 const EMPTY_LIBS = {};
 
-// Build highlighted HTML from source
 function buildHtml(code: string, theme: CatppuccinTheme): string {
   const sc = getSyntaxColors(theme);
   const COLOR: Record<string, string> = {
-    keyword:     sc.keyword,
-    string:      sc.string,
-    number:      sc.number,
-    comment:     sc.comment,
-    function:    sc.function,
-    type:        sc.type,
-    operator:    sc.operator,
-    punctuation: sc.punctuation,
-    decorator:   sc.decorator,
-    variable:    sc.variable,
-    constant:    sc.constant,
-    boolean:     sc.boolean,
-    property:    sc.property,
-    parameter:   sc.parameter,
-    plain:       theme.text,
+    keyword: sc.keyword, string: sc.string, number: sc.number, comment: sc.comment,
+    function: sc.function, type: sc.type, operator: sc.operator, punctuation: sc.punctuation,
+    decorator: sc.decorator, variable: sc.variable, constant: sc.constant, boolean: sc.boolean,
+    property: sc.property, parameter: sc.parameter, plain: theme.text,
   };
-  return tokenize(code)
-    .map(tok => {
-      const color = COLOR[tok.type] ?? theme.text;
-      const safe = tok.value
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-      return `<span style="color:${color}">${safe}</span>`;
-    })
-    .join('');
+  return tokenize(code).map(tok => {
+    const color = COLOR[tok.type] ?? theme.text;
+    const safe = tok.value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return `<span style="color:${color}">${safe}</span>`;
+  }).join('');
 }
 
-// Squiggles layer: the entire code is rendered as transparent text so
-// character positions exactly match the textarea. We wrap only the
-// diagnostic spans with a wavy underline; everything else is plain text.
-// IMPORTANT: we must HTML-escape every segment so that entity-encoded
-// characters (& < >) don't shift the underline positions.
 function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function buildSquiggles(code: string, diagnostics: TSDiagnostic[], theme: CatppuccinTheme): string {
   if (!diagnostics.length) return escHtml(code);
-
-  // Sort and de-overlap: skip any diagnostic whose start falls inside a
-  // previously rendered span so we never double-encode a region.
   const sorted = [...diagnostics].sort((a, b) => a.start - b.start);
-
   const parts: string[] = [];
   let cursor = 0;
-
   for (const d of sorted) {
     const start = d.start;
     const end   = Math.min(d.start + d.length, code.length);
-    if (start < cursor) continue;            // overlapping — skip
-    if (start > cursor) {
-      parts.push(escHtml(code.slice(cursor, start)));
-    }
+    if (start < cursor) continue;
+    if (start > cursor) parts.push(escHtml(code.slice(cursor, start)));
     const color = d.category === 'error' ? theme.red : theme.yellow;
-    parts.push(
-      `<span style="text-decoration:underline wavy ${color};` +
-      `text-decoration-thickness:1.5px;text-underline-offset:3px;">` +
-      escHtml(code.slice(start, end)) +
-      `</span>`
-    );
+    parts.push(`<span style="text-decoration:underline wavy ${color};text-decoration-thickness:1.5px;text-underline-offset:3px;">${escHtml(code.slice(start, end))}</span>`);
     cursor = end;
   }
-
   if (cursor < code.length) parts.push(escHtml(code.slice(cursor)));
   return parts.join('');
 }
 
-// Shared style for both textarea and pre so they stay pixel-perfect in sync
 const layerStyle = (contentHeight: number): React.CSSProperties => ({
-  position:      'absolute',
-  top:           0,
-  left:          0,
-  right:         0,
-  margin:        0,
-  padding:       `${PAD_TOP}px ${PAD_X}px`,
-  fontFamily:    FONT,
-  fontSize:      FONT_SIZE,
-  lineHeight:    `${LINE_H}px`,
-  letterSpacing: '0',
-  fontKerning:   'none',
-  fontVariantLigatures: 'none',
-  textRendering: 'geometricPrecision',
-  WebkitFontSmoothing: 'antialiased',
-  MozOsxFontSmoothing: 'grayscale',
-  whiteSpace:    'pre-wrap',
-  wordBreak:     'break-word',
-  overflowWrap:  'break-word',
-  overflowY:     'hidden',
-  overflowX:     'hidden',
-  boxSizing:     'border-box',
-  minHeight:     contentHeight,
-  tabSize:       2,
+  position: 'absolute', top: 0, left: 0, right: 0, margin: 0,
+  padding: `${PAD_TOP}px ${PAD_X}px`, fontFamily: FONT, fontSize: FONT_SIZE,
+  lineHeight: `${LINE_H}px`, letterSpacing: '0', fontKerning: 'none',
+  fontVariantLigatures: 'none', textRendering: 'geometricPrecision',
+  WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale',
+  whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'break-word',
+  overflowY: 'hidden', overflowX: 'hidden', boxSizing: 'border-box',
+  minHeight: contentHeight, tabSize: 2,
 });
 
 export const CodeEditor = React.memo(function CodeEditor({
-  value,
-  onChange,
-  language,
-  readOnly = false,
-  theme: t,
-  extraLibs = EMPTY_LIBS,
-  keyboardOpen = false,
-  keyboardHeight = 0,
+  value, onChange, language, readOnly = false, theme: t,
+  extraLibs = EMPTY_LIBS, keyboardOpen = false, keyboardHeight = 0,
 }: Props) {
   const scrollRef   = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const preRef      = useRef<HTMLPreElement>(null);
   const gutterRef   = useRef<HTMLDivElement>(null);
-  const codeWrapRef = useRef<HTMLDivElement>(null);
   const measureRef  = useRef<HTMLDivElement>(null);
+  const codeWrapRef = useRef<HTMLDivElement>(null);
   const timerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rafRef      = useRef<number>(0);
 
   const { getTypeInfo } = useTypeInfo();
   const [typeInfo, setTypeInfo] = useState<TypeInfo | null>(null);
   const [lineHeights, setLineHeights] = useState<number[]>([]);
-
   const diagnostics = useTSDiagnostics(value, language === 'typescript', extraLibs);
   const [activeDiag, setActiveDiag] = useState<TSDiagnostic | null>(null);
 
-  // ── Undo / Redo State ─────────────────────────────────────────────────────
+  // Autocomplete State
+  const [completions, setCompletions] = useState<any[]>([]);
+  const [selIndex, setSelIndex] = useState(0);
+  const [popupPos, setPopupPos] = useState({ top: 0, left: 0 });
+
   const undoStack = useRef<{ v: string; c: number }[]>([]);
   const redoStack = useRef<{ v: string; c: number }[]>([]);
   const lastSaveTime = useRef<number>(0);
+  const lastCursorPos = useRef<number>(0);
 
   const saveState = useCallback((val: string, cursor: number, force = false) => {
     const now = Date.now();
-    // Save state if forced (e.g. paste/cut/tab) or if 500ms have passed since last save
     if (force || now - lastSaveTime.current > 500) {
       undoStack.current.push({ v: val, c: cursor });
       redoStack.current = [];
@@ -172,7 +120,7 @@ export const CodeEditor = React.memo(function CodeEditor({
     const prev = undoStack.current.pop()!;
     onChange(prev.v);
     requestAnimationFrame(() => {
-      if (ta) ta.selectionStart = ta.selectionEnd = prev.c;
+      if (ta) { ta.selectionStart = ta.selectionEnd = prev.c; lastCursorPos.current = prev.c; }
     });
   }, [value, onChange]);
 
@@ -183,84 +131,36 @@ export const CodeEditor = React.memo(function CodeEditor({
     const next = redoStack.current.pop()!;
     onChange(next.v);
     requestAnimationFrame(() => {
-      if (ta) ta.selectionStart = ta.selectionEnd = next.c;
+      if (ta) { ta.selectionStart = ta.selectionEnd = next.c; lastCursorPos.current = next.c; }
     });
   }, [value, onChange]);
 
-  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newVal = e.target.value;
-    const isPasteOrCut = Math.abs(newVal.length - value.length) > 1;
-    saveState(value, e.target.selectionStart, isPasteOrCut);
-    onChange(newVal);
-  }, [value, onChange, saveState]);
-
-  // Split value into logical lines once
   const linesArray = useMemo(() => value.split('\n'), [value]);
   const lineCount  = linesArray.length;
-
-  // Exact measured pixel height for each logical line. This avoids
-  // cumulative rounding drift where the gutter can end up shorter than
-  // the rendered wrapped code.
-  const measuredLineHeights = useMemo((): number[] => {
-    if (lineHeights.length === lineCount) return lineHeights;
-    return new Array(lineCount).fill(LINE_H);
-  }, [lineHeights, lineCount]);
-
-  // Total pixel height of the content area
-  const contentHeight = useMemo(() => {
-    const visualHeight = measuredLineHeights.reduce((sum, h) => sum + h, 0);
-    return visualHeight + PAD_TOP * 2;
-  }, [measuredLineHeights]);
+  const measuredLineHeights = useMemo(() => lineHeights.length === lineCount ? lineHeights : new Array(lineCount).fill(LINE_H), [lineHeights, lineCount]);
+  const contentHeight = useMemo(() => measuredLineHeights.reduce((sum, h) => sum + h, 0) + PAD_TOP * 2, [measuredLineHeights]);
 
   const measureWraps = useCallback(() => {
-    const measureRoot = measureRef.current;
-    if (!measureRoot) return;
-
-    const next = Array.from(measureRoot.children).map((child) => {
-      const height = Math.max(LINE_H, Math.ceil((child as HTMLElement).getBoundingClientRect().height));
-      return height;
-    });
-
-    setLineHeights((prev) => {
-      if (prev.length === next.length && prev.every((v, i) => v === next[i])) return prev;
-      return next;
-    });
+    if (!measureRef.current) return;
+    const next = Array.from(measureRef.current.children).map(child => Math.max(LINE_H, Math.ceil((child as HTMLElement).getBoundingClientRect().height)));
+    setLineHeights(prev => (prev.length === next.length && prev.every((v, i) => v === next[i])) ? prev : next);
   }, [linesArray]);
 
-  // Re-measure when content or container width changes
   useLayoutEffect(() => {
-    const wrap = codeWrapRef.current;
-    if (!wrap) return;
-    const ro = new ResizeObserver(() => {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(measureWraps);
-    });
-    ro.observe(wrap);
+    if (!codeWrapRef.current) return;
+    const ro = new ResizeObserver(() => { cancelAnimationFrame(rafRef.current); rafRef.current = requestAnimationFrame(measureWraps); });
+    ro.observe(codeWrapRef.current);
     return () => { ro.disconnect(); cancelAnimationFrame(rafRef.current); };
   }, [measureWraps]);
 
-  useLayoutEffect(() => {
-    cancelAnimationFrame(rafRef.current);
-    rafRef.current = requestAnimationFrame(measureWraps);
-  }, [measureWraps]);
+  useLayoutEffect(() => { cancelAnimationFrame(rafRef.current); rafRef.current = requestAnimationFrame(measureWraps); }, [measureWraps]);
 
-  // ── Syntax highlight ──────────────────────────────────────────────────────
-  useEffect(() => {
-    if (preRef.current) {
-      preRef.current.innerHTML = buildHtml(value, t) + '\n';
-    }
-  }, [value, t]);
+  useEffect(() => { if (preRef.current) preRef.current.innerHTML = buildHtml(value, t) + '\n'; }, [value, t]);
 
-  // ── Scroll sync ───────────────────────────────────────────────────────────
-  // The outer scrollRef div is the ONE scroll master.
-  // The textarea and pre have overflow:hidden so they never scroll on their own.
   const onScroll = useCallback(() => {
-    const scroller = scrollRef.current;
-    if (!scroller) return;
-    const { scrollTop } = scroller;
-    // Sync gutter (it has overflow:hidden so we set scrollTop directly)
+    if (!scrollRef.current) return;
+    const { scrollTop } = scrollRef.current;
     if (gutterRef.current) gutterRef.current.scrollTop = scrollTop;
-    // Keep textarea scroll in sync so the caret stays at the right position
     if (textareaRef.current) textareaRef.current.scrollTop = scrollTop;
   }, []);
 
@@ -268,42 +168,92 @@ export const CodeEditor = React.memo(function CodeEditor({
     const ta = textareaRef.current;
     const scroller = scrollRef.current;
     if (!ta || !scroller) return;
-
     const pos = ta.selectionStart;
     const before = value.slice(0, pos);
     const logicalLineIndex = Math.max(0, before.split('\n').length - 1);
     const y = PAD_TOP + measuredLineHeights.slice(0, logicalLineIndex).reduce((sum, h) => sum + h, 0);
     const lineHeight = measuredLineHeights[logicalLineIndex] ?? LINE_H;
     const visibleTop = scroller.scrollTop;
-    const typeBarAllowance = 56;
     const bottomInset = keyboardOpen ? Math.min(120, Math.max(0, keyboardHeight * 0.12)) : 0;
-    const visibleBottom = scroller.scrollTop + scroller.clientHeight - typeBarAllowance - bottomInset;
+    const visibleBottom = scroller.scrollTop + scroller.clientHeight - 56 - bottomInset;
 
-    if (y < visibleTop + 8) {
-      scroller.scrollTo({ top: Math.max(0, y - 24), behavior: 'smooth' });
-      return;
-    }
-    if (y + lineHeight > visibleBottom) {
-      scroller.scrollTo({ top: Math.max(0, y + lineHeight - scroller.clientHeight + typeBarAllowance + bottomInset + 24), behavior: 'smooth' });
-    }
+    if (y < visibleTop + 8) scroller.scrollTo({ top: Math.max(0, y - 24), behavior: 'smooth' });
+    else if (y + lineHeight > visibleBottom) scroller.scrollTo({ top: Math.max(0, y + lineHeight - scroller.clientHeight + 56 + bottomInset + 24), behavior: 'smooth' });
   }, [keyboardHeight, keyboardOpen, measuredLineHeights, value]);
 
-  // ── Keyboard Shortcuts ────────────────────────────────────────────────────
+  const triggerAutocomplete = useCallback(async (pos: number, explicit = false) => {
+    if (language !== 'typescript') return;
+    const before = value.slice(0, pos);
+    const match = before.match(/[\w$]+$/);
+    const isDot = before.endsWith('.');
+    
+    if (!explicit && !match && !isDot) {
+      setCompletions([]);
+      return;
+    }
+
+    const entries = await workerClient.getCompletions(pos);
+    if (entries && entries.length > 0) {
+      const logicalLineIndex = Math.max(0, before.split('\n').length - 1);
+      const y = PAD_TOP + measuredLineHeights.slice(0, logicalLineIndex).reduce((sum, h) => sum + h, 0) + (measuredLineHeights[logicalLineIndex] ?? LINE_H);
+      const lastLine = before.split('\n').pop() || '';
+      const x = PAD_X + (lastLine.length * CHAR_W);
+      
+      setPopupPos({ top: y, left: x });
+      setCompletions(entries.slice(0, 50)); // Limit to 50 for perf
+      setSelIndex(0);
+    } else {
+      setCompletions([]);
+    }
+  }, [value, language, measuredLineHeights]);
+
+  const insertCompletion = useCallback(() => {
+    if (completions.length === 0) return;
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const pos = ta.selectionStart;
+    const before = value.slice(0, pos);
+    const match = before.match(/[\w$]+$/);
+    const wordLen = match ? match[0].length : 0;
+    
+    const comp = completions[selIndex];
+    const insertText = comp.insertText || comp.name;
+    
+    saveState(value, pos, true);
+    const next = value.slice(0, pos - wordLen) + insertText + value.slice(pos);
+    onChange(next);
+    setCompletions([]);
+    
+    requestAnimationFrame(() => {
+      const newPos = pos - wordLen + insertText.length;
+      ta.selectionStart = ta.selectionEnd = newPos;
+      lastCursorPos.current = newPos;
+    });
+  }, [completions, selIndex, value, onChange, saveState]);
+
   const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Undo / Redo
+    if (completions.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setSelIndex(i => Math.min(i + 1, completions.length - 1)); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setSelIndex(i => Math.max(i - 1, 0)); return; }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertCompletion(); return; }
+      if (e.key === 'Escape') { e.preventDefault(); setCompletions([]); return; }
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.key === ' ') {
+      e.preventDefault();
+      triggerAutocomplete(e.currentTarget.selectionStart, true);
+      return;
+    }
+
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
       e.preventDefault();
-      if (e.shiftKey) handleRedo();
-      else handleUndo();
+      if (e.shiftKey) handleRedo(); else handleUndo();
       return;
     }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-      e.preventDefault();
-      handleRedo();
-      return;
+      e.preventDefault(); handleRedo(); return;
     }
 
-    // Tab
     if (e.key === 'Tab') {
       e.preventDefault();
       const ta = e.currentTarget;
@@ -312,23 +262,36 @@ export const CodeEditor = React.memo(function CodeEditor({
       saveState(value, start, true);
       const next = value.slice(0, start) + '  ' + value.slice(end);
       onChange(next);
-      requestAnimationFrame(() => {
-        ta.selectionStart = ta.selectionEnd = start + 2;
-      });
+      requestAnimationFrame(() => { ta.selectionStart = ta.selectionEnd = start + 2; lastCursorPos.current = start + 2; });
       return;
     }
-  }, [value, onChange, handleUndo, handleRedo, saveState]);
+  }, [value, onChange, handleUndo, handleRedo, saveState, completions, insertCompletion, triggerAutocomplete]);
 
-  // ── Type info (debounced) ─────────────────────────────────────────────────
+  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newVal = e.target.value;
+    const pos = e.target.selectionStart;
+    const isPasteOrCut = Math.abs(newVal.length - value.length) > 1;
+    saveState(value, lastCursorPos.current, isPasteOrCut);
+    onChange(newVal);
+    lastCursorPos.current = pos;
+
+    // Auto-trigger completions on typing
+    if (!isPasteOrCut) {
+      triggerAutocomplete(pos);
+    } else {
+      setCompletions([]);
+    }
+  }, [value, onChange, saveState, triggerAutocomplete]);
+
   const updateTypeInfo = useCallback(() => {
     const ta = textareaRef.current;
     if (!ta) return;
+    lastCursorPos.current = ta.selectionStart;
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {
       const pos = ta.selectionStart;
       const info = await getTypeInfo(value, pos);
       setTypeInfo(info ?? null);
-      
       const diag = diagnostics.find(d => pos >= d.start && pos <= d.start + d.length);
       setActiveDiag(diag ?? null);
       scrollSelectionIntoView();
@@ -337,14 +300,8 @@ export const CodeEditor = React.memo(function CodeEditor({
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
-  // Suppress native context menu (prevents long-press menu on mobile)
-  const suppressCtx = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault();
-  }, []);
-
-  const onTouchStart = useCallback((e: React.TouchEvent) => {
-    e.stopPropagation();
-  }, []);
+  const suppressCtx = useCallback((e: React.MouseEvent | React.TouchEvent) => e.preventDefault(), []);
+  const onTouchStart = useCallback((e: React.TouchEvent) => e.stopPropagation(), []);
 
   useEffect(() => {
     if (!keyboardOpen || readOnly) return;
@@ -352,200 +309,69 @@ export const CodeEditor = React.memo(function CodeEditor({
     return () => window.clearTimeout(id);
   }, [keyboardOpen, readOnly, scrollSelectionIntoView]);
 
-  // ── Gutter lines ──────────────────────────────────────────────────────────
-  // Each real line occupies (lineWrap[idx] * LINE_H) px in the gutter,
-  // showing the line number only at the top of its visual block.
-  const gutterItems = useMemo(() => (
-    linesArray.map((_, idx) => ({
-      number: idx + 1,
-      height: measuredLineHeights[idx],
-    }))
-  ), [linesArray, measuredLineHeights]);
+  const gutterItems = useMemo(() => linesArray.map((_, idx) => ({ number: idx + 1, height: measuredLineHeights[idx] })), [linesArray, measuredLineHeights]);
 
   return (
-    <div style={{
-      position: 'relative',
-      width:    '100%',
-      height:   '100%',
-      overflow: 'hidden',
-      display:  'flex',
-      flexDirection: 'column',
-    }}>
-
-      {/* ── Scrollable body ── */}
-      <div
-        ref={scrollRef}
-        onScroll={onScroll}
-        style={{
-          flex:       1,
-          overflowY:  'auto',
-          overflowX:  'hidden',
-          display:    'flex',
-          minHeight:  0,
-          background: t.base,
-          paddingBottom: keyboardOpen ? Math.min(24, Math.round(keyboardHeight * 0.06)) : 0,
-        }}
-      >
-        {/* Gutter */}
-        <div
-          ref={gutterRef}
-          style={{
-            width:       GUTTER_W,
-            flexShrink:  0,
-            overflowY:   'hidden',
-            overflowX:   'hidden',
-            paddingTop:  PAD_TOP,
-            paddingBottom: PAD_TOP,
-            background:  t.mantle,
-            borderRight: `1px solid ${t.surface0}`,
-            userSelect:  'none',
-            fontFamily:  FONT,
-            fontSize:    FONT_SIZE,
-            lineHeight:  `${LINE_H}px`,
-            color:       t.overlay0,
-            textAlign:   'right',
-            paddingRight: 8,
-            boxSizing:   'border-box',
-            // Match the code content height exactly so the gutter never
-            // ends early when many wrapped lines are present.
-            minHeight:   contentHeight,
-          }}
-        >
-          {gutterItems.map(({ number, height }) => (
-            <div
-              key={number}
-              style={{
-                height,
-                // number sits at the TOP of the logical line block
-                display:        'flex',
-                alignItems:     'flex-start',
-                justifyContent: 'flex-end',
-              }}
-            >
-              {number}
-            </div>
-          ))}
+    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', minHeight: 0, background: t.base, paddingBottom: keyboardOpen ? Math.min(24, Math.round(keyboardHeight * 0.06)) : 0 }}>
+        <div ref={gutterRef} style={{ width: GUTTER_W, flexShrink: 0, overflowY: 'hidden', overflowX: 'hidden', paddingTop: PAD_TOP, paddingBottom: PAD_TOP, background: t.mantle, borderRight: `1px solid ${t.surface0}`, userSelect: 'none', fontFamily: FONT, fontSize: FONT_SIZE, lineHeight: `${LINE_H}px`, color: t.overlay0, textAlign: 'right', paddingRight: 8, boxSizing: 'border-box', minHeight: contentHeight }}>
+          {gutterItems.map(({ number, height }) => <div key={number} style={{ height, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end' }}>{number}</div>)}
         </div>
-
-        {/* Code surface */}
-        <div
-          ref={codeWrapRef}
-          style={{
-            flex:     1,
-            position: 'relative',
-            minWidth: 0,
-            minHeight: contentHeight,
-          }}
-        >
-          {/* Hidden line-height measurement layer so gutter heights match browser wrapping exactly */}
-          <div
-            ref={measureRef}
-            aria-hidden
-            style={{
-              position: 'absolute',
-              inset: 0,
-              visibility: 'hidden',
-              pointerEvents: 'none',
-              zIndex: -1,
-              padding: `${PAD_TOP}px ${PAD_X}px`,
-              fontFamily: FONT,
-              fontSize: FONT_SIZE,
-              lineHeight: `${LINE_H}px`,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              overflowWrap: 'break-word',
-              boxSizing: 'border-box',
-            }}
-          >
-            {linesArray.map((line, idx) => (
-              <div
-                key={`measure-${idx}`}
-                style={{
-                  minHeight: LINE_H,
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                  overflowWrap: 'break-word',
-                }}
-              >
-                {line === '' ? ' ' : line.replace(/\t/g, '  ')}
-              </div>
-            ))}
+        <div ref={codeWrapRef} style={{ flex: 1, position: 'relative', minWidth: 0, minHeight: contentHeight }}>
+          <div ref={measureRef} aria-hidden style={{ position: 'absolute', inset: 0, visibility: 'hidden', pointerEvents: 'none', zIndex: -1, padding: `${PAD_TOP}px ${PAD_X}px`, fontFamily: FONT, fontSize: FONT_SIZE, lineHeight: `${LINE_H}px`, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'break-word', boxSizing: 'border-box' }}>
+            {linesArray.map((line, idx) => <div key={`measure-${idx}`} style={{ minHeight: LINE_H, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'break-word' }}>{line === '' ? ' ' : line.replace(/\t/g, '  ')}</div>)}
           </div>
-
-          {/* Highlighted layer (aria-hidden) */}
-          <pre
-            ref={preRef}
-            aria-hidden
-            style={{
-              ...layerStyle(contentHeight),
-              color:         t.text,
-              background:    'transparent',
-              pointerEvents: 'none',
-            }}
-          />
-
-          {/* Squiggles layer — always mounted so layout never shifts.
-              color:transparent hides the text; only the wavy underline shows. */}
-          <pre
-            aria-hidden
-            dangerouslySetInnerHTML={{ __html: buildSquiggles(value, diagnostics, t) }}
-            style={{
-              ...layerStyle(contentHeight),
-              color:         'transparent',
-              background:    'transparent',
-              pointerEvents: 'none',
-              zIndex:        1,
-            }}
-          />
-
-          {/* Editable textarea — transparent text, visible caret */}
-          <textarea
-            ref={textareaRef}
-            value={value}
-            readOnly={readOnly}
-            onChange={handleTextChange}
-            onKeyDown={onKeyDown}
-            onSelect={updateTypeInfo}
-            onClick={updateTypeInfo}
-            onKeyUp={updateTypeInfo}
-            onContextMenu={suppressCtx}
-            onTouchStart={onTouchStart}
-            spellCheck={false}
-            autoCorrect="off"
-            autoCapitalize="off"
-            autoComplete="off"
-            wrap="soft"
-            data-gramm="false"
-            data-gramm_editor="false"
-            data-enable-grammarly="false"
-            style={{
-              ...layerStyle(contentHeight),
-              height:              contentHeight,
-              color:               'transparent',
-              caretColor:          t.lavender,
-              background:          'transparent',
-              border:              'none',
-              outline:             'none',
-              resize:              'none',
-              WebkitTextFillColor: 'transparent',
-              cursor:              readOnly ? 'default' : 'text',
-              zIndex:              2,
-              // Allow vertical pan (scroll). Keep horizontal interaction for caret movement.
-              touchAction:         'pan-y',
-              caretShape:          'bar',
-            }}
-          />
+          <pre ref={preRef} aria-hidden style={{ ...layerStyle(contentHeight), color: t.text, background: 'transparent', pointerEvents: 'none' }} />
+          <pre aria-hidden dangerouslySetInnerHTML={{ __html: buildSquiggles(value, diagnostics, t) }} style={{ ...layerStyle(contentHeight), color: 'transparent', background: 'transparent', pointerEvents: 'none', zIndex: 1 }} />
+          <textarea ref={textareaRef} value={value} readOnly={readOnly} onChange={handleTextChange} onKeyDown={onKeyDown} onSelect={updateTypeInfo} onClick={updateTypeInfo} onKeyUp={updateTypeInfo} onContextMenu={suppressCtx} onTouchStart={onTouchStart} spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" wrap="soft" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" style={{ ...layerStyle(contentHeight), height: contentHeight, color: 'transparent', caretColor: t.lavender, background: 'transparent', border: 'none', outline: 'none', resize: 'none', WebkitTextFillColor: 'transparent', cursor: readOnly ? 'default' : 'text', zIndex: 2, touchAction: 'pan-y', caretShape: 'bar' }} />
+          
+          {/* Autocomplete Popup */}
+          {completions.length > 0 && (
+            <ul style={{
+              position: 'absolute',
+              top: popupPos.top,
+              left: popupPos.left,
+              margin: 0,
+              padding: 0,
+              listStyle: 'none',
+              background: t.mantle,
+              border: `1px solid ${t.surface1}`,
+              borderRadius: 6,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+              zIndex: 50,
+              maxHeight: 150,
+              overflowY: 'auto',
+              fontFamily: FONT,
+              fontSize: 12,
+              minWidth: 150,
+            }}>
+              {completions.map((comp, i) => (
+                <li
+                  key={comp.name}
+                  style={{
+                    padding: '4px 8px',
+                    background: i === selIndex ? t.surface0 : 'transparent',
+                    color: i === selIndex ? t.text : t.subtext0,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 12
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault(); // Prevent textarea blur
+                    setSelIndex(i);
+                    insertCompletion();
+                  }}
+                >
+                  <span>{comp.name}</span>
+                  <span style={{ color: t.overlay0, fontSize: 10 }}>{comp.kind}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
-
-      {/* ── Type-info status bar ── */}
-      <TypeInfoBar
-        typeInfo={typeInfo}
-        activeDiag={activeDiag}
-        language={language}
-        gutterW={GUTTER_W}
-        theme={t}
-      />
+      <TypeInfoBar typeInfo={typeInfo} activeDiag={activeDiag} language={language} gutterW={GUTTER_W} theme={t} />
     </div>
   );
 });

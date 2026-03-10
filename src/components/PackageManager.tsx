@@ -20,7 +20,7 @@ interface Props {
   contentHeight:   number;
 }
 
-const FONT = "'JetBrains Mono','Fira Code','Cascadia Code',monospace";
+const FONT = "'Victor Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace";
 
 export const PackageManager = React.memo(function PackageManager({
   theme: t, packages, isOpen, onToggle, contentHeight,
