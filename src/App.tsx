@@ -12,6 +12,7 @@ import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
 import { formatAllFiles, loadPrettier } from './lib/formatter';
 import { Sun, Moon, Copy, Check, Trash2, Wand2, Loader2, Play, Share2 } from 'lucide-react';
 import { workerClient } from './lib/workerClient';
+import { writeFiles, runCommand } from './lib/webcontainer';
 
 const FONT = "'Victor Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace";
 
@@ -136,6 +137,7 @@ function useCompilerManager(tsCode: string, addMessage: (type: ConsoleMessage['t
   }, [compilerStatus]);
 
   const runCode = useCallback(async (
+    packages: InstalledPackage[],
     onSuccess: (js: string, dts: string) => void,
     onError: (err: Error) => void
   ) => {
@@ -144,16 +146,46 @@ function useCompilerManager(tsCode: string, addMessage: (type: ConsoleMessage['t
       const compiled = await workerClient.compile(tsCode);
       onSuccess(compiled.js, compiled.dts);
       
-      const blob = new Blob([compiled.js], { type: 'application/javascript' });
-      const url  = URL.createObjectURL(blob);
-      await import(/* @vite-ignore */ url);
-      URL.revokeObjectURL(url);
+      const deps: Record<string, string> = {};
+      packages.forEach(pkg => {
+        deps[pkg.name] = pkg.version === 'latest' ? '*' : pkg.version;
+      });
+
+      await writeFiles({
+        'index.js': compiled.js,
+        'package.json': JSON.stringify({
+          name: 'playground',
+          type: 'module',
+          dependencies: deps
+        }, null, 2)
+      });
+
+      if (packages.length > 0) {
+        addMessage('info', ['Installing dependencies via npm...']);
+        const installExit = await runCommand('npm', ['install'], (out) => {
+          const clean = out.replace(/\x1b\[[0-9;]*m/g, '').trim();
+          if (clean) addMessage('info', [clean]);
+        });
+        if (installExit !== 0) {
+          throw new Error(`npm install failed with exit code ${installExit}`);
+        }
+      }
+
+      addMessage('info', ['Executing via Node.js...']);
+      const exitCode = await runCommand('node', ['index.js'], (out) => {
+        const clean = out.replace(/\x1b\[[0-9;]*m/g, '').trim();
+        if (clean) addMessage('log', [clean]);
+      });
+
+      if (exitCode !== 0) {
+        addMessage('error', [`Process exited with code ${exitCode}`]);
+      }
     } catch (e) {
       onError(e as Error);
     } finally {
       setIsRunning(false);
     }
-  }, [tsCode]);
+  }, [tsCode, addMessage]);
 
   return { compilerStatus, isRunning, runCode };
 }
@@ -459,6 +491,7 @@ export function App() {
     clearMessages();
 
     runCode(
+      installedPackages,
       (js, dts) => {
         setJsCode(js);
         setDtsCode(dts);
@@ -468,7 +501,7 @@ export function App() {
         addMessage('error', [`Compilation error: ${err.message}`]);
       }
     );
-  }, [jsDirty, runCode, clearMessages, addMessage]);
+  }, [jsDirty, runCode, clearMessages, addMessage, installedPackages]);
 
   const isEditorTarget = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) return false;
