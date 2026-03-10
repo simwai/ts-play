@@ -12,10 +12,11 @@ import { decodeSharePayload, encodeSharePayload } from './lib/shareCodec';
 import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
 import { formatAllFiles, loadPrettier } from './lib/formatter';
 import { Sun, Moon, Copy, Check, Trash2, Wand2, Loader2, Play, Share2 } from 'lucide-react';
+import type * as TS from 'typescript';
 
 // ── Auto-detect imports (AST based) ───────────────────────────────────────────
 function detectImports(code: string): string[] {
-  const ts = (window as any).ts;
+  const ts = (window as any).ts as typeof TS;
   if (!ts) {
     const noComments = code.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
     const imports = new Set<string>();
@@ -35,9 +36,9 @@ function detectImports(code: string): string[] {
   const sourceFile = ts.createSourceFile('temp.ts', code, ts.ScriptTarget.Latest, true);
   const imports = new Set<string>();
 
-  function visit(node: any) {
+  function visit(node: TS.Node) {
     if (ts.isImportDeclaration(node)) {
-      const text = node.moduleSpecifier?.text;
+      const text = (node.moduleSpecifier as TS.StringLiteral)?.text;
       if (text && !text.startsWith('.') && !text.startsWith('/') && !text.startsWith('http')) {
         const parts = text.split('/');
         const name = text.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0];
@@ -289,7 +290,6 @@ function generateDeclarations(code: string): string {
       const ret = returnType?.trim() || (isAsync ? 'Promise<void>' : 'void');
       const prefix = exp ? 'export declare' : 'declare';
       dtsLines.push(...pendingJsDoc);
-      // Removed asyncPrefix because 'async' modifier cannot be used in an ambient context
       dtsLines.push(`${prefix} function ${name}${gen}(${params}): ${ret};`);
       dtsLines.push('');
       pendingJsDoc = [];

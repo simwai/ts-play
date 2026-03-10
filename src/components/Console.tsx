@@ -123,7 +123,7 @@ export const Console = React.memo(function Console({ messages, onClear, theme: t
           ) : (
             messages.map((m, idx) => (
               <div
-                key={idx}
+                key={`${m.ts}-${idx}`}
                 style={{
                   display:      'flex',
                   alignItems:   'flex-start',

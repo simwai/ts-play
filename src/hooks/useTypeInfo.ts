@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { getLanguageService, updateTSFile } from './useTSDiagnostics';
+import type * as TS from 'typescript';
 
 export interface TypeInfo {
   name:           string;
@@ -22,13 +23,13 @@ export function useTypeInfo() {
       const info = ls.getQuickInfoAtPosition('main.ts', offset);
       if (!info) return null;
 
-      const ts = (window as any).ts;
+      const ts = (window as any).ts as typeof TS;
       if (!ts) return null;
 
       const displayString = ts.displayPartsToString(info.displayParts);
-      const docString = ts.displayPartsToString(info.documentation);
+      const docString = info.documentation ? ts.displayPartsToString(info.documentation) : undefined;
 
-      const namePart = info.displayParts?.find((p: any) => 
+      const namePart = info.displayParts?.find((p: TS.SymbolDisplayPart) => 
         ['localName', 'parameterName', 'methodName', 'functionName', 'className', 'interfaceName', 'aliasName', 'propertyName', 'enumName', 'moduleName'].includes(p.kind)
       );
 
@@ -36,7 +37,7 @@ export function useTypeInfo() {
         name: namePart ? namePart.text : '',
         kind: info.kind,
         typeAnnotation: displayString,
-        jsDoc: docString || undefined,
+        jsDoc: docString,
       };
     } catch (e) {
       return null;

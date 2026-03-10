@@ -64,8 +64,8 @@ export async function loadPackageTypings(packages: InstalledPackage[]) {
         if (ambientUrl) {
           libs[libName(pkg, `${entry}__url`)] = ambientUrl;
         }
-      } catch {
-        // ignore typing load failures
+      } catch (e) {
+        console.warn(`Failed to load typings for ${pkg.name}:`, e);
       }
     })
   );

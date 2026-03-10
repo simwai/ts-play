@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import type * as TS from 'typescript';
 
 export interface TSDiagnostic {
   start:     number;
@@ -10,7 +11,7 @@ export interface TSDiagnostic {
 }
 
 // Module-level singletons
-let ls: any = null;
+let ls: TS.LanguageService | null = null;
 let lsVersion = '';
 let libsSignature = '';
 const files: Record<string, { version: number; content: string }> = {};
@@ -132,7 +133,7 @@ export function useTSDiagnostics(
     if (timerRef.current) window.clearTimeout(timerRef.current);
 
     timerRef.current = window.setTimeout(async () => {
-      const ts = (window as any).ts;
+      const ts = (window as any).ts as typeof TS;
       if (!ts) return;
 
       if (code.length > 20000) return;
@@ -161,10 +162,10 @@ export function useTSDiagnostics(
             return;
           }
 
-          const compilerOptions = {
-            target: ts.ScriptTarget?.ES2020 ?? 7,
-            module: ts.ModuleKind?.ESNext ?? 6,
-            moduleResolution: ts.ModuleResolutionKind?.NodeJs ?? 2,
+          const compilerOptions: TS.CompilerOptions = {
+            target: ts.ScriptTarget.ES2020,
+            module: ts.ModuleKind.ESNext,
+            moduleResolution: ts.ModuleResolutionKind.NodeJs,
             lib: [
               'lib.es5.d.ts',
               'lib.es2015.d.ts',
@@ -184,7 +185,7 @@ export function useTSDiagnostics(
             typeRoots: [],
           };
 
-          const host = {
+          const host: TS.LanguageServiceHost = {
             getScriptFileNames: () => [
               '/main.ts',
               ...Object.keys(libFiles).map((name) => `/${name}`),
@@ -238,7 +239,7 @@ export function useTSDiagnostics(
             useCaseSensitiveFileNames: () => true,
             getCanonicalFileName: (fileName: string) => fileName,
             getNewLine: () => "\n"
-          };
+          } as TS.LanguageServiceHost;
 
           ls = ts.createLanguageService(host, ts.createDocumentRegistry());
         }
@@ -258,7 +259,7 @@ export function useTSDiagnostics(
             2308, 
           ]);
 
-          const filtered = all.filter((d: any) => !ignoredCodes.has(d.code));
+          const filtered = all.filter((d: TS.Diagnostic) => !ignoredCodes.has(d.code));
 
           // O(N) pre-calculation of line starts for O(log N) lookups
           const lineStarts = [0];
@@ -266,7 +267,7 @@ export function useTSDiagnostics(
             if (code[i] === '\n') lineStarts.push(i + 1);
           }
 
-          const formatted: TSDiagnostic[] = filtered.map((d: any) => {
+          const formatted: TSDiagnostic[] = filtered.map((d: TS.Diagnostic) => {
             const start = d.start || 0;
             
             // Binary search for line number
@@ -288,7 +289,7 @@ export function useTSDiagnostics(
               message = String(d.messageText);
             }
             
-            const category = (d.category === ts.DiagnosticCategory?.Warning ? 'warning' : 'error') as 'error' | 'warning';
+            const category = (d.category === ts.DiagnosticCategory.Warning ? 'warning' : 'error') as 'error' | 'warning';
             
             return {
               start,
