@@ -621,8 +621,8 @@ export function App() {
       <header className="flex items-center justify-between px-1.5 h-9 bg-mantle border-b border-surface0 shrink-0 gap-1">
         {/* Brand */}
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold tracking-tight font-mono drop-shadow-[0_0_10px_var(--color-mauve)]">
-            TS<span className="text-mauve animate-[lit-purple-glow_2s_ease-in-out_infinite]">Play</span>
+          <span className="text-xs font-bold tracking-tight font-mono">
+            TS<span className="text-mauve">Play</span>
           </span>
         </div>
 
@@ -634,8 +634,8 @@ export function App() {
               onClick={() => setActiveTab(tab)}
               className={`px-1.5 py-0.5 rounded border-none text-[9px] font-semibold font-mono cursor-pointer tracking-wide uppercase transition-all duration-160 ${
                 activeTab === tab 
-                  ? 'bg-mauve/20 text-mauve shadow-[0_0_10px_var(--color-mauve),inset_0_0_5px_var(--color-mauve)]' 
-                  : 'bg-transparent text-overlay1 shadow-none'
+                  ? 'bg-mauve/20 text-mauve' 
+                  : 'bg-transparent text-overlay1'
               }`}
             >
               {tab}
@@ -651,7 +651,7 @@ export function App() {
             title={themeMode === 'mocha' ? 'Switch to Latte (light)' : 'Switch to Mocha (dark)'}
             size="sm"
             variant="surface"
-            className="min-w-[22px] h-[22px] rounded p-0.5 flex items-center justify-center"
+            className="w-[22px] h-[22px] p-0"
           >
             {themeMode === 'mocha' ? <Sun size={14} /> : <Moon size={14} />}
           </IconButton>
@@ -664,8 +664,8 @@ export function App() {
             onClick={handleCopyAll}
             title={`Copy all ${activeTab}`}
             size="sm"
-            variant={copied ? 'surface' : 'surface'}
-            className={`min-w-[22px] h-[22px] rounded p-0.5 flex items-center justify-center ${copied ? 'text-green border-green bg-green/15' : 'text-text border-surface1 bg-surface0'}`}
+            variant="surface"
+            className={`w-[22px] h-[22px] p-0 ${copied ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}`}
           >
             {copied ? <Check size={14} /> : <Copy size={14} />}
           </IconButton>
@@ -676,7 +676,7 @@ export function App() {
             title={`Clear ${activeTab} editor`}
             size="sm"
             variant="surface"
-            className="min-w-[22px] h-[22px] rounded p-0.5 flex items-center justify-center text-red border-surface1 bg-surface0"
+            className="w-[22px] h-[22px] p-0 text-red hover:text-red"
           >
             <Trash2 size={14} />
           </IconButton>
@@ -688,7 +688,7 @@ export function App() {
             title="Format all files with Prettier (TS + JS + DTS)"
             size="sm"
             variant="surface"
-            className={`min-w-[22px] h-[22px] rounded p-0.5 flex items-center justify-center transition-all duration-160 ${formatSuccess ? 'text-green border-green bg-green/15' : formatting ? 'text-overlay0 bg-surface0' : 'text-mauve border-surface1 bg-mauve/10'}`}
+            className={`w-[22px] h-[22px] p-0 ${formatSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}`}
           >
             {formatting ? <Loader2 size={14} className="animate-spin" /> : formatSuccess ? <Check size={14} /> : <Wand2 size={14} />}
           </IconButton>
@@ -702,13 +702,11 @@ export function App() {
             disabled={isRunning || compilerStatus !== 'ready'}
             variant="primary"
             title="Run (compile + execute)"
-            className="font-mono tracking-wide px-1 py-0.5 h-[22px] min-w-[22px] rounded text-[10px] gap-1"
+            className="font-mono tracking-wide px-2 py-0 h-[22px] min-w-[22px] text-[10px] gap-1.5"
           >
-            <span className={`w-3.5 h-3.5 rounded-[3px] inline-flex items-center justify-center shrink-0 ${isRunning || compilerStatus !== 'ready' ? 'bg-surface1 text-overlay0' : 'bg-green/20 text-green'}`}>
-              {isRunning
-                ? <Loader2 size={10} className="animate-spin" />
-                : <Play size={10} fill="currentColor" className="ml-[1px]" />}
-            </span>
+            {isRunning
+              ? <Loader2 size={12} className="animate-spin" />
+              : <Play size={12} fill="currentColor" />}
             <span className="hidden sm:inline">
               {isRunning ? 'Running…' : 'Run'}
             </span>
@@ -771,9 +769,9 @@ export function App() {
             }}
             title={sharing ? 'Sharing...' : 'Share snippet (expires in 7 days)'}
             size="sm"
-            variant={shareSuccess ? 'surface' : 'surface'}
+            variant="surface"
             disabled={sharing}
-            className={`min-w-[22px] h-[22px] rounded p-0.5 flex items-center justify-center ${shareSuccess ? 'text-green border-green bg-green/15' : 'text-blue border-surface1 bg-surface0'}`}
+            className={`w-[22px] h-[22px] p-0 ${shareSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}`}
           >
             {sharing ? <Loader2 size={14} className="animate-spin" /> : shareSuccess ? <Check size={14} /> : <Share2 size={14} />}
           </IconButton>
@@ -892,10 +890,6 @@ export function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Victor+Mono:ital,wght@0,100..700;1,100..700&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes lit-purple-glow {
-          0%, 100% { text-shadow: 0 0 5px var(--color-mauve), 0 0 10px var(--color-mauve); }
-          50% { text-shadow: 0 0 10px var(--color-mauve), 0 0 20px var(--color-mauve), 0 0 30px var(--color-mauve); }
-        }
         * { box-sizing: border-box; }
         textarea { -webkit-text-fill-color: transparent !important; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
