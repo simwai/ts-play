@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getTheme, ThemeMode, CatppuccinTheme } from './lib/theme';
+import { ThemeMode } from './lib/theme';
 import { CodeEditor } from './components/CodeEditor';
 import { Console, ConsoleMessage } from './components/Console';
 import { OverrideModal } from './components/Modal';
@@ -175,7 +175,15 @@ function useCompilerManager(tsCode: string, addMessage: (type: ConsoleMessage['t
 // ── App ───────────────────────────────────────────────────────────────────────
 export function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('mocha');
-  const [theme, setTheme] = useState<CatppuccinTheme>(getTheme('mocha'));
+
+  // Toggle dark mode class on HTML element
+  useEffect(() => {
+    if (themeMode === 'mocha') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [themeMode]);
 
   const [tsCode, setTsCode] = useState(DEFAULT_TS);
   const [jsCode, setJsCode] = useState('// Press Run to compile TypeScript →');
@@ -419,15 +427,6 @@ export function App() {
     };
   }, [isResizing, handleResizeMove, handleResizeEnd]);
 
-  useEffect(() => {
-    setTheme(getTheme(themeMode));
-  }, [themeMode]);
-
-  useEffect(() => {
-    document.body.style.backgroundColor = theme.crust;
-    document.body.style.margin = '0';
-  }, [theme]);
-
   const getApiUrl = useCallback((path: string) => {
     return new URL(path.replace(/^\//, ''), document.baseURI).toString();
   }, []);
@@ -609,79 +608,35 @@ export function App() {
     setPackageManagerOpen(o => !o);
   }, []);
 
-  const t = theme;
-
   const statusLabel = compilerStatus === 'loading' ? '⏳ Loading…'
     : compilerStatus === 'error' ? '✗ No compiler'
     : '✓ TS ready';
-  const statusColor = compilerStatus === 'ready' ? t.green
-    : compilerStatus === 'error' ? t.red
-    : t.yellow;
+  const statusColorClass = compilerStatus === 'ready' ? 'text-green'
+    : compilerStatus === 'error' ? 'text-red'
+    : 'text-yellow';
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100dvh',
-      background: t.base,
-      color: t.text,
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      overflow: 'hidden',
-    }}>
+    <div className="flex flex-col h-[100dvh] bg-base text-text font-sans overflow-hidden">
       {/* ── Header ── */}
-      <header style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 6px',
-        height: 36,
-        background: t.mantle,
-        borderBottom: `1px solid ${t.surface0}`,
-        flexShrink: 0,
-        gap: 4,
-      }}>
+      <header className="flex items-center justify-between px-1.5 h-9 bg-mantle border-b border-surface0 shrink-0 gap-1">
         {/* Brand */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            fontSize: 12,
-            fontWeight: 700,
-            color: t.text,
-            letterSpacing: '-0.02em',
-            fontFamily: FONT,
-            textShadow: `0 0 10px ${t.mauve}40`
-          }}>
-            TS<span style={{ color: t.mauve, animation: 'lit-purple-glow 2s ease-in-out infinite' }}>Play</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold tracking-tight font-mono drop-shadow-[0_0_10px_var(--color-mauve)]">
+            TS<span className="text-mauve animate-[lit-purple-glow_2s_ease-in-out_infinite]">Play</span>
           </span>
         </div>
 
         {/* Tabs */}
-        <div style={{
-          display: 'flex',
-          background: t.surface0,
-          borderRadius: 5,
-          padding: 1,
-          gap: 1,
-          flexShrink: 1,
-        }}>
+        <div className="flex bg-surface0 rounded-[5px] p-[1px] gap-[1px] shrink">
           {(['ts', 'js', 'dts'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              style={{
-                padding: '2px 6px',
-                borderRadius: 4,
-                border: 'none',
-                fontSize: 9,
-                fontWeight: 600,
-                fontFamily: FONT,
-                cursor: 'pointer',
-                letterSpacing: '0.02em',
-                textTransform: 'uppercase',
-                background: activeTab === tab ? `${t.mauve}20` : 'transparent',
-                color: activeTab === tab ? t.mauve : t.overlay1,
-                boxShadow: activeTab === tab ? `0 0 10px ${t.mauve}40, inset 0 0 5px ${t.mauve}20` : 'none',
-                transition: 'all 160ms',
-              }}
+              className={`px-1.5 py-0.5 rounded border-none text-[9px] font-semibold font-mono cursor-pointer tracking-wide uppercase transition-all duration-160 ${
+                activeTab === tab 
+                  ? 'bg-mauve/20 text-mauve shadow-[0_0_10px_var(--color-mauve),inset_0_0_5px_var(--color-mauve)]' 
+                  : 'bg-transparent text-overlay1 shadow-none'
+              }`}
             >
               {tab}
             </button>
@@ -689,41 +644,28 @@ export function App() {
         </div>
 
         {/* Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+        <div className="flex items-center gap-1 shrink-0">
           {/* Theme toggle */}
           <IconButton
             onClick={() => setThemeMode(m => m === 'mocha' ? 'latte' : 'mocha')}
             title={themeMode === 'mocha' ? 'Switch to Latte (light)' : 'Switch to Mocha (dark)'}
-            theme={t}
             size="sm"
             variant="surface"
-            style={{ minWidth: 22, height: 22, borderRadius: 4, padding: '2px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            className="min-w-[22px] h-[22px] rounded p-0.5 flex items-center justify-center"
           >
             {themeMode === 'mocha' ? <Sun size={14} /> : <Moon size={14} />}
           </IconButton>
 
           {/* Separator */}
-          <div style={{ width: 1, height: 10, background: t.surface1, flexShrink: 0 }} />
+          <div className="w-px h-2.5 bg-surface1 shrink-0" />
 
           {/* Copy all */}
           <IconButton
             onClick={handleCopyAll}
             title={`Copy all ${activeTab}`}
-            theme={t}
             size="sm"
             variant={copied ? 'surface' : 'surface'}
-            style={{
-              color: copied ? t.green : t.text,
-              borderColor: copied ? t.green : t.surface1,
-              background: copied ? `${t.green}15` : t.surface0,
-              minWidth: 22,
-              height: 22,
-              borderRadius: 4,
-              padding: '2px 4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
+            className={`min-w-[22px] h-[22px] rounded p-0.5 flex items-center justify-center ${copied ? 'text-green border-green bg-green/15' : 'text-text border-surface1 bg-surface0'}`}
           >
             {copied ? <Check size={14} /> : <Copy size={14} />}
           </IconButton>
@@ -732,21 +674,9 @@ export function App() {
           <IconButton
             onClick={handleDeleteAll}
             title={`Clear ${activeTab} editor`}
-            theme={t}
             size="sm"
             variant="surface"
-            style={{
-              color: t.red,
-              borderColor: t.surface1,
-              background: t.surface0,
-              minWidth: 22,
-              height: 22,
-              borderRadius: 4,
-              padding: '2px 4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
+            className="min-w-[22px] h-[22px] rounded p-0.5 flex items-center justify-center text-red border-surface1 bg-surface0"
           >
             <Trash2 size={14} />
           </IconButton>
@@ -756,73 +686,36 @@ export function App() {
             onClick={handleFormat}
             disabled={formatting}
             title="Format all files with Prettier (TS + JS + DTS)"
-            theme={t}
             size="sm"
             variant="surface"
-            style={{
-              minWidth: 22,
-              height: 22,
-              borderRadius: 4,
-              padding: '2px 4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: formatSuccess ? t.green : formatting ? t.overlay0 : t.mauve,
-              borderColor: formatSuccess ? t.green : t.surface1,
-              background: formatSuccess ? `${t.green}15` : formatting ? t.surface0 : `${t.mauve}12`,
-              transition: 'all 160ms',
-            }}
+            className={`min-w-[22px] h-[22px] rounded p-0.5 flex items-center justify-center transition-all duration-160 ${formatSuccess ? 'text-green border-green bg-green/15' : formatting ? 'text-overlay0 bg-surface0' : 'text-mauve border-surface1 bg-mauve/10'}`}
           >
-            {formatting ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : formatSuccess ? <Check size={14} /> : <Wand2 size={14} />}
+            {formatting ? <Loader2 size={14} className="animate-spin" /> : formatSuccess ? <Check size={14} /> : <Wand2 size={14} />}
           </IconButton>
 
           {/* Separator */}
-          <div style={{ width: 1, height: 10, background: t.surface1, flexShrink: 0 }} />
+          <div className="w-px h-2.5 bg-surface1 shrink-0" />
 
           {/* Run */}
           <Button
             onClick={() => doRun(false)}
             disabled={isRunning || compilerStatus !== 'ready'}
             variant="primary"
-            theme={t}
             title="Run (compile + execute)"
-            style={{
-              fontFamily:    FONT,
-              letterSpacing: '0.02em',
-              background:    isRunning || compilerStatus !== 'ready' ? t.surface0 : `${t.green}18`,
-              color:         isRunning || compilerStatus !== 'ready' ? t.overlay0 : t.green,
-              padding:       '2px 5px 2px 4px',
-              height:        22,
-              minWidth:      22,
-              borderRadius:  4,
-              fontSize:      10,
-              gap:           4,
-              border:        `1px solid ${isRunning || compilerStatus !== 'ready' ? t.surface1 : `${t.green}55`}`,
-              boxShadow:     isRunning || compilerStatus !== 'ready' ? 'none' : `inset 0 0 0 1px ${t.green}12`,
-            }}
+            className="font-mono tracking-wide px-1 py-0.5 h-[22px] min-w-[22px] rounded text-[10px] gap-1"
           >
-            <span style={{
-              width: 14,
-              height: 14,
-              borderRadius: 3,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: isRunning || compilerStatus !== 'ready' ? t.surface1 : `${t.green}22`,
-              color: isRunning || compilerStatus !== 'ready' ? t.overlay0 : t.green,
-              flexShrink: 0,
-            }}>
+            <span className={`w-3.5 h-3.5 rounded-[3px] inline-flex items-center justify-center shrink-0 ${isRunning || compilerStatus !== 'ready' ? 'bg-surface1 text-overlay0' : 'bg-green/20 text-green'}`}>
               {isRunning
-                ? <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />
-                : <Play size={10} fill="currentColor" style={{ marginLeft: 1 }} />}
+                ? <Loader2 size={10} className="animate-spin" />
+                : <Play size={10} fill="currentColor" className="ml-[1px]" />}
             </span>
-            <span className="run-label">
+            <span className="hidden sm:inline">
               {isRunning ? 'Running…' : 'Run'}
             </span>
           </Button>
 
           {/* Separator */}
-          <div style={{ width: 1, height: 10, background: t.surface1, flexShrink: 0 }} />
+          <div className="w-px h-2.5 bg-surface1 shrink-0" />
 
           {/* Share */}
           <IconButton
@@ -877,51 +770,29 @@ export function App() {
               }
             }}
             title={sharing ? 'Sharing...' : 'Share snippet (expires in 7 days)'}
-            theme={t}
             size="sm"
             variant={shareSuccess ? 'surface' : 'surface'}
             disabled={sharing}
-            style={{ 
-              minWidth: 22,
-              height: 22,
-              borderRadius: 4,
-              padding: '2px 4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: shareSuccess ? t.green : t.blue,
-              borderColor: shareSuccess ? t.green : t.surface1,
-              background: shareSuccess ? `${t.green}15` : t.surface0,
-            }}
+            className={`min-w-[22px] h-[22px] rounded p-0.5 flex items-center justify-center ${shareSuccess ? 'text-green border-green bg-green/15' : 'text-blue border-surface1 bg-surface0'}`}
           >
-            {sharing ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : shareSuccess ? <Check size={14} /> : <Share2 size={14} />}
+            {sharing ? <Loader2 size={14} className="animate-spin" /> : shareSuccess ? <Check size={14} /> : <Share2 size={14} />}
           </IconButton>
         </div>
       </header>
 
       {/* ── Status bar ── */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 14px',
-        height: compactForKeyboard ? 20 : 24,
-        background: t.crust,
-        borderBottom: `1px solid ${t.surface0}`,
-        flexShrink: 0,
-        overflow: 'hidden',
-      }}>
-        <span style={{ fontSize: 10, color: statusColor, fontFamily: FONT, letterSpacing: '0.04em' }}>
+      <div className="flex items-center justify-between px-3.5 bg-crust border-b border-surface0 shrink-0 overflow-hidden" style={{ height: compactForKeyboard ? 20 : 24 }}>
+        <span className={`text-[10px] font-mono tracking-wide ${statusColorClass}`}>
           {statusLabel}
         </span>
-        <span style={{ fontSize: 10, color: t.overlay0, fontFamily: FONT }}>
+        <span className="text-[10px] text-overlay0 font-mono">
           {activeTab === 'ts' ? 'TypeScript' : activeTab === 'js' ? 'JavaScript' : 'Declarations'}
           {activeTab === 'js' && jsDirty && (
-            <span style={{ marginLeft: 6, color: t.peach }}>● modified</span>
+            <span className="ml-1.5 text-peach">● modified</span>
           )}
         </span>
         {!compactForKeyboard && (
-          <span style={{ fontSize: 10, color: t.overlay0, fontFamily: FONT }}>
+          <span className="text-[10px] text-overlay0 font-mono">
             swipe to switch tabs
           </span>
         )}
@@ -930,27 +801,15 @@ export function App() {
       {/* ── Editors ── */}
       <div
         ref={swipeRef}
-        style={{
-          flex: 1,
-          overflow: 'hidden',
-          position: 'relative',
-          minHeight: 0,
-        }}
+        className="flex-1 overflow-hidden relative min-h-0"
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
       >
         {/* Slider track */}
-        <div style={{
-          display: 'flex',
-          width: '300%',
-          height: '100%',
-          transform: activeTab === 'ts' ? 'translateX(0)' : activeTab === 'js' ? 'translateX(-33.333%)' : 'translateX(-66.666%)',
-          transition: 'transform 320ms cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-          willChange: 'transform',
-        }}>
+        <div className="flex w-[300%] h-full transition-transform duration-300 ease-in-out will-change-transform" style={{ transform: activeTab === 'ts' ? 'translateX(0)' : activeTab === 'js' ? 'translateX(-33.333%)' : 'translateX(-66.666%)' }}>
           {/* TS Editor */}
-          <div style={{ width: '33.333%', height: '100%', flexShrink: 0 }}>
+          <div className="w-[33.333%] h-full shrink-0">
             <CodeEditor
               value={tsCode}
               onChange={setTsCode}
@@ -959,30 +818,27 @@ export function App() {
                 checkImports();
               }}
               language="typescript"
-              theme={t}
               extraLibs={packageTypings}
               keyboardOpen={keyboardOpen}
               keyboardHeight={keyboardHeight}
             />
           </div>
           {/* JS Editor */}
-          <div style={{ width: '33.333%', height: '100%', flexShrink: 0 }}>
+          <div className="w-[33.333%] h-full shrink-0">
             <CodeEditor
               value={jsCode}
               onChange={v => { setJsCode(v); setJsDirty(true); }}
               language="javascript"
-              theme={t}
               keyboardOpen={keyboardOpen}
               keyboardHeight={keyboardHeight}
             />
           </div>
           {/* DTS Editor */}
-          <div style={{ width: '33.333%', height: '100%', flexShrink: 0 }}>
+          <div className="w-[33.333%] h-full shrink-0">
             <CodeEditor
               value={dtsCode}
               onChange={setDtsCode}
               language="typescript"
-              theme={t}
               readOnly={true}
               keyboardOpen={keyboardOpen}
               keyboardHeight={keyboardHeight}
@@ -996,44 +852,20 @@ export function App() {
         <div
           onMouseDown={handleResizeStart}
           onTouchStart={handleResizeStart}
-          style={{
-            height: 8,
-            background: isResizing ? t.peach : t.surface0,
-            borderBottom: `1px solid ${t.surface1}`,
-            cursor: 'ns-resize',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            transition: 'background 160ms',
-            position: 'relative',
-          }}
+          className={`h-2 border-b border-surface1 cursor-ns-resize flex items-center justify-center shrink-0 transition-colors duration-160 relative ${isResizing ? 'bg-peach' : 'bg-surface0'}`}
           title="Drag to resize"
         >
-          <div style={{
-            width: 40,
-            height: 4,
-            background: t.overlay0,
-            borderRadius: 2,
-            opacity: 0.5,
-          }} />
+          <div className="w-10 h-1 bg-overlay0 rounded-sm opacity-50" />
         </div>
       )}
 
       {/* ── Console & Package Manager Section ── */}
       {!compactForKeyboard && (
-      <div style={{
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        flexShrink: 0,
-        background: t.base,
-      }}>
+      <div className="overflow-hidden flex flex-col shrink-0 bg-base">
         {/* ── Console ── */}
         <Console
           messages={messages}
           onClear={clearMessages}
-          theme={t}
           isOpen={consoleOpen}
           onToggle={toggleConsole}
           contentHeight={panelHeight}
@@ -1041,7 +873,6 @@ export function App() {
 
         {/* ── Package Manager ── */}
         <PackageManager
-          theme={t}
           packages={installedPackages}
           isOpen={packageManagerOpen}
           onToggle={togglePackageManager}
@@ -1053,7 +884,6 @@ export function App() {
       {/* ── Override modal ── */}
       {showModal && (
         <OverrideModal
-          theme={t}
           onConfirm={() => doRun(true)}
           onCancel={() => setShowModal(false)}
         />
@@ -1063,20 +893,17 @@ export function App() {
         @import url('https://fonts.googleapis.com/css2?family=Victor+Mono:ital,wght@0,100..700;1,100..700&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes lit-purple-glow {
-          0%, 100% { text-shadow: 0 0 5px ${t.mauve}40, 0 0 10px ${t.mauve}20; }
-          50% { text-shadow: 0 0 10px ${t.mauve}aa, 0 0 20px ${t.mauve}66, 0 0 30px ${t.mauve}40; }
+          0%, 100% { text-shadow: 0 0 5px var(--color-mauve), 0 0 10px var(--color-mauve); }
+          50% { text-shadow: 0 0 10px var(--color-mauve), 0 0 20px var(--color-mauve), 0 0 30px var(--color-mauve); }
         }
         * { box-sizing: border-box; }
-        body { margin: 0; overflow: hidden; }
         textarea { -webkit-text-fill-color: transparent !important; }
-        .run-label { display: none; }
-        @media (min-width: 480px) { .run-label { display: inline; } }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.3); border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(128,128,128,0.5); }
-        ::selection { background: ${t.surface2}80; }
-        ::-moz-selection { background: ${t.surface2}80; }
+        ::selection { background: var(--color-surface2); opacity: 0.5; }
+        ::-moz-selection { background: var(--color-surface2); opacity: 0.5; }
       `}</style>
     </div>
   );

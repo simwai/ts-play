@@ -1,5 +1,4 @@
 import { CSSProperties } from 'react';
-import { CatppuccinTheme } from '../../lib/theme';
 import { cn } from '../../utils/cn';
 
 export type BadgeVariant = 'default' | 'error' | 'warn' | 'info' | 'success' | 'custom';
@@ -8,38 +7,32 @@ interface BadgeProps {
   label: string;
   variant?: BadgeVariant;
   color?: string; // used when variant === 'custom'
-  theme: CatppuccinTheme;
   style?: CSSProperties;
   className?: string;
 }
 
-export function Badge({ label, variant = 'default', color, theme: t, style, className }: BadgeProps) {
-  const c = resolveColor(variant, color, t);
+export function Badge({ label, variant = 'default', color, style, className }: BadgeProps) {
   return (
     <span 
       className={cn(
-        "text-[9px] font-bold tracking-[0.08em] uppercase font-mono rounded-[3px] px-[5px] py-[1px] shrink-0 leading-[14px]",
+        "text-[9px] font-bold tracking-[0.08em] uppercase font-mono rounded-[3px] px-[5px] py-[1px] shrink-0 leading-[14px] border",
+        {
+          'bg-overlay1/20 text-overlay1 border-overlay1/40': variant === 'default',
+          'bg-red/20 text-red border-red/40': variant === 'error',
+          'bg-yellow/20 text-yellow border-yellow/40': variant === 'warn',
+          'bg-blue/20 text-blue border-blue/40': variant === 'info',
+          'bg-green/20 text-green border-green/40': variant === 'success',
+        },
         className
       )}
-      style={{
-        color: c,
-        background: `${c}20`,
-        border: `1px solid ${c}40`,
+      style={variant === 'custom' && color ? {
+        color: color,
+        background: `${color}20`,
+        borderColor: `${color}40`,
         ...style,
-      }}
+      } : style}
     >
       {label}
     </span>
   );
-}
-
-function resolveColor(variant: BadgeVariant, custom: string | undefined, t: CatppuccinTheme): string {
-  switch (variant) {
-    case 'error':   return t.red;
-    case 'warn':    return t.yellow;
-    case 'info':    return t.blue;
-    case 'success': return t.green;
-    case 'custom':  return custom ?? t.overlay1;
-    default:        return t.overlay1;
-  }
 }

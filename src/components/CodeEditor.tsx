@@ -1,5 +1,5 @@
 import React, { useRef, useCallback, useEffect, useState, useMemo, useLayoutEffect } from 'react';
-import { CatppuccinTheme, getSyntaxColors } from '../lib/theme';
+import { getSyntaxColors } from '../lib/theme';
 import { tokenize } from '../lib/tokenizer';
 import { useTypeInfo, type TypeInfo } from '../hooks/useTypeInfo';
 import { useTSDiagnostics, type TSDiagnostic } from '../hooks/useTSDiagnostics';
@@ -12,7 +12,6 @@ interface Props {
   onCursorChange?: (pos: number) => void;
   language: 'typescript' | 'javascript';
   readOnly?: boolean;
-  theme: CatppuccinTheme;
   extraLibs?: Record<string, string>;
   keyboardOpen?: boolean;
   keyboardHeight?: number;
@@ -24,20 +23,20 @@ const PAD_X     = 12;
 const GUTTER_W  = 44;
 const FONT      = "'Victor Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace";
 const FONT_SIZE = 13;
-const CHAR_W    = 7.8; // Approx width of a monospace char at 13px
+const CHAR_W    = 7.8;
 
 const EMPTY_LIBS = {};
 
-function buildHtml(code: string, theme: CatppuccinTheme): string {
-  const sc = getSyntaxColors(theme);
+function buildHtml(code: string): string {
+  const sc = getSyntaxColors();
   const COLOR: Record<string, string> = {
     keyword: sc.keyword, string: sc.string, number: sc.number, comment: sc.comment,
     function: sc.function, type: sc.type, operator: sc.operator, punctuation: sc.punctuation,
     decorator: sc.decorator, variable: sc.variable, constant: sc.constant, boolean: sc.boolean,
-    property: sc.property, parameter: sc.parameter, plain: theme.text,
+    property: sc.property, parameter: sc.parameter, plain: 'var(--text)',
   };
   return tokenize(code).map(tok => {
-    const color = COLOR[tok.type] ?? theme.text;
+    const color = COLOR[tok.type] ?? 'var(--text)';
     const safe = tok.value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     return `<span style="color:${color}">${safe}</span>`;
   }).join('');
@@ -47,7 +46,7 @@ function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function buildSquiggles(code: string, diagnostics: TSDiagnostic[], theme: CatppuccinTheme): string {
+function buildSquiggles(code: string, diagnostics: TSDiagnostic[]): string {
   if (!diagnostics.length) return escHtml(code);
   const sorted = [...diagnostics].sort((a, b) => a.start - b.start);
   const parts: string[] = [];
@@ -57,7 +56,7 @@ function buildSquiggles(code: string, diagnostics: TSDiagnostic[], theme: Catppu
     const end   = Math.min(d.start + d.length, code.length);
     if (start < cursor) continue;
     if (start > cursor) parts.push(escHtml(code.slice(cursor, start)));
-    const color = d.category === 'error' ? theme.red : theme.yellow;
+    const color = d.category === 'error' ? 'var(--red)' : 'var(--yellow)';
     parts.push(`<span style="text-decoration:underline wavy ${color};text-decoration-thickness:1.5px;text-underline-offset:3px;">${escHtml(code.slice(start, end))}</span>`);
     cursor = end;
   }
@@ -77,7 +76,7 @@ const layerStyle = (contentHeight: number): React.CSSProperties => ({
 });
 
 export const CodeEditor = React.memo(function CodeEditor({
-  value, onChange, onCursorChange, language, readOnly = false, theme: t,
+  value, onChange, onCursorChange, language, readOnly = false,
   extraLibs = EMPTY_LIBS, keyboardOpen = false, keyboardHeight = 0,
 }: Props) {
   const scrollRef   = useRef<HTMLDivElement>(null);
@@ -95,7 +94,6 @@ export const CodeEditor = React.memo(function CodeEditor({
   const diagnostics = useTSDiagnostics(value, language === 'typescript', extraLibs);
   const [activeDiag, setActiveDiag] = useState<TSDiagnostic | null>(null);
 
-  // Autocomplete State
   const [completions, setCompletions] = useState<any[]>([]);
   const [selIndex, setSelIndex] = useState(0);
   const [popupPos, setPopupPos] = useState({ top: 0, left: 0 });
@@ -164,7 +162,7 @@ export const CodeEditor = React.memo(function CodeEditor({
 
   useLayoutEffect(() => { cancelAnimationFrame(rafRef.current); rafRef.current = requestAnimationFrame(measureWraps); }, [measureWraps]);
 
-  useEffect(() => { if (preRef.current) preRef.current.innerHTML = buildHtml(value, t) + '\n'; }, [value, t]);
+  useEffect(() => { if (preRef.current) preRef.current.innerHTML = buildHtml(value) + '\n'; }, [value]);
 
   const onScroll = useCallback(() => {
     if (!scrollRef.current) return;
@@ -202,12 +200,10 @@ export const CodeEditor = React.memo(function CodeEditor({
       return;
     }
 
-    // Ensure worker has the latest code before requesting completions
     await workerClient.updateFile('main.ts', code);
 
     const entries = await workerClient.getCompletions(pos);
     if (entries && entries.length > 0) {
-      // Filter entries by the current word prefix
       const filtered = prefix
         ? entries.filter(e => e.name.toLowerCase().startsWith(prefix.toLowerCase()))
         : entries;
@@ -216,11 +212,10 @@ export const CodeEditor = React.memo(function CodeEditor({
         const logicalLineIndex = Math.max(0, before.split('\n').length - 1);
         const y = PAD_TOP + measuredLineHeights.slice(0, logicalLineIndex).reduce((sum, h) => sum + h, 0) + (measuredLineHeights[logicalLineIndex] ?? LINE_H);
         const lastLine = before.split('\n').pop() || '';
-        // Adjust X position to start of the word
         const x = PAD_X + ((lastLine.length - prefix.length) * CHAR_W);
         
         setPopupPos({ top: y, left: x });
-        setCompletions(filtered.slice(0, 50)); // Limit to 50 for perf
+        setCompletions(filtered.slice(0, 50));
         setSelIndex(0);
       } else {
         setCompletions([]);
@@ -304,7 +299,6 @@ export const CodeEditor = React.memo(function CodeEditor({
     lastCursorPos.current = pos;
     onCursorChange?.(pos);
 
-    // Auto-trigger completions on typing
     if (!isPasteOrCut) {
       triggerAutocomplete(newVal, pos);
     } else {
@@ -343,66 +337,40 @@ export const CodeEditor = React.memo(function CodeEditor({
   const gutterItems = useMemo(() => linesArray.map((_, idx) => ({ number: idx + 1, height: measuredLineHeights[idx] })), [linesArray, measuredLineHeights]);
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', minHeight: 0, background: t.base, paddingBottom: keyboardOpen ? Math.min(24, Math.round(keyboardHeight * 0.06)) : 0 }}>
-        <div ref={gutterRef} style={{ width: GUTTER_W, flexShrink: 0, overflowY: 'hidden', overflowX: 'hidden', paddingTop: PAD_TOP, paddingBottom: PAD_TOP, background: t.mantle, borderRight: `1px solid ${t.surface0}`, userSelect: 'none', fontFamily: FONT, fontSize: FONT_SIZE, lineHeight: `${LINE_H}px`, color: t.overlay0, textAlign: 'right', paddingRight: 8, boxSizing: 'border-box', minHeight: contentHeight }}>
+    <div className="relative w-full h-full overflow-hidden flex flex-col">
+      <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto overflow-x-hidden flex min-h-0 bg-base" style={{ paddingBottom: keyboardOpen ? Math.min(24, Math.round(keyboardHeight * 0.06)) : 0 }}>
+        <div ref={gutterRef} className="shrink-0 overflow-hidden bg-mantle border-r border-surface0 select-none text-overlay0 text-right box-border" style={{ width: GUTTER_W, paddingTop: PAD_TOP, paddingBottom: PAD_TOP, fontFamily: FONT, fontSize: FONT_SIZE, lineHeight: `${LINE_H}px`, paddingRight: 8, minHeight: contentHeight }}>
           {gutterItems.map(({ number, height }) => <div key={number} style={{ height, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end' }}>{number}</div>)}
         </div>
-        <div ref={codeWrapRef} style={{ flex: 1, position: 'relative', minWidth: 0, minHeight: contentHeight }}>
-          <div ref={measureRef} aria-hidden style={{ position: 'absolute', inset: 0, visibility: 'hidden', pointerEvents: 'none', zIndex: -1, padding: `${PAD_TOP}px ${PAD_X}px`, fontFamily: FONT, fontSize: FONT_SIZE, lineHeight: `${LINE_H}px`, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'break-word', boxSizing: 'border-box' }}>
+        <div ref={codeWrapRef} className="flex-1 relative min-w-0" style={{ minHeight: contentHeight }}>
+          <div ref={measureRef} aria-hidden className="absolute inset-0 invisible pointer-events-none -z-10 box-border whitespace-pre-wrap break-words" style={{ padding: `${PAD_TOP}px ${PAD_X}px`, fontFamily: FONT, fontSize: FONT_SIZE, lineHeight: `${LINE_H}px` }}>
             {linesArray.map((line, idx) => <div key={`measure-${idx}`} style={{ minHeight: LINE_H, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'break-word' }}>{line === '' ? ' ' : line.replace(/\t/g, '  ')}</div>)}
           </div>
-          <pre ref={preRef} aria-hidden style={{ ...layerStyle(contentHeight), color: t.text, background: 'transparent', pointerEvents: 'none' }} />
-          <pre aria-hidden dangerouslySetInnerHTML={{ __html: buildSquiggles(value, diagnostics, t) }} style={{ ...layerStyle(contentHeight), color: 'transparent', background: 'transparent', pointerEvents: 'none', zIndex: 1 }} />
-          <textarea ref={textareaRef} value={value} readOnly={readOnly} onChange={handleTextChange} onKeyDown={onKeyDown} onSelect={updateTypeInfo} onClick={updateTypeInfo} onKeyUp={updateTypeInfo} onTouchStart={onTouchStart} spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" wrap="soft" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" style={{ ...layerStyle(contentHeight), height: contentHeight, color: 'transparent', caretColor: t.lavender, background: 'transparent', border: 'none', outline: 'none', resize: 'none', WebkitTextFillColor: 'transparent', cursor: readOnly ? 'default' : 'text', zIndex: 2, touchAction: 'pan-y', caretShape: 'bar' }} />
+          <pre ref={preRef} aria-hidden className="text-text bg-transparent pointer-events-none" style={layerStyle(contentHeight)} />
+          <pre aria-hidden dangerouslySetInnerHTML={{ __html: buildSquiggles(value, diagnostics) }} className="text-transparent bg-transparent pointer-events-none z-10" style={layerStyle(contentHeight)} />
+          <textarea ref={textareaRef} value={value} readOnly={readOnly} onChange={handleTextChange} onKeyDown={onKeyDown} onSelect={updateTypeInfo} onClick={updateTypeInfo} onKeyUp={updateTypeInfo} onTouchStart={onTouchStart} spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" wrap="soft" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" className="text-transparent bg-transparent border-none outline-none resize-none z-20 caret-lavender" style={{ ...layerStyle(contentHeight), height: contentHeight, WebkitTextFillColor: 'transparent', cursor: readOnly ? 'default' : 'text', touchAction: 'pan-y', caretShape: 'bar' }} />
           
-          {/* Autocomplete Popup */}
           {completions.length > 0 && (
-            <ul style={{
-              position: 'absolute',
-              top: popupPos.top,
-              left: popupPos.left,
-              margin: 0,
-              padding: 0,
-              listStyle: 'none',
-              background: t.mantle,
-              border: `1px solid ${t.surface1}`,
-              borderRadius: 6,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-              zIndex: 50,
-              maxHeight: 150,
-              overflowY: 'auto',
-              fontFamily: FONT,
-              fontSize: 12,
-              minWidth: 150,
-            }}>
+            <ul className="absolute m-0 p-0 list-none bg-mantle border border-surface1 rounded-md shadow-[0_4px_12px_rgba(0,0,0,0.3)] z-50 max-h-[150px] overflow-y-auto min-w-[150px]" style={{ top: popupPos.top, left: popupPos.left, fontFamily: FONT, fontSize: 12 }}>
               {completions.map((comp, i) => (
                 <li
                   key={comp.name}
-                  style={{
-                    padding: '4px 8px',
-                    background: i === selIndex ? t.surface0 : 'transparent',
-                    color: i === selIndex ? t.text : t.subtext0,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    gap: 12
-                  }}
+                  className={`px-2 py-1 cursor-pointer flex justify-between gap-3 ${i === selIndex ? 'bg-surface0 text-text' : 'bg-transparent text-subtext0'}`}
                   onMouseDown={(e) => {
-                    e.preventDefault(); // Prevent textarea blur
+                    e.preventDefault();
                     setSelIndex(i);
                     insertCompletion();
                   }}
                 >
                   <span>{comp.name}</span>
-                  <span style={{ color: t.overlay0, fontSize: 10 }}>{comp.kind}</span>
+                  <span className="text-overlay0 text-[10px]">{comp.kind}</span>
                 </li>
               ))}
             </ul>
           )}
         </div>
       </div>
-      <TypeInfoBar typeInfo={typeInfo} activeDiag={activeDiag} language={language} gutterW={GUTTER_W} theme={t} />
+      <TypeInfoBar typeInfo={typeInfo} activeDiag={activeDiag} language={language} gutterW={GUTTER_W} />
     </div>
   );
 });

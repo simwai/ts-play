@@ -1,5 +1,4 @@
 import { CSSProperties, ReactNode, useState } from 'react';
-import { CatppuccinTheme } from '../../lib/theme';
 import { cn } from '../../utils/cn';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
@@ -9,7 +8,6 @@ interface ButtonProps {
   disabled?: boolean;
   children: ReactNode;
   variant?: Variant;
-  theme: CatppuccinTheme;
   title?: string;
   style?: CSSProperties;
   type?: 'button' | 'submit' | 'reset';
@@ -21,7 +19,6 @@ export function Button({
   disabled = false,
   children,
   variant = 'secondary',
-  theme: t,
   title,
   style,
   type = 'button',
@@ -29,8 +26,6 @@ export function Button({
 }: ButtonProps) {
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
-
-  const { bg, color, border } = resolveVariant(variant, disabled, hovered, pressed, t);
 
   return (
     <button
@@ -47,55 +42,17 @@ export function Button({
         variant === 'primary' ? "font-bold" : "font-medium",
         disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer opacity-100",
         pressed && !disabled ? "scale-[0.97]" : "scale-100",
+        {
+          'bg-green text-crust hover:bg-teal border-none': variant === 'primary',
+          'bg-surface0 text-text hover:bg-surface1 border border-surface1': variant === 'secondary',
+          'bg-red/15 text-red hover:bg-red/25 border border-red/40 hover:border-red/60': variant === 'danger',
+          'bg-transparent text-text hover:bg-surface0 border-none': variant === 'ghost',
+        },
         className
       )}
-      style={{
-        background: bg,
-        color,
-        border,
-        ...style,
-      }}
+      style={style}
     >
       {children}
     </button>
   );
-}
-
-function resolveVariant(
-  variant: Variant,
-  disabled: boolean,
-  hovered: boolean,
-  pressed: boolean,
-  t: CatppuccinTheme,
-): { bg: string; color: string; border: string } {
-  if (disabled) return { bg: t.surface0, color: t.overlay0, border: `1px solid ${t.surface1}` };
-
-  const dim = pressed ? 'dd' : hovered ? 'ee' : 'ff';
-
-  switch (variant) {
-    case 'primary':
-      return {
-        bg:     hovered ? t.teal  : t.green,
-        color:  t.crust,
-        border: 'none',
-      };
-    case 'danger':
-      return {
-        bg:     hovered ? `${t.red}28` : `${t.red}18`,
-        color:  t.red,
-        border: `1px solid ${t.red}${hovered ? '60' : '40'}`,
-      };
-    case 'ghost':
-      return {
-        bg:     hovered ? `${t.surface0}` : 'transparent',
-        color:  t.text,
-        border: 'none',
-      };
-    default: // secondary
-      return {
-        bg:     hovered ? t.surface1 : t.surface0,
-        color:  t.text,
-        border: `1px solid ${t.surface1}${dim}`,
-      };
-  }
 }

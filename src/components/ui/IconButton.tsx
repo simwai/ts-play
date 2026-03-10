@@ -1,12 +1,10 @@
 import { CSSProperties, ReactNode, useState } from 'react';
-import { CatppuccinTheme } from '../../lib/theme';
 import { cn } from '../../utils/cn';
 
 interface IconButtonProps {
   onClick?: (e: React.MouseEvent) => void;
   title?: string;
   disabled?: boolean;
-  theme: CatppuccinTheme;
   children: ReactNode;
   variant?: 'ghost' | 'surface' | 'danger';
   size?: 'sm' | 'md';
@@ -18,7 +16,6 @@ export function IconButton({
   onClick,
   title,
   disabled = false,
-  theme: t,
   children,
   variant = 'surface',
   size = 'md',
@@ -27,23 +24,6 @@ export function IconButton({
 }: IconButtonProps) {
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
-
-  const bg =
-    variant === 'ghost'
-      ? hovered ? t.surface0 : 'transparent'
-      : variant === 'danger'
-      ? hovered ? `${t.red}28` : `${t.red}15`
-      : hovered ? t.surface1 : t.surface0;
-
-  const border =
-    variant === 'ghost'  ? 'none' :
-    variant === 'danger' ? `1px solid ${t.red}${hovered ? '60' : '44'}` :
-    `1px solid ${t.surface1}`;
-
-  const col =
-    variant === 'danger' ? t.red :
-    disabled             ? t.overlay0 :
-    t.text;
 
   return (
     <button
@@ -59,14 +39,14 @@ export function IconButton({
         size === 'sm' ? "px-[6px] py-[3px]" : "px-[9px] py-[5px]",
         disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer opacity-100",
         pressed && !disabled ? "scale-[0.93]" : "scale-100",
+        {
+          'bg-transparent hover:bg-surface0 text-text border-none': variant === 'ghost',
+          'bg-red/15 hover:bg-red/28 text-red border border-red/44 hover:border-red/60': variant === 'danger',
+          'bg-surface0 hover:bg-surface1 text-text border border-surface1': variant === 'surface',
+        },
         className
       )}
-      style={{
-        background: bg,
-        border,
-        color: col,
-        ...style,
-      }}
+      style={style}
     >
       {children}
     </button>

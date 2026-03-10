@@ -1,5 +1,4 @@
 import React from 'react';
-import { CatppuccinTheme } from '../../lib/theme';
 import { TypeInfo } from '../../hooks/useTypeInfo';
 import { TSDiagnostic } from '../../hooks/useTSDiagnostics';
 
@@ -10,17 +9,13 @@ interface TypeInfoBarProps {
   activeDiag: TSDiagnostic | null;
   language:   'typescript' | 'javascript';
   gutterW:    number;
-  theme:      CatppuccinTheme;
 }
 
-// Helper to find Markdown URLs [text](url) and plain URLs in text and make them clickable
-function renderWithLinks(text: string, t: CatppuccinTheme) {
-  // Matches either a markdown link [text](url) or a plain url
+function renderWithLinks(text: string) {
   const regex = /(\[[^\]]+\]\(https?:\/\/[^\s)]+\)|https?:\/\/[^\s)]+)/g;
   const parts = text.split(regex);
 
   return parts.map((part, i) => {
-    // Check if it's a markdown link
     const mdMatch = part.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/);
     if (mdMatch) {
       return (
@@ -29,12 +24,7 @@ function renderWithLinks(text: string, t: CatppuccinTheme) {
           href={mdMatch[2]}
           target="_blank"
           rel="noopener noreferrer"
-          style={{
-            color: t.blue,
-            textDecoration: 'underline',
-            textUnderlineOffset: '2px',
-            pointerEvents: 'auto',
-          }}
+          className="text-blue underline underline-offset-2 pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {mdMatch[1]}
@@ -42,7 +32,6 @@ function renderWithLinks(text: string, t: CatppuccinTheme) {
       );
     }
 
-    // Check if it's a plain URL
     const urlMatch = part.match(/^(https?:\/\/[^\s)]+)$/);
     if (urlMatch) {
       return (
@@ -51,12 +40,7 @@ function renderWithLinks(text: string, t: CatppuccinTheme) {
           href={urlMatch[1]}
           target="_blank"
           rel="noopener noreferrer"
-          style={{
-            color: t.blue,
-            textDecoration: 'underline',
-            textUnderlineOffset: '2px',
-            pointerEvents: 'auto',
-          }}
+          className="text-blue underline underline-offset-2 pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {urlMatch[1]}
@@ -68,44 +52,20 @@ function renderWithLinks(text: string, t: CatppuccinTheme) {
   });
 }
 
-export function TypeInfoBar({ typeInfo, activeDiag, language, gutterW, theme: t }: TypeInfoBarProps) {
+export function TypeInfoBar({ typeInfo, activeDiag, language, gutterW }: TypeInfoBarProps) {
   const hasDiag     = !!activeDiag;
   const hasTypeInfo = !hasDiag && !!typeInfo;
   const isEmpty     = !hasDiag && !hasTypeInfo;
 
   return (
-    <div style={{
-      flexShrink:     0,
-      background:     t.mantle,
-      borderTop:      `1px solid ${t.surface0}`,
-      paddingLeft:    gutterW + 8,
-      paddingRight:   10,
-      paddingTop:     5,
-      paddingBottom:  5,
-      fontFamily:     FONT,
-      fontSize:       11,
-      // Responsive: wraps and scrolls — never squeezes into one line
-      overflowY:      'auto',
-      maxHeight:      96,  // ~4 lines max before scroll kicks in
-      minHeight:      26,
-      boxSizing:      'border-box',
-      // Ensure pointer events work for links
-      pointerEvents:  'auto',
-    }}>
-
-      {/* ── Diagnostic message ── */}
-      {hasDiag && (
-        <DiagRow diag={activeDiag!} t={t} />
-      )}
-
-      {/* ── Type info ── */}
-      {hasTypeInfo && (
-        <TypeRow info={typeInfo!} t={t} />
-      )}
-
-      {/* ── Empty hint ── */}
+    <div 
+      className="shrink-0 bg-mantle border-t border-surface0 py-[5px] pr-[10px] overflow-y-auto max-h-[96px] min-h-[26px] box-border pointer-events-auto text-[11px]"
+      style={{ paddingLeft: gutterW + 8, fontFamily: FONT }}
+    >
+      {hasDiag && <DiagRow diag={activeDiag!} />}
+      {hasTypeInfo && <TypeRow info={typeInfo!} />}
       {isEmpty && (
-        <span style={{ color: t.overlay0, fontSize: 10, fontStyle: 'italic' }}>
+        <span className="text-overlay0 text-[10px] italic">
           {language === 'typescript'
             ? 'Move cursor over a symbol for type info'
             : 'JavaScript output'}
@@ -115,119 +75,97 @@ export function TypeInfoBar({ typeInfo, activeDiag, language, gutterW, theme: t 
   );
 }
 
-// ── Diagnostic row ────────────────────────────────────────────────────────────
-function DiagRow({ diag, t }: { diag: TSDiagnostic; t: CatppuccinTheme }) {
+function DiagRow({ diag }: { diag: TSDiagnostic }) {
   const isError = diag.category === 'error';
-  const color   = isError ? t.red : t.yellow;
+  const colorClass = isError ? 'text-red' : 'text-yellow';
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-      <span style={{ color, flexShrink: 0, lineHeight: '16px' }}>
+    <div className="flex items-start gap-1.5">
+      <span className={`${colorClass} shrink-0 leading-[16px]`}>
         {isError ? '✖' : '⚠'}
       </span>
-      <span style={{
-        color,
-        whiteSpace:   'pre-wrap',
-        wordBreak:    'break-word',
-        lineHeight:   '16px',
-        flex:         1,
-      }}>
+      <span className={`${colorClass} whitespace-pre-wrap break-words leading-[16px] flex-1`}>
         {diag.message}
       </span>
-      <span style={{ color: t.overlay0, flexShrink: 0, lineHeight: '16px', fontSize: 10 }}>
+      <span className="text-overlay0 shrink-0 leading-[16px] text-[10px]">
         [{diag.line + 1}:{diag.character + 1}]
       </span>
     </div>
   );
 }
 
-// ── Type info rows ────────────────────────────────────────────────────────────
-function TypeRow({ info, t }: { info: TypeInfo; t: CatppuccinTheme }) {
-  const kc = kindColor(info.kind, t);
+function TypeRow({ info }: { info: TypeInfo }) {
+  const kc = kindColorClass(info.kind);
+  const kcBg = kindBgClass(info.kind);
+  const kcBorder = kindBorderClass(info.kind);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-
-      {/* First row: kind chip + name + colon + type annotation */}
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, flexWrap: 'wrap' }}>
-        {/* Kind chip */}
-        <span style={{
-          fontSize:      9,
-          fontWeight:    700,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          color:         kc,
-          background:    `${kc}20`,
-          border:        `1px solid ${kc}40`,
-          borderRadius:  3,
-          padding:       '1px 4px',
-          flexShrink:    0,
-          lineHeight:    '14px',
-        }}>
+    <div className="flex flex-col gap-[3px]">
+      <div className="flex items-baseline gap-[5px] flex-wrap">
+        <span className={`text-[9px] font-bold tracking-[0.08em] uppercase rounded-[3px] px-1 py-[1px] shrink-0 leading-[14px] border ${kc} ${kcBg} ${kcBorder}`}>
           {info.kind}
         </span>
-
-        {/* Name */}
-        <span style={{ color: t.text, fontWeight: 600, flexShrink: 0 }}>
+        <span className="text-text font-semibold shrink-0">
           {info.name}
         </span>
-
-        {/* Colon */}
-        <span style={{ color: t.overlay0, flexShrink: 0 }}>:</span>
-
-        {/* Type annotation — wraps naturally, no truncation */}
-        <span style={{
-          color:      t.yellow,
-          whiteSpace: 'pre-wrap',
-          wordBreak:  'break-word',
-          flex:       '1 1 120px',
-          minWidth:   0,
-        }}>
+        <span className="text-overlay0 shrink-0">:</span>
+        <span className="text-yellow whitespace-pre-wrap break-words flex-[1_1_120px] min-w-0">
           {info.typeAnnotation}
         </span>
       </div>
 
-      {/* Second row: JSDoc (if present) */}
       {info.jsDoc && (
-        <div style={{
-          color:      t.overlay1,
-          fontSize:   10,
-          fontStyle:  'italic',
-          whiteSpace: 'pre-wrap',
-          wordBreak:  'break-word',
-          lineHeight: '15px',
-          paddingLeft: 4,
-          borderLeft: `2px solid ${t.surface1}`,
-        }}>
-          {renderWithLinks(info.jsDoc, t)}
+        <div className="text-overlay1 text-[10px] italic whitespace-pre-wrap break-words leading-[15px] pl-1 border-l-2 border-surface1">
+          {renderWithLinks(info.jsDoc)}
         </div>
       )}
 
-      {/* Third row: signature (if present and different from typeAnnotation) */}
       {info.signature && info.signature !== info.typeAnnotation && (
-        <div style={{
-          color:      t.overlay1,
-          fontSize:   10,
-          whiteSpace: 'pre-wrap',
-          wordBreak:  'break-word',
-          lineHeight: '15px',
-        }}>
-          {renderWithLinks(info.signature, t)}
+        <div className="text-overlay1 text-[10px] whitespace-pre-wrap break-words leading-[15px]">
+          {renderWithLinks(info.signature)}
         </div>
       )}
     </div>
   );
 }
 
-function kindColor(kind: string, t: CatppuccinTheme): string {
+function kindColorClass(kind: string): string {
   switch (kind) {
-    case 'function':  return t.blue;
-    case 'type':      return t.yellow;
-    case 'interface': return t.teal;
-    case 'class':     return t.green;
-    case 'parameter': return t.maroon;
-    case 'property':  return t.sapphire;
-    case 'keyword':   return t.mauve;
-    case 'builtin':   return t.peach;
-    default:          return t.lavender;
+    case 'function':  return 'text-blue';
+    case 'type':      return 'text-yellow';
+    case 'interface': return 'text-teal';
+    case 'class':     return 'text-green';
+    case 'parameter': return 'text-maroon';
+    case 'property':  return 'text-sapphire';
+    case 'keyword':   return 'text-mauve';
+    case 'builtin':   return 'text-peach';
+    default:          return 'text-lavender';
+  }
+}
+
+function kindBgClass(kind: string): string {
+  switch (kind) {
+    case 'function':  return 'bg-blue/20';
+    case 'type':      return 'bg-yellow/20';
+    case 'interface': return 'bg-teal/20';
+    case 'class':     return 'bg-green/20';
+    case 'parameter': return 'bg-maroon/20';
+    case 'property':  return 'bg-sapphire/20';
+    case 'keyword':   return 'bg-mauve/20';
+    case 'builtin':   return 'bg-peach/20';
+    default:          return 'bg-lavender/20';
+  }
+}
+
+function kindBorderClass(kind: string): string {
+  switch (kind) {
+    case 'function':  return 'border-blue/40';
+    case 'type':      return 'border-yellow/40';
+    case 'interface': return 'border-teal/40';
+    case 'class':     return 'border-green/40';
+    case 'parameter': return 'border-maroon/40';
+    case 'property':  return 'border-sapphire/40';
+    case 'keyword':   return 'border-mauve/40';
+    case 'builtin':   return 'border-peach/40';
+    default:          return 'border-lavender/40';
   }
 }
