@@ -1069,6 +1069,8 @@ export function App() {
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.3); border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(128,128,128,0.5); }
+        ::selection { background: ${t.surface2}80; }
+        ::-moz-selection { background: ${t.surface2}80; }
       `}</style>
     </div>
   );
