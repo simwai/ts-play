@@ -4,6 +4,12 @@ let webcontainerInstance: WebContainer | null = null;
 let bootPromise: Promise<WebContainer> | null = null;
 
 export async function getWebContainer(): Promise<WebContainer> {
+  if (!window.crossOriginIsolated) {
+    throw new Error(
+      "Browser is not cross-origin isolated. WebContainers require COOP/COEP headers and a secure context (HTTPS or localhost)."
+    );
+  }
+
   if (webcontainerInstance) {
     return webcontainerInstance;
   }
