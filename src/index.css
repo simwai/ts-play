@@ -99,4 +99,9 @@
   body {
     @apply bg-crust text-text m-0 overflow-hidden;
   }
+  
+  /* Change italic font variant to JetBrains Mono instead of Victor Mono */
+  i, em, .italic, .mtk-italic {
+    font-family: "JetBrains Mono", monospace !important;
+  }
 }
