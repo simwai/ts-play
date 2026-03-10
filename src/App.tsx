@@ -373,49 +373,6 @@ function generateDeclarations(code: string): string {
   return dtsLines.join('\n').trim() || '// No exported declarations found';
 }
 
-function extractClassDeclaration(lines: string[]): string[] {
-  const result: string[] = [];
-  const firstLine = lines[0].trim();
-  const isExport = firstLine.startsWith('export');
-  const prefix = isExport ? 'export declare' : 'declare';
-  const cleaned = firstLine
-    .replace(/^export\s+/, '')
-    .replace(/^(abstract\s+)?class/, `${prefix} $1class`.replace(/\s+/g, ' '));
-  result.push(cleaned.includes('{') ? cleaned : cleaned + ' {');
-
-  for (let i = 1; i < lines.length - 1; i++) {
-    const line = lines[i].trim();
-    if (!line || line === '{' || line === '}') continue;
-
-    const propMatch = line.match(/^(public|private|protected|readonly|static|\s)*(\w+)\s*[?!]?\s*:\s*([^;=]+)/);
-    if (propMatch) {
-      result.push(`  ${propMatch[2]}: ${propMatch[3].trim()};`);
-      continue;
-    }
-
-    const methMatch = line.match(/^(public|private|protected|static|async|\s)*(\w+)\s*(<[^>]*>)?\s*\(([^)]*)\)\s*(?::\s*([^{;]+))?/);
-    if (methMatch) {
-      const [, , name, gen, params, ret] = methMatch;
-      if (name === 'constructor') {
-        result.push(`  constructor(${params});`);
-      } else {
-        result.push(`  ${name}${gen || ''}(${params}): ${ret?.trim() || 'void'};`);
-      }
-      if (line.includes('{')) {
-        let depth = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
-        while (depth > 0 && i + 1 < lines.length - 1) {
-          i++;
-          depth += (lines[i].match(/\{/g) || []).length;
-          depth -= (lines[i].match(/\}/g) || []).length;
-        }
-      }
-    }
-  }
-
-  result.push('}');
-  return result;
-}
-
 // ── Initial code ─────────────────────────────────────────────────────────────
 const DEFAULT_TS = `// TypeScript Playground
 // Long-press any word on mobile to see type info ✨
@@ -502,6 +459,10 @@ export function App() {
 
   // Console capture (Global)
   const addMessage = useCallback((type: ConsoleMessage['type'], args: unknown[]) => {
+    // Prevent React infinite loop warnings from causing actual infinite loops in our state
+    if (type === 'error' && args.some(a => typeof a === 'string' && a.includes('Maximum update depth exceeded'))) {
+      return;
+    }
     const formatted = args.map(a => {
       if (typeof a === 'string') return a;
       try { return JSON.stringify(a, null, 2); } catch { return String(a); }

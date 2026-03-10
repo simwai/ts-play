@@ -83,6 +83,8 @@ const REQUIRED_LIBS = [
   'lib.dom.iterable.d.ts',
 ];
 
+const EMPTY_LIBS = {};
+
 async function ensureRequiredLibsLoaded() {
   if (libsLoaded) return;
   if (libsLoadingPromise) return libsLoadingPromise;
@@ -114,7 +116,7 @@ async function ensureRequiredLibsLoaded() {
 export function useTSDiagnostics(
   code: string,
   isTypeScript: boolean,
-  extraLibs: Record<string, string> = {}
+  extraLibs: Record<string, string> = EMPTY_LIBS
 ) {
   const [diagnostics, setDiagnostics] = useState<TSDiagnostic[]>([]);
   const timerRef = useRef<number | null>(null);

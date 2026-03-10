@@ -23,6 +23,8 @@ const GUTTER_W  = 44;
 const FONT      = "'JetBrains Mono','Fira Code','Cascadia Code',monospace";
 const FONT_SIZE = 13;
 
+const EMPTY_LIBS = {};
+
 // Build highlighted HTML from source
 function buildHtml(code: string, theme: CatppuccinTheme): string {
   const sc = getSyntaxColors(theme);
@@ -128,7 +130,7 @@ export const CodeEditor = React.memo(function CodeEditor({
   language,
   readOnly = false,
   theme: t,
-  extraLibs = {},
+  extraLibs = EMPTY_LIBS,
   keyboardOpen = false,
   keyboardHeight = 0,
 }: Props) {
