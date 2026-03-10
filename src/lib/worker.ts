@@ -18,6 +18,7 @@ async function getTS() {
 
 let ls: TS.LanguageService | null = null;
 let esbuildReady = false;
+let globalInitPromise: Promise<void> | null = null;
 
 const files: Record<string, { version: number; content: string }> = {};
 const libFiles: Record<string, { version: number; content: string }> = {};
@@ -359,16 +360,21 @@ self.onmessage = async (e: MessageEvent) => {
 
     switch (type) {
       case 'INIT': {
-        await getTS(); // Ensure TS is loaded
-        await ensureRequiredLibsLoaded();
-        if (!esbuildReady) {
-          await esbuild.initialize({
-            wasmURL: 'https://cdn.jsdelivr.net/npm/esbuild-wasm@0.23.1/esbuild.wasm',
-            worker: false,
-          });
-          esbuildReady = true;
+        if (!globalInitPromise) {
+          globalInitPromise = (async () => {
+            await getTS(); // Ensure TS is loaded
+            await ensureRequiredLibsLoaded();
+            if (!esbuildReady) {
+              await esbuild.initialize({
+                wasmURL: 'https://cdn.jsdelivr.net/npm/esbuild-wasm@0.23.1/esbuild.wasm',
+                worker: false,
+              });
+              esbuildReady = true;
+            }
+            await initLanguageService();
+          })();
         }
-        await initLanguageService();
+        await globalInitPromise;
         result = true;
         break;
       }
@@ -393,8 +399,11 @@ self.onmessage = async (e: MessageEvent) => {
       }
 
       case 'GET_DIAGNOSTICS': {
+        if (!ls) {
+          result = [];
+          break;
+        }
         const tsInstance = await getTS();
-        if (!ls) throw new Error("Language service not initialized");
         const syntactic = ls.getSyntacticDiagnostics('main.ts') || [];
         const semantic = ls.getSemanticDiagnostics('main.ts') || [];
         const all = [...syntactic, ...semantic];
@@ -438,8 +447,11 @@ self.onmessage = async (e: MessageEvent) => {
       }
 
       case 'GET_TYPE_INFO': {
+        if (!ls) {
+          result = null;
+          break;
+        }
         const tsInstance = await getTS();
-        if (!ls) throw new Error("Language service not initialized");
         const info = ls.getQuickInfoAtPosition('main.ts', payload.offset);
         if (!info) {
           result = null;
@@ -460,6 +472,7 @@ self.onmessage = async (e: MessageEvent) => {
       }
 
       case 'COMPILE': {
+        if (globalInitPromise) await globalInitPromise;
         if (!esbuildReady) throw new Error('esbuild not initialized');
         const httpPlugin: esbuild.Plugin = {
           name: 'http-resolve',
@@ -514,6 +527,7 @@ self.onmessage = async (e: MessageEvent) => {
       }
 
       case 'DETECT_IMPORTS': {
+        if (globalInitPromise) await globalInitPromise;
         const tsInstance = await getTS();
         const sourceFile = tsInstance.createSourceFile('temp.ts', payload.code, tsInstance.ScriptTarget.Latest, true);
         const imports = new Set<string>();
