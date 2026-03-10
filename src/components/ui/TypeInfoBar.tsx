@@ -1,3 +1,4 @@
+import React from 'react';
 import { CatppuccinTheme } from '../../lib/theme';
 import { TypeInfo } from '../../hooks/useTypeInfo';
 import { TSDiagnostic } from '../../hooks/useTSDiagnostics';
@@ -10,6 +11,35 @@ interface TypeInfoBarProps {
   language:   'typescript' | 'javascript';
   gutterW:    number;
   theme:      CatppuccinTheme;
+}
+
+// Helper to find URLs in text and make them clickable
+function renderWithLinks(text: string, t: CatppuccinTheme) {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+
+  return parts.map((part, i) => {
+    if (part.match(urlRegex)) {
+      return (
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            color: t.blue,
+            textDecoration: 'underline',
+            textUnderlineOffset: '2px',
+            pointerEvents: 'auto',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      );
+    }
+    return <React.Fragment key={i}>{part}</React.Fragment>;
+  });
 }
 
 export function TypeInfoBar({ typeInfo, activeDiag, language, gutterW, theme: t }: TypeInfoBarProps) {
@@ -33,6 +63,8 @@ export function TypeInfoBar({ typeInfo, activeDiag, language, gutterW, theme: t 
       maxHeight:      96,  // ~4 lines max before scroll kicks in
       minHeight:      26,
       boxSizing:      'border-box',
+      // Ensure pointer events work for links
+      pointerEvents:  'auto',
     }}>
 
       {/* ── Diagnostic message ── */}
@@ -140,7 +172,7 @@ function TypeRow({ info, t }: { info: TypeInfo; t: CatppuccinTheme }) {
           paddingLeft: 4,
           borderLeft: `2px solid ${t.surface1}`,
         }}>
-          {info.jsDoc}
+          {renderWithLinks(info.jsDoc, t)}
         </div>
       )}
 
@@ -153,7 +185,7 @@ function TypeRow({ info, t }: { info: TypeInfo; t: CatppuccinTheme }) {
           wordBreak:  'break-word',
           lineHeight: '15px',
         }}>
-          {info.signature}
+          {renderWithLinks(info.signature, t)}
         </div>
       )}
     </div>
