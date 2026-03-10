@@ -1,4 +1,5 @@
 import type { InstalledPackage } from '../components/PackageManager';
+import { readFile } from './webcontainer';
 
 function libName(pkg: InstalledPackage, entry = 'index') {
   const safe = pkg.name.replace(/[^a-zA-Z0-9_]/g, '_');
@@ -8,12 +9,6 @@ function libName(pkg: InstalledPackage, entry = 'index') {
 function ambientModuleName(pkg: InstalledPackage, entry = 'index') {
   const safe = pkg.name.replace(/[^a-zA-Z0-9_]/g, '_');
   return `@virtual/${safe}/${entry}.d.ts`;
-}
-
-async function fetchText(url: string) {
-  const res = await fetch(url);
-  if (!res.ok) return '';
-  return res.text();
 }
 
 function stripLeadingComments(content: string) {
@@ -40,27 +35,28 @@ export async function loadPackageTypings(packages: InstalledPackage[]) {
 
   await Promise.all(
     packages.map(async (pkg) => {
-      // Use esm.sh to automatically resolve types for the package
-      const url = `https://esm.sh/${pkg.name}?dts`;
-
       try {
-        const text = await fetchText(url);
-        const entry = 'index';
+        // Try to read package.json to find types from WebContainer
+        const pkgJsonRaw = await readFile(`node_modules/${pkg.name}/package.json`);
+        if (!pkgJsonRaw) return;
+        
+        const pkgJson = JSON.parse(pkgJsonRaw);
+        const typesPath = pkgJson.types || pkgJson.typings || 'index.d.ts';
+        
+        const text = await readFile(`node_modules/${pkg.name}/${typesPath}`);
+        if (!text) return;
 
-        const looksLikeDeclaration = /\bdeclare\b|\binterface\b|\btype\b|\bexport\b/.test(text) && !/^<!doctype html/i.test(text.trim());
-
-        if (!text || text.includes('404') || text.includes('Not Found') || !looksLikeDeclaration) {
-          return; // Skip if we couldn't get valid typings
-        }
+        const looksLikeDeclaration = /\bdeclare\b|\binterface\b|\btype\b|\bexport\b/.test(text);
+        if (!looksLikeDeclaration) return;
 
         const ambientBare = wrapAmbientModule(pkg.name, text);
         const ambientUrl = wrapAmbientModule(pkg.url, text);
 
         if (ambientBare) {
-          libs[ambientModuleName(pkg, entry)] = ambientBare;
+          libs[ambientModuleName(pkg, 'index')] = ambientBare;
         }
         if (ambientUrl) {
-          libs[libName(pkg, `${entry}__url`)] = ambientUrl;
+          libs[libName(pkg, `index__url`)] = ambientUrl;
         }
       } catch (e) {
         console.warn(`Failed to load typings for ${pkg.name}:`, e);

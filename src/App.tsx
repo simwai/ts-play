@@ -262,8 +262,8 @@ export function App() {
         setInstalledPackages(detected.map(name => ({
           name,
           version: 'latest',
-          cdn: 'esm.sh',
-          url: `https://esm.sh/${name}`
+          cdn: 'npm',
+          url: `npm:${name}`
         })));
       } catch (e) {
         console.error("Failed to detect imports:", e);

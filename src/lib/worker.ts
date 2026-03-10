@@ -1,20 +1,51 @@
 /// <reference lib="webworker" />
 import * as esbuild from 'esbuild-wasm';
-import type * as TS from 'typescript';
+import esbuildWasmUrl from 'esbuild-wasm/esbuild.wasm?url';
+import * as TS from 'typescript';
 
-let ts: typeof TS;
-let tsInitPromise: Promise<void> | null = null;
-
-async function getTS() {
-  if (ts) return ts;
-  if (!tsInitPromise) {
-    tsInitPromise = import(/* @vite-ignore */ 'https://esm.sh/typescript@5.4.5').then(m => {
-      ts = m.default || m;
-    });
-  }
-  await tsInitPromise;
-  return ts;
-}
+import lib_es5_d_ts from 'typescript/lib/lib.es5.d.ts?raw';
+import lib_es2015_d_ts from 'typescript/lib/lib.es2015.d.ts?raw';
+import lib_es2015_core_d_ts from 'typescript/lib/lib.es2015.core.d.ts?raw';
+import lib_es2015_collection_d_ts from 'typescript/lib/lib.es2015.collection.d.ts?raw';
+import lib_es2015_generator_d_ts from 'typescript/lib/lib.es2015.generator.d.ts?raw';
+import lib_es2015_iterable_d_ts from 'typescript/lib/lib.es2015.iterable.d.ts?raw';
+import lib_es2015_promise_d_ts from 'typescript/lib/lib.es2015.promise.d.ts?raw';
+import lib_es2015_proxy_d_ts from 'typescript/lib/lib.es2015.proxy.d.ts?raw';
+import lib_es2015_reflect_d_ts from 'typescript/lib/lib.es2015.reflect.d.ts?raw';
+import lib_es2015_symbol_d_ts from 'typescript/lib/lib.es2015.symbol.d.ts?raw';
+import lib_es2015_symbol_wellknown_d_ts from 'typescript/lib/lib.es2015.symbol.wellknown.d.ts?raw';
+import lib_es2016_d_ts from 'typescript/lib/lib.es2016.d.ts?raw';
+import lib_es2016_array_include_d_ts from 'typescript/lib/lib.es2016.array.include.d.ts?raw';
+import lib_es2017_d_ts from 'typescript/lib/lib.es2017.d.ts?raw';
+import lib_es2017_date_d_ts from 'typescript/lib/lib.es2017.date.d.ts?raw';
+import lib_es2017_object_d_ts from 'typescript/lib/lib.es2017.object.d.ts?raw';
+import lib_es2017_sharedmemory_d_ts from 'typescript/lib/lib.es2017.sharedmemory.d.ts?raw';
+import lib_es2017_string_d_ts from 'typescript/lib/lib.es2017.string.d.ts?raw';
+import lib_es2017_intl_d_ts from 'typescript/lib/lib.es2017.intl.d.ts?raw';
+import lib_es2017_typedarrays_d_ts from 'typescript/lib/lib.es2017.typedarrays.d.ts?raw';
+import lib_es2018_d_ts from 'typescript/lib/lib.es2018.d.ts?raw';
+import lib_es2018_asyncgenerator_d_ts from 'typescript/lib/lib.es2018.asyncgenerator.d.ts?raw';
+import lib_es2018_asynciterable_d_ts from 'typescript/lib/lib.es2018.asynciterable.d.ts?raw';
+import lib_es2018_intl_d_ts from 'typescript/lib/lib.es2018.intl.d.ts?raw';
+import lib_es2018_promise_d_ts from 'typescript/lib/lib.es2018.promise.d.ts?raw';
+import lib_es2018_regexp_d_ts from 'typescript/lib/lib.es2018.regexp.d.ts?raw';
+import lib_es2019_d_ts from 'typescript/lib/lib.es2019.d.ts?raw';
+import lib_es2019_array_d_ts from 'typescript/lib/lib.es2019.array.d.ts?raw';
+import lib_es2019_object_d_ts from 'typescript/lib/lib.es2019.object.d.ts?raw';
+import lib_es2019_string_d_ts from 'typescript/lib/lib.es2019.string.d.ts?raw';
+import lib_es2019_symbol_d_ts from 'typescript/lib/lib.es2019.symbol.d.ts?raw';
+import lib_es2019_intl_d_ts from 'typescript/lib/lib.es2019.intl.d.ts?raw';
+import lib_es2020_d_ts from 'typescript/lib/lib.es2020.d.ts?raw';
+import lib_es2020_bigint_d_ts from 'typescript/lib/lib.es2020.bigint.d.ts?raw';
+import lib_es2020_date_d_ts from 'typescript/lib/lib.es2020.date.d.ts?raw';
+import lib_es2020_promise_d_ts from 'typescript/lib/lib.es2020.promise.d.ts?raw';
+import lib_es2020_sharedmemory_d_ts from 'typescript/lib/lib.es2020.sharedmemory.d.ts?raw';
+import lib_es2020_string_d_ts from 'typescript/lib/lib.es2020.string.d.ts?raw';
+import lib_es2020_symbol_wellknown_d_ts from 'typescript/lib/lib.es2020.symbol.wellknown.d.ts?raw';
+import lib_es2020_intl_d_ts from 'typescript/lib/lib.es2020.intl.d.ts?raw';
+import lib_es2020_number_d_ts from 'typescript/lib/lib.es2020.number.d.ts?raw';
+import lib_dom_d_ts from 'typescript/lib/lib.dom.d.ts?raw';
+import lib_dom_iterable_d_ts from 'typescript/lib/lib.dom.iterable.d.ts?raw';
 
 let ls: TS.LanguageService | null = null;
 let esbuildReady = false;
@@ -23,48 +54,66 @@ let globalInitPromise: Promise<void> | null = null;
 const files: Record<string, { version: number; content: string }> = {};
 const libFiles: Record<string, { version: number; content: string }> = {};
 let extraLibs: Record<string, string> = {};
-let libsLoaded = false;
 
-const TS_VERSION = '5.4.5';
-const REQUIRED_LIBS = [
-  'lib.es5.d.ts', 'lib.es2015.d.ts', 'lib.es2015.core.d.ts', 'lib.es2015.collection.d.ts',
-  'lib.es2015.generator.d.ts', 'lib.es2015.iterable.d.ts', 'lib.es2015.promise.d.ts',
-  'lib.es2015.proxy.d.ts', 'lib.es2015.reflect.d.ts', 'lib.es2015.symbol.d.ts',
-  'lib.es2015.symbol.wellknown.d.ts', 'lib.es2016.d.ts', 'lib.es2016.array.include.d.ts',
-  'lib.es2017.d.ts', 'lib.es2017.date.d.ts', 'lib.es2017.object.d.ts', 'lib.es2017.sharedmemory.d.ts',
-  'lib.es2017.string.d.ts', 'lib.es2017.intl.d.ts', 'lib.es2017.typedarrays.d.ts',
-  'lib.es2018.d.ts', 'lib.es2018.asyncgenerator.d.ts', 'lib.es2018.asynciterable.d.ts',
-  'lib.es2018.intl.d.ts', 'lib.es2018.promise.d.ts', 'lib.es2018.regexp.d.ts',
-  'lib.es2019.d.ts', 'lib.es2019.array.d.ts', 'lib.es2019.object.d.ts', 'lib.es2019.string.d.ts',
-  'lib.es2019.symbol.d.ts', 'lib.es2019.intl.d.ts', 'lib.es2020.d.ts', 'lib.es2020.bigint.d.ts',
-  'lib.es2020.date.d.ts', 'lib.es2020.promise.d.ts', 'lib.es2020.sharedmemory.d.ts',
-  'lib.es2020.string.d.ts', 'lib.es2020.symbol.wellknown.d.ts', 'lib.es2020.intl.d.ts',
-  'lib.es2020.number.d.ts', 'lib.dom.d.ts', 'lib.dom.iterable.d.ts',
-];
+const rawLibs: Record<string, string> = {
+  'lib.es5.d.ts': lib_es5_d_ts,
+  'lib.es2015.d.ts': lib_es2015_d_ts,
+  'lib.es2015.core.d.ts': lib_es2015_core_d_ts,
+  'lib.es2015.collection.d.ts': lib_es2015_collection_d_ts,
+  'lib.es2015.generator.d.ts': lib_es2015_generator_d_ts,
+  'lib.es2015.iterable.d.ts': lib_es2015_iterable_d_ts,
+  'lib.es2015.promise.d.ts': lib_es2015_promise_d_ts,
+  'lib.es2015.proxy.d.ts': lib_es2015_proxy_d_ts,
+  'lib.es2015.reflect.d.ts': lib_es2015_reflect_d_ts,
+  'lib.es2015.symbol.d.ts': lib_es2015_symbol_d_ts,
+  'lib.es2015.symbol.wellknown.d.ts': lib_es2015_symbol_wellknown_d_ts,
+  'lib.es2016.d.ts': lib_es2016_d_ts,
+  'lib.es2016.array.include.d.ts': lib_es2016_array_include_d_ts,
+  'lib.es2017.d.ts': lib_es2017_d_ts,
+  'lib.es2017.date.d.ts': lib_es2017_date_d_ts,
+  'lib.es2017.object.d.ts': lib_es2017_object_d_ts,
+  'lib.es2017.sharedmemory.d.ts': lib_es2017_sharedmemory_d_ts,
+  'lib.es2017.string.d.ts': lib_es2017_string_d_ts,
+  'lib.es2017.intl.d.ts': lib_es2017_intl_d_ts,
+  'lib.es2017.typedarrays.d.ts': lib_es2017_typedarrays_d_ts,
+  'lib.es2018.d.ts': lib_es2018_d_ts,
+  'lib.es2018.asyncgenerator.d.ts': lib_es2018_asyncgenerator_d_ts,
+  'lib.es2018.asynciterable.d.ts': lib_es2018_asynciterable_d_ts,
+  'lib.es2018.intl.d.ts': lib_es2018_intl_d_ts,
+  'lib.es2018.promise.d.ts': lib_es2018_promise_d_ts,
+  'lib.es2018.regexp.d.ts': lib_es2018_regexp_d_ts,
+  'lib.es2019.d.ts': lib_es2019_d_ts,
+  'lib.es2019.array.d.ts': lib_es2019_array_d_ts,
+  'lib.es2019.object.d.ts': lib_es2019_object_d_ts,
+  'lib.es2019.string.d.ts': lib_es2019_string_d_ts,
+  'lib.es2019.symbol.d.ts': lib_es2019_symbol_d_ts,
+  'lib.es2019.intl.d.ts': lib_es2019_intl_d_ts,
+  'lib.es2020.d.ts': lib_es2020_d_ts,
+  'lib.es2020.bigint.d.ts': lib_es2020_bigint_d_ts,
+  'lib.es2020.date.d.ts': lib_es2020_date_d_ts,
+  'lib.es2020.promise.d.ts': lib_es2020_promise_d_ts,
+  'lib.es2020.sharedmemory.d.ts': lib_es2020_sharedmemory_d_ts,
+  'lib.es2020.string.d.ts': lib_es2020_string_d_ts,
+  'lib.es2020.symbol.wellknown.d.ts': lib_es2020_symbol_wellknown_d_ts,
+  'lib.es2020.intl.d.ts': lib_es2020_intl_d_ts,
+  'lib.es2020.number.d.ts': lib_es2020_number_d_ts,
+  'lib.dom.d.ts': lib_dom_d_ts,
+  'lib.dom.iterable.d.ts': lib_dom_iterable_d_ts,
+};
 
-async function ensureRequiredLibsLoaded() {
-  if (libsLoaded) return;
-  const base = `https://cdn.jsdelivr.net/npm/typescript@${TS_VERSION}/lib/`;
-  const entries = await Promise.all(
-    REQUIRED_LIBS.map(async (fileName) => {
-      const text = await fetch(base + fileName).then((r) => r.ok ? r.text() : '');
-      return [fileName, text] as const;
-    })
-  );
-  for (const [fileName, content] of entries) {
+function ensureRequiredLibsLoaded() {
+  for (const [fileName, content] of Object.entries(rawLibs)) {
     if (content) libFiles[fileName] = { version: 1, content };
   }
-  libsLoaded = true;
 }
 
 async function initLanguageService() {
   if (ls) return;
-  const tsInstance = await getTS();
   const compilerOptions: TS.CompilerOptions = {
-    target: tsInstance.ScriptTarget.ES2020,
-    module: tsInstance.ModuleKind.ESNext,
-    moduleResolution: tsInstance.ModuleResolutionKind.NodeJs,
-    lib: REQUIRED_LIBS,
+    target: TS.ScriptTarget.ES2020,
+    module: TS.ModuleKind.ESNext,
+    moduleResolution: TS.ModuleResolutionKind.NodeJs,
+    lib: Object.keys(rawLibs),
     esModuleInterop: true,
     strict: true,
     skipLibCheck: true,
@@ -91,7 +140,7 @@ async function initLanguageService() {
       else if (extraLibs[fileName]) content = extraLibs[fileName];
       else if (extraLibs[normalized]) content = extraLibs[normalized];
 
-      if (content !== undefined) return tsInstance.ScriptSnapshot.fromString(content);
+      if (content !== undefined) return TS.ScriptSnapshot.fromString(content);
       return undefined;
     },
     getCurrentDirectory: () => "/",
@@ -117,7 +166,7 @@ async function initLanguageService() {
     getNewLine: () => "\n"
   };
 
-  ls = tsInstance.createLanguageService(host, tsInstance.createDocumentRegistry());
+  ls = TS.createLanguageService(host, TS.createDocumentRegistry());
 }
 
 function extractClassDeclaration(lines: string[]): string[] {
@@ -362,11 +411,10 @@ self.onmessage = async (e: MessageEvent) => {
       case 'INIT': {
         if (!globalInitPromise) {
           globalInitPromise = (async () => {
-            await getTS(); // Ensure TS is loaded
-            await ensureRequiredLibsLoaded();
+            ensureRequiredLibsLoaded();
             if (!esbuildReady) {
               await esbuild.initialize({
-                wasmURL: 'https://cdn.jsdelivr.net/npm/esbuild-wasm@0.23.1/esbuild.wasm',
+                wasmURL: esbuildWasmUrl,
                 worker: false,
               });
               esbuildReady = true;
@@ -403,7 +451,6 @@ self.onmessage = async (e: MessageEvent) => {
           result = [];
           break;
         }
-        const tsInstance = await getTS();
         const syntactic = ls.getSyntacticDiagnostics('main.ts') || [];
         const semantic = ls.getSemanticDiagnostics('main.ts') || [];
         const all = [...syntactic, ...semantic];
@@ -429,7 +476,7 @@ self.onmessage = async (e: MessageEvent) => {
           
           let message = 'Unknown error';
           try {
-            message = tsInstance.flattenDiagnosticMessageText(d.messageText, "\n");
+            message = TS.flattenDiagnosticMessageText(d.messageText, "\n");
           } catch (err) {
             message = String(d.messageText);
           }
@@ -438,7 +485,7 @@ self.onmessage = async (e: MessageEvent) => {
             start,
             length: d.length || 0,
             message,
-            category: d.category === tsInstance.DiagnosticCategory.Warning ? 'warning' : 'error',
+            category: d.category === TS.DiagnosticCategory.Warning ? 'warning' : 'error',
             line,
             character,
           };
@@ -451,14 +498,13 @@ self.onmessage = async (e: MessageEvent) => {
           result = null;
           break;
         }
-        const tsInstance = await getTS();
         const info = ls.getQuickInfoAtPosition('main.ts', payload.offset);
         if (!info) {
           result = null;
           break;
         }
-        const displayString = tsInstance.displayPartsToString(info.displayParts);
-        const docString = info.documentation ? tsInstance.displayPartsToString(info.documentation) : undefined;
+        const displayString = TS.displayPartsToString(info.displayParts);
+        const docString = info.documentation ? TS.displayPartsToString(info.documentation) : undefined;
         const namePart = info.displayParts?.find(p => 
           ['localName', 'parameterName', 'methodName', 'functionName', 'className', 'interfaceName', 'aliasName', 'propertyName', 'enumName', 'moduleName'].includes(p.kind)
         );
@@ -474,40 +520,10 @@ self.onmessage = async (e: MessageEvent) => {
       case 'COMPILE': {
         if (globalInitPromise) await globalInitPromise;
         if (!esbuildReady) throw new Error('esbuild not initialized');
-        const httpPlugin: esbuild.Plugin = {
-          name: 'http-resolve',
-          setup(build) {
-            build.onResolve({ filter: /^https?:\/\// }, (args) => ({ path: args.path, namespace: 'http-url' }));
-            build.onResolve({ filter: /^\//, namespace: 'http-url' }, (args) => {
-              const base = new URL(args.importer).origin;
-              return { path: new URL(args.path, base).toString(), namespace: 'http-url' };
-            });
-            build.onResolve({ filter: /^\./ }, (args) => {
-              const base = args.resolveDir || 'https://esm.sh/';
-              return { path: new URL(args.path, base).toString(), namespace: 'http-url' };
-            });
-            build.onResolve({ filter: /^[^./].*/ }, (args) => {
-              return { path: `https://esm.sh/${args.path}`, namespace: 'http-url' };
-            });
-            build.onLoad({ filter: /.*/, namespace: 'http-url' }, async (args) => {
-              const res = await fetch(args.path);
-              if (!res.ok) throw new Error(`Failed to fetch ${args.path}`);
-              const contents = await res.text();
-              const ext = args.path.split('?')[0].split('.').pop() || 'js';
-              let loader: esbuild.Loader = 'js';
-              if (ext === 'ts') loader = 'ts';
-              else if (ext === 'tsx') loader = 'tsx';
-              else if (ext === 'jsx') loader = 'jsx';
-              else if (ext === 'css') loader = 'css';
-              return { contents, loader, resolveDir: new URL('.', args.path).toString() };
-            });
-          },
-        };
 
         const jsBuild = await esbuild.build({
-          bundle: true,
+          bundle: false, // Do not bundle external dependencies, WebContainer handles them
           format: 'esm',
-          platform: 'browser',
           target: 'es2020',
           write: false,
           sourcemap: false,
@@ -515,9 +531,7 @@ self.onmessage = async (e: MessageEvent) => {
             contents: payload.code,
             loader: 'ts',
             sourcefile: 'main.ts',
-            resolveDir: '/',
           },
-          plugins: [httpPlugin],
         });
 
         const js = jsBuild.outputFiles?.[0]?.text || '';
@@ -528,20 +542,19 @@ self.onmessage = async (e: MessageEvent) => {
 
       case 'DETECT_IMPORTS': {
         if (globalInitPromise) await globalInitPromise;
-        const tsInstance = await getTS();
-        const sourceFile = tsInstance.createSourceFile('temp.ts', payload.code, tsInstance.ScriptTarget.Latest, true);
+        const sourceFile = TS.createSourceFile('temp.ts', payload.code, TS.ScriptTarget.Latest, true);
         const imports = new Set<string>();
         function visit(node: TS.Node) {
-          if (tsInstance.isImportDeclaration(node)) {
+          if (TS.isImportDeclaration(node)) {
             const text = (node.moduleSpecifier as TS.StringLiteral)?.text;
             if (text && !text.startsWith('.') && !text.startsWith('/') && !text.startsWith('http')) {
               const parts = text.split('/');
               const name = text.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0];
               if (name) imports.add(name);
             }
-          } else if (tsInstance.isCallExpression(node) && node.expression.kind === tsInstance.SyntaxKind.ImportKeyword) {
+          } else if (TS.isCallExpression(node) && node.expression.kind === TS.SyntaxKind.ImportKeyword) {
             const arg = node.arguments[0];
-            if (arg && tsInstance.isStringLiteral(arg)) {
+            if (arg && TS.isStringLiteral(arg)) {
               const text = arg.text;
               if (text && !text.startsWith('.') && !text.startsWith('/') && !text.startsWith('http')) {
                 const parts = text.split('/');
@@ -550,7 +563,7 @@ self.onmessage = async (e: MessageEvent) => {
               }
             }
           }
-          tsInstance.forEachChild(node, visit);
+          TS.forEachChild(node, visit);
         }
         visit(sourceFile);
         result = Array.from(imports);

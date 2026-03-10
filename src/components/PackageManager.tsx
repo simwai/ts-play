@@ -3,7 +3,7 @@ import { CatppuccinTheme } from '../lib/theme';
 import { Badge } from './ui/Badge';
 import { PanelHeader } from './ui/PanelHeader';
 
-export type CdnProvider = 'esm.sh' | 'unpkg' | 'jsdelivr';
+export type CdnProvider = 'npm';
 
 export interface InstalledPackage {
   name:    string;
@@ -84,7 +84,7 @@ export const PackageManager = React.memo(function PackageManager({
                       <span style={{ color: t.text, fontSize: 12, fontWeight: 600, fontFamily: FONT }}>
                         {pkg.name}
                       </span>
-                      <Badge label="auto" variant="info" theme={t} />
+                      <Badge label="npm" variant="info" theme={t} />
                     </div>
                     <span style={{
                       color:        t.overlay0,
@@ -118,7 +118,7 @@ export const PackageManager = React.memo(function PackageManager({
 
           {/* Footer hint */}
           <div style={{ fontSize: 10, color: t.overlay0, fontStyle: 'italic', marginTop: 'auto' }}>
-            Packages are automatically detected from your code and resolved via esm.sh.
+            Packages are automatically detected and installed via npm in the WebContainer.
           </div>
         </div>
       )}

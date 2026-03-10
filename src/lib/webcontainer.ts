@@ -33,6 +33,16 @@ export async function writeFiles(files: Record<string, string>) {
   await instance.mount(fileSystemTree);
 }
 
+export async function readFile(path: string): Promise<string> {
+  const instance = await getWebContainer();
+  try {
+    const content = await instance.fs.readFile(path, 'utf-8');
+    return content;
+  } catch {
+    return '';
+  }
+}
+
 export async function runCommand(cmd: string, args: string[], onOutput: (data: string) => void) {
   const instance = await getWebContainer();
   const process = await instance.spawn(cmd, args);
