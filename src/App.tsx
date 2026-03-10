@@ -17,7 +17,6 @@ import { Sun, Moon, Copy, Check, Trash2, Wand2, Loader2, Play, Share2 } from 'lu
 function detectImports(code: string): string[] {
   const ts = (window as any).ts;
   if (!ts) {
-    // Fallback to regex if TS is not loaded yet
     const noComments = code.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
     const imports = new Set<string>();
     const regex = /(?:import|export)\s+(?:[\s\S]*?)\s+from\s+['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)|import\s+['"]([^'"]+)['"]/g;
@@ -33,7 +32,6 @@ function detectImports(code: string): string[] {
     return Array.from(imports);
   }
 
-  // Use AST for robust parsing
   const sourceFile = ts.createSourceFile('temp.ts', code, ts.ScriptTarget.Latest, true);
   const imports = new Set<string>();
 
@@ -417,7 +415,6 @@ function extractClassDeclaration(lines: string[]): string[] {
   return result;
 }
 
-// ── Initial code ─────────────────────────────────────────────────────────────
 const DEFAULT_TS = `// TypeScript Playground
 // Long-press any word on mobile to see type info ✨
 
@@ -461,49 +458,13 @@ async function fetchData(url: string): Promise<string> {
 console.log("Type:", typeof fetchData);
 `;
 
-// ── App ───────────────────────────────────────────────────────────────────────
-export function App() {
-  const [themeMode, setThemeMode] = useState<ThemeMode>('mocha');
-  const [theme, setTheme] = useState<CatppuccinTheme>(getTheme('mocha'));
+// ── Custom Hooks (Kent C. Dodds Style Refactoring) ────────────────────────────
 
-  const [tsCode, setTsCode] = useState(DEFAULT_TS);
-  const [jsCode, setJsCode] = useState('// Press Run to compile TypeScript →');
-  const [dtsCode, setDtsCode] = useState('// .d.ts declarations will appear here');
-  const [activeTab, setActiveTab] = useState<'ts' | 'js' | 'dts'>('ts');
-
-  const [compilerStatus, setCompilerStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+function useConsoleManager() {
   const [messages, setMessages] = useState<ConsoleMessage[]>([]);
   const [consoleOpen, setConsoleOpen] = useState(true);
-  const [isRunning, setIsRunning] = useState(false);
-  const [jsDirty, setJsDirty] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  
-  const [installedPackages, setInstalledPackages] = useState<InstalledPackage[]>([]);
-  const [packageTypings, setPackageTypings] = useState<Record<string, string>>({});
 
-  const [panelHeight, setPanelHeight] = useState(180);
-  const [isResizing, setIsResizing] = useState(false);
-  const resizeStartY = useRef(0);
-  const resizeStartHeight = useRef(0);
-  
-  const [packageManagerOpen, setPackageManagerOpen] = useState(false);
-  const { keyboardOpen, keyboardHeight, isMobileLike } = useVirtualKeyboard();
-  const compactForKeyboard = keyboardOpen && isMobileLike;
-
-  const [copied, setCopied] = useState(false);
-  const [sharing, setSharing] = useState(false);
-  const [shareSuccess, setShareSuccess] = useState(false);
-  const [formatting, setFormatting] = useState(false);
-  const [formatSuccess, setFormatSuccess] = useState(false);
-
-  const swipeRef = useRef<HTMLDivElement>(null);
-  const touchStartX = useRef(0);
-  const touchStartY = useRef(0);
-  const swiping = useRef(false);
-
-  // Console capture (Global)
   const addMessage = useCallback((type: ConsoleMessage['type'], args: unknown[]) => {
-    // Prevent React infinite loop warnings from causing actual infinite loops in our state
     if (type === 'error' && args.some(a => typeof a === 'string' && a.includes('Maximum update depth exceeded'))) {
       return;
     }
@@ -511,8 +472,16 @@ export function App() {
       if (typeof a === 'string') return a;
       try { return JSON.stringify(a, null, 2); } catch { return String(a); }
     });
-    // Limit to 500 messages to prevent O(N^2) memory/render bloat
     setMessages(prev => [...prev, { type, args: formatted, ts: Date.now() }].slice(-500));
+  }, []);
+
+  const clearMessages = useCallback(() => setMessages([]), []);
+  
+  const toggleConsole = useCallback(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    setConsoleOpen(o => !o);
   }, []);
 
   useEffect(() => {
@@ -542,6 +511,88 @@ export function App() {
       console.dir   = origDir;
     };
   }, [addMessage]);
+
+  return { messages, addMessage, clearMessages, consoleOpen, toggleConsole };
+}
+
+function useCompilerManager(tsCode: string, addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void) {
+  const [compilerStatus, setCompilerStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [isRunning, setIsRunning] = useState(false);
+
+  useEffect(() => {
+    Promise.all([loadEsbuild(), loadTS()])
+      .then(() => setCompilerStatus('ready'))
+      .catch(() => setCompilerStatus('error'));
+  }, []);
+
+  useEffect(() => {
+    if (compilerStatus === 'ready') {
+      loadPrettier().catch(() => {/* silent */});
+    }
+  }, [compilerStatus]);
+
+  const runCode = useCallback(async (
+    onSuccess: (js: string, dts: string) => void,
+    onError: (err: Error) => void
+  ) => {
+    setIsRunning(true);
+    try {
+      const compiled = await compile(tsCode);
+      onSuccess(compiled.js, compiled.dts);
+      
+      const blob = new Blob([compiled.js], { type: 'application/javascript' });
+      const url  = URL.createObjectURL(blob);
+      await import(/* @vite-ignore */ url);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      onError(e as Error);
+    } finally {
+      setIsRunning(false);
+    }
+  }, [tsCode]);
+
+  return { compilerStatus, isRunning, runCode };
+}
+
+// ── App ───────────────────────────────────────────────────────────────────────
+export function App() {
+  const [themeMode, setThemeMode] = useState<ThemeMode>('mocha');
+  const [theme, setTheme] = useState<CatppuccinTheme>(getTheme('mocha'));
+
+  const [tsCode, setTsCode] = useState(DEFAULT_TS);
+  const [jsCode, setJsCode] = useState('// Press Run to compile TypeScript →');
+  const [dtsCode, setDtsCode] = useState('// .d.ts declarations will appear here');
+  const [activeTab, setActiveTab] = useState<'ts' | 'js' | 'dts'>('ts');
+
+  const [jsDirty, setJsDirty] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  
+  const [installedPackages, setInstalledPackages] = useState<InstalledPackage[]>([]);
+  const [packageTypings, setPackageTypings] = useState<Record<string, string>>({});
+
+  const [panelHeight, setPanelHeight] = useState(180);
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeStartY = useRef(0);
+  const resizeStartHeight = useRef(0);
+  
+  const [packageManagerOpen, setPackageManagerOpen] = useState(false);
+  const { keyboardOpen, keyboardHeight, isMobileLike } = useVirtualKeyboard();
+  const compactForKeyboard = keyboardOpen && isMobileLike;
+
+  const [copied, setCopied] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [shareSuccess, setShareSuccess] = useState(false);
+  const [formatting, setFormatting] = useState(false);
+  const [formatSuccess, setFormatSuccess] = useState(false);
+
+  const swipeRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const swiping = useRef(false);
+
+  // Custom Hooks
+  const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } = useConsoleManager();
+  const { compilerStatus, isRunning, runCode } = useCompilerManager(tsCode, addMessage);
 
   // Auto-detect imports
   useEffect(() => {
@@ -651,12 +702,6 @@ export function App() {
     document.body.style.backgroundColor = theme.crust;
     document.body.style.margin = '0';
   }, [theme]);
-
-  useEffect(() => {
-    Promise.all([loadEsbuild(), loadTS()])
-      .then(() => setCompilerStatus('ready'))
-      .catch(() => setCompilerStatus('error'));
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -776,42 +821,22 @@ export function App() {
     }
   }, [tsCode, jsCode, dtsCode, addMessage]);
 
-  useEffect(() => {
-    if (compilerStatus === 'ready') {
-      loadPrettier().catch(() => {/* silent */});
-    }
-  }, [compilerStatus]);
-
   const doRun = useCallback(async (skipDirtyCheck = false) => {
     if (!skipDirtyCheck && jsDirty) { setShowModal(true); return; }
     setShowModal(false);
-    setIsRunning(true);
-    setMessages([]);
+    clearMessages();
 
-    let compiled = { js: '', dts: '' };
-    try {
-      compiled = await compile(tsCode);
-    } catch (e) {
-      setMessages([{ type: 'error', args: [`Compilation error: ${(e as Error).message}`], ts: Date.now() }]);
-      setIsRunning(false);
-      return;
-    }
-
-    setJsCode(compiled.js);
-    setDtsCode(compiled.dts);
-    setJsDirty(false);
-
-    try {
-      const blob = new Blob([compiled.js], { type: 'application/javascript' });
-      const url  = URL.createObjectURL(blob);
-      await import(/* @vite-ignore */ url);
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      addMessage('error', [`Runtime error: ${(e as Error).message}`]);
-    } finally {
-      setIsRunning(false);
-    }
-  }, [tsCode, jsDirty, addMessage]);
+    runCode(
+      (js, dts) => {
+        setJsCode(js);
+        setDtsCode(dts);
+        setJsDirty(false);
+      },
+      (err) => {
+        addMessage('error', [`Compilation error: ${err.message}`]);
+      }
+    );
+  }, [jsDirty, runCode, clearMessages, addMessage]);
 
   const isEditorTarget = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) return false;
@@ -858,13 +883,6 @@ export function App() {
     }
     swiping.current = false;
   }, [activeTab, compactForKeyboard]);
-
-  const toggleConsole = useCallback(() => {
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-    setConsoleOpen(o => !o);
-  }, []);
 
   const togglePackageManager = useCallback(() => {
     if (document.activeElement instanceof HTMLElement) {
@@ -1290,7 +1308,7 @@ export function App() {
         {/* ── Console ── */}
         <Console
           messages={messages}
-          onClear={() => setMessages([])}
+          onClear={clearMessages}
           theme={t}
           isOpen={consoleOpen}
           onToggle={toggleConsole}
