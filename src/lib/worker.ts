@@ -124,14 +124,15 @@ async function initLanguageService() {
   const compilerOptions: TS.CompilerOptions = {
     target: TS.ScriptTarget.ES2020,
     module: TS.ModuleKind.ESNext,
-    moduleResolution: TS.ModuleResolutionKind.NodeJs,
+    moduleResolution: 100, // TS.ModuleResolutionKind.Bundler (supports package.json "exports")
+    resolveJsonModule: true,
+    allowImportingTsExtensions: true,
     lib: Object.keys(rawLibs),
     esModuleInterop: true,
     strict: true,
     skipLibCheck: true,
     suppressExcessPropertyErrors: true,
     noImplicitAny: false,
-    typeRoots: [],
   };
 
   const host: TS.LanguageServiceHost = {
@@ -141,7 +142,7 @@ async function initLanguageService() {
       if (normalized === 'main.ts') return String(files['main.ts']?.version ?? 0);
       if (libFiles[normalized]) return String(libFiles[normalized].version);
       if (extraLibs[fileName]) return String(extraLibs[fileName].length);
-      if (extraLibs[normalized]) return String(extraLibs[normalized].length);
+      if (extraLibs['/' + normalized]) return String(extraLibs['/' + normalized].length);
       return '0';
     },
     getScriptSnapshot: (fileName) => {
@@ -149,8 +150,8 @@ async function initLanguageService() {
       let content: string | undefined;
       if (normalized === 'main.ts') content = files['main.ts']?.content;
       else if (libFiles[normalized]) content = libFiles[normalized].content;
-      else if (extraLibs[fileName]) content = extraLibs[fileName];
-      else if (extraLibs[normalized]) content = extraLibs[normalized];
+      else if (extraLibs[fileName] !== undefined) content = extraLibs[fileName];
+      else if (extraLibs['/' + normalized] !== undefined) content = extraLibs['/' + normalized];
 
       if (content !== undefined) return TS.ScriptSnapshot.fromString(content);
       return undefined;
@@ -160,19 +161,36 @@ async function initLanguageService() {
     getDefaultLibFileName: () => '/lib.es2020.d.ts',
     fileExists: (fileName) => {
       const normalized = fileName.replace(/^\/+/, '');
-      return normalized === 'main.ts' || !!libFiles[normalized] || !!extraLibs[fileName] || !!extraLibs[normalized];
+      return normalized === 'main.ts' || !!libFiles[normalized] || extraLibs[fileName] !== undefined || extraLibs['/' + normalized] !== undefined;
     },
     readFile: (fileName) => {
       const normalized = fileName.replace(/^\/+/, '');
       if (normalized === 'main.ts') return files['main.ts']?.content;
       if (libFiles[normalized]) return libFiles[normalized].content;
-      if (extraLibs[fileName]) return extraLibs[fileName];
-      if (extraLibs[normalized]) return extraLibs[normalized];
+      if (extraLibs[fileName] !== undefined) return extraLibs[fileName];
+      if (extraLibs['/' + normalized] !== undefined) return extraLibs['/' + normalized];
       return undefined;
     },
-    readDirectory: () => [],
-    directoryExists: () => true,
-    getDirectories: () => [],
+    // Crucial for module resolution to traverse virtual node_modules
+    directoryExists: (dirName) => {
+      if (dirName === '/' || dirName === '') return true;
+      const normalized = '/' + dirName.replace(/^\/+/, '').replace(/\/+$/, '') + '/';
+      return Object.keys(extraLibs).some(path => path.startsWith(normalized));
+    },
+    getDirectories: (dirName) => {
+      const normalized = '/' + dirName.replace(/^\/+/, '').replace(/\/+$/, '') + '/';
+      const dirs = new Set<string>();
+      for (const path of Object.keys(extraLibs)) {
+        if (path.startsWith(normalized)) {
+          const rest = path.slice(normalized.length);
+          const nextSlash = rest.indexOf('/');
+          if (nextSlash !== -1) {
+            dirs.add(rest.slice(0, nextSlash));
+          }
+        }
+      }
+      return Array.from(dirs);
+    },
     useCaseSensitiveFileNames: () => true,
     getCanonicalFileName: (fileName) => fileName,
     getNewLine: () => "\n"

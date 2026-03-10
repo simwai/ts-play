@@ -9,12 +9,27 @@ export async function syncNodeModulesToWorker(): Promise<Record<string, string>>
       const entries = await instance.fs.readdir(dir, { withFileTypes: true });
       await Promise.all(entries.map(async (entry) => {
         const path = `${dir}/${entry.name}`;
-        if (entry.isDirectory()) {
-          if (entry.name === '.bin') return; // Skip binaries
+        if (entry.name === '.bin') return; // Skip binaries
+
+        let isDir = entry.isDirectory();
+        let isFile = entry.isFile();
+
+        // WebContainers use symlinks heavily for node_modules. We MUST resolve them.
+        if (entry.isSymbolicLink?.() || (!isDir && !isFile)) {
+          try {
+            const stat = await instance.fs.stat(path);
+            isDir = stat.isDirectory();
+            isFile = stat.isFile();
+          } catch {
+            return; // Broken symlink
+          }
+        }
+
+        if (isDir) {
           await walk(path);
-        } else if (entry.isFile()) {
-          // We only need type declarations and package.json for module resolution
-          if (entry.name.endsWith('.d.ts') || entry.name === 'package.json') {
+        } else if (isFile) {
+          // Catch .d.ts, .ts, .mts, .cts and package.json
+          if (entry.name.endsWith('.ts') || entry.name === 'package.json') {
             try {
               const content = await instance.fs.readFile(path, 'utf-8');
               // TS in the worker resolves from root '/', so we prefix the path
