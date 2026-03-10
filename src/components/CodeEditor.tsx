@@ -181,10 +181,11 @@ export const CodeEditor = React.memo(function CodeEditor({
     else if (y + lineHeight > visibleBottom) scroller.scrollTo({ top: Math.max(0, y + lineHeight - scroller.clientHeight + 56 + bottomInset + 24), behavior: 'smooth' });
   }, [keyboardHeight, keyboardOpen, measuredLineHeights, value]);
 
-  const triggerAutocomplete = useCallback(async (pos: number, explicit = false) => {
+  const triggerAutocomplete = useCallback(async (code: string, pos: number, explicit = false) => {
     if (language !== 'typescript') return;
-    const before = value.slice(0, pos);
+    const before = code.slice(0, pos);
     const match = before.match(/[\w$]+$/);
+    const prefix = match ? match[0] : '';
     const isDot = before.endsWith('.');
     
     if (!explicit && !match && !isDot) {
@@ -192,20 +193,33 @@ export const CodeEditor = React.memo(function CodeEditor({
       return;
     }
 
+    // Ensure worker has the latest code before requesting completions
+    await workerClient.updateFile('main.ts', code);
+
     const entries = await workerClient.getCompletions(pos);
     if (entries && entries.length > 0) {
-      const logicalLineIndex = Math.max(0, before.split('\n').length - 1);
-      const y = PAD_TOP + measuredLineHeights.slice(0, logicalLineIndex).reduce((sum, h) => sum + h, 0) + (measuredLineHeights[logicalLineIndex] ?? LINE_H);
-      const lastLine = before.split('\n').pop() || '';
-      const x = PAD_X + (lastLine.length * CHAR_W);
-      
-      setPopupPos({ top: y, left: x });
-      setCompletions(entries.slice(0, 50)); // Limit to 50 for perf
-      setSelIndex(0);
+      // Filter entries by the current word prefix
+      const filtered = prefix
+        ? entries.filter(e => e.name.toLowerCase().startsWith(prefix.toLowerCase()))
+        : entries;
+
+      if (filtered.length > 0) {
+        const logicalLineIndex = Math.max(0, before.split('\n').length - 1);
+        const y = PAD_TOP + measuredLineHeights.slice(0, logicalLineIndex).reduce((sum, h) => sum + h, 0) + (measuredLineHeights[logicalLineIndex] ?? LINE_H);
+        const lastLine = before.split('\n').pop() || '';
+        // Adjust X position to start of the word
+        const x = PAD_X + ((lastLine.length - prefix.length) * CHAR_W);
+        
+        setPopupPos({ top: y, left: x });
+        setCompletions(filtered.slice(0, 50)); // Limit to 50 for perf
+        setSelIndex(0);
+      } else {
+        setCompletions([]);
+      }
     } else {
       setCompletions([]);
     }
-  }, [value, language, measuredLineHeights]);
+  }, [language, measuredLineHeights]);
 
   const insertCompletion = useCallback(() => {
     if (completions.length === 0) return;
@@ -239,9 +253,9 @@ export const CodeEditor = React.memo(function CodeEditor({
       if (e.key === 'Escape') { e.preventDefault(); setCompletions([]); return; }
     }
 
-    if ((e.ctrlKey || e.metaKey) && e.key === ' ') {
+    if ((e.ctrlKey || e.metaKey) && (e.key === ' ' || e.code === 'Space')) {
       e.preventDefault();
-      triggerAutocomplete(e.currentTarget.selectionStart, true);
+      triggerAutocomplete(value, e.currentTarget.selectionStart, true);
       return;
     }
 
@@ -277,7 +291,7 @@ export const CodeEditor = React.memo(function CodeEditor({
 
     // Auto-trigger completions on typing
     if (!isPasteOrCut) {
-      triggerAutocomplete(pos);
+      triggerAutocomplete(newVal, pos);
     } else {
       setCompletions([]);
     }
