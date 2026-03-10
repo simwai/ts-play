@@ -1,5 +1,6 @@
 import { CSSProperties, ReactNode, useState } from 'react';
 import { CatppuccinTheme } from '../../lib/theme';
+import { cn } from '../../utils/cn';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
@@ -12,6 +13,7 @@ interface ButtonProps {
   title?: string;
   style?: CSSProperties;
   type?: 'button' | 'submit' | 'reset';
+  className?: string;
 }
 
 export function Button({
@@ -23,6 +25,7 @@ export function Button({
   title,
   style,
   type = 'button',
+  className,
 }: ButtonProps) {
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
@@ -39,23 +42,17 @@ export function Button({
       onMouseLeave={() => { setHovered(false); setPressed(false); }}
       onMouseDown={() => setPressed(true)}
       onMouseUp={() => setPressed(false)}
+      className={cn(
+        "px-[14px] py-[7px] text-[13px] font-inherit rounded-[5px] flex items-center gap-[5px] transition-all duration-120 whitespace-nowrap",
+        variant === 'primary' ? "font-bold" : "font-medium",
+        disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer opacity-100",
+        pressed && !disabled ? "scale-[0.97]" : "scale-100",
+        className
+      )}
       style={{
-        padding:      '7px 14px',
-        fontSize:     13,
-        fontWeight:   variant === 'primary' ? 700 : 500,
-        fontFamily:   'inherit',
-        background:   bg,
+        background: bg,
         color,
         border,
-        borderRadius: 5,
-        cursor:       disabled ? 'not-allowed' : 'pointer',
-        display:      'flex',
-        alignItems:   'center',
-        gap:          5,
-        transition:   'background 120ms, opacity 120ms, transform 80ms',
-        whiteSpace:   'nowrap',
-        transform:    pressed && !disabled ? 'scale(0.97)' : 'none',
-        opacity:      disabled ? 0.5 : 1,
         ...style,
       }}
     >

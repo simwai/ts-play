@@ -1,5 +1,6 @@
 import { ReactNode, useState } from 'react';
 import { CatppuccinTheme } from '../../lib/theme';
+import { cn } from '../../utils/cn';
 
 interface PanelHeaderProps {
   label:    string;
@@ -8,9 +9,10 @@ interface PanelHeaderProps {
   theme:    CatppuccinTheme;
   left?:    ReactNode; // extra content after the label (e.g. badges)
   right?:   ReactNode; // extra content on the right side — clicks here won't toggle
+  className?: string;
 }
 
-export function PanelHeader({ label, isOpen, onToggle, theme: t, left, right }: PanelHeaderProps) {
+export function PanelHeader({ label, isOpen, onToggle, theme: t, left, right, className }: PanelHeaderProps) {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -22,28 +24,20 @@ export function PanelHeader({ label, isOpen, onToggle, theme: t, left, right }: 
       onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onToggle()}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      className={cn(
+        "flex items-center justify-between px-[12px] py-[6px] cursor-pointer select-none min-h-[32px] transition-colors duration-120",
+        className
+      )}
       style={{
-        display:        'flex',
-        alignItems:     'center',
-        justifyContent: 'space-between',
-        padding:        '6px 12px',
-        cursor:         'pointer',
-        userSelect:     'none',
-        background:     hovered ? t.surface0 : t.mantle,
-        minHeight:      32,
-        transition:     'background 120ms',
+        background: hovered ? t.surface0 : t.mantle,
       }}
     >
       {/* Left: label + extra badges — clicks here toggle the panel */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-        <span style={{
-          fontFamily:    'monospace',
-          fontSize:      11,
-          fontWeight:    700,
-          letterSpacing: '0.06em',
-          textTransform: 'uppercase',
-          color:         t.subtext0,
-        }}>
+      <div className="flex items-center gap-[7px]">
+        <span 
+          className="font-mono text-[11px] font-bold tracking-[0.06em] uppercase"
+          style={{ color: t.subtext0 }}
+        >
           {label}
         </span>
         {left}
@@ -51,24 +45,24 @@ export function PanelHeader({ label, isOpen, onToggle, theme: t, left, right }: 
 
       {/* Right: action buttons + chevron.
           Stop propagation on the actions wrapper so only the chevron / label toggles. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className="flex items-center gap-[8px]">
         {right && (
           <div
             onClick={e => e.stopPropagation()}
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            className="flex items-center gap-[6px]"
           >
             {right}
           </div>
         )}
-        <span style={{
-          fontSize:   12,
-          color:      t.overlay1,
-          transform:  isOpen ? 'rotate(180deg)' : 'none',
-          transition: 'transform 200ms',
-          display:    'inline-block',
-          lineHeight: 1,
-          pointerEvents: 'none',
-        }}>▾</span>
+        <span 
+          className={cn(
+            "text-[12px] inline-block leading-none pointer-events-none transition-transform duration-200",
+            isOpen ? "rotate-180" : "rotate-0"
+          )}
+          style={{ color: t.overlay1 }}
+        >
+          ▾
+        </span>
       </div>
     </div>
   );
