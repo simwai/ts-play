@@ -13,24 +13,25 @@ Yeah, it's painful. The virtual keyboard jumps around, native text selection is 
 
 TSPlay is built on a radically simple idea: **Use a native `<textarea>`**. 
 By layering a transparent textarea over a blazing-fast, custom syntax-highlighted `<pre>` tag, we get:
-- 📱 **100% Native Mobile Editing:** Your phone's native text selection, copy/paste, and keyboard just *work*.
+- 📱 **100% Native Mobile Editing:** Your phone's native text selection, copy/paste, and keyboard just *work*. No weird workarounds.
 - ⚡ **Zero Bloat:** No massive editor bundles. Just pure, fast React.
-- 🎨 **Beautiful Design:** Fully integrated [Catppuccin](https://github.com/catppuccin/catppuccin) themes with custom selection colors.
+- 🎨 **Beautiful Design:** Fully integrated [Catppuccin](https://github.com/catppuccin/catppuccin) themes with custom selection colors that look gorgeous on any screen.
 
-But we didn't stop at a simple editor. We packed a full Node.js environment into your browser!
+But we didn't stop at a simple editor. We packed a full Node.js environment right into your browser!
 
 ## ✨ Features
 
-- **WebContainers Inside:** Run real Node.js directly in your browser. No backend required.
-- **Auto npm Installs:** Just `import React from 'react'` and watch TSPlay automatically detect and install the package in the background.
-- **TypeScript Language Service:** Running in a Web Worker, providing real-time diagnostics, type information on hover/tap, and autocomplete.
-- **Prettier Formatting:** Built-in code formatting.
-- **Shareable Snippets:** Share your code via compressed URLs or our lightweight PHP backend.
+- **WebContainers Inside:** Run real Node.js directly in your browser. No backend execution required.
+- **Auto npm Installs:** Just type `import React from 'react'` and watch TSPlay automatically detect and install the package in the background.
+- **TypeScript Language Service:** Running in a dedicated Web Worker, providing real-time diagnostics, type information on hover/tap, and smart autocomplete.
+- **Prettier Formatting:** Built-in code formatting to keep your snippets clean.
+- **Shareable Snippets:** Share your code instantly via compressed URLs (client-side only) or our lightweight PHP backend.
+- **Offline Capable:** Once loaded, the core editor and compiler work entirely in your browser.
 
 ## 🛠️ Tech Stack
 
 - **Frontend:** React 19, Vite, TailwindCSS v4
-- **Editor:** Custom `<textarea>` + `<pre>` implementation
+- **Editor:** Custom `<textarea>` + `<pre>` implementation (No Monaco/CodeMirror!)
 - **Execution:** WebContainers API
 - **Compilation:** esbuild-wasm + TypeScript Compiler API
 - **Theme:** Catppuccin (Mocha & Latte)
@@ -55,16 +56,16 @@ npm run dev
 
 ## ⚙️ Production Deployment (Apache / Plesk)
 
-The headers set by the Vite dev server have **0 impact** in production. WebContainers require a secure context (HTTPS) and Cross-Origin Isolation (for `SharedArrayBuffer`). You **must** configure your production server to send these headers.
+The headers set by the Vite dev server have **0 impact** in production. WebContainers strictly require a secure context (HTTPS) and Cross-Origin Isolation (for `SharedArrayBuffer`). You **must** configure your production server to send these headers.
 
-(I use this 1:1 on a Plesk subdomain.)
+(I use this exact setup on a Plesk subdomain.)
 
-**Plesk Hinweis:** In Plesk funktioniert das Setzen der Header über die `.htaccess` oft nicht. Du musst diese stattdessen in den Hosting-Einstellungen unter **Zusätzliche Header** -> **Benutzerdefinierte Header** (Additional headers -> Custom headers) eintragen:
+**Plesk Note:** In Plesk, setting headers via `.htaccess` often doesn't work depending on your nginx/Apache proxy settings. Instead, you must add them in the Hosting Settings under **Additional headers -> Custom headers**:
 - `Cross-Origin-Embedder-Policy: require-corp`
 - `Cross-Origin-Opener-Policy: same-origin`
 
 **Apache `.htaccess`:**
-Stelle sicher, dass das Apache-Modul `mod_headers` aktiviert ist.
+Ensure that the Apache module `mod_headers` is enabled on your server.
 
 ```apache
 <IfModule mod_headers.c>
@@ -86,7 +87,7 @@ RewriteRule ^(.*)$ /dist/$1 [L]
 ## 🤝 Contributing
 
 We love contributions! Whether it's fixing a bug, adding a new feature, or just improving the documentation, your help is welcome. 
-Since we are avoiding heavy editor libraries, any PRs improving the custom editor experience (like better auto-indentation or bracket matching) are highly appreciated!
+Since we are avoiding heavy editor libraries, any PRs improving the custom editor experience (like better auto-indentation, bracket matching, or mobile-specific tweaks) are highly appreciated!
 
 1. Fork the project
 2. Create your feature branch (`git checkout -b feat/amazing-feature`)
