@@ -67,6 +67,7 @@ function useConsoleManager() {
       return;
     }
     const formatted = args.map(a => {
+      if (a instanceof Error) return a.stack || a.message;
       if (typeof a === 'string') return a;
       try { return JSON.stringify(a, null, 2); } catch { return String(a); }
     });

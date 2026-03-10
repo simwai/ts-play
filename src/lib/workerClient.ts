@@ -18,6 +18,9 @@ class WorkerClient {
           else p.reject(new Error(error));
         }
       };
+      this.worker.onerror = (e) => {
+        console.error("Worker execution error:", e.message || 'Unknown worker error');
+      };
     }
     return this.worker;
   }

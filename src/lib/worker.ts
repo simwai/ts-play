@@ -1,8 +1,22 @@
 /// <reference lib="webworker" />
-import * as esbuild from 'https://esm.sh/esbuild-wasm@0.23.1';
-import ts from 'https://esm.sh/typescript@5.4.5';
+import * as esbuild from 'esbuild-wasm';
+import type * as TS from 'typescript';
 
-let ls: ts.LanguageService | null = null;
+let ts: typeof TS;
+let tsInitPromise: Promise<void> | null = null;
+
+async function getTS() {
+  if (ts) return ts;
+  if (!tsInitPromise) {
+    tsInitPromise = import(/* @vite-ignore */ 'https://esm.sh/typescript@5.4.5').then(m => {
+      ts = m.default || m;
+    });
+  }
+  await tsInitPromise;
+  return ts;
+}
+
+let ls: TS.LanguageService | null = null;
 let esbuildReady = false;
 
 const files: Record<string, { version: number; content: string }> = {};
@@ -42,12 +56,13 @@ async function ensureRequiredLibsLoaded() {
   libsLoaded = true;
 }
 
-function initLanguageService() {
+async function initLanguageService() {
   if (ls) return;
-  const compilerOptions: ts.CompilerOptions = {
-    target: ts.ScriptTarget.ES2020,
-    module: ts.ModuleKind.ESNext,
-    moduleResolution: ts.ModuleResolutionKind.NodeJs,
+  const tsInstance = await getTS();
+  const compilerOptions: TS.CompilerOptions = {
+    target: tsInstance.ScriptTarget.ES2020,
+    module: tsInstance.ModuleKind.ESNext,
+    moduleResolution: tsInstance.ModuleResolutionKind.NodeJs,
     lib: REQUIRED_LIBS,
     esModuleInterop: true,
     strict: true,
@@ -57,7 +72,7 @@ function initLanguageService() {
     typeRoots: [],
   };
 
-  const host: ts.LanguageServiceHost = {
+  const host: TS.LanguageServiceHost = {
     getScriptFileNames: () => ['/main.ts', ...Object.keys(libFiles).map(n => `/${n}`), ...Object.keys(extraLibs)],
     getScriptVersion: (fileName) => {
       const normalized = fileName.replace(/^\/+/, '');
@@ -75,7 +90,7 @@ function initLanguageService() {
       else if (extraLibs[fileName]) content = extraLibs[fileName];
       else if (extraLibs[normalized]) content = extraLibs[normalized];
 
-      if (content !== undefined) return ts.ScriptSnapshot.fromString(content);
+      if (content !== undefined) return tsInstance.ScriptSnapshot.fromString(content);
       return undefined;
     },
     getCurrentDirectory: () => "/",
@@ -101,7 +116,7 @@ function initLanguageService() {
     getNewLine: () => "\n"
   };
 
-  ls = ts.createLanguageService(host, ts.createDocumentRegistry());
+  ls = tsInstance.createLanguageService(host, tsInstance.createDocumentRegistry());
 }
 
 function extractClassDeclaration(lines: string[]): string[] {
@@ -344,6 +359,7 @@ self.onmessage = async (e: MessageEvent) => {
 
     switch (type) {
       case 'INIT': {
+        await getTS(); // Ensure TS is loaded
         await ensureRequiredLibsLoaded();
         if (!esbuildReady) {
           await esbuild.initialize({
@@ -352,7 +368,7 @@ self.onmessage = async (e: MessageEvent) => {
           });
           esbuildReady = true;
         }
-        initLanguageService();
+        await initLanguageService();
         result = true;
         break;
       }
@@ -377,6 +393,7 @@ self.onmessage = async (e: MessageEvent) => {
       }
 
       case 'GET_DIAGNOSTICS': {
+        const tsInstance = await getTS();
         if (!ls) throw new Error("Language service not initialized");
         const syntactic = ls.getSyntacticDiagnostics('main.ts') || [];
         const semantic = ls.getSemanticDiagnostics('main.ts') || [];
@@ -403,7 +420,7 @@ self.onmessage = async (e: MessageEvent) => {
           
           let message = 'Unknown error';
           try {
-            message = ts.flattenDiagnosticMessageText(d.messageText, "\n");
+            message = tsInstance.flattenDiagnosticMessageText(d.messageText, "\n");
           } catch (err) {
             message = String(d.messageText);
           }
@@ -412,7 +429,7 @@ self.onmessage = async (e: MessageEvent) => {
             start,
             length: d.length || 0,
             message,
-            category: d.category === ts.DiagnosticCategory.Warning ? 'warning' : 'error',
+            category: d.category === tsInstance.DiagnosticCategory.Warning ? 'warning' : 'error',
             line,
             character,
           };
@@ -421,14 +438,15 @@ self.onmessage = async (e: MessageEvent) => {
       }
 
       case 'GET_TYPE_INFO': {
+        const tsInstance = await getTS();
         if (!ls) throw new Error("Language service not initialized");
         const info = ls.getQuickInfoAtPosition('main.ts', payload.offset);
         if (!info) {
           result = null;
           break;
         }
-        const displayString = ts.displayPartsToString(info.displayParts);
-        const docString = info.documentation ? ts.displayPartsToString(info.documentation) : undefined;
+        const displayString = tsInstance.displayPartsToString(info.displayParts);
+        const docString = info.documentation ? tsInstance.displayPartsToString(info.documentation) : undefined;
         const namePart = info.displayParts?.find(p => 
           ['localName', 'parameterName', 'methodName', 'functionName', 'className', 'interfaceName', 'aliasName', 'propertyName', 'enumName', 'moduleName'].includes(p.kind)
         );
@@ -496,19 +514,20 @@ self.onmessage = async (e: MessageEvent) => {
       }
 
       case 'DETECT_IMPORTS': {
-        const sourceFile = ts.createSourceFile('temp.ts', payload.code, ts.ScriptTarget.Latest, true);
+        const tsInstance = await getTS();
+        const sourceFile = tsInstance.createSourceFile('temp.ts', payload.code, tsInstance.ScriptTarget.Latest, true);
         const imports = new Set<string>();
-        function visit(node: ts.Node) {
-          if (ts.isImportDeclaration(node)) {
-            const text = (node.moduleSpecifier as ts.StringLiteral)?.text;
+        function visit(node: TS.Node) {
+          if (tsInstance.isImportDeclaration(node)) {
+            const text = (node.moduleSpecifier as TS.StringLiteral)?.text;
             if (text && !text.startsWith('.') && !text.startsWith('/') && !text.startsWith('http')) {
               const parts = text.split('/');
               const name = text.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0];
               if (name) imports.add(name);
             }
-          } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+          } else if (tsInstance.isCallExpression(node) && node.expression.kind === tsInstance.SyntaxKind.ImportKeyword) {
             const arg = node.arguments[0];
-            if (arg && ts.isStringLiteral(arg)) {
+            if (arg && tsInstance.isStringLiteral(arg)) {
               const text = arg.text;
               if (text && !text.startsWith('.') && !text.startsWith('/') && !text.startsWith('http')) {
                 const parts = text.split('/');
@@ -517,7 +536,7 @@ self.onmessage = async (e: MessageEvent) => {
               }
             }
           }
-          ts.forEachChild(node, visit);
+          tsInstance.forEachChild(node, visit);
         }
         visit(sourceFile);
         result = Array.from(imports);
