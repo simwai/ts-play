@@ -11,6 +11,7 @@ import { loadPackageTypings } from './lib/typings';
 import { decodeSharePayload, encodeSharePayload } from './lib/shareCodec';
 import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
 import { formatAllFiles, loadPrettier } from './lib/formatter';
+import { Sun, Moon, Copy, Check, Trash2, Wand2, Loader2, Play, Share2 } from 'lucide-react';
 
 // ── Auto-detect imports (AST based) ───────────────────────────────────────────
 function detectImports(code: string): string[] {
@@ -371,6 +372,49 @@ function generateDeclarations(code: string): string {
   }
 
   return dtsLines.join('\n').trim() || '// No exported declarations found';
+}
+
+function extractClassDeclaration(lines: string[]): string[] {
+  const result: string[] = [];
+  const firstLine = lines[0].trim();
+  const isExport = firstLine.startsWith('export');
+  const prefix = isExport ? 'export declare' : 'declare';
+  const cleaned = firstLine
+    .replace(/^export\s+/, '')
+    .replace(/^(abstract\s+)?class/, `${prefix} $1class`.replace(/\s+/g, ' '));
+  result.push(cleaned.includes('{') ? cleaned : cleaned + ' {');
+
+  for (let i = 1; i < lines.length - 1; i++) {
+    const line = lines[i].trim();
+    if (!line || line === '{' || line === '}') continue;
+
+    const propMatch = line.match(/^(public|private|protected|readonly|static|\s)*(\w+)\s*[?!]?\s*:\s*([^;=]+)/);
+    if (propMatch) {
+      result.push(`  ${propMatch[2]}: ${propMatch[3].trim()};`);
+      continue;
+    }
+
+    const methMatch = line.match(/^(public|private|protected|static|async|\s)*(\w+)\s*(<[^>]*>)?\s*\(([^)]*)\)\s*(?::\s*([^{;]+))?/);
+    if (methMatch) {
+      const [, , name, gen, params, ret] = methMatch;
+      if (name === 'constructor') {
+        result.push(`  constructor(${params});`);
+      } else {
+        result.push(`  ${name}${gen || ''}(${params}): ${ret?.trim() || 'void'};`);
+      }
+      if (line.includes('{')) {
+        let depth = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
+        while (depth > 0 && i + 1 < lines.length - 1) {
+          i++;
+          depth += (lines[i].match(/\{/g) || []).length;
+          depth -= (lines[i].match(/\}/g) || []).length;
+        }
+      }
+    }
+  }
+
+  result.push('}');
+  return result;
 }
 
 // ── Initial code ─────────────────────────────────────────────────────────────
@@ -915,9 +959,9 @@ export function App() {
             theme={t}
             size="sm"
             variant="surface"
-            style={{ minWidth: 22, height: 22, borderRadius: 4, padding: '2px 4px', fontSize: 10 }}
+            style={{ minWidth: 22, height: 22, borderRadius: 4, padding: '2px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            {themeMode === 'mocha' ? '☀️' : '🌙'}
+            {themeMode === 'mocha' ? <Sun size={14} /> : <Moon size={14} />}
           </IconButton>
 
           {/* Separator */}
@@ -938,10 +982,12 @@ export function App() {
               height: 22,
               borderRadius: 4,
               padding: '2px 4px',
-              fontSize: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
-            {copied ? '✓' : '⧉'}
+            {copied ? <Check size={14} /> : <Copy size={14} />}
           </IconButton>
 
           {/* Delete all */}
@@ -959,10 +1005,12 @@ export function App() {
               height: 22,
               borderRadius: 4,
               padding: '2px 4px',
-              fontSize: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
-            🗑
+            <Trash2 size={14} />
           </IconButton>
 
           {/* Format */}
@@ -978,14 +1026,16 @@ export function App() {
               height: 22,
               borderRadius: 4,
               padding: '2px 4px',
-              fontSize: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               color: formatSuccess ? t.green : formatting ? t.overlay0 : t.mauve,
               borderColor: formatSuccess ? t.green : t.surface1,
               background: formatSuccess ? `${t.green}15` : formatting ? t.surface0 : `${t.mauve}12`,
               transition: 'all 160ms',
             }}
           >
-            {formatting ? '⏳' : formatSuccess ? '✓' : '⌥'}
+            {formatting ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : formatSuccess ? <Check size={14} /> : <Wand2 size={14} />}
           </IconButton>
 
           {/* Separator */}
@@ -1023,12 +1073,10 @@ export function App() {
               background: isRunning || compilerStatus !== 'ready' ? t.surface1 : `${t.green}22`,
               color: isRunning || compilerStatus !== 'ready' ? t.overlay0 : t.green,
               flexShrink: 0,
-              fontSize: 9,
-              lineHeight: 1,
             }}>
               {isRunning
-                ? <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite' }}>⟳</span>
-                : '▶'}
+                ? <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />
+                : <Play size={10} fill="currentColor" style={{ marginLeft: 1 }} />}
             </span>
             <span className="run-label">
               {isRunning ? 'Running…' : 'Run'}
@@ -1100,13 +1148,15 @@ export function App() {
               height: 22,
               borderRadius: 4,
               padding: '2px 4px',
-              fontSize: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               color: shareSuccess ? t.green : t.blue,
               borderColor: shareSuccess ? t.green : t.surface1,
               background: shareSuccess ? `${t.green}15` : t.surface0,
             }}
           >
-            {sharing ? '⏳' : shareSuccess ? '✓' : '🔗'}
+            {sharing ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : shareSuccess ? <Check size={14} /> : <Share2 size={14} />}
           </IconButton>
         </div>
       </header>

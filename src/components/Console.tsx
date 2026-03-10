@@ -3,6 +3,7 @@ import { CatppuccinTheme } from '../lib/theme';
 import { Badge } from './ui/Badge';
 import { IconButton } from './ui/IconButton';
 import { PanelHeader } from './ui/PanelHeader';
+import { Eraser } from 'lucide-react';
 
 export interface ConsoleMessage {
   type: 'log' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'dir';
@@ -90,8 +91,9 @@ export const Console = React.memo(function Console({ messages, onClear, theme: t
               variant="ghost"
               size="sm"
               title="Clear console"
-              style={{ fontSize: 11, padding: '2px 8px', border: `1px solid ${t.surface1}` }}
+              style={{ fontSize: 11, padding: '2px 8px', border: `1px solid ${t.surface1}`, display: 'flex', alignItems: 'center', gap: 4 }}
             >
+              <Eraser size={12} />
               Clear
             </IconButton>
           ) : undefined
