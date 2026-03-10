@@ -3,13 +3,9 @@ import { CatppuccinTheme } from '../lib/theme';
 import { Badge } from './ui/Badge';
 import { PanelHeader } from './ui/PanelHeader';
 
-export type CdnProvider = 'npm';
-
 export interface InstalledPackage {
   name:    string;
   version: string;
-  cdn:     CdnProvider;
-  url:     string;
 }
 
 interface Props {
@@ -84,18 +80,8 @@ export const PackageManager = React.memo(function PackageManager({
                       <span style={{ color: t.text, fontSize: 12, fontWeight: 600, fontFamily: FONT }}>
                         {pkg.name}
                       </span>
-                      <Badge label="npm" variant="info" theme={t} />
+                      <Badge label={pkg.version} variant="info" theme={t} />
                     </div>
-                    <span style={{
-                      color:        t.overlay0,
-                      fontSize:     9,
-                      fontFamily:   FONT,
-                      overflow:     'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace:   'nowrap',
-                    }}>
-                      {pkg.url}
-                    </span>
                   </div>
                 </div>
               ))}

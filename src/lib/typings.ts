@@ -1,11 +1,6 @@
 import type { InstalledPackage } from '../components/PackageManager';
 import { readFile } from './webcontainer';
 
-function libName(pkg: InstalledPackage, entry = 'index') {
-  const safe = pkg.name.replace(/[^a-zA-Z0-9_]/g, '_');
-  return `@types/${safe}/${entry}.d.ts`;
-}
-
 function ambientModuleName(pkg: InstalledPackage, entry = 'index') {
   const safe = pkg.name.replace(/[^a-zA-Z0-9_]/g, '_');
   return `@virtual/${safe}/${entry}.d.ts`;
@@ -50,13 +45,9 @@ export async function loadPackageTypings(packages: InstalledPackage[]) {
         if (!looksLikeDeclaration) return;
 
         const ambientBare = wrapAmbientModule(pkg.name, text);
-        const ambientUrl = wrapAmbientModule(pkg.url, text);
 
         if (ambientBare) {
           libs[ambientModuleName(pkg, 'index')] = ambientBare;
-        }
-        if (ambientUrl) {
-          libs[libName(pkg, `index__url`)] = ambientUrl;
         }
       } catch (e) {
         console.warn(`Failed to load typings for ${pkg.name}:`, e);

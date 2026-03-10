@@ -574,13 +574,21 @@ self.onmessage = async (e: MessageEvent) => {
         if (globalInitPromise) await globalInitPromise;
         const sourceFile = TS.createSourceFile('temp.ts', payload.code, TS.ScriptTarget.Latest, true);
         const imports = new Set<string>();
+        
+        // Node.js built-in modules that should not be added to package.json
+        const builtinModules = new Set([
+          'assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'console', 'constants', 'crypto', 'dgram', 'diagnostics_channel', 'dns', 'domain', 'events', 'fs', 'fs/promises', 'http', 'http2', 'https', 'inspector', 'module', 'net', 'os', 'path', 'path/posix', 'path/win32', 'perf_hooks', 'process', 'punycode', 'querystring', 'readline', 'repl', 'stream', 'stream/promises', 'stream/consumers', 'stream/web', 'string_decoder', 'sys', 'timers', 'timers/promises', 'tls', 'trace_events', 'tty', 'url', 'util', 'util/types', 'v8', 'vm', 'wasi', 'worker_threads', 'zlib'
+        ]);
+
         function visit(node: TS.Node) {
           if (TS.isImportDeclaration(node)) {
             const text = (node.moduleSpecifier as TS.StringLiteral)?.text;
             if (text && !text.startsWith('.') && !text.startsWith('/') && !text.startsWith('http')) {
               const parts = text.split('/');
               const name = text.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0];
-              if (name) imports.add(name);
+              if (name && !builtinModules.has(name) && !name.startsWith('node:')) {
+                imports.add(name);
+              }
             }
           } else if (TS.isCallExpression(node) && node.expression.kind === TS.SyntaxKind.ImportKeyword) {
             const arg = node.arguments[0];
@@ -589,7 +597,9 @@ self.onmessage = async (e: MessageEvent) => {
               if (text && !text.startsWith('.') && !text.startsWith('/') && !text.startsWith('http')) {
                 const parts = text.split('/');
                 const name = text.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0];
-                if (name) imports.add(name);
+                if (name && !builtinModules.has(name) && !name.startsWith('node:')) {
+                  imports.add(name);
+                }
               }
             }
           }

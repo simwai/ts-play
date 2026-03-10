@@ -261,9 +261,7 @@ export function App() {
         const detected = await workerClient.detectImports(tsCode);
         setInstalledPackages(detected.map(name => ({
           name,
-          version: 'latest',
-          cdn: 'npm',
-          url: `npm:${name}`
+          version: 'latest'
         })));
       } catch (e) {
         console.error("Failed to detect imports:", e);
