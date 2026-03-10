@@ -185,10 +185,16 @@ export function App() {
     }
   }, [themeMode]);
 
-  const [tsCode, setTsCode] = useState(DEFAULT_TS);
-  const [jsCode, setJsCode] = useState('// Press Run to compile TypeScript →');
-  const [dtsCode, setDtsCode] = useState('// .d.ts declarations will appear here');
+  // Initialize state from localStorage or fallback to defaults
+  const [tsCode, setTsCode] = useState(() => localStorage.getItem('tsplay_ts') ?? DEFAULT_TS);
+  const [jsCode, setJsCode] = useState(() => localStorage.getItem('tsplay_js') ?? '// Press Run to compile TypeScript →');
+  const [dtsCode, setDtsCode] = useState(() => localStorage.getItem('tsplay_dts') ?? '// .d.ts declarations will appear here');
   const [activeTab, setActiveTab] = useState<'ts' | 'js' | 'dts'>('ts');
+
+  // Persist code to localStorage whenever it changes
+  useEffect(() => { localStorage.setItem('tsplay_ts', tsCode); }, [tsCode]);
+  useEffect(() => { localStorage.setItem('tsplay_js', jsCode); }, [jsCode]);
+  useEffect(() => { localStorage.setItem('tsplay_dts', dtsCode); }, [dtsCode]);
 
   const [jsDirty, setJsDirty] = useState(false);
   const [showModal, setShowModal] = useState(false);
