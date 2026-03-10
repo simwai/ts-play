@@ -19,6 +19,7 @@ export function useTSDiagnostics(
 ) {
   const [diagnostics, setDiagnostics] = useState<TSDiagnostic[]>([]);
   const timerRef = useRef<number | null>(null);
+  const lastLibsRef = useRef<Record<string, string>>(EMPTY_LIBS);
 
   useEffect(() => {
     if (!isTypeScript) {
@@ -33,7 +34,14 @@ export function useTSDiagnostics(
 
       try {
         await workerClient.updateFile('main.ts', code);
-        await workerClient.updateExtraLibs(extraLibs);
+        
+        // Performance optimization: Only send the huge node_modules object 
+        // to the worker if it actually changed (after an npm install)
+        if (lastLibsRef.current !== extraLibs) {
+          await workerClient.updateExtraLibs(extraLibs);
+          lastLibsRef.current = extraLibs;
+        }
+        
         const diags = await workerClient.getDiagnostics();
         setDiagnostics(diags);
       } catch (e) {

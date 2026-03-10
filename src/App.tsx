@@ -6,7 +6,7 @@ import { OverrideModal } from './components/Modal';
 import { PackageManager, InstalledPackage } from './components/PackageManager';
 import { Button } from './components/ui/Button';
 import { IconButton } from './components/ui/IconButton';
-import { loadPackageTypings } from './lib/typings';
+import { syncNodeModulesToWorker } from './lib/typings';
 import { decodeSharePayload, encodeSharePayload } from './lib/shareCodec';
 import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
 import { formatAllFiles, loadPrettier } from './lib/formatter';
@@ -285,7 +285,12 @@ export function App() {
           const clean = out.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
           if (clean && !/^[\/\\|\-]$/.test(clean)) addMessage('info', [clean]);
         });
-        if (code !== 0) addMessage('error', [`npm install failed with code ${code}`]);
+        if (code !== 0) {
+          addMessage('error', [`npm install failed with code ${code}`]);
+        } else {
+          const libs = await syncNodeModulesToWorker();
+          setPackageTypings(libs);
+        }
       });
     }
 
@@ -296,7 +301,12 @@ export function App() {
           const clean = out.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
           if (clean && !/^[\/\\|\-]$/.test(clean)) addMessage('info', [clean]);
         });
-        if (code !== 0) addMessage('error', [`npm uninstall failed with code ${code}`]);
+        if (code !== 0) {
+          addMessage('error', [`npm uninstall failed with code ${code}`]);
+        } else {
+          const libs = await syncNodeModulesToWorker();
+          setPackageTypings(libs);
+        }
       });
     }
   }, [installedPackages, addMessage]);
@@ -395,14 +405,6 @@ export function App() {
     document.body.style.backgroundColor = theme.crust;
     document.body.style.margin = '0';
   }, [theme]);
-
-  useEffect(() => {
-    let active = true;
-    loadPackageTypings(installedPackages).then((libs) => {
-      if (active) setPackageTypings(libs);
-    });
-    return () => { active = false; };
-  }, [installedPackages]);
 
   const getApiUrl = useCallback((path: string) => {
     return new URL(path.replace(/^\//, ''), document.baseURI).toString();

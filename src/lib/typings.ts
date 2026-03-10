@@ -1,52 +1,35 @@
-import type { InstalledPackage } from '../components/PackageManager';
-import { readFile } from './webcontainer';
+import { getWebContainer } from './webcontainer';
 
-function ambientModuleName(pkg: InstalledPackage, entry = 'index') {
-  const safe = pkg.name.replace(/[^a-zA-Z0-9_]/g, '_');
-  return `@virtual/${safe}/${entry}.d.ts`;
-}
-
-function stripLeadingComments(content: string) {
-  return content.replace(/^\/\/.*$/gm, '').trim();
-}
-
-function wrapAmbientModule(moduleName: string, content: string) {
-  const body = stripLeadingComments(content);
-  if (!body) return '';
-  // If the file is already ambient/module-declared, leave it as-is.
-  if (/declare\s+module\s+['"][^'"]+['"]/.test(body)) return body;
-  return `declare module '${moduleName}' {\n${body}\n}`;
-}
-
-export async function loadPackageTypings(packages: InstalledPackage[]) {
+export async function syncNodeModulesToWorker(): Promise<Record<string, string>> {
+  const instance = await getWebContainer();
   const libs: Record<string, string> = {};
 
-  await Promise.all(
-    packages.map(async (pkg) => {
-      try {
-        // Try to read package.json to find types from WebContainer
-        const pkgJsonRaw = await readFile(`node_modules/${pkg.name}/package.json`);
-        if (!pkgJsonRaw) return;
-        
-        const pkgJson = JSON.parse(pkgJsonRaw);
-        const typesPath = pkgJson.types || pkgJson.typings || 'index.d.ts';
-        
-        const text = await readFile(`node_modules/${pkg.name}/${typesPath}`);
-        if (!text) return;
-
-        const looksLikeDeclaration = /\bdeclare\b|\binterface\b|\btype\b|\bexport\b/.test(text);
-        if (!looksLikeDeclaration) return;
-
-        const ambientBare = wrapAmbientModule(pkg.name, text);
-
-        if (ambientBare) {
-          libs[ambientModuleName(pkg, 'index')] = ambientBare;
+  async function walk(dir: string) {
+    try {
+      const entries = await instance.fs.readdir(dir, { withFileTypes: true });
+      await Promise.all(entries.map(async (entry) => {
+        const path = `${dir}/${entry.name}`;
+        if (entry.isDirectory()) {
+          if (entry.name === '.bin') return; // Skip binaries
+          await walk(path);
+        } else if (entry.isFile()) {
+          // We only need type declarations and package.json for module resolution
+          if (entry.name.endsWith('.d.ts') || entry.name === 'package.json') {
+            try {
+              const content = await instance.fs.readFile(path, 'utf-8');
+              // TS in the worker resolves from root '/', so we prefix the path
+              libs[`/${path}`] = content;
+            } catch {
+              // Ignore read errors for individual files
+            }
+          }
         }
-      } catch (e) {
-        console.warn(`Failed to load typings for ${pkg.name}:`, e);
-      }
-    })
-  );
+      }));
+    } catch {
+      // Ignore directory read errors
+    }
+  }
 
+  await walk('node_modules');
   return libs;
 }
