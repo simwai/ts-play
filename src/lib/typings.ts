@@ -22,10 +22,8 @@ function stripLeadingComments(content: string) {
 
 function sanitizeDeclarationContent(content: string) {
   return content
-    .replace(/^\s*export\s*=\s+/gm, 'const __default__: ')
-    .replace(/^\s*import\s+type\s+[^;]+;\s*$/gm, '')
-    .replace(/^\s*import\s+[^;]+;\s*$/gm, '')
-    .replace(/^\s*export\s+\{[^}]*\};\s*$/gm, '')
+    // Convert CommonJS export assignments to ES default exports
+    .replace(/^\s*export\s*=\s+/gm, 'export default ')
     .trim();
 }
 
