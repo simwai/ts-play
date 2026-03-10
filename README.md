@@ -51,30 +51,20 @@ npm install
 npm run dev
 ```
 
-*Note: WebContainers require cross-origin isolation. The Vite dev server is already configured to send the correct `COOP/COEP` headers.*
+*Note: For local development, the Vite dev server is already configured to send the correct `COOP/COEP` headers required by WebContainers.*
 
-## 🤝 Contributing
+## ⚙️ Production Deployment (Apache / Plesk)
 
-We love contributions! Whether it's fixing a bug, adding a new feature, or just improving the documentation, your help is welcome. 
-Since we are avoiding heavy editor libraries, any PRs improving the custom editor experience (like better auto-indentation or bracket matching) are highly appreciated!
+The headers set by the Vite dev server have **0 impact** in production. WebContainers require a secure context (HTTPS) and Cross-Origin Isolation (for `SharedArrayBuffer`). You **must** configure your production server to send these headers.
 
-1. Fork the project
-2. Create your feature branch (`git checkout -b feat/amazing-feature`)
-3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to the branch (`git push origin feat/amazing-feature`)
-5. Open a Pull Request
-
----
-
-## ⚙️ Apache Config (Production)
-
-(I use it 1:1 on a Plesk subdomain.)
-
-**Wichtig:** WebContainers benötigen zwingend einen sicheren Kontext (HTTPS) und Cross-Origin Isolation (für `SharedArrayBuffer`). Stelle sicher, dass das Apache-Modul `mod_headers` aktiviert ist.
+(I use this 1:1 on a Plesk subdomain.)
 
 **Plesk Hinweis:** In Plesk funktioniert das Setzen der Header über die `.htaccess` oft nicht. Du musst diese stattdessen in den Hosting-Einstellungen unter **Zusätzliche Header** -> **Benutzerdefinierte Header** (Additional headers -> Custom headers) eintragen:
 - `Cross-Origin-Embedder-Policy: require-corp`
 - `Cross-Origin-Opener-Policy: same-origin`
+
+**Apache `.htaccess`:**
+Stelle sicher, dass das Apache-Modul `mod_headers` aktiviert ist.
 
 ```apache
 <IfModule mod_headers.c>
@@ -92,3 +82,18 @@ RewriteCond %{REQUEST_FILENAME} !-d
 # Internally rewrite everything to /dist
 RewriteRule ^(.*)$ /dist/$1 [L]
 ```
+
+## 🤝 Contributing
+
+We love contributions! Whether it's fixing a bug, adding a new feature, or just improving the documentation, your help is welcome. 
+Since we are avoiding heavy editor libraries, any PRs improving the custom editor experience (like better auto-indentation or bracket matching) are highly appreciated!
+
+1. Fork the project
+2. Create your feature branch (`git checkout -b feat/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feat/amazing-feature`)
+5. Open a Pull Request
+
+## 📝 License
+
+MIT License. Do whatever you want with it, but we'd love a shoutout!
