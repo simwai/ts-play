@@ -251,20 +251,38 @@ export function App() {
   }, []);
 
   // Auto-detect imports via Worker
-  useEffect(() => {
-    const timer = setTimeout(async () => {
+  const tsCursorPos = useRef(0);
+  const checkImportsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const checkImports = useCallback(() => {
+    if (checkImportsTimeout.current) clearTimeout(checkImportsTimeout.current);
+    checkImportsTimeout.current = setTimeout(async () => {
+      const lines = tsCode.split('\n');
+      const cursorLineIdx = tsCode.slice(0, tsCursorPos.current).split('\n').length - 1;
+      const currentLine = lines[cursorLineIdx] || '';
+
+      // Delay detection if the user is actively editing an import line
+      if (/\bimport\b/.test(currentLine)) {
+        return;
+      }
+
       try {
         const detected = await workerClient.detectImports(tsCode);
-        setInstalledPackages(detected.map(name => ({
-          name,
-          version: 'latest'
-        })));
+        setInstalledPackages(prev => {
+          const prevNames = prev.map(p => p.name).sort().join(',');
+          const newNames = [...detected].sort().join(',');
+          if (prevNames === newNames) return prev;
+          return detected.map(name => ({ name, version: 'latest' }));
+        });
       } catch (e) {
         console.error("Failed to detect imports:", e);
       }
     }, 500);
-    return () => clearTimeout(timer);
   }, [tsCode]);
+
+  useEffect(() => {
+    checkImports();
+  }, [tsCode, checkImports]);
 
   // Background NPM Install/Uninstall Queue
   useEffect(() => {
@@ -930,6 +948,10 @@ export function App() {
             <CodeEditor
               value={tsCode}
               onChange={setTsCode}
+              onCursorChange={(pos) => {
+                tsCursorPos.current = pos;
+                checkImports();
+              }}
               language="typescript"
               theme={t}
               extraLibs={packageTypings}

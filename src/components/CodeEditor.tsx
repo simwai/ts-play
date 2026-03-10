@@ -9,6 +9,7 @@ import { workerClient } from '../lib/workerClient';
 interface Props {
   value: string;
   onChange: (v: string) => void;
+  onCursorChange?: (pos: number) => void;
   language: 'typescript' | 'javascript';
   readOnly?: boolean;
   theme: CatppuccinTheme;
@@ -76,7 +77,7 @@ const layerStyle = (contentHeight: number): React.CSSProperties => ({
 });
 
 export const CodeEditor = React.memo(function CodeEditor({
-  value, onChange, language, readOnly = false, theme: t,
+  value, onChange, onCursorChange, language, readOnly = false, theme: t,
   extraLibs = EMPTY_LIBS, keyboardOpen = false, keyboardHeight = 0,
 }: Props) {
   const scrollRef   = useRef<HTMLDivElement>(null);
@@ -120,9 +121,13 @@ export const CodeEditor = React.memo(function CodeEditor({
     const prev = undoStack.current.pop()!;
     onChange(prev.v);
     requestAnimationFrame(() => {
-      if (ta) { ta.selectionStart = ta.selectionEnd = prev.c; lastCursorPos.current = prev.c; }
+      if (ta) { 
+        ta.selectionStart = ta.selectionEnd = prev.c; 
+        lastCursorPos.current = prev.c; 
+        onCursorChange?.(prev.c);
+      }
     });
-  }, [value, onChange]);
+  }, [value, onChange, onCursorChange]);
 
   const handleRedo = useCallback(() => {
     if (redoStack.current.length === 0) return;
@@ -131,9 +136,13 @@ export const CodeEditor = React.memo(function CodeEditor({
     const next = redoStack.current.pop()!;
     onChange(next.v);
     requestAnimationFrame(() => {
-      if (ta) { ta.selectionStart = ta.selectionEnd = next.c; lastCursorPos.current = next.c; }
+      if (ta) { 
+        ta.selectionStart = ta.selectionEnd = next.c; 
+        lastCursorPos.current = next.c; 
+        onCursorChange?.(next.c);
+      }
     });
-  }, [value, onChange]);
+  }, [value, onChange, onCursorChange]);
 
   const linesArray = useMemo(() => value.split('\n'), [value]);
   const lineCount  = linesArray.length;
@@ -242,8 +251,9 @@ export const CodeEditor = React.memo(function CodeEditor({
       const newPos = pos - wordLen + insertText.length;
       ta.selectionStart = ta.selectionEnd = newPos;
       lastCursorPos.current = newPos;
+      onCursorChange?.(newPos);
     });
-  }, [completions, selIndex, value, onChange, saveState]);
+  }, [completions, selIndex, value, onChange, saveState, onCursorChange]);
 
   const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (completions.length > 0) {
@@ -276,10 +286,14 @@ export const CodeEditor = React.memo(function CodeEditor({
       saveState(value, start, true);
       const next = value.slice(0, start) + '  ' + value.slice(end);
       onChange(next);
-      requestAnimationFrame(() => { ta.selectionStart = ta.selectionEnd = start + 2; lastCursorPos.current = start + 2; });
+      requestAnimationFrame(() => { 
+        ta.selectionStart = ta.selectionEnd = start + 2; 
+        lastCursorPos.current = start + 2; 
+        onCursorChange?.(start + 2);
+      });
       return;
     }
-  }, [value, onChange, handleUndo, handleRedo, saveState, completions, insertCompletion, triggerAutocomplete]);
+  }, [value, onChange, handleUndo, handleRedo, saveState, completions, insertCompletion, triggerAutocomplete, onCursorChange]);
 
   const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newVal = e.target.value;
@@ -288,6 +302,7 @@ export const CodeEditor = React.memo(function CodeEditor({
     saveState(value, lastCursorPos.current, isPasteOrCut);
     onChange(newVal);
     lastCursorPos.current = pos;
+    onCursorChange?.(pos);
 
     // Auto-trigger completions on typing
     if (!isPasteOrCut) {
@@ -295,22 +310,25 @@ export const CodeEditor = React.memo(function CodeEditor({
     } else {
       setCompletions([]);
     }
-  }, [value, onChange, saveState, triggerAutocomplete]);
+  }, [value, onChange, saveState, triggerAutocomplete, onCursorChange]);
 
   const updateTypeInfo = useCallback(() => {
     const ta = textareaRef.current;
     if (!ta) return;
-    lastCursorPos.current = ta.selectionStart;
+    const pos = ta.selectionStart;
+    if (lastCursorPos.current !== pos) {
+      lastCursorPos.current = pos;
+      onCursorChange?.(pos);
+    }
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {
-      const pos = ta.selectionStart;
       const info = await getTypeInfo(value, pos);
       setTypeInfo(info ?? null);
       const diag = diagnostics.find(d => pos >= d.start && pos <= d.start + d.length);
       setActiveDiag(diag ?? null);
       scrollSelectionIntoView();
     }, 80);
-  }, [value, getTypeInfo, diagnostics, scrollSelectionIntoView]);
+  }, [value, getTypeInfo, diagnostics, scrollSelectionIntoView, onCursorChange]);
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
