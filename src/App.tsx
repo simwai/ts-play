@@ -155,7 +155,7 @@ function useCompilerManager(tsCode: string, addMessage: (type: ConsoleMessage['t
 
       addMessage('info', ['Executing via Node.js...']);
       const exitCode = await runCommand('node', ['index.js'], (out) => {
-        const clean = out.replace(/\x1b\[[0-9;]*m/g, '').trim();
+        const clean = out.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
         if (clean) addMessage('log', [clean]);
       });
 
@@ -281,9 +281,9 @@ export function App() {
     if (added.length > 0) {
       installQueue.current = installQueue.current.then(async () => {
         addMessage('info', [`npm install ${added.join(' ')}...`]);
-        const code = await runCommand('npm', ['install', ...added], (out) => {
-          const clean = out.replace(/\x1b\[[0-9;]*m/g, '').trim();
-          if (clean) addMessage('info', [clean]);
+        const code = await runCommand('npm', ['install', '--no-progress', ...added], (out) => {
+          const clean = out.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
+          if (clean && !/^[\/\\|\-]$/.test(clean)) addMessage('info', [clean]);
         });
         if (code !== 0) addMessage('error', [`npm install failed with code ${code}`]);
       });
@@ -292,9 +292,9 @@ export function App() {
     if (removed.length > 0) {
       installQueue.current = installQueue.current.then(async () => {
         addMessage('info', [`npm uninstall ${removed.join(' ')}...`]);
-        const code = await runCommand('npm', ['uninstall', ...removed], (out) => {
-          const clean = out.replace(/\x1b\[[0-9;]*m/g, '').trim();
-          if (clean) addMessage('info', [clean]);
+        const code = await runCommand('npm', ['uninstall', '--no-progress', ...removed], (out) => {
+          const clean = out.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
+          if (clean && !/^[\/\\|\-]$/.test(clean)) addMessage('info', [clean]);
         });
         if (code !== 0) addMessage('error', [`npm uninstall failed with code ${code}`]);
       });
