@@ -1,6 +1,5 @@
 import { useCallback } from 'react';
-import { getLanguageService, updateTSFile } from './useTSDiagnostics';
-import type * as TS from 'typescript';
+import { workerClient } from '../lib/workerClient';
 
 export interface TypeInfo {
   name:           string;
@@ -12,33 +11,10 @@ export interface TypeInfo {
 }
 
 export function useTypeInfo() {
-  const getTypeInfo = useCallback((code: string, offset: number): TypeInfo | null => {
-    const ls = getLanguageService();
-    if (!ls) return null;
-
+  const getTypeInfo = useCallback(async (code: string, offset: number): Promise<TypeInfo | null> => {
     try {
-      // Ensure the language service has the exact current code before querying
-      updateTSFile('main.ts', code);
-
-      const info = ls.getQuickInfoAtPosition('main.ts', offset);
-      if (!info) return null;
-
-      const ts = (window as any).ts as typeof TS;
-      if (!ts) return null;
-
-      const displayString = ts.displayPartsToString(info.displayParts);
-      const docString = info.documentation ? ts.displayPartsToString(info.documentation) : undefined;
-
-      const namePart = info.displayParts?.find((p: TS.SymbolDisplayPart) => 
-        ['localName', 'parameterName', 'methodName', 'functionName', 'className', 'interfaceName', 'aliasName', 'propertyName', 'enumName', 'moduleName'].includes(p.kind)
-      );
-
-      return {
-        name: namePart ? namePart.text : '',
-        kind: info.kind,
-        typeAnnotation: displayString,
-        jsDoc: docString,
-      };
+      await workerClient.updateFile('main.ts', code);
+      return await workerClient.getTypeInfo(offset);
     } catch (e) {
       return null;
     }

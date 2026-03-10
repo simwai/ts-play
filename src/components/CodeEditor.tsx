@@ -263,9 +263,9 @@ export const CodeEditor = React.memo(function CodeEditor({
     const ta = textareaRef.current;
     if (!ta) return;
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
+    timerRef.current = setTimeout(async () => {
       const pos = ta.selectionStart;
-      const info = getTypeInfo(value, pos);
+      const info = await getTypeInfo(value, pos);
       setTypeInfo(info ?? null);
       
       const diag = diagnostics.find(d => pos >= d.start && pos <= d.start + d.length);

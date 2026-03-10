@@ -6,416 +6,12 @@ import { OverrideModal } from './components/Modal';
 import { PackageManager, InstalledPackage } from './components/PackageManager';
 import { Button } from './components/ui/Button';
 import { IconButton } from './components/ui/IconButton';
-import * as esbuild from 'esbuild-wasm';
 import { loadPackageTypings } from './lib/typings';
 import { decodeSharePayload, encodeSharePayload } from './lib/shareCodec';
 import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
 import { formatAllFiles, loadPrettier } from './lib/formatter';
 import { Sun, Moon, Copy, Check, Trash2, Wand2, Loader2, Play, Share2 } from 'lucide-react';
-import type * as TS from 'typescript';
-
-// ── Auto-detect imports (AST based) ───────────────────────────────────────────
-function detectImports(code: string): string[] {
-  const ts = (window as any).ts as typeof TS;
-  if (!ts) {
-    const noComments = code.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
-    const imports = new Set<string>();
-    const regex = /(?:import|export)\s+(?:[\s\S]*?)\s+from\s+['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)|import\s+['"]([^'"]+)['"]/g;
-    let match;
-    while ((match = regex.exec(noComments)) !== null) {
-      const pkg = match[1] || match[2] || match[3];
-      if (pkg && !pkg.startsWith('.') && !pkg.startsWith('/') && !pkg.startsWith('http')) {
-        const parts = pkg.split('/');
-        const name = pkg.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0];
-        if (name) imports.add(name);
-      }
-    }
-    return Array.from(imports);
-  }
-
-  const sourceFile = ts.createSourceFile('temp.ts', code, ts.ScriptTarget.Latest, true);
-  const imports = new Set<string>();
-
-  function visit(node: TS.Node) {
-    if (ts.isImportDeclaration(node)) {
-      const text = (node.moduleSpecifier as TS.StringLiteral)?.text;
-      if (text && !text.startsWith('.') && !text.startsWith('/') && !text.startsWith('http')) {
-        const parts = text.split('/');
-        const name = text.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0];
-        if (name) imports.add(name);
-      }
-    } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-      const arg = node.arguments[0];
-      if (arg && ts.isStringLiteral(arg)) {
-        const text = arg.text;
-        if (text && !text.startsWith('.') && !text.startsWith('/') && !text.startsWith('http')) {
-          const parts = text.split('/');
-          const name = text.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0];
-          if (name) imports.add(name);
-        }
-      }
-    }
-    ts.forEachChild(node, visit);
-  }
-
-  visit(sourceFile);
-  return Array.from(imports);
-}
-
-// ── esbuild-wasm loader ───────────────────────────────────────────────────────
-let esbuildReady = false;
-let esbuildPromise: Promise<void> | null = null;
-
-async function loadEsbuild() {
-  if (esbuildReady) return;
-  if (!esbuildPromise) {
-    esbuildPromise = (async () => {
-      try {
-        if (!esbuild || typeof esbuild.initialize !== 'function') {
-          throw new Error('esbuild-wasm not properly loaded');
-        }
-        await esbuild.initialize({
-          wasmURL: 'https://cdn.jsdelivr.net/npm/esbuild-wasm@0.23.1/esbuild.wasm',
-          worker: true,
-        });
-        esbuildReady = true;
-      } catch (e) {
-        esbuildPromise = null;
-        throw e;
-      }
-    })();
-  }
-  return esbuildPromise;
-}
-
-// ── TypeScript loader (diagnostics only) ──────────────────────────────────────
-let tsPromise: Promise<void> | null = null;
-function loadTS(): Promise<void> {
-  if (tsPromise) return tsPromise;
-  tsPromise = new Promise<void>((resolve, reject) => {
-    if ((window as any).ts) { resolve(); return; }
-    const existing = document.querySelector('#ts-cdn');
-    if (existing) {
-      existing.addEventListener('load',  () => resolve());
-      existing.addEventListener('error', () => reject(new Error('TypeScript compiler failed to load')));
-      return;
-    }
-    const s = document.createElement('script');
-    s.id  = 'ts-cdn';
-    s.src = 'https://cdn.jsdelivr.net/npm/typescript@5.4.5/lib/typescript.js';
-    s.onload  = () => resolve();
-    s.onerror = () => { tsPromise = null; reject(new Error('Failed to load TypeScript compiler')); };
-    document.head.appendChild(s);
-  });
-  return tsPromise;
-}
-
-// ── Compiler ─────────────────────────────────────────────────────────────────
-async function compile(tsCode: string): Promise<{ js: string; dts: string }> {
-  await loadEsbuild();
-
-  if (!esbuildReady || typeof esbuild.build !== 'function') {
-    throw new Error('esbuild not properly initialized');
-  }
-
-  const httpPlugin: esbuild.Plugin = {
-    name: 'http-resolve',
-    setup(build) {
-      build.onResolve({ filter: /^https?:\/\// }, (args) => ({
-        path: args.path,
-        namespace: 'http-url',
-      }));
-
-      build.onResolve({ filter: /^\//, namespace: 'http-url' }, (args) => {
-        const base = new URL(args.importer).origin;
-        return { path: new URL(args.path, base).toString(), namespace: 'http-url' };
-      });
-
-      build.onResolve({ filter: /^\./ }, (args) => {
-        const base = args.resolveDir || 'https://esm.sh/';
-        const resolved = new URL(args.path, base).toString();
-        return { path: resolved, namespace: 'http-url' };
-      });
-
-      build.onResolve({ filter: /^[^./].*/ }, (args) => {
-        const fallback = `https://esm.sh/${args.path}`;
-        return { path: fallback, namespace: 'http-url' };
-      });
-
-      build.onLoad({ filter: /.*/, namespace: 'http-url' }, async (args) => {
-        const res = await fetch(args.path);
-        if (!res.ok) throw new Error(`Failed to fetch ${args.path}`);
-        const contents = await res.text();
-        const ext = args.path.split('?')[0].split('.').pop() || 'js';
-        let loader: esbuild.Loader = 'js';
-        if (ext === 'ts') loader = 'ts';
-        else if (ext === 'tsx') loader = 'tsx';
-        else if (ext === 'jsx') loader = 'jsx';
-        else if (ext === 'css') loader = 'css';
-        const resolveDir = new URL('.', args.path).toString();
-        return { contents, loader, resolveDir };
-      });
-    },
-  };
-
-  try {
-    const jsBuild = await esbuild.build({
-      bundle: true,
-      format: 'esm',
-      platform: 'browser',
-      target: 'es2020',
-      write: false,
-      sourcemap: false,
-      stdin: {
-        contents: tsCode,
-        loader: 'ts',
-        sourcefile: 'main.ts',
-        resolveDir: '/',
-      },
-      plugins: [httpPlugin],
-    });
-
-    const js = jsBuild.outputFiles?.[0]?.text || '';
-    const dts = generateDeclarations(tsCode);
-    return { js, dts };
-  } catch (e) {
-    console.error('esbuild build error:', e);
-    throw new Error(`Build failed: ${(e as Error).message}`);
-  }
-}
-
-function generateDeclarations(code: string): string {
-  const lines = code.split('\n');
-  const dtsLines: string[] = [];
-  let inBlockComment = false;
-  let pendingJsDoc: string[] = [];
-  let braceDepth = 0;
-  let capturing = false;
-  let captureLines: string[] = [];
-  let captureType = '';
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-
-    if (inBlockComment) {
-      if (capturing) captureLines.push(line);
-      else pendingJsDoc.push(line);
-      if (trimmed.includes('*/')) inBlockComment = false;
-      continue;
-    }
-    if (trimmed.startsWith('/*')) {
-      inBlockComment = true;
-      if (capturing) captureLines.push(line);
-      else pendingJsDoc = [line];
-      if (trimmed.includes('*/')) inBlockComment = false;
-      continue;
-    }
-
-    if (capturing) {
-      captureLines.push(line);
-      braceDepth += (line.match(/\{/g) || []).length;
-      braceDepth -= (line.match(/\}/g) || []).length;
-      if (braceDepth <= 0) {
-        if (captureType === 'class') {
-          dtsLines.push(...pendingJsDoc);
-          dtsLines.push(...extractClassDeclaration(captureLines));
-        } else {
-          dtsLines.push(...pendingJsDoc);
-          dtsLines.push(...captureLines);
-        }
-        dtsLines.push('');
-        capturing = false;
-        captureLines = [];
-        pendingJsDoc = [];
-        captureType = '';
-      }
-      continue;
-    }
-
-    if (trimmed.startsWith('//')) continue;
-    if (!trimmed) continue;
-    if (trimmed.startsWith('import ') || trimmed.startsWith('require(')) continue;
-
-    if (/^(export\s+)?interface\s+/.test(trimmed)) {
-      capturing = true;
-      captureType = 'interface';
-      captureLines = [line];
-      braceDepth = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
-      if (braceDepth <= 0 && line.includes('}')) {
-        dtsLines.push(...pendingJsDoc, line, '');
-        capturing = false;
-        captureLines = [];
-        pendingJsDoc = [];
-      }
-      continue;
-    }
-
-    if (/^(export\s+)?type\s+\w+/.test(trimmed)) {
-      dtsLines.push(...pendingJsDoc);
-      if (!trimmed.includes(';') && trimmed.includes('{')) {
-        capturing = true;
-        captureType = 'type';
-        captureLines = [line];
-        braceDepth = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
-      } else {
-        dtsLines.push(trimmed.startsWith('export') ? line : `export ${line}`);
-        dtsLines.push('');
-      }
-      pendingJsDoc = [];
-      continue;
-    }
-
-    if (/^(export\s+)?(const\s+)?enum\s+/.test(trimmed)) {
-      capturing = true;
-      captureType = 'enum';
-      const declLine = trimmed.startsWith('export') ? line : `export ${line}`;
-      captureLines = [declLine.replace(/^(export\s+)?(const\s+)?enum/, 'declare enum')];
-      braceDepth = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
-      continue;
-    }
-
-    if (/^(export\s+)?(abstract\s+)?class\s+/.test(trimmed)) {
-      capturing = true;
-      captureType = 'class';
-      captureLines = [line];
-      braceDepth = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
-      continue;
-    }
-
-    const fnMatch = trimmed.match(/^(export\s+)?(async\s+)?function\s+(\w+)\s*(<[^>]*>)?\s*\(([^)]*)\)\s*(?::\s*([^{]+?))?/);
-    if (fnMatch) {
-      const [, exp, isAsync, name, generics, params, returnType] = fnMatch;
-      const gen = generics || '';
-      const ret = returnType?.trim() || (isAsync ? 'Promise<void>' : 'void');
-      const prefix = exp ? 'export declare' : 'declare';
-      dtsLines.push(...pendingJsDoc);
-      dtsLines.push(`${prefix} function ${name}${gen}(${params}): ${ret};`);
-      dtsLines.push('');
-      pendingJsDoc = [];
-      if (trimmed.includes('{')) {
-        let depth = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
-        while (depth > 0 && i + 1 < lines.length) {
-          i++;
-          depth += (lines[i].match(/\{/g) || []).length;
-          depth -= (lines[i].match(/\}/g) || []).length;
-        }
-      }
-      continue;
-    }
-
-    const constMatch = trimmed.match(/^(export\s+)?(const|let|var)\s+(\w+)\s*(?::\s*([^=]+?))?\s*=/);
-    if (constMatch) {
-      const [, exp, _kind, name, explicitType] = constMatch;
-      const prefix = exp ? 'export declare' : 'declare';
-
-      if (explicitType) {
-        dtsLines.push(...pendingJsDoc);
-        dtsLines.push(`${prefix} const ${name}: ${explicitType.trim()};`);
-        dtsLines.push('');
-      } else {
-        const valueMatch = trimmed.match(/=\s*(.+?)(?:;|$)/);
-        if (valueMatch) {
-          const val = valueMatch[1].trim();
-          let inferredType = 'unknown';
-          if (/^["'`]/.test(val)) inferredType = 'string';
-          else if (/^\d/.test(val)) inferredType = 'number';
-          else if (val === 'true' || val === 'false') inferredType = 'boolean';
-          else if (val.startsWith('[')) inferredType = 'unknown[]';
-          else if (val.startsWith('{')) inferredType = 'Record<string, unknown>';
-          else if (val.startsWith('new ')) {
-            const className = val.match(/new\s+(\w+)/)?.[1];
-            inferredType = className || 'unknown';
-          }
-          if (val.includes('=>') || val.startsWith('function') || val.startsWith('async')) {
-            const arrowMatch = val.match(/(?:async\s+)?\(([^)]*)\)\s*(?::\s*([^=]+?))?\s*=>/);
-            if (arrowMatch) {
-              const aParams = arrowMatch[1];
-              const aRet = arrowMatch[2]?.trim() || 'void';
-              const isAsync = val.startsWith('async');
-              const retType = isAsync && !aRet.startsWith('Promise') ? `Promise<${aRet}>` : aRet;
-              dtsLines.push(...pendingJsDoc);
-              dtsLines.push(`${prefix} const ${name}: (${aParams}) => ${retType};`);
-              dtsLines.push('');
-              pendingJsDoc = [];
-              if (trimmed.includes('{')) {
-                let depth = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
-                while (depth > 0 && i + 1 < lines.length) {
-                  i++;
-                  depth += (lines[i].match(/\{/g) || []).length;
-                  depth -= (lines[i].match(/\}/g) || []).length;
-                }
-              }
-              continue;
-            }
-          }
-          dtsLines.push(...pendingJsDoc);
-          dtsLines.push(`${prefix} const ${name}: ${inferredType};`);
-          dtsLines.push('');
-        }
-      }
-      pendingJsDoc = [];
-      if (trimmed.includes('{') && !trimmed.includes('}')) {
-        let depth = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
-        while (depth > 0 && i + 1 < lines.length) {
-          i++;
-          depth += (lines[i].match(/\{/g) || []).length;
-          depth -= (lines[i].match(/\}/g) || []).length;
-        }
-      }
-      continue;
-    }
-
-    pendingJsDoc = [];
-  }
-
-  return dtsLines.join('\n').trim() || '// No exported declarations found';
-}
-
-function extractClassDeclaration(lines: string[]): string[] {
-  const result: string[] = [];
-  const firstLine = lines[0].trim();
-  const isExport = firstLine.startsWith('export');
-  const prefix = isExport ? 'export declare' : 'declare';
-  const cleaned = firstLine
-    .replace(/^export\s+/, '')
-    .replace(/^(abstract\s+)?class/, `${prefix} $1class`.replace(/\s+/g, ' '));
-  result.push(cleaned.includes('{') ? cleaned : cleaned + ' {');
-
-  for (let i = 1; i < lines.length - 1; i++) {
-    const line = lines[i].trim();
-    if (!line || line === '{' || line === '}') continue;
-
-    const propMatch = line.match(/^(public|private|protected|readonly|static|\s)*(\w+)\s*[?!]?\s*:\s*([^;=]+)/);
-    if (propMatch) {
-      result.push(`  ${propMatch[2]}: ${propMatch[3].trim()};`);
-      continue;
-    }
-
-    const methMatch = line.match(/^(public|private|protected|static|async|\s)*(\w+)\s*(<[^>]*>)?\s*\(([^)]*)\)\s*(?::\s*([^{;]+))?/);
-    if (methMatch) {
-      const [, , name, gen, params, ret] = methMatch;
-      const isAsync = /\basync\s+/.test(line);
-      if (name === 'constructor') {
-        result.push(`  constructor(${params});`);
-      } else {
-        const finalRet = ret?.trim() || (isAsync ? 'Promise<void>' : 'void');
-        result.push(`  ${name}${gen || ''}(${params}): ${finalRet};`);
-      }
-      if (line.includes('{')) {
-        let depth = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
-        while (depth > 0 && i + 1 < lines.length - 1) {
-          i++;
-          depth += (lines[i].match(/\{/g) || []).length;
-          depth -= (lines[i].match(/\}/g) || []).length;
-        }
-      }
-    }
-  }
-
-  result.push('}');
-  return result;
-}
+import { workerClient } from './lib/workerClient';
 
 const DEFAULT_TS = `// TypeScript Playground
 // Long-press any word on mobile to see type info ✨
@@ -522,9 +118,12 @@ function useCompilerManager(tsCode: string, addMessage: (type: ConsoleMessage['t
   const [isRunning, setIsRunning] = useState(false);
 
   useEffect(() => {
-    Promise.all([loadEsbuild(), loadTS()])
+    workerClient.init()
       .then(() => setCompilerStatus('ready'))
-      .catch(() => setCompilerStatus('error'));
+      .catch((e) => {
+        console.error("Worker init failed:", e);
+        setCompilerStatus('error');
+      });
   }, []);
 
   useEffect(() => {
@@ -539,7 +138,7 @@ function useCompilerManager(tsCode: string, addMessage: (type: ConsoleMessage['t
   ) => {
     setIsRunning(true);
     try {
-      const compiled = await compile(tsCode);
+      const compiled = await workerClient.compile(tsCode);
       onSuccess(compiled.js, compiled.dts);
       
       const blob = new Blob([compiled.js], { type: 'application/javascript' });
@@ -596,16 +195,20 @@ export function App() {
   const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } = useConsoleManager();
   const { compilerStatus, isRunning, runCode } = useCompilerManager(tsCode, addMessage);
 
-  // Auto-detect imports
+  // Auto-detect imports via Worker
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const detected = detectImports(tsCode);
-      setInstalledPackages(detected.map(name => ({
-        name,
-        version: 'latest',
-        cdn: 'esm.sh',
-        url: `https://esm.sh/${name}`
-      })));
+    const timer = setTimeout(async () => {
+      try {
+        const detected = await workerClient.detectImports(tsCode);
+        setInstalledPackages(detected.map(name => ({
+          name,
+          version: 'latest',
+          cdn: 'esm.sh',
+          url: `https://esm.sh/${name}`
+        })));
+      } catch (e) {
+        console.error("Failed to detect imports:", e);
+      }
     }, 500);
     return () => clearTimeout(timer);
   }, [tsCode]);
