@@ -332,7 +332,6 @@ export const CodeEditor = React.memo(function CodeEditor({
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
-  const suppressCtx = useCallback((e: React.MouseEvent | React.TouchEvent) => e.preventDefault(), []);
   const onTouchStart = useCallback((e: React.TouchEvent) => e.stopPropagation(), []);
 
   useEffect(() => {
@@ -355,7 +354,7 @@ export const CodeEditor = React.memo(function CodeEditor({
           </div>
           <pre ref={preRef} aria-hidden style={{ ...layerStyle(contentHeight), color: t.text, background: 'transparent', pointerEvents: 'none' }} />
           <pre aria-hidden dangerouslySetInnerHTML={{ __html: buildSquiggles(value, diagnostics, t) }} style={{ ...layerStyle(contentHeight), color: 'transparent', background: 'transparent', pointerEvents: 'none', zIndex: 1 }} />
-          <textarea ref={textareaRef} value={value} readOnly={readOnly} onChange={handleTextChange} onKeyDown={onKeyDown} onSelect={updateTypeInfo} onClick={updateTypeInfo} onKeyUp={updateTypeInfo} onContextMenu={suppressCtx} onTouchStart={onTouchStart} spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" wrap="soft" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" style={{ ...layerStyle(contentHeight), height: contentHeight, color: 'transparent', caretColor: t.lavender, background: 'transparent', border: 'none', outline: 'none', resize: 'none', WebkitTextFillColor: 'transparent', cursor: readOnly ? 'default' : 'text', zIndex: 2, touchAction: 'pan-y', caretShape: 'bar' }} />
+          <textarea ref={textareaRef} value={value} readOnly={readOnly} onChange={handleTextChange} onKeyDown={onKeyDown} onSelect={updateTypeInfo} onClick={updateTypeInfo} onKeyUp={updateTypeInfo} onTouchStart={onTouchStart} spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" wrap="soft" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" style={{ ...layerStyle(contentHeight), height: contentHeight, color: 'transparent', caretColor: t.lavender, background: 'transparent', border: 'none', outline: 'none', resize: 'none', WebkitTextFillColor: 'transparent', cursor: readOnly ? 'default' : 'text', zIndex: 2, touchAction: 'pan-y', caretShape: 'bar' }} />
           
           {/* Autocomplete Popup */}
           {completions.length > 0 && (
