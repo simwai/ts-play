@@ -10,15 +10,8 @@ function stripLeadingComments(content: string) {
   return content.replace(/^\/\/.*$/gm, '').trim();
 }
 
-function sanitizeDeclarationContent(content: string) {
-  return content
-    // Convert CommonJS export assignments to ES default exports
-    .replace(/^\s*export\s*=\s+/gm, 'export default ')
-    .trim();
-}
-
 function wrapAmbientModule(moduleName: string, content: string) {
-  const body = sanitizeDeclarationContent(stripLeadingComments(content));
+  const body = stripLeadingComments(content);
   if (!body) return '';
   // If the file is already ambient/module-declared, leave it as-is.
   if (/declare\s+module\s+['"][^'"]+['"]/.test(body)) return body;
