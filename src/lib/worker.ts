@@ -101,10 +101,22 @@ const rawLibs: Record<string, string> = {
   'lib.dom.iterable.d.ts': lib_dom_iterable_d_ts,
 };
 
+const node_d_ts = `
+declare var process: any;
+declare var require: any;
+declare var module: any;
+declare var exports: any;
+declare var __dirname: string;
+declare var __filename: string;
+declare var global: any;
+declare var Buffer: any;
+`;
+
 function ensureRequiredLibsLoaded() {
   for (const [fileName, content] of Object.entries(rawLibs)) {
     if (content) libFiles[fileName] = { version: 1, content };
   }
+  libFiles['node.d.ts'] = { version: 1, content: node_d_ts };
 }
 
 async function initLanguageService() {
@@ -514,6 +526,24 @@ self.onmessage = async (e: MessageEvent) => {
           typeAnnotation: displayString,
           jsDoc: docString,
         };
+        break;
+      }
+
+      case 'GET_COMPLETIONS': {
+        if (!ls) {
+          result = [];
+          break;
+        }
+        const completions = ls.getCompletionsAtPosition('main.ts', payload.offset, undefined);
+        if (!completions) {
+          result = [];
+          break;
+        }
+        result = completions.entries.map(e => ({
+          name: e.name,
+          kind: e.kind,
+          insertText: e.insertText
+        }));
         break;
       }
 

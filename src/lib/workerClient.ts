@@ -52,6 +52,10 @@ class WorkerClient {
   getTypeInfo(offset: number) { 
     return this.send<TypeInfo | null>('GET_TYPE_INFO', { offset }); 
   }
+
+  getCompletions(offset: number) {
+    return this.send<any[]>('GET_COMPLETIONS', { offset });
+  }
   
   compile(code: string) { 
     return this.send<{js: string, dts: string}>('COMPILE', { code }); 
