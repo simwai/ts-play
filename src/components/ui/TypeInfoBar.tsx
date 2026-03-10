@@ -13,17 +13,20 @@ interface TypeInfoBarProps {
   theme:      CatppuccinTheme;
 }
 
-// Helper to find URLs in text and make them clickable
+// Helper to find Markdown URLs [text](url) and plain URLs in text and make them clickable
 function renderWithLinks(text: string, t: CatppuccinTheme) {
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
-  const parts = text.split(urlRegex);
+  // Matches either a markdown link [text](url) or a plain url
+  const regex = /(\[[^\]]+\]\(https?:\/\/[^\s)]+\)|https?:\/\/[^\s)]+)/g;
+  const parts = text.split(regex);
 
   return parts.map((part, i) => {
-    if (part.match(urlRegex)) {
+    // Check if it's a markdown link
+    const mdMatch = part.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/);
+    if (mdMatch) {
       return (
         <a
           key={i}
-          href={part}
+          href={mdMatch[2]}
           target="_blank"
           rel="noopener noreferrer"
           style={{
@@ -34,10 +37,33 @@ function renderWithLinks(text: string, t: CatppuccinTheme) {
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {part}
+          {mdMatch[1]}
         </a>
       );
     }
+
+    // Check if it's a plain URL
+    const urlMatch = part.match(/^(https?:\/\/[^\s)]+)$/);
+    if (urlMatch) {
+      return (
+        <a
+          key={i}
+          href={urlMatch[1]}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            color: t.blue,
+            textDecoration: 'underline',
+            textUnderlineOffset: '2px',
+            pointerEvents: 'auto',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {urlMatch[1]}
+        </a>
+      );
+    }
+
     return <React.Fragment key={i}>{part}</React.Fragment>;
   });
 }
