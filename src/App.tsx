@@ -309,6 +309,8 @@ export function App() {
           const libs = await syncNodeModulesToWorker();
           setPackageTypings(libs);
         }
+      }).catch(err => {
+        addMessage('error', [`npm install error: ${err.message}`]);
       });
     }
 
@@ -325,6 +327,8 @@ export function App() {
           const libs = await syncNodeModulesToWorker();
           setPackageTypings(libs);
         }
+      }).catch(err => {
+        addMessage('error', [`npm uninstall error: ${err.message}`]);
       });
     }
   }, [installedPackages, addMessage]);
