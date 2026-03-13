@@ -10,7 +10,7 @@ import { syncNodeModulesToWorker } from './lib/typings';
 import { decodeSharePayload, encodeSharePayload } from './lib/shareCodec';
 import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
 import { formatAllFiles, loadPrettier } from './lib/formatter';
-import { Sun, Moon, Copy, Check, Trash2, Wand2, Loader2, Play, Share2 } from 'lucide-react';
+import { Sun, Moon, Copy, Check, Trash2, Wand2, Loader2, Play, Share2, Undo2, Redo2, Settings } from 'lucide-react';
 import { workerClient } from './lib/workerClient';
 import { writeFiles, runCommand, getWebContainer } from './lib/webcontainer';
 
@@ -198,6 +198,7 @@ export function App() {
 
   const [jsDirty, setJsDirty] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   
   const [installedPackages, setInstalledPackages] = useState<InstalledPackage[]>([]);
   const [packageTypings, setPackageTypings] = useState<Record<string, string>>({});
@@ -774,6 +775,7 @@ export function App() {
               }
             }}
             title={sharing ? 'Sharing...' : 'Share snippet (expires in 7 days)'}
+            tooltipAlign="right"
             size="sm"
             variant="surface"
             disabled={sharing}
@@ -786,20 +788,54 @@ export function App() {
 
       {/* ── Status bar ── */}
       <div className="flex items-center justify-between px-3.5 bg-crust border-b border-surface0 shrink-0 overflow-hidden" style={{ height: compactForKeyboard ? 20 : 24 }}>
-        <span className={`text-[10px] font-mono tracking-wide ${statusColorClass}`}>
-          {statusLabel}
-        </span>
-        <span className="text-[10px] text-overlay0 font-mono">
-          {activeTab === 'ts' ? 'TypeScript' : activeTab === 'js' ? 'JavaScript' : 'Declarations'}
-          {activeTab === 'js' && jsDirty && (
-            <span className="ml-1.5 text-peach">● modified</span>
-          )}
-        </span>
-        {!compactForKeyboard && (
-          <span className="text-[10px] text-overlay0 font-mono">
-            swipe to switch tabs
+        <div className="flex items-center gap-3 w-1/3">
+          <span className={`text-[10px] font-mono tracking-wide ${statusColorClass}`}>
+            {statusLabel}
           </span>
-        )}
+        </div>
+        
+        <div className="flex items-center justify-center flex-1">
+          <span className="text-[10px] text-overlay0 font-mono">
+            {activeTab === 'ts' ? 'TypeScript' : activeTab === 'js' ? 'JavaScript' : 'Declarations'}
+            {activeTab === 'js' && jsDirty && (
+              <span className="ml-1.5 text-peach">● modified</span>
+            )}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-end gap-1 w-1/3">
+          <IconButton
+            onClick={() => document.execCommand('undo')}
+            title="Undo"
+            tooltipAlign="center"
+            size="sm"
+            variant="ghost"
+            className="w-[20px] h-[20px] p-0 text-overlay0 hover:text-text"
+          >
+            <Undo2 size={12} />
+          </IconButton>
+          <IconButton
+            onClick={() => document.execCommand('redo')}
+            title="Redo"
+            tooltipAlign="center"
+            size="sm"
+            variant="ghost"
+            className="w-[20px] h-[20px] p-0 text-overlay0 hover:text-text"
+          >
+            <Redo2 size={12} />
+          </IconButton>
+          <div className="w-px h-2.5 bg-surface1 mx-0.5 shrink-0" />
+          <IconButton
+            onClick={() => setShowSettings(true)}
+            title="Settings"
+            tooltipAlign="right"
+            size="sm"
+            variant="ghost"
+            className="w-[20px] h-[20px] p-0 text-overlay0 hover:text-text"
+          >
+            <Settings size={12} />
+          </IconButton>
+        </div>
       </div>
 
       {/* ── Editors ── */}
@@ -891,6 +927,42 @@ export function App() {
           onConfirm={() => doRun(true)}
           onCancel={() => setShowModal(false)}
         />
+      )}
+
+      {/* ── Settings modal ── */}
+      {showSettings && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-crust/80 backdrop-blur-sm p-4">
+          <div className="bg-mantle border border-surface1 rounded-lg shadow-xl w-full max-w-[400px] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-surface0 bg-base">
+              <h2 className="text-sm font-bold text-text">Settings</h2>
+              <IconButton onClick={() => setShowSettings(false)} size="sm" variant="ghost" className="w-6 h-6 p-0">
+                <span className="text-lg leading-none">&times;</span>
+              </IconButton>
+            </div>
+            <div className="p-4 flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-subtext0">TypeScript Version</label>
+                <select className="bg-surface0 border border-surface1 rounded px-2 py-1.5 text-sm text-text outline-none focus:border-mauve">
+                  <option>5.9.3 (Default)</option>
+                  <option>5.8.2</option>
+                  <option>5.7.3</option>
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-subtext0">tsconfig.json</label>
+                <textarea 
+                  className="bg-surface0 border border-surface1 rounded px-2 py-1.5 text-sm text-text outline-none focus:border-mauve font-mono resize-y min-h-[120px]"
+                  defaultValue={'{\n  "compilerOptions": {\n    "strict": true,\n    "target": "ESNext"\n  }\n}'}
+                  spellCheck={false}
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-surface0 bg-base">
+              <Button onClick={() => setShowSettings(false)} variant="ghost">Cancel</Button>
+              <Button onClick={() => setShowSettings(false)} variant="primary">Save Changes</Button>
+            </div>
+          </div>
+        </div>
       )}
 
       <style>{`
