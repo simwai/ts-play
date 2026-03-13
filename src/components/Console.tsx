@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react'
 import { Eraser } from 'lucide-react'
 import { Badge } from './ui/Badge'
-import { IconButton } from './ui/IconButton'
+import { Button } from './ui/Button'
 import { PanelHeader } from './ui/PanelHeader'
 
 export type ConsoleMessage = {
@@ -85,19 +85,19 @@ export const Console = React.memo(function Console({
         }
         right={
           messages.length > 0 ? (
-            <IconButton
+            <Button
               onClick={(e) => {
                 e.stopPropagation()
                 onClear()
               }}
-              variant='ghost'
-              size='sm'
+              variant='secondary'
               title='Clear console'
-              className='text-xs px-2 py-0.5 border border-surface1 flex items-center gap-1'
+              tooltipAlign='right'
+              className='text-xs px-2 py-1 h-auto'
             >
               <Eraser size={12} />
               Clear
-            </IconButton>
+            </Button>
           ) : undefined
         }
       />
