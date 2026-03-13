@@ -158,7 +158,7 @@ export function Header({
           size='xs'
           title='Run (compile + execute)'
           tooltipAlign='right'
-          className='font-mono tracking-wide text-xxs'
+          className='font-mono tracking-wide'
         >
           {isRunning ? (
             <Loader2

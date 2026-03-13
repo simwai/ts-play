@@ -90,7 +90,7 @@ export function Button({
         disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer opacity-100',
         pressed && !disabled ? 'scale-95' : 'scale-100',
         {
-          'bg-green text-crust hover:bg-teal border-none': variant === 'primary',
+          'bg-green text-[color:var(--crust)] hover:bg-teal border-none': variant === 'primary',
           'bg-surface0 text-text hover:bg-surface1 border border-surface1': variant === 'secondary',
           'bg-red/15 text-red hover:bg-red/25 border border-red/40 hover:border-red/60': variant === 'danger',
           'bg-transparent text-text hover:bg-surface0 border-none': variant === 'ghost',

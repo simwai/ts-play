@@ -27,7 +27,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        'text-xxs font-bold tracking-wider uppercase font-mono rounded px-1.5 py-0.5 shrink-0 leading-none border',
+        'text-[9px] font-bold tracking-wider uppercase font-mono rounded-[3px] px-1.5 py-0.5 shrink-0 leading-none border',
         {
           'bg-overlay1/20 text-overlay1 border-overlay1/40':
             variant === 'default',
