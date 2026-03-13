@@ -104,9 +104,8 @@ export function IconButton({
             tooltipAlign === 'center' && 'left-1/2 -translate-x-1/2',
             tooltipAlign === 'right' && 'right-0',
             tooltipAlign === 'left' && 'left-0',
-            showTooltip
-              ? 'opacity-100 visible'
-              : 'opacity-0 invisible md:group-hover:opacity-100 md:group-hover:visible'
+            showTooltip ? 'opacity-100' : 'opacity-0',
+            'group-hover:opacity-100'
           )}
         >
           {title}
