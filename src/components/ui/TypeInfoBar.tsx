@@ -66,13 +66,13 @@ export function TypeInfoBar({
 
   return (
     <div
-      className='shrink-0 bg-mantle border-t border-surface0 py-2 pr-4 overflow-y-auto max-h-32 min-h-8 box-border pointer-events-auto text-xs font-mono'
+      className='shrink-0 bg-mantle border-t border-surface0 py-2 pr-4 overflow-y-auto max-h-32 min-h-8 box-border pointer-events-auto text-[11px] md:text-xs font-mono'
       style={{ paddingLeft: gutterW + 16 }}
     >
       {hasDiag && activeDiag && <DiagRow diag={activeDiag} />}
       {hasTypeInfo && typeInfo && <TypeRow info={typeInfo} />}
       {isEmpty && (
-        <span className='text-overlay0 text-xs italic'>
+        <span className='text-overlay0 text-[11px] md:text-xs italic'>
           {language === 'typescript'
             ? 'Move cursor over a symbol for type info'
             : 'JavaScript output'}
@@ -95,7 +95,7 @@ function DiagRow({ diag }: { diag: TSDiagnostic }) {
       >
         {diag.message}
       </span>
-      <span className='text-overlay0 shrink-0 leading-relaxed text-xs'>
+      <span className='text-overlay0 shrink-0 leading-relaxed text-[10px] md:text-xs'>
         [{diag.line + 1}:{diag.character + 1}]
       </span>
     </div>
@@ -111,7 +111,7 @@ function TypeRow({ info }: { info: TypeInfo }) {
     <div className='flex flex-col gap-1.5'>
       <div className='flex items-baseline gap-2 flex-wrap leading-relaxed'>
         <span
-          className={`text-xxs font-bold tracking-wider uppercase rounded-md px-1.5 py-0.5 shrink-0 leading-tight border ${kc} ${kcBg} ${kcBorder}`}
+          className={`text-[10px] md:text-xxs font-bold tracking-wider uppercase rounded-md px-1.5 py-0.5 shrink-0 leading-tight border ${kc} ${kcBg} ${kcBorder}`}
         >
           {info.kind}
         </span>
@@ -123,13 +123,13 @@ function TypeRow({ info }: { info: TypeInfo }) {
       </div>
 
       {info.jsDoc && (
-        <div className='text-overlay1 text-xs italic whitespace-pre-wrap wrap-break-word leading-relaxed pl-2 border-l-2 border-surface1'>
+        <div className='text-overlay1 text-[11px] md:text-xs italic whitespace-pre-wrap wrap-break-word leading-relaxed pl-2 border-l-2 border-surface1'>
           {renderWithLinks(info.jsDoc)}
         </div>
       )}
 
       {info.signature && info.signature !== info.typeAnnotation && (
-        <div className='text-overlay1 text-xs whitespace-pre-wrap wrap-break-word leading-relaxed'>
+        <div className='text-overlay1 text-[11px] md:text-xs whitespace-pre-wrap wrap-break-word leading-relaxed'>
           {renderWithLinks(info.signature)}
         </div>
       )}

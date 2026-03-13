@@ -22,6 +22,7 @@ type Props = {
   extraLibs?: Record<string, string>
   keyboardOpen?: boolean
   keyboardHeight?: number
+  isMobileLike?: boolean
 }
 
 export type CodeEditorRef = {
@@ -29,24 +30,23 @@ export type CodeEditorRef = {
   redo: () => void
 }
 
-const LINE_H = 24
 const PAD_TOP = 16
-const PAD_X = 16
-const GUTTER_W = 48
-const FONT_SIZE = 14
-const CHAR_W = 8.4
-
 const EMPTY_LIBS = {}
 
-const layerStyle = (contentHeight: number): React.CSSProperties => ({
+const layerStyle = (
+  contentHeight: number,
+  fontSize: number,
+  lineH: number,
+  padX: number
+): React.CSSProperties => ({
   position: 'absolute',
   top: 0,
   left: 0,
   right: 0,
   margin: 0,
-  padding: `${PAD_TOP}px ${PAD_X}px`,
-  fontSize: FONT_SIZE,
-  lineHeight: `${LINE_H}px`,
+  padding: `${PAD_TOP}px ${padX}px`,
+  fontSize: fontSize,
+  lineHeight: `${lineH}px`,
   letterSpacing: '0',
   fontKerning: 'none',
   fontVariantLigatures: 'none',
@@ -74,6 +74,7 @@ export const CodeEditor = React.memo(
       extraLibs = EMPTY_LIBS,
       keyboardOpen = false,
       keyboardHeight = 0,
+      isMobileLike = false,
     },
     ref
   ) {
@@ -87,6 +88,12 @@ export const CodeEditor = React.memo(
       undefined
     )
     const rafRef = useRef<number>(0)
+
+    const FONT_SIZE = isMobileLike ? 12 : 14
+    const LINE_H = isMobileLike ? 20 : 24
+    const CHAR_W = isMobileLike ? 7.2 : 8.4
+    const GUTTER_W = isMobileLike ? 36 : 48
+    const PAD_X = isMobileLike ? 12 : 16
 
     const { getTypeInfo } = useTypeInfo()
     const [typeInfo, setTypeInfo] = useState<TypeInfo | undefined>(undefined)
@@ -138,7 +145,7 @@ export const CodeEditor = React.memo(
       const ta = textareaRef.current
       redoStack.current.push({ v: value, c: ta?.selectionStart || 0 })
       const previous = undoStack.current.pop()!
-      
+
       nextCursorPos.current = previous.c
       onChange(previous.v)
     }, [value, onChange])
@@ -148,7 +155,7 @@ export const CodeEditor = React.memo(
       const ta = textareaRef.current
       undoStack.current.push({ v: value, c: ta?.selectionStart || 0 })
       const next = redoStack.current.pop()!
-      
+
       nextCursorPos.current = next.c
       onChange(next.v)
     }, [value, onChange])
@@ -169,7 +176,7 @@ export const CodeEditor = React.memo(
         lineHeights.length === lineCount
           ? lineHeights
           : new Array(lineCount).fill(LINE_H),
-      [lineHeights, lineCount]
+      [lineHeights, lineCount, LINE_H]
     )
     const contentHeight = useMemo(
       () => measuredLineHeights.reduce((sum, h) => sum + h, 0) + PAD_TOP * 2,
@@ -190,7 +197,7 @@ export const CodeEditor = React.memo(
           ? previous
           : next
       )
-    }, [linesArray])
+    }, [LINE_H])
 
     useLayoutEffect(() => {
       if (!codeWrapRef.current) return
@@ -251,7 +258,7 @@ export const CodeEditor = React.memo(
           ),
           behavior: 'smooth',
         })
-    }, [keyboardHeight, keyboardOpen, measuredLineHeights, value])
+    }, [keyboardHeight, keyboardOpen, measuredLineHeights, value, LINE_H])
 
     const triggerAutocomplete = useCallback(
       async (code: string, pos: number, explicit = false) => {
@@ -297,7 +304,7 @@ export const CodeEditor = React.memo(
           setCompletions([])
         }
       },
-      [language, measuredLineHeights]
+      [language, measuredLineHeights, LINE_H, PAD_X, CHAR_W]
     )
 
     const insertCompletion = useCallback(() => {
@@ -315,7 +322,7 @@ export const CodeEditor = React.memo(
       saveState(value, pos, true)
       const next =
         value.slice(0, pos - wordLength) + insertText + value.slice(pos)
-      
+
       nextCursorPos.current = pos - wordLength + insertText.length
       onChange(next)
       setCompletions([])
@@ -375,7 +382,7 @@ export const CodeEditor = React.memo(
           const end = ta.selectionEnd
           saveState(value, start, true)
           const next = value.slice(0, start) + '  ' + value.slice(end)
-          
+
           nextCursorPos.current = start + 2
           onChange(next)
         }
@@ -489,7 +496,7 @@ export const CodeEditor = React.memo(
               paddingBottom: PAD_TOP,
               fontSize: FONT_SIZE,
               lineHeight: `${LINE_H}px`,
-              paddingRight: 12,
+              paddingRight: isMobileLike ? 8 : 12,
               minHeight: contentHeight,
             }}
           >
@@ -540,7 +547,7 @@ export const CodeEditor = React.memo(
               ref={preRef}
               aria-hidden
               className='text-text bg-transparent pointer-events-none'
-              style={layerStyle(contentHeight)}
+              style={layerStyle(contentHeight, FONT_SIZE, LINE_H, PAD_X)}
             />
             <pre
               aria-hidden
@@ -548,7 +555,7 @@ export const CodeEditor = React.memo(
                 __html: buildSquiggles(value, diagnostics),
               }}
               className='text-transparent bg-transparent pointer-events-none z-10'
-              style={layerStyle(contentHeight)}
+              style={layerStyle(contentHeight, FONT_SIZE, LINE_H, PAD_X)}
             />
             <textarea
               ref={textareaRef}
@@ -571,7 +578,7 @@ export const CodeEditor = React.memo(
               data-enable-grammarly='false'
               className='text-transparent bg-transparent border-none outline-none resize-none z-20 caret-lavender'
               style={{
-                ...layerStyle(contentHeight),
+                ...layerStyle(contentHeight, FONT_SIZE, LINE_H, PAD_X),
                 height: contentHeight,
                 WebkitTextFillColor: 'transparent',
                 cursor: readOnly ? 'default' : 'text',
@@ -582,8 +589,8 @@ export const CodeEditor = React.memo(
 
             {completions.length > 0 && (
               <ul
-                role="listbox"
-                aria-label="Autocomplete suggestions"
+                role='listbox'
+                aria-label='Autocomplete suggestions'
                 className='hidden md:block absolute m-0 p-0 list-none bg-mantle border border-surface1 rounded-md shadow-lg shadow-black/30 z-50 max-h-52 overflow-y-auto min-w-48 text-sm'
                 style={{
                   top: popupPos.top,
@@ -597,7 +604,7 @@ export const CodeEditor = React.memo(
                 {completions.map((comp, i) => (
                   <li
                     key={comp.name}
-                    role="option"
+                    role='option'
                     aria-selected={i === selIndex}
                     className={`px-3 py-1.5 cursor-pointer flex justify-between gap-4 ${i === selIndex ? 'bg-surface0 text-text' : 'bg-transparent text-subtext0'}`}
                     onMouseDown={(e) => {
@@ -607,9 +614,7 @@ export const CodeEditor = React.memo(
                     }}
                   >
                     <span>{comp.name}</span>
-                    <span className='text-overlay0 text-xs'>
-                      {comp.kind}
-                    </span>
+                    <span className='text-overlay0 text-xs'>{comp.kind}</span>
                   </li>
                 ))}
               </ul>

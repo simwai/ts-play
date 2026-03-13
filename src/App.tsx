@@ -331,7 +331,15 @@ export function App() {
         }
       )
     },
-    [jsDirty, runCode, clearMessages, addMessage, setJsCode, setDtsCode, installQueue]
+    [
+      jsDirty,
+      runCode,
+      clearMessages,
+      addMessage,
+      setJsCode,
+      setDtsCode,
+      installQueue,
+    ]
   )
 
   const handleShare = useCallback(async () => {
@@ -455,6 +463,7 @@ export function App() {
               extraLibs={packageTypings}
               keyboardOpen={keyboardOpen}
               keyboardHeight={keyboardHeight}
+              isMobileLike={isMobileLike}
             />
           </div>
           {/* JS Editor */}
@@ -469,6 +478,7 @@ export function App() {
               language='javascript'
               keyboardOpen={keyboardOpen}
               keyboardHeight={keyboardHeight}
+              isMobileLike={isMobileLike}
             />
           </div>
           {/* DTS Editor */}
@@ -481,6 +491,7 @@ export function App() {
               readOnly={true}
               keyboardOpen={keyboardOpen}
               keyboardHeight={keyboardHeight}
+              isMobileLike={isMobileLike}
             />
           </div>
         </div>
