@@ -136,7 +136,7 @@ export const CodeEditor = React.memo(function CodeEditor({
   const gutterRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
   const codeWrapRef = useRef<HTMLDivElement>(null)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const rafRef = useRef<number>(0)
 
   const { getTypeInfo } = useTypeInfo()
@@ -469,11 +469,11 @@ export const CodeEditor = React.memo(function CodeEditor({
     if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(async () => {
       const info = await getTypeInfo(value, pos)
-      setTypeInfo(info ?? undefined)
+      setTypeInfo(info)
       const diag = diagnostics.find(
         (d) => pos >= d.start && pos <= d.start + d.length
       )
-      setActiveDiag(diag ?? undefined)
+      setActiveDiag(diag)
       scrollSelectionIntoView()
     }, 80)
   }, [value, getTypeInfo, diagnostics, scrollSelectionIntoView, onCursorChange])

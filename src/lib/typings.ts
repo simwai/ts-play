@@ -18,9 +18,10 @@ export async function syncNodeModulesToWorker(): Promise<
           let isFile = entry.isFile()
 
           // WebContainers use symlinks heavily for node_modules. We MUST resolve them.
-          if (entry.isSymbolicLink?.() || (!isDir && !isFile)) {
+          const entryAny = entry as any
+          if (entryAny.isSymbolicLink?.() || (!isDir && !isFile)) {
             try {
-              const stat = await instance.fs.stat(path)
+              const stat = await (instance.fs as any).stat(path)
               isDir = stat.isDirectory()
               isFile = stat.isFile()
             } catch {

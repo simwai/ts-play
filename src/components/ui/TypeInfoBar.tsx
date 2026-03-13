@@ -69,11 +69,11 @@ export function TypeInfoBar({
 
   return (
     <div
-      className='shrink-0 bg-mantle border-t border-surface0 py-[5px] pr-[10px] overflow-y-auto max-h-[96px] min-h-[26px] box-border pointer-events-auto text-[11px]'
+      className='shrink-0 bg-mantle border-t border-surface0 py-[5px] pr-2.5 overflow-y-auto max-h-24 min-h-[26px] box-border pointer-events-auto text-[11px]'
       style={{ paddingLeft: gutterW + 8, fontFamily: FONT }}
     >
-      {hasDiag && <DiagRow diag={activeDiag} />}
-      {hasTypeInfo && <TypeRow info={typeInfo} />}
+      {hasDiag && activeDiag && <DiagRow diag={activeDiag} />}
+      {hasTypeInfo && typeInfo && <TypeRow info={typeInfo} />}
       {isEmpty && (
         <span className='text-overlay0 text-[10px] italic'>
           {language === 'typescript'
@@ -90,15 +90,15 @@ function DiagRow({ diag }: { diag: TSDiagnostic }) {
   const colorClass = isError ? 'text-red' : 'text-yellow'
   return (
     <div className='flex items-start gap-1.5'>
-      <span className={`${colorClass} shrink-0 leading-[16px]`}>
+      <span className={`${colorClass} shrink-0 leading-4`}>
         {isError ? '✖' : '⚠'}
       </span>
       <span
-        className={`${colorClass} whitespace-pre-wrap break-words leading-[16px] flex-1`}
+        className={`${colorClass} whitespace-pre-wrap wrap-break-word leading-4 flex-1`}
       >
         {diag.message}
       </span>
-      <span className='text-overlay0 shrink-0 leading-[16px] text-[10px]'>
+      <span className='text-overlay0 shrink-0 leading-4 text-[10px]'>
         [{diag.line + 1}:{diag.character + 1}]
       </span>
     </div>
@@ -114,25 +114,25 @@ function TypeRow({ info }: { info: TypeInfo }) {
     <div className='flex flex-col gap-[3px]'>
       <div className='flex items-baseline gap-[5px] flex-wrap'>
         <span
-          className={`text-[9px] font-bold tracking-[0.08em] uppercase rounded-[3px] px-1 py-[1px] shrink-0 leading-[14px] border ${kc} ${kcBg} ${kcBorder}`}
+          className={`text-[9px] font-bold tracking-[0.08em] uppercase rounded-[3px] px-1 py-px shrink-0 leading-3.5 border ${kc} ${kcBg} ${kcBorder}`}
         >
           {info.kind}
         </span>
         <span className='text-text font-semibold shrink-0'>{info.name}</span>
         <span className='text-overlay0 shrink-0'>:</span>
-        <span className='text-yellow whitespace-pre-wrap break-words flex-[1_1_120px] min-w-0'>
+        <span className='text-yellow whitespace-pre-wrap wrap-break-word flex-[1_1_120px] min-w-0'>
           {info.typeAnnotation}
         </span>
       </div>
 
       {info.jsDoc && (
-        <div className='text-overlay1 text-[10px] italic whitespace-pre-wrap break-words leading-[15px] pl-1 border-l-2 border-surface1'>
+        <div className='text-overlay1 text-[10px] italic whitespace-pre-wrap wrap-break-word leading-[15px] pl-1 border-l-2 border-surface1'>
           {renderWithLinks(info.jsDoc)}
         </div>
       )}
 
       {info.signature && info.signature !== info.typeAnnotation && (
-        <div className='text-overlay1 text-[10px] whitespace-pre-wrap break-words leading-[15px]'>
+        <div className='text-overlay1 text-[10px] whitespace-pre-wrap wrap-break-word leading-[15px]'>
           {renderWithLinks(info.signature)}
         </div>
       )}

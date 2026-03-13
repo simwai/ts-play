@@ -18,7 +18,7 @@ export function useTSDiagnostics(
   extraLibs: Record<string, string> = EMPTY_LIBS
 ) {
   const [diagnostics, setDiagnostics] = useState<TSDiagnostic[]>([])
-  const timerRef = useRef<number | undefined>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const lastLibsRef = useRef<Record<string, string>>(EMPTY_LIBS)
 
   useEffect(() => {
