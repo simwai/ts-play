@@ -1,25 +1,24 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { type ThemeMode } from './lib/theme'
 import { CodeEditor, type CodeEditorRef } from './components/CodeEditor'
-import { Console, type ConsoleMessage } from './components/Console'
+import { Console } from './components/Console'
 import { OverrideModal } from './components/Modal'
-import {
-  PackageManager,
-  type InstalledPackage,
-} from './components/PackageManager'
+import { PackageManager } from './components/PackageManager'
 import { Header } from './components/Header'
 import { StatusBar } from './components/StatusBar'
 import { SettingsModal } from './components/SettingsModal'
-import { syncNodeModulesToWorker } from './lib/typings'
 import { decodeSharePayload } from './lib/shareCodec'
 import { useVirtualKeyboard } from './hooks/useVirtualKeyboard'
-import { formatAllFiles, loadPrettier } from './lib/formatter'
+import { formatAllFiles } from './lib/formatter'
 import { workerClient } from './lib/workerClient'
-import { writeFiles, runCommand, getWebContainer } from './lib/webcontainer'
+import { getWebContainer } from './lib/webcontainer'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import { useResizePanel } from './hooks/useResizePanel'
 import { useSwipeTabs } from './hooks/useSwipeTabs'
 import { shareSnippet, loadSharedSnippet } from './lib/api'
+import { useConsoleManager } from './hooks/useConsoleManager'
+import { useCompilerManager } from './hooks/useCompilerManager'
+import { usePackageManager } from './hooks/usePackageManager'
 
 const DEFAULT_TS = `// TypeScript Playground
 // Long-press any word on mobile to see type info ✨
@@ -80,179 +79,6 @@ const DEFAULT_TSCONFIG = `{
 export const TABS = ['ts', 'js', 'dts'] as const
 export type TabType = (typeof TABS)[number]
 
-// ── Custom Hooks ──────────────────────────────────────────────────────────────
-
-function useConsoleManager() {
-  const [messages, setMessages] = useState<ConsoleMessage[]>([])
-  const [consoleOpen, setConsoleOpen] = useState(true)
-
-  const addMessage = useCallback(
-    (type: ConsoleMessage['type'], args: unknown[]) => {
-      if (
-        type === 'error' &&
-        args.some(
-          (a) =>
-            typeof a === 'string' && a.includes('Maximum update depth exceeded')
-        )
-      ) {
-        return
-      }
-
-      const formatted = args.map((a) => {
-        if (a instanceof Error) return a.stack || a.message
-        if (typeof a === 'string') return a
-        try {
-          return JSON.stringify(a, null, 2)
-        } catch {
-          return String(a)
-        }
-      })
-      setMessages((previous) =>
-        [...previous, { type, args: formatted, ts: Date.now() }].slice(-500)
-      )
-    },
-    []
-  )
-
-  const clearMessages = useCallback(() => {
-    setMessages([])
-  }, [])
-
-  const toggleConsole = useCallback(() => {
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur()
-    }
-
-    setConsoleOpen((o) => !o)
-  }, [])
-
-  useEffect(() => {
-    const origLog = console.log
-    const origError = console.error
-    const origWarn = console.warn
-    const origInfo = console.info
-    const origDebug = console.debug
-    const origTrace = console.trace
-    const origDir = console.dir
-
-    console.log = (...a) => {
-      addMessage('log', a)
-      origLog(...a)
-    }
-
-    console.error = (...a) => {
-      addMessage('error', a)
-      origError(...a)
-    }
-
-    console.warn = (...a) => {
-      addMessage('warn', a)
-      origWarn(...a)
-    }
-
-    console.info = (...a) => {
-      addMessage('info', a)
-      origInfo(...a)
-    }
-
-    console.debug = (...a) => {
-      addMessage('debug', a)
-      origDebug(...a)
-    }
-
-    console.trace = (...a) => {
-      addMessage('trace', a)
-      origTrace(...a)
-    }
-
-    console.dir = (...a) => {
-      addMessage('dir', a)
-      origDir(...a)
-    }
-
-    return () => {
-      console.log = origLog
-      console.error = origError
-      console.warn = origWarn
-      console.info = origInfo
-      console.debug = origDebug
-      console.trace = origTrace
-      console.dir = origDir
-    }
-  }, [addMessage])
-
-  return { messages, addMessage, clearMessages, consoleOpen, toggleConsole }
-}
-
-function useCompilerManager(
-  tsCode: string,
-  addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void
-) {
-  const [compilerStatus, setCompilerStatus] = useState<
-    'loading' | 'ready' | 'error'
-  >('loading')
-  const [isRunning, setIsRunning] = useState(false)
-
-  useEffect(() => {
-    workerClient
-      .init()
-      .then(() => {
-        setCompilerStatus('ready')
-      })
-      .catch((error) => {
-        console.error('Worker init failed:', error)
-        setCompilerStatus('error')
-      })
-  }, [])
-
-  useEffect(() => {
-    if (compilerStatus === 'ready') {
-      loadPrettier().catch(() => {
-        /* Silent */
-      })
-    }
-  }, [compilerStatus])
-
-  const runCode = useCallback(
-    async (
-      pendingInstalls: Promise<void>,
-      onSuccess: (js: string, dts: string) => void,
-      onError: (error: Error) => void
-    ) => {
-      setIsRunning(true)
-      try {
-        const compiled = await workerClient.compile(tsCode)
-        onSuccess(compiled.js, compiled.dts)
-
-        await writeFiles({
-          'index.js': compiled.js,
-        })
-
-        // Wait for any background npm installs/uninstalls to finish
-        await pendingInstalls
-
-        addMessage('info', ['Executing via Node.js...'])
-        const exitCode = await runCommand('node', ['index.js'], (out) => {
-          const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
-          if (clean) addMessage('log', [clean])
-        })
-
-        if (exitCode !== 0) {
-          addMessage('error', [`Process exited with code ${exitCode}`])
-        }
-      } catch (error) {
-        onError(error as Error)
-      } finally {
-        setIsRunning(false)
-      }
-    },
-    [tsCode, addMessage]
-  )
-
-  return { compilerStatus, isRunning, runCode }
-}
-
-// ── App ───────────────────────────────────────────────────────────────────────
 export function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('mocha')
 
@@ -296,16 +122,6 @@ export function App() {
   const [showModal, setShowModal] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
 
-  const [installedPackages, setInstalledPackages] = useState<
-    InstalledPackage[]
-  >([])
-  const [packageTypings, setPackageTypings] = useState<Record<string, string>>(
-    {}
-  )
-
-  const previousPkgsRef = useRef<Set<string>>(new Set())
-  const installQueue = useRef<Promise<void>>(Promise.resolve())
-
   const [packageManagerOpen, setPackageManagerOpen] = useState(false)
   const { keyboardOpen, keyboardHeight, isMobileLike } = useVirtualKeyboard()
   const compactForKeyboard = keyboardOpen && isMobileLike
@@ -331,6 +147,13 @@ export function App() {
     tsCode,
     addMessage
   )
+  const {
+    installedPackages,
+    packageTypings,
+    tsCursorPos,
+    checkImports,
+    installQueue,
+  } = usePackageManager(tsCode, addMessage)
 
   // Global Keyboard Shortcuts (Tab Switching)
   useEffect(() => {
@@ -376,109 +199,6 @@ export function App() {
       }
     })
   }, [])
-
-  // Auto-detect imports via Worker
-  const tsCursorPos = useRef(0)
-  const checkImportsTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(
-    null
-  )
-
-  const checkImports = useCallback(() => {
-    if (checkImportsTimeout.current) clearTimeout(checkImportsTimeout.current)
-    checkImportsTimeout.current = setTimeout(async () => {
-      const lines = tsCode.split('\n')
-      const cursorLineIdx =
-        tsCode.slice(0, tsCursorPos.current).split('\n').length - 1
-      const currentLine = lines[cursorLineIdx] || ''
-
-      // Delay detection if the user is actively editing an import line
-      if (/\bimport\b/.test(currentLine)) {
-        return
-      }
-
-      try {
-        const detected = await workerClient.detectImports(tsCode)
-        setInstalledPackages((previous) => {
-          const previousNames = previous
-            .map((p) => p.name)
-            .sort()
-            .join(',')
-          const newNames = [...detected].sort().join(',')
-          if (previousNames === newNames) return previous
-          return detected.map((name) => ({ name, version: 'latest' }))
-        })
-      } catch (error) {
-        console.error('Failed to detect imports:', error)
-      }
-    }, 500)
-  }, [tsCode])
-
-  useEffect(() => {
-    checkImports()
-  }, [tsCode, checkImports])
-
-  // Background NPM Install/Uninstall Queue
-  useEffect(() => {
-    const currentNames = new Set(installedPackages.map((p) => p.name))
-    const previousNames = previousPkgsRef.current
-
-    const added = [...currentNames].filter((x) => !previousNames.has(x))
-    const removed = [...previousNames].filter((x) => !currentNames.has(x))
-
-    if (added.length === 0 && removed.length === 0) return
-
-    previousPkgsRef.current = currentNames
-
-    if (added.length > 0) {
-      installQueue.current = installQueue.current
-        .then(async () => {
-          addMessage('info', [`npm install ${added.join(' ')}...`])
-          const code = await runCommand(
-            'npm',
-            ['install', '--no-progress', ...added],
-            (out) => {
-              const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
-              if (clean && !/^[/\\|\-]$/.test(clean))
-                addMessage('info', [clean])
-            }
-          )
-          if (code === 0) {
-            const libs = await syncNodeModulesToWorker()
-            setPackageTypings(libs)
-          } else {
-            addMessage('error', [`npm install failed with code ${code}`])
-          }
-        })
-        .catch((error) => {
-          addMessage('error', [`npm install error: ${error.message}`])
-        })
-    }
-
-    if (removed.length > 0) {
-      installQueue.current = installQueue.current
-        .then(async () => {
-          addMessage('info', [`npm uninstall ${removed.join(' ')}...`])
-          const code = await runCommand(
-            'npm',
-            ['uninstall', '--no-progress', ...removed],
-            (out) => {
-              const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
-              if (clean && !/^[/\\|\-]$/.test(clean))
-                addMessage('info', [clean])
-            }
-          )
-          if (code === 0) {
-            const libs = await syncNodeModulesToWorker()
-            setPackageTypings(libs)
-          } else {
-            addMessage('error', [`npm uninstall failed with code ${code}`])
-          }
-        })
-        .catch((error) => {
-          addMessage('error', [`npm uninstall error: ${error.message}`])
-        })
-    }
-  }, [installedPackages, addMessage])
 
   useEffect(() => {
     const parameters = new URLSearchParams(globalThis.location.search)
@@ -613,7 +333,7 @@ export function App() {
         }
       )
     },
-    [jsDirty, runCode, clearMessages, addMessage, setJsCode, setDtsCode]
+    [jsDirty, runCode, clearMessages, addMessage, setJsCode, setDtsCode, installQueue]
   )
 
   const handleShare = useCallback(async () => {
@@ -796,7 +516,9 @@ export function App() {
           <PackageManager
             packages={installedPackages}
             isOpen={packageManagerOpen}
-            onToggle={togglePackageManager}
+            onToggle={() => {
+              setPackageManagerOpen((o) => !o)
+            }}
             contentHeight={panelHeight}
           />
         </div>
