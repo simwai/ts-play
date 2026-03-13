@@ -2,7 +2,7 @@ import { type CSSProperties, type ReactNode, useState, useRef } from 'react'
 import { cn } from '../../utils/cn'
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost'
-type Size = 'sm' | 'md' | 'lg'
+type Size = 'xs' | 'sm' | 'md' | 'lg'
 
 type ButtonProps = {
   onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
@@ -18,6 +18,7 @@ type ButtonProps = {
 }
 
 const sizeClasses: Record<Size, string> = {
+  xs: 'px-2 py-1 text-xs',
   sm: 'px-3 py-1.5 text-xs',
   md: 'px-4 py-2 text-sm',
   lg: 'px-5 py-2.5 text-base',
@@ -83,7 +84,7 @@ export function Button({
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchMove}
       className={cn(
-        'group relative font-inherit rounded-md flex items-center justify-center gap-2 transition-all duration-150 whitespace-nowrap',
+        'group relative font-inherit rounded-md flex items-center justify-center gap-1.5 transition-all duration-150 whitespace-nowrap',
         sizeClasses[size],
         variant === 'primary' ? 'font-bold' : 'font-medium',
         disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer opacity-100',
