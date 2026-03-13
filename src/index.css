@@ -132,6 +132,6 @@
   ::-webkit-resizer { background: transparent; }
   
   /* Selection */
-  ::selection { background: var(--color-surface2); opacity: 0.5; }
-  ::-moz-selection { background: var(--color-surface2); opacity: 0.5; }
+  ::selection { background: color-mix(in srgb, var(--color-surface2) 40%, transparent); }
+  ::-moz-selection { background: color-mix(in srgb, var(--color-surface2) 40%, transparent); }
 }
