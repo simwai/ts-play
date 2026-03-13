@@ -19,6 +19,7 @@ import { shareSnippet, loadSharedSnippet } from './lib/api'
 import { useConsoleManager } from './hooks/useConsoleManager'
 import { useCompilerManager } from './hooks/useCompilerManager'
 import { usePackageManager } from './hooks/usePackageManager'
+import { TABS, type TabType } from './lib/constants'
 
 const DEFAULT_TS = `// TypeScript Playground
 // Long-press any word on mobile to see type info ✨
@@ -75,9 +76,6 @@ const DEFAULT_TSCONFIG = `{
     "skipLibCheck": true
   }
 }`
-
-export const TABS = ['ts', 'js', 'dts'] as const
-export type TabType = (typeof TABS)[number]
 
 export function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('mocha')
@@ -542,18 +540,6 @@ export function App() {
         tsConfigString={tsConfigString}
         onSave={setTsConfigString}
       />
-
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Victor+Mono:ital,wght@0,100..700;1,100..700&display=swap');
-        @keyframes spin { to { transform: rotate(360deg); } }
-        * { box-sizing: border-box; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.3); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(128,128,128,0.5); }
-        ::selection { background: var(--color-surface2); opacity: 0.5; }
-        ::-moz-selection { background: var(--color-surface2); opacity: 0.5; }
-      `}</style>
     </div>
   )
 }

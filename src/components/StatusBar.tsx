@@ -1,6 +1,6 @@
 import { Undo2, Redo2, Settings } from 'lucide-react'
 import { IconButton } from './ui/IconButton'
-import type { TabType } from '../App'
+import type { TabType } from '../lib/constants'
 
 type StatusBarProps = {
   compilerStatus: 'loading' | 'ready' | 'error'

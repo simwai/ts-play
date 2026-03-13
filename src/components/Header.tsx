@@ -12,7 +12,7 @@ import {
 import { IconButton } from './ui/IconButton'
 import { Button } from './ui/Button'
 import type { ThemeMode } from '../lib/theme'
-import { TABS, type TabType } from '../App'
+import { TABS, type TabType } from '../lib/constants'
 
 type HeaderProps = {
   activeTab: TabType
