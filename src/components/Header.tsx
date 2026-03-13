@@ -112,7 +112,11 @@ export function Header({
           tooltipAlign='right'
           variant='surface'
           size='sm'
-          className={copied ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}
+          className={
+            copied
+              ? 'text-green border-green bg-green/15 hover:bg-green/20'
+              : ''
+          }
         >
           {copied ? (
             <Check className='w-3.5 h-3.5 md:w-4 md:h-4' />
@@ -141,7 +145,11 @@ export function Header({
           tooltipAlign='right'
           variant='surface'
           size='sm'
-          className={formatSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}
+          className={
+            formatSuccess
+              ? 'text-green border-green bg-green/15 hover:bg-green/20'
+              : ''
+          }
         >
           {formatting ? (
             <Loader2 className='w-3.5 h-3.5 md:w-4 md:h-4 animate-spin' />
@@ -189,7 +197,11 @@ export function Header({
           variant='surface'
           size='sm'
           disabled={sharing}
-          className={shareSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}
+          className={
+            shareSuccess
+              ? 'text-green border-green bg-green/15 hover:bg-green/20'
+              : ''
+          }
         >
           {sharing ? (
             <Loader2 className='w-3.5 h-3.5 md:w-4 md:h-4 animate-spin' />
