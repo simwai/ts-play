@@ -41,14 +41,14 @@ export function StatusBar({
     >
       <div className='flex items-center justify-start flex-1 min-w-0'>
         <span
-          className={`text-[10px] md:text-xs font-mono tracking-wide truncate ${statusColorClass}`}
+          className={`text-3xs md:text-xs font-mono tracking-wide truncate ${statusColorClass}`}
         >
           {statusLabel}
         </span>
       </div>
 
       <div className='flex items-center justify-center shrink-0 min-w-0'>
-        <span className='text-[10px] md:text-xs text-overlay0 font-mono truncate'>
+        <span className='text-3xs md:text-xs text-overlay0 font-mono truncate'>
           {activeTab === 'ts'
             ? 'TypeScript'
             : activeTab === 'js'

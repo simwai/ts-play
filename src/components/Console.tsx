@@ -108,7 +108,7 @@ export const Console = React.memo(function Console({
           style={{ height: `${contentHeight}rem` }}
         >
           {messages.length === 0 ? (
-            <div className='flex items-center justify-center h-full text-overlay0 text-[11px] md:text-xs italic font-mono'>
+            <div className='flex items-center justify-center h-full text-overlay0 text-xxs md:text-xs italic font-mono'>
               No output yet — press Run to execute
             </div>
           ) : (
@@ -129,7 +129,7 @@ export const Console = React.memo(function Console({
                   className='mt-0.5'
                 />
                 <pre
-                  className={`m-0 p-0 text-[11px] md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}
+                  className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}
                 >
                   {m.args.join(' ')}
                 </pre>
