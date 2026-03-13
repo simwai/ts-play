@@ -1,23 +1,36 @@
-import { CSSProperties } from 'react';
-import { cn } from '../../utils/cn';
+import { type CSSProperties } from 'react'
+import { cn } from '../../utils/cn'
 
-export type BadgeVariant = 'default' | 'error' | 'warn' | 'info' | 'success' | 'custom';
+export type BadgeVariant =
+  | 'default'
+  | 'error'
+  | 'warn'
+  | 'info'
+  | 'success'
+  | 'custom'
 
-interface BadgeProps {
-  label: string;
-  variant?: BadgeVariant;
-  color?: string; // used when variant === 'custom'
-  style?: CSSProperties;
-  className?: string;
+type BadgeProps = {
+  label: string
+  variant?: BadgeVariant
+  color?: string // Used when variant === 'custom'
+  style?: CSSProperties
+  className?: string
 }
 
-export function Badge({ label, variant = 'default', color, style, className }: BadgeProps) {
+export function Badge({
+  label,
+  variant = 'default',
+  color,
+  style,
+  className,
+}: BadgeProps) {
   return (
-    <span 
+    <span
       className={cn(
-        "text-[9px] font-bold tracking-[0.08em] uppercase font-mono rounded-[3px] px-[5px] py-[1px] shrink-0 leading-[14px] border",
+        'text-[9px] font-bold tracking-[0.08em] uppercase font-mono rounded-[3px] px-[5px] py-[1px] shrink-0 leading-[14px] border',
         {
-          'bg-overlay1/20 text-overlay1 border-overlay1/40': variant === 'default',
+          'bg-overlay1/20 text-overlay1 border-overlay1/40':
+            variant === 'default',
           'bg-red/20 text-red border-red/40': variant === 'error',
           'bg-yellow/20 text-yellow border-yellow/40': variant === 'warn',
           'bg-blue/20 text-blue border-blue/40': variant === 'info',
@@ -25,14 +38,18 @@ export function Badge({ label, variant = 'default', color, style, className }: B
         },
         className
       )}
-      style={variant === 'custom' && color ? {
-        color: color,
-        background: `${color}20`,
-        borderColor: `${color}40`,
-        ...style,
-      } : style}
+      style={
+        variant === 'custom' && color
+          ? {
+              color,
+              background: `${color}20`,
+              borderColor: `${color}40`,
+              ...style,
+            }
+          : style
+      }
     >
       {label}
     </span>
-  );
+  )
 }

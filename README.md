@@ -6,14 +6,15 @@
 
 ## 🤔 The Motivation
 
-Ever tried writing code on your smartphone using Monaco or CodeMirror? 
+Ever tried writing code on your smartphone using Monaco or CodeMirror?
 Yeah, it's painful. The virtual keyboard jumps around, native text selection is broken, scrolling feels unnatural, and the whole experience is just sluggish.
 
-**We wanted something better.** 
+**We wanted something better.**
 
-TSPlay is built on a radically simple idea: **Use a native `<textarea>`**. 
+TSPlay is built on a radically simple idea: **Use a native `<textarea>`**.
 By layering a transparent textarea over a blazing-fast, custom syntax-highlighted `<pre>` tag, we get:
-- 📱 **100% Native Mobile Editing:** Your phone's native text selection, copy/paste, and keyboard just *work*. No weird workarounds.
+
+- 📱 **100% Native Mobile Editing:** Your phone's native text selection, copy/paste, and keyboard just _work_. No weird workarounds.
 - ⚡ **Zero Bloat:** No massive editor bundles. Just pure, fast React.
 - 🎨 **Beautiful Design:** Fully integrated [Catppuccin](https://github.com/catppuccin/catppuccin) themes with custom selection colors that look gorgeous on any screen.
 
@@ -52,7 +53,7 @@ npm install
 npm run dev
 ```
 
-*Note: For local development, the Vite dev server is already configured to send the correct `COOP/COEP` headers required by WebContainers.*
+_Note: For local development, the Vite dev server is already configured to send the correct `COOP/COEP` headers required by WebContainers._
 
 ## ⚙️ Production Deployment (Apache / Plesk)
 
@@ -61,6 +62,7 @@ The headers set by the Vite dev server have **0 impact** in production. WebConta
 (I use this exact setup on a Plesk subdomain.)
 
 **Plesk Note:** In Plesk, setting headers via `.htaccess` often doesn't work depending on your nginx/Apache proxy settings. Instead, you must add them in the Hosting Settings under **Additional headers -> Custom headers**:
+
 - `Cross-Origin-Embedder-Policy: require-corp`
 - `Cross-Origin-Opener-Policy: same-origin`
 
@@ -86,7 +88,7 @@ RewriteRule ^(.*)$ /dist/$1 [L]
 
 ## 🤝 Contributing
 
-We love contributions! Whether it's fixing a bug, adding a new feature, or just improving the documentation, your help is welcome. 
+We love contributions! Whether it's fixing a bug, adding a new feature, or just improving the documentation, your help is welcome.
 Since we are avoiding heavy editor libraries, any PRs improving the custom editor experience (like better auto-indentation, bracket matching, or mobile-specific tweaks) are highly appreciated!
 
 1. Fork the project

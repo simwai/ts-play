@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @theme {
   --color-base: var(--base);
@@ -13,7 +13,7 @@
   --color-text: var(--text);
   --color-subtext0: var(--subtext0);
   --color-subtext1: var(--subtext1);
-  
+
   --color-rosewater: var(--rosewater);
   --color-flamingo: var(--flamingo);
   --color-pink: var(--pink);
@@ -99,9 +99,12 @@
   body {
     @apply bg-crust text-text m-0 overflow-hidden;
   }
-  
+
   /* Change italic font variant to JetBrains Mono instead of Victor Mono */
-  i, em, .italic, .mtk-italic {
-    font-family: "JetBrains Mono", monospace !important;
+  i,
+  em,
+  .italic,
+  .mtk-italic {
+    font-family: 'JetBrains Mono', monospace !important;
   }
 }

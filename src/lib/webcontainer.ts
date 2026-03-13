@@ -1,65 +1,67 @@
-import { WebContainer } from '@webcontainer/api';
+import { WebContainer } from '@webcontainer/api'
 
-let webcontainerInstance: WebContainer | null = null;
-let bootPromise: Promise<WebContainer> | null = null;
+let webcontainerInstance: WebContainer | undefined
+let bootPromise: Promise<WebContainer> | undefined
 
 export async function getWebContainer(): Promise<WebContainer> {
-  if (!window.crossOriginIsolated) {
+  if (!globalThis.crossOriginIsolated) {
     throw new Error(
-      "Browser is not cross-origin isolated. WebContainers require COOP/COEP headers and a secure context (HTTPS or localhost)."
-    );
+      'Browser is not cross-origin isolated. WebContainers require COOP/COEP headers and a secure context (HTTPS or localhost).'
+    )
   }
 
   if (webcontainerInstance) {
-    return webcontainerInstance;
+    return webcontainerInstance
   }
 
-  if (!bootPromise) {
-    bootPromise = WebContainer.boot().then((instance) => {
-      webcontainerInstance = instance;
-      return instance;
-    });
-  }
+  bootPromise ||= WebContainer.boot().then((instance) => {
+    webcontainerInstance = instance
+    return instance
+  })
 
-  return bootPromise;
+  return bootPromise
 }
 
 export async function writeFiles(files: Record<string, string>) {
-  const instance = await getWebContainer();
-  
-  const fileSystemTree: Record<string, any> = {};
+  const instance = await getWebContainer()
+
+  const fileSystemTree: Record<string, any> = {}
   for (const [path, content] of Object.entries(files)) {
     fileSystemTree[path] = {
       file: {
         contents: content,
       },
-    };
+    }
   }
 
-  await instance.mount(fileSystemTree);
+  await instance.mount(fileSystemTree)
 }
 
 export async function readFile(path: string): Promise<string> {
-  const instance = await getWebContainer();
+  const instance = await getWebContainer()
   try {
-    const content = await instance.fs.readFile(path, 'utf-8');
-    return content;
+    const content = await instance.fs.readFile(path, 'utf8')
+    return content
   } catch {
-    return '';
+    return ''
   }
 }
 
-export async function runCommand(cmd: string, args: string[], onOutput: (data: string) => void) {
-  const instance = await getWebContainer();
-  const process = await instance.spawn(cmd, args);
+export async function runCommand(
+  cmd: string,
+  args: string[],
+  onOutput: (data: string) => void
+) {
+  const instance = await getWebContainer()
+  const process = await instance.spawn(cmd, args)
 
   process.output.pipeTo(
     new WritableStream({
       write(data) {
-        onOutput(data);
+        onOutput(data)
       },
     })
-  );
+  )
 
-  return process.exit;
+  return process.exit
 }

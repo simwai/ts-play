@@ -1,73 +1,84 @@
-import type { TSDiagnostic } from '../hooks/useTSDiagnostics';
-import type { TypeInfo } from '../hooks/useTypeInfo';
+import type { TSDiagnostic } from '../hooks/useTSDiagnostics'
+import type { TypeInfo } from '../hooks/useTypeInfo'
 
 class WorkerClient {
-  private worker: Worker | null = null;
-  private resolves = new Map<number, { resolve: Function, reject: Function }>();
-  private msgId = 0;
+  private worker: Worker | undefined
+  private readonly resolves = new Map<
+    number,
+    { resolve: Function; reject: Function }
+  >()
+
+  private msgId = 0
 
   private getWorker() {
     if (!this.worker) {
-      this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+      this.worker = new Worker(new URL('worker.ts', import.meta.url), {
+        type: 'module',
+      })
       this.worker.onmessage = (e) => {
-        const { id, success, payload, error } = e.data;
-        const p = this.resolves.get(id);
+        const { id, success, payload, error } = e.data
+        const p = this.resolves.get(id)
         if (p) {
-          this.resolves.delete(id);
-          if (success) p.resolve(payload);
-          else p.reject(new Error(error));
+          this.resolves.delete(id)
+          if (success) p.resolve(payload)
+          else p.reject(new Error(error))
         }
-      };
+      }
+
       this.worker.onerror = (e) => {
-        console.error("Worker execution error:", e.message || 'Unknown worker error');
-      };
+        console.error(
+          'Worker execution error:',
+          e.message || 'Unknown worker error'
+        )
+      }
     }
-    return this.worker;
+
+    return this.worker
   }
 
-  private send<T>(type: string, payload?: any): Promise<T> {
+  private async send<T>(type: string, payload?: any): Promise<T> {
     return new Promise((resolve, reject) => {
-      const id = ++this.msgId;
-      this.resolves.set(id, { resolve, reject });
-      this.getWorker().postMessage({ id, type, payload });
-    });
+      const id = ++this.msgId
+      this.resolves.set(id, { resolve, reject })
+      this.getWorker().postMessage({ id, type, payload })
+    })
   }
 
-  init() { 
-    return this.send<void>('INIT'); 
-  }
-  
-  updateFile(filename: string, content: string) { 
-    return this.send<void>('UPDATE_FILE', { filename, content }); 
-  }
-  
-  updateExtraLibs(libs: Record<string, string>) { 
-    return this.send<void>('UPDATE_EXTRA_LIBS', { libs }); 
+  async init() {
+    return this.send<void>('INIT')
   }
 
-  updateConfig(tsconfig: string) {
-    return this.send<void>('UPDATE_CONFIG', { tsconfig });
-  }
-  
-  getDiagnostics() { 
-    return this.send<TSDiagnostic[]>('GET_DIAGNOSTICS'); 
-  }
-  
-  getTypeInfo(offset: number) { 
-    return this.send<TypeInfo | null>('GET_TYPE_INFO', { offset }); 
+  async updateFile(filename: string, content: string) {
+    return this.send<void>('UPDATE_FILE', { filename, content })
   }
 
-  getCompletions(offset: number) {
-    return this.send<any[]>('GET_COMPLETIONS', { offset });
+  async updateExtraLibs(libs: Record<string, string>) {
+    return this.send<void>('UPDATE_EXTRA_LIBS', { libs })
   }
-  
-  compile(code: string) { 
-    return this.send<{js: string, dts: string}>('COMPILE', { code }); 
+
+  async updateConfig(tsconfig: string) {
+    return this.send<void>('UPDATE_CONFIG', { tsconfig })
   }
-  
-  detectImports(code: string) { 
-    return this.send<string[]>('DETECT_IMPORTS', { code }); 
+
+  async getDiagnostics() {
+    return this.send<TSDiagnostic[]>('GET_DIAGNOSTICS')
+  }
+
+  async getTypeInfo(offset: number) {
+    return this.send<TypeInfo | undefined>('GET_TYPE_INFO', { offset })
+  }
+
+  async getCompletions(offset: number) {
+    return this.send<any[]>('GET_COMPLETIONS', { offset })
+  }
+
+  async compile(code: string) {
+    return this.send<{ js: string; dts: string }>('COMPILE', { code })
+  }
+
+  async detectImports(code: string) {
+    return this.send<string[]>('DETECT_IMPORTS', { code })
   }
 }
 
-export const workerClient = new WorkerClient();
+export const workerClient = new WorkerClient()

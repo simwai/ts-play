@@ -1,80 +1,102 @@
-import React, { useRef, useEffect } from 'react';
-import { Badge } from './ui/Badge';
-import { IconButton } from './ui/IconButton';
-import { PanelHeader } from './ui/PanelHeader';
-import { Eraser } from 'lucide-react';
+import React, { useRef, useEffect } from 'react'
+import { Eraser } from 'lucide-react'
+import { Badge } from './ui/Badge'
+import { IconButton } from './ui/IconButton'
+import { PanelHeader } from './ui/PanelHeader'
 
-export interface ConsoleMessage {
-  type: 'log' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'dir';
-  args: string[];
-  ts: number;
+export type ConsoleMessage = {
+  type: 'log' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'dir'
+  args: string[]
+  ts: number
 }
 
-interface Props {
-  messages:      ConsoleMessage[];
-  onClear:       () => void;
-  isOpen:        boolean;
-  onToggle:      () => void;
-  contentHeight: number;
+type Props = {
+  messages: ConsoleMessage[]
+  onClear: () => void
+  isOpen: boolean
+  onToggle: () => void
+  contentHeight: number
 }
 
-const FONT = "'Victor Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace";
+const FONT =
+  "'Victor Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace"
 
-function typeVariant(type: ConsoleMessage['type']): 'error' | 'warn' | 'info' | 'default' {
-  if (type === 'error') return 'error';
-  if (type === 'warn' || type === 'trace')  return 'warn';
-  if (type === 'info' || type === 'debug' || type === 'dir')  return 'info';
-  return 'default';
+function typeVariant(
+  type: ConsoleMessage['type']
+): 'error' | 'warn' | 'info' | 'default' {
+  if (type === 'error') return 'error'
+  if (type === 'warn' || type === 'trace') return 'warn'
+  if (type === 'info' || type === 'debug' || type === 'dir') return 'info'
+  return 'default'
 }
 
 function typeLabel(type: ConsoleMessage['type']): string {
-  if (type === 'error') return 'ERR';
-  if (type === 'warn')  return 'WRN';
-  if (type === 'info')  return 'INF';
-  if (type === 'debug') return 'DBG';
-  if (type === 'trace') return 'TRC';
-  if (type === 'dir')   return 'DIR';
-  return 'LOG';
+  if (type === 'error') return 'ERR'
+  if (type === 'warn') return 'WRN'
+  if (type === 'info') return 'INF'
+  if (type === 'debug') return 'DBG'
+  if (type === 'trace') return 'TRC'
+  if (type === 'dir') return 'DIR'
+  return 'LOG'
 }
 
 function typeColorClass(type: ConsoleMessage['type']): string {
-  if (type === 'error') return 'text-red';
-  if (type === 'warn' || type === 'trace')  return 'text-yellow';
-  if (type === 'info' || type === 'debug' || type === 'dir')  return 'text-blue';
-  return 'text-text';
+  if (type === 'error') return 'text-red'
+  if (type === 'warn' || type === 'trace') return 'text-yellow'
+  if (type === 'info' || type === 'debug' || type === 'dir') return 'text-blue'
+  return 'text-text'
 }
 
-export const Console = React.memo(function Console({ messages, onClear, isOpen, onToggle, contentHeight }: Props) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+export const Console = React.memo(function Console({
+  messages,
+  onClear,
+  isOpen,
+  onToggle,
+  contentHeight,
+}: Props) {
+  const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (isOpen) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isOpen]);
+    if (isOpen) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, isOpen])
 
-  const errors = messages.filter(m => m.type === 'error').length;
-  const warns  = messages.filter(m => m.type === 'warn').length;
+  const errors = messages.filter((m) => m.type === 'error').length
+  const warns = messages.filter((m) => m.type === 'warn').length
 
   return (
-    <div className="flex flex-col border-t border-surface0 bg-mantle shrink-0">
+    <div className='flex flex-col border-t border-surface0 bg-mantle shrink-0'>
       <PanelHeader
-        label="Console"
+        label='Console'
         isOpen={isOpen}
         onToggle={onToggle}
         left={
           <>
             {messages.length > 0 && <Badge label={String(messages.length)} />}
-            {errors > 0 && <Badge label={`${errors} err`} variant="error" />}
-            {warns > 0 && <Badge label={`${warns} warn`} variant="warn" />}
+            {errors > 0 && (
+              <Badge
+                label={`${errors} err`}
+                variant='error'
+              />
+            )}
+            {warns > 0 && (
+              <Badge
+                label={`${warns} warn`}
+                variant='warn'
+              />
+            )}
           </>
         }
         right={
           messages.length > 0 ? (
             <IconButton
-              onClick={e => { e.stopPropagation(); onClear(); }}
-              variant="ghost"
-              size="sm"
-              title="Clear console"
-              className="text-[11px] px-2 py-0.5 border border-surface1 flex items-center gap-1"
+              onClick={(e) => {
+                e.stopPropagation()
+                onClear()
+              }}
+              variant='ghost'
+              size='sm'
+              title='Clear console'
+              className='text-[11px] px-2 py-0.5 border border-surface1 flex items-center gap-1'
             >
               <Eraser size={12} />
               Clear
@@ -84,12 +106,15 @@ export const Console = React.memo(function Console({ messages, onClear, isOpen, 
       />
 
       {isOpen && (
-        <div 
-          className="overflow-y-auto overflow-x-hidden border-t border-surface0"
+        <div
+          className='overflow-y-auto overflow-x-hidden border-t border-surface0'
           style={{ height: contentHeight }}
         >
           {messages.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-overlay0 text-xs italic" style={{ fontFamily: FONT }}>
+            <div
+              className='flex items-center justify-center h-full text-overlay0 text-xs italic'
+              style={{ fontFamily: FONT }}
+            >
               No output yet — press Run to execute
             </div>
           ) : (
@@ -97,17 +122,22 @@ export const Console = React.memo(function Console({ messages, onClear, isOpen, 
               <div
                 key={`${m.ts}-${idx}`}
                 className={`flex items-start gap-2 px-3 py-1.5 border-b border-surface0/40 ${
-                  m.type === 'error' ? 'bg-red/5' :
-                  m.type === 'warn'  ? 'bg-yellow/5' :
-                  'bg-transparent'
+                  m.type === 'error'
+                    ? 'bg-red/5'
+                    : m.type === 'warn'
+                      ? 'bg-yellow/5'
+                      : 'bg-transparent'
                 }`}
               >
                 <Badge
                   label={typeLabel(m.type)}
                   variant={typeVariant(m.type)}
-                  className="mt-[2px]"
+                  className='mt-[2px]'
                 />
-                <pre className={`m-0 p-0 text-xs leading-[18px] whitespace-pre-wrap break-words flex-1 ${typeColorClass(m.type)}`} style={{ fontFamily: FONT }}>
+                <pre
+                  className={`m-0 p-0 text-xs leading-[18px] whitespace-pre-wrap break-words flex-1 ${typeColorClass(m.type)}`}
+                  style={{ fontFamily: FONT }}
+                >
                   {m.args.join(' ')}
                 </pre>
               </div>
@@ -117,5 +147,5 @@ export const Console = React.memo(function Console({ messages, onClear, isOpen, 
         </div>
       )}
     </div>
-  );
-});
+  )
+})
