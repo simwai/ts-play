@@ -479,11 +479,6 @@ export const CodeEditor = React.memo(
           ref={scrollRef}
           onScroll={onScroll}
           className='flex-1 overflow-y-auto overflow-x-hidden flex min-h-0 bg-base'
-          style={{
-            paddingBottom: keyboardOpen
-              ? Math.min(24, Math.round(keyboardHeight * 0.06))
-              : 0,
-          }}
         >
           <div
             ref={gutterRef}
