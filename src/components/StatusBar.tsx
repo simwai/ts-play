@@ -36,8 +36,8 @@ export function StatusBar({
 
   return (
     <div
-      className='flex items-center justify-between px-4 bg-crust border-b border-surface0 shrink-0 relative z-30 gap-4'
-      style={{ height: compactForKeyboard ? '1.5rem' : '2rem' }}
+      className='flex items-center justify-between px-2 md:px-4 bg-crust border-b border-surface0 shrink-0 relative z-30 gap-2 md:gap-4 h-8 md:h-9'
+      style={compactForKeyboard ? { height: '1.5rem' } : undefined}
     >
       <div className='flex items-center justify-start flex-1 min-w-0'>
         <span
@@ -60,7 +60,7 @@ export function StatusBar({
         </span>
       </div>
 
-      <div className='flex items-center justify-end gap-1.5 flex-1 min-w-0'>
+      <div className='flex items-center justify-end gap-1 md:gap-1.5 flex-1 min-w-0'>
         <IconButton
           onClick={handleUndo}
           title='Undo'
@@ -69,7 +69,7 @@ export function StatusBar({
           variant='ghost'
           className='text-overlay1 hover:text-text'
         >
-          <Undo2 size={14} />
+          <Undo2 className='w-3.5 h-3.5 md:w-4 md:h-4' />
         </IconButton>
         <IconButton
           onClick={handleRedo}
@@ -79,9 +79,9 @@ export function StatusBar({
           variant='ghost'
           className='text-overlay1 hover:text-text'
         >
-          <Redo2 size={14} />
+          <Redo2 className='w-3.5 h-3.5 md:w-4 md:h-4' />
         </IconButton>
-        <div className='w-px h-3 bg-surface1 mx-1 shrink-0' />
+        <div className='w-px h-3 md:h-4 bg-surface1 mx-0.5 md:mx-1 shrink-0' />
         <IconButton
           onClick={onOpenSettings}
           title='Settings'
@@ -90,7 +90,7 @@ export function StatusBar({
           variant='ghost'
           className='text-overlay1 hover:text-text'
         >
-          <Settings size={14} />
+          <Settings className='w-3.5 h-3.5 md:w-4 md:h-4' />
         </IconButton>
       </div>
     </div>
