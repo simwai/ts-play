@@ -11,7 +11,7 @@ type Props = {
   packages: InstalledPackage[]
   isOpen: boolean
   onToggle: () => void
-  contentHeight: number
+  contentHeight: number // Now in rem
 }
 
 export const PackageManager = React.memo(function PackageManager({
@@ -36,7 +36,7 @@ export const PackageManager = React.memo(function PackageManager({
       {isOpen && (
         <div
           className='overflow-y-auto overflow-x-hidden border-t border-surface0 p-4 flex flex-col gap-4 box-border'
-          style={{ height: contentHeight }}
+          style={{ height: `${contentHeight}rem` }}
         >
           {packages.length > 0 ? (
             <div className='flex flex-col gap-2'>

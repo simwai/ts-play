@@ -1,11 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 
 export function useResizePanel(
-  initialHeight = 180,
-  minHeight = 80,
-  maxHeight = 400
+  initialHeightRem = 11.25, // 180px
+  minHeightRem = 5,         // 80px
+  maxHeightRem = 25         // 400px
 ) {
-  const [panelHeight, setPanelHeight] = useState(initialHeight)
+  const [panelHeight, setPanelHeight] = useState(initialHeightRem)
   const [isResizing, setIsResizing] = useState(false)
   const resizeStartY = useRef(0)
   const resizeStartHeight = useRef(0)
@@ -25,13 +25,18 @@ export function useResizePanel(
       if (!isResizing) return
       const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
       const deltaY = resizeStartY.current - clientY
+      
+      // Convert pixel delta to rem based on root font size
+      const remSize = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+      const deltaRem = deltaY / remSize
+      
       const newHeight = Math.max(
-        minHeight,
-        Math.min(maxHeight, resizeStartHeight.current + deltaY)
+        minHeightRem,
+        Math.min(maxHeightRem, resizeStartHeight.current + deltaRem)
       )
       setPanelHeight(newHeight)
     },
-    [isResizing, minHeight, maxHeight]
+    [isResizing, minHeightRem, maxHeightRem]
   )
 
   const handleResizeEnd = useCallback(() => {

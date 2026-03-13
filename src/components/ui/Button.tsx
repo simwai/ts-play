@@ -103,7 +103,7 @@ export function Button({
         <div
           className={cn(
             'absolute top-full mt-2 px-2.5 py-1.5 bg-crust text-text text-xs font-mono rounded-md border border-surface1 shadow-lg z-50 pointer-events-none transition-opacity duration-150',
-            'w-max max-w-[250px] whitespace-normal font-normal',
+            'w-max max-w-64 whitespace-normal font-normal',
             tooltipAlign === 'center' && 'left-1/2 -translate-x-1/2 text-center',
             tooltipAlign === 'right' && 'right-0 text-right',
             tooltipAlign === 'left' && 'left-0 text-left',

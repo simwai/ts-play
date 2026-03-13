@@ -27,7 +27,7 @@ export function SettingsModal({
 
   return (
     <div className='fixed inset-0 z-50 flex items-center justify-center bg-crust/80 backdrop-blur-sm p-4'>
-      <div className='bg-mantle border border-surface1 rounded-xl shadow-2xl w-full max-w-[440px] flex flex-col overflow-hidden'>
+      <div className='bg-mantle border border-surface1 rounded-xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden'>
         <div className='flex items-center justify-between px-6 py-4 border-b border-surface0 bg-base'>
           <h2 className='text-base font-bold text-text'>Settings</h2>
           <IconButton
@@ -55,7 +55,7 @@ export function SettingsModal({
               tsconfig.json
             </label>
             <textarea
-              className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none focus:border-mauve font-mono resize-y min-h-[160px]'
+              className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none focus:border-mauve font-mono resize-y min-h-40'
               value={temporaryTsConfig}
               onChange={(e) => {
                 setTemporaryTsConfig(e.target.value)

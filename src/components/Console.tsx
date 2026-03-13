@@ -15,7 +15,7 @@ type Props = {
   onClear: () => void
   isOpen: boolean
   onToggle: () => void
-  contentHeight: number
+  contentHeight: number // Now in rem
 }
 
 function typeVariant(
@@ -105,7 +105,7 @@ export const Console = React.memo(function Console({
       {isOpen && (
         <div
           className='overflow-y-auto overflow-x-hidden border-t border-surface0'
-          style={{ height: contentHeight }}
+          style={{ height: `${contentHeight}rem` }}
         >
           {messages.length === 0 ? (
             <div className='flex items-center justify-center h-full text-overlay0 text-sm italic font-mono'>

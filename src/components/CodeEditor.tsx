@@ -583,7 +583,7 @@ export const CodeEditor = React.memo(
               <ul
                 role="listbox"
                 aria-label="Autocomplete suggestions"
-                className='hidden md:block absolute m-0 p-0 list-none bg-mantle border border-surface1 rounded-md shadow-lg shadow-black/30 z-50 max-h-[200px] overflow-y-auto min-w-[180px]'
+                className='hidden md:block absolute m-0 p-0 list-none bg-mantle border border-surface1 rounded-md shadow-lg shadow-black/30 z-50 max-h-52 overflow-y-auto min-w-48'
                 style={{
                   top: popupPos.top,
                   left: popupPos.left,

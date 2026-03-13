@@ -28,7 +28,7 @@ export function OverrideModal({ onConfirm, onCancel }: Props) {
         onClick={(e) => {
           e.stopPropagation()
         }}
-        className='bg-mantle border border-surface1 rounded-xl w-full max-w-[380px] mx-4 overflow-hidden shadow-2xl shadow-crust'
+        className='bg-mantle border border-surface1 rounded-xl w-full max-w-sm mx-4 overflow-hidden shadow-2xl shadow-crust'
       >
         <div className='p-5 pb-4 flex items-start gap-3'>
           <div className='w-9 h-9 rounded-lg shrink-0 bg-peach/20 border border-peach/30 flex items-center justify-center text-lg'>
