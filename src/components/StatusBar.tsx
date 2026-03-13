@@ -69,7 +69,7 @@ export function StatusBar({
           variant='ghost'
           className='text-overlay1 hover:text-text'
         >
-          <Undo2 className='w-3.5 h-3.5 md:w-4 md:h-4' />
+          <Undo2 className='w-3 h-3 md:w-4 md:h-4' />
         </IconButton>
         <IconButton
           onClick={handleRedo}
@@ -79,7 +79,7 @@ export function StatusBar({
           variant='ghost'
           className='text-overlay1 hover:text-text'
         >
-          <Redo2 className='w-3.5 h-3.5 md:w-4 md:h-4' />
+          <Redo2 className='w-3 h-3 md:w-4 md:h-4' />
         </IconButton>
         <div className='w-px h-3 md:h-4 bg-surface1 mx-0.5 md:mx-1 shrink-0' />
         <IconButton
@@ -90,7 +90,7 @@ export function StatusBar({
           variant='ghost'
           className='text-overlay1 hover:text-text'
         >
-          <Settings className='w-3.5 h-3.5 md:w-4 md:h-4' />
+          <Settings className='w-3 h-3 md:w-4 md:h-4' />
         </IconButton>
       </div>
     </div>

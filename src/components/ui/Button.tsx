@@ -18,10 +18,10 @@ type ButtonProps = {
 }
 
 const sizeClasses: Record<Size, string> = {
-  xs: 'px-2 py-1 md:px-2.5 md:py-1.5 text-3xs md:text-xs',
-  sm: 'px-2.5 py-1 md:px-3 md:py-1.5 text-xxs md:text-sm',
-  md: 'px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-base',
-  lg: 'px-4 py-2 md:px-5 md:py-2.5 text-sm md:text-lg',
+  xs: 'h-5 md:h-7 px-1.5 md:px-2.5 text-4xs md:text-xs',
+  sm: 'h-6 md:h-8 px-2 md:px-3 text-3xs md:text-sm',
+  md: 'h-8 md:h-10 px-3 md:px-4 text-xs md:text-base',
+  lg: 'h-10 md:h-12 px-4 md:px-5 text-sm md:text-lg',
 }
 
 export function Button({
