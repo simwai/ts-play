@@ -1,18 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import {
-  Sun,
-  Moon,
-  Copy,
-  Check,
-  Trash2,
-  Wand2,
-  Loader2,
-  Play,
-  Share2,
-  Undo2,
-  Redo2,
-  Settings,
-} from 'lucide-react'
 import { type ThemeMode } from './lib/theme'
 import { CodeEditor, type CodeEditorRef } from './components/CodeEditor'
 import { Console, type ConsoleMessage } from './components/Console'
@@ -21,8 +7,9 @@ import {
   PackageManager,
   type InstalledPackage,
 } from './components/PackageManager'
-import { Button } from './components/ui/Button'
-import { IconButton } from './components/ui/IconButton'
+import { Header } from './components/Header'
+import { StatusBar } from './components/StatusBar'
+import { SettingsModal } from './components/SettingsModal'
 import { syncNodeModulesToWorker } from './lib/typings'
 import { decodeSharePayload } from './lib/shareCodec'
 import { useVirtualKeyboard } from './hooks/useVirtualKeyboard'
@@ -90,8 +77,8 @@ const DEFAULT_TSCONFIG = `{
   }
 }`
 
-const TABS = ['ts', 'js', 'dts'] as const
-type TabType = (typeof TABS)[number]
+export const TABS = ['ts', 'js', 'dts'] as const
+export type TabType = (typeof TABS)[number]
 
 // ── Custom Hooks ──────────────────────────────────────────────────────────────
 
@@ -294,7 +281,6 @@ export function App() {
   )
 
   const [activeTab, setActiveTab] = useState<TabType>('ts')
-  const [temporaryTsConfig, setTemporaryTsConfig] = useState(tsConfigString)
 
   // Editor Refs for Undo/Redo
   const tsEditorRef = useRef<CodeEditorRef>(null)
@@ -684,231 +670,38 @@ export function App() {
     else if (activeTab === 'dts') dtsEditorRef.current?.redo()
   }, [activeTab])
 
-  const statusLabel =
-    compilerStatus === 'loading'
-      ? '⏳ Loading…'
-      : compilerStatus === 'error'
-        ? '✗ No compiler'
-        : '✓ TS ready'
-  const statusColorClass =
-    compilerStatus === 'ready'
-      ? 'text-green'
-      : compilerStatus === 'error'
-        ? 'text-red'
-        : 'text-yellow'
-
   return (
     <div className='flex flex-col h-[100dvh] bg-base text-text font-sans overflow-hidden'>
-      {/* ── Header ── */}
-      <header className='flex items-center justify-between px-1.5 h-9 bg-mantle border-b border-surface0 shrink-0 gap-1 relative z-40'>
-        {/* Brand */}
-        <div className='flex items-center gap-2'>
-          <span className='text-xs font-bold tracking-tight font-mono'>
-            TS<span className='text-mauve'>Play</span>
-          </span>
-        </div>
+      <Header
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        themeMode={themeMode}
+        setThemeMode={setThemeMode}
+        handleCopyAll={handleCopyAll}
+        copied={copied}
+        handleDeleteAll={handleDeleteAll}
+        handleFormat={handleFormat}
+        formatting={formatting}
+        formatSuccess={formatSuccess}
+        doRun={doRun}
+        isRunning={isRunning}
+        compilerStatus={compilerStatus}
+        handleShare={handleShare}
+        sharing={sharing}
+        shareSuccess={shareSuccess}
+      />
 
-        {/* Tabs */}
-        <div className='flex bg-surface0 rounded-[5px] p-[1px] gap-[1px] shrink'>
-          {TABS.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => {
-                setActiveTab(tab)
-              }}
-              className={`px-1.5 py-0.5 rounded border-none text-[9px] font-semibold font-mono cursor-pointer tracking-wide uppercase transition-all duration-160 ${
-                activeTab === tab
-                  ? 'bg-mauve/20 text-mauve'
-                  : 'bg-transparent text-overlay1'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-
-        {/* Actions */}
-        <div className='flex items-center gap-1 shrink-0'>
-          {/* Theme toggle */}
-          <IconButton
-            onClick={() => {
-              setThemeMode((m) => (m === 'mocha' ? 'latte' : 'mocha'))
-            }}
-            title={
-              themeMode === 'mocha'
-                ? 'Switch to Latte (light)'
-                : 'Switch to Mocha (dark)'
-            }
-            size='sm'
-            variant='surface'
-            className='w-[22px] h-[22px] p-0'
-          >
-            {themeMode === 'mocha' ? <Sun size={14} /> : <Moon size={14} />}
-          </IconButton>
-
-          {/* Separator */}
-          <div className='w-px h-2.5 bg-surface1 shrink-0' />
-
-          {/* Copy all */}
-          <IconButton
-            onClick={handleCopyAll}
-            title={`Copy all ${activeTab}`}
-            size='sm'
-            variant='surface'
-            className={`w-[22px] h-[22px] p-0 ${copied ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}`}
-          >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
-          </IconButton>
-
-          {/* Delete all */}
-          <IconButton
-            onClick={handleDeleteAll}
-            title={`Clear ${activeTab} editor`}
-            size='sm'
-            variant='surface'
-            className='w-[22px] h-[22px] p-0 text-red hover:text-red'
-          >
-            <Trash2 size={14} />
-          </IconButton>
-
-          {/* Format */}
-          <IconButton
-            onClick={handleFormat}
-            disabled={formatting}
-            title='Format all files with Prettier (TS + JS + DTS)'
-            size='sm'
-            variant='surface'
-            className={`w-[22px] h-[22px] p-0 ${formatSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}`}
-          >
-            {formatting ? (
-              <Loader2
-                size={14}
-                className='animate-spin'
-              />
-            ) : formatSuccess ? (
-              <Check size={14} />
-            ) : (
-              <Wand2 size={14} />
-            )}
-          </IconButton>
-
-          {/* Separator */}
-          <div className='w-px h-2.5 bg-surface1 shrink-0' />
-
-          {/* Run */}
-          <Button
-            onClick={async () => doRun(false)}
-            disabled={isRunning || compilerStatus !== 'ready'}
-            variant='primary'
-            title='Run (compile + execute)'
-            className='font-mono tracking-wide px-2 py-0 h-[22px] min-w-[22px] text-[10px] gap-1.5'
-          >
-            {isRunning ? (
-              <Loader2
-                size={12}
-                className='animate-spin'
-              />
-            ) : (
-              <Play
-                size={12}
-                fill='currentColor'
-              />
-            )}
-            <span className='hidden sm:inline'>
-              {isRunning ? 'Running…' : 'Run'}
-            </span>
-          </Button>
-
-          {/* Separator */}
-          <div className='w-px h-2.5 bg-surface1 shrink-0' />
-
-          {/* Share */}
-          <IconButton
-            onClick={handleShare}
-            title={sharing ? 'Sharing...' : 'Share snippet (expires in 7 days)'}
-            tooltipAlign='right'
-            size='sm'
-            variant='surface'
-            disabled={sharing}
-            className={`w-[22px] h-[22px] p-0 ${shareSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}`}
-          >
-            {sharing ? (
-              <Loader2
-                size={14}
-                className='animate-spin'
-              />
-            ) : shareSuccess ? (
-              <Check size={14} />
-            ) : (
-              <Share2 size={14} />
-            )}
-          </IconButton>
-        </div>
-      </header>
-
-      {/* ── Status bar ── */}
-      <div
-        className='flex items-center justify-between px-3.5 bg-crust border-b border-surface0 shrink-0 relative z-30 gap-2'
-        style={{ height: compactForKeyboard ? 20 : 24 }}
-      >
-        <div className='flex items-center justify-start flex-1 min-w-0'>
-          <span
-            className={`text-[10px] font-mono tracking-wide truncate ${statusColorClass}`}
-          >
-            {statusLabel}
-          </span>
-        </div>
-
-        <div className='flex items-center justify-center shrink-0 min-w-0'>
-          <span className='text-[10px] text-overlay0 font-mono truncate'>
-            {activeTab === 'ts'
-              ? 'TypeScript'
-              : activeTab === 'js'
-                ? 'JavaScript'
-                : 'Declarations'}
-            {activeTab === 'js' && jsDirty && (
-              <span className='ml-1.5 text-peach'>● modified</span>
-            )}
-          </span>
-        </div>
-
-        <div className='flex items-center justify-end gap-1 flex-1 min-w-0'>
-          <IconButton
-            onClick={handleUndo}
-            title='Undo'
-            tooltipAlign='center'
-            size='sm'
-            variant='ghost'
-            className='w-[20px] h-[20px] p-0 text-overlay1 hover:text-text shrink-0'
-          >
-            <Undo2 size={12} />
-          </IconButton>
-          <IconButton
-            onClick={handleRedo}
-            title='Redo'
-            tooltipAlign='center'
-            size='sm'
-            variant='ghost'
-            className='w-[20px] h-[20px] p-0 text-overlay1 hover:text-text shrink-0'
-          >
-            <Redo2 size={12} />
-          </IconButton>
-          <div className='w-px h-2.5 bg-surface1 mx-0.5 shrink-0' />
-          <IconButton
-            onClick={() => {
-              setTemporaryTsConfig(tsConfigString)
-              setShowSettings(true)
-            }}
-            title='Settings'
-            tooltipAlign='right'
-            size='sm'
-            variant='ghost'
-            className='w-[20px] h-[20px] p-0 text-overlay1 hover:text-text shrink-0'
-          >
-            <Settings size={12} />
-          </IconButton>
-        </div>
-      </div>
+      <StatusBar
+        compilerStatus={compilerStatus}
+        activeTab={activeTab}
+        jsDirty={jsDirty}
+        handleUndo={handleUndo}
+        handleRedo={handleRedo}
+        onOpenSettings={() => {
+          setShowSettings(true)
+        }}
+        compactForKeyboard={compactForKeyboard}
+      />
 
       {/* ── Editors ── */}
       <div
@@ -1019,82 +812,14 @@ export function App() {
         />
       )}
 
-      {/* ── Settings modal ── */}
-      {showSettings && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-crust/80 backdrop-blur-sm p-4'>
-          <div className='bg-mantle border border-surface1 rounded-lg shadow-xl w-full max-w-[400px] flex flex-col overflow-hidden'>
-            <div className='flex items-center justify-between px-4 py-3 border-b border-surface0 bg-base'>
-              <h2 className='text-sm font-bold text-text'>Settings</h2>
-              <IconButton
-                onClick={() => {
-                  setShowSettings(false)
-                }}
-                size='sm'
-                variant='ghost'
-                className='w-6 h-6 p-0'
-              >
-                <span className='text-lg leading-none'>&times;</span>
-              </IconButton>
-            </div>
-            <div className='p-4 flex flex-col gap-4'>
-              <div className='flex flex-col gap-1.5'>
-                <label className='text-xs font-bold text-subtext0'>
-                  TypeScript Version
-                </label>
-                <select className='bg-surface0 border border-surface1 rounded px-2 py-1.5 text-sm text-text outline-none focus:border-mauve'>
-                  <option>5.9.3 (Default)</option>
-                  <option>5.8.2</option>
-                  <option>5.7.3</option>
-                </select>
-              </div>
-              <div className='flex flex-col gap-1.5'>
-                <label className='text-xs font-bold text-subtext0'>
-                  tsconfig.json
-                </label>
-                <textarea
-                  className='bg-surface0 border border-surface1 rounded px-2 py-1.5 text-sm text-text outline-none focus:border-mauve font-mono resize-y min-h-[120px]'
-                  value={temporaryTsConfig}
-                  onChange={(e) => {
-                    setTemporaryTsConfig(e.target.value)
-                  }}
-                  spellCheck={false}
-                />
-                {(() => {
-                  try {
-                    JSON.parse(temporaryTsConfig)
-                    return null
-                  } catch {
-                    return (
-                      <span className='text-[10px] text-red'>
-                        Invalid JSON. Fallback config will be used.
-                      </span>
-                    )
-                  }
-                })()}
-              </div>
-            </div>
-            <div className='flex items-center justify-end gap-2 px-4 py-3 border-t border-surface0 bg-base'>
-              <Button
-                onClick={() => {
-                  setShowSettings(false)
-                }}
-                variant='ghost'
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  setTsConfigString(temporaryTsConfig)
-                  setShowSettings(false)
-                }}
-                variant='primary'
-              >
-                Save Changes
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => {
+          setShowSettings(false)
+        }}
+        tsConfigString={tsConfigString}
+        onSave={setTsConfigString}
+      />
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Victor+Mono:ital,wght@0,100..700;1,100..700&display=swap');
