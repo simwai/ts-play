@@ -7,12 +7,11 @@ import React, {
   useLayoutEffect,
   useImperativeHandle,
 } from 'react'
-import { getSyntaxColors } from '../lib/theme'
-import { tokenize } from '../lib/tokenizer'
 import { useTypeInfo, type TypeInfo } from '../hooks/useTypeInfo'
 import { useTSDiagnostics, type TSDiagnostic } from '../hooks/useTSDiagnostics'
 import { workerClient } from '../lib/workerClient'
 import { TypeInfoBar } from './ui/TypeInfoBar'
+import { buildHtml, buildSquiggles } from '../lib/editor-utils'
 
 type Props = {
   value: string
@@ -38,65 +37,6 @@ const FONT_SIZE = 13
 const CHAR_W = 7.8
 
 const EMPTY_LIBS = {}
-
-function buildHtml(code: string): string {
-  const sc = getSyntaxColors()
-  const COLOR: Record<string, string> = {
-    keyword: sc.keyword,
-    string: sc.string,
-    number: sc.number,
-    comment: sc.comment,
-    function: sc.function,
-    type: sc.type,
-    operator: sc.operator,
-    punctuation: sc.punctuation,
-    decorator: sc.decorator,
-    variable: sc.variable,
-    constant: sc.constant,
-    boolean: sc.boolean,
-    property: sc.property,
-    parameter: sc.parameter,
-    plain: 'var(--text)',
-  }
-  return tokenize(code)
-    .map((tok) => {
-      const color = COLOR[tok.type] ?? 'var(--text)'
-      const safe = tok.value
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-      return `<span style="color:${color}">${safe}</span>`
-    })
-    .join('')
-}
-
-function escHtml(s: string): string {
-  return s
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-}
-
-function buildSquiggles(code: string, diagnostics: TSDiagnostic[]): string {
-  if (diagnostics.length === 0) return escHtml(code)
-  const sorted = [...diagnostics].sort((a, b) => a.start - b.start)
-  const parts: string[] = []
-  let cursor = 0
-  for (const d of sorted) {
-    const { start } = d
-    const end = Math.min(d.start + d.length, code.length)
-    if (start < cursor) continue
-    if (start > cursor) parts.push(escHtml(code.slice(cursor, start)))
-    const color = d.category === 'error' ? 'var(--red)' : 'var(--yellow)'
-    parts.push(
-      `<span style="text-decoration:underline wavy ${color};text-decoration-thickness:1.5px;text-underline-offset:3px;">${escHtml(code.slice(start, end))}</span>`
-    )
-    cursor = end
-  }
-
-  if (cursor < code.length) parts.push(escHtml(code.slice(cursor)))
-  return parts.join('')
-}
 
 const layerStyle = (contentHeight: number): React.CSSProperties => ({
   position: 'absolute',
@@ -641,6 +581,8 @@ export const CodeEditor = React.memo(
 
             {completions.length > 0 && (
               <ul
+                role="listbox"
+                aria-label="Autocomplete suggestions"
                 className='hidden md:block absolute m-0 p-0 list-none bg-mantle border border-surface1 rounded-md shadow-lg shadow-black/30 z-50 max-h-[150px] overflow-y-auto min-w-[150px]'
                 style={{
                   top: popupPos.top,
@@ -651,6 +593,8 @@ export const CodeEditor = React.memo(
                 {completions.map((comp, i) => (
                   <li
                     key={comp.name}
+                    role="option"
+                    aria-selected={i === selIndex}
                     className={`px-2 py-1 cursor-pointer flex justify-between gap-3 ${i === selIndex ? 'bg-surface0 text-text' : 'bg-transparent text-subtext0'}`}
                     onMouseDown={(e) => {
                       e.preventDefault()

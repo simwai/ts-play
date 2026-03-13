@@ -510,6 +510,8 @@ function generateDeclarations(code: string): string {
   return dtsLines.join('\n').trim() || '// No exported declarations found'
 }
 
+const getErrorMessage = (e: unknown) => e instanceof Error ? e.message : String(e)
+
 globalThis.onmessage = async (e: MessageEvent) => {
   const { id, type, payload } = e.data
   try {
@@ -849,6 +851,6 @@ globalThis.onmessage = async (e: MessageEvent) => {
 
     self.postMessage({ id, success: true, payload: result })
   } catch (error) {
-    self.postMessage({ id, success: false, error: (error as Error).message })
+    self.postMessage({ id, success: false, error: getErrorMessage(error) })
   }
 }
