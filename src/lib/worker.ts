@@ -596,8 +596,8 @@ globalThis.onmessage = async (e: MessageEvent) => {
 
         const code = files['main.ts']?.content || ''
         const lineStarts = [0]
-        for (const [i, element] of code.entries()) {
-          if (element === '\n') lineStarts.push(i + 1)
+        for (let i = 0; i < code.length; i++) {
+          if (code[i] === '\n') lineStarts.push(i + 1)
         }
 
         result = filtered.map((d) => {
