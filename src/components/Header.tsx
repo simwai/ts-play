@@ -52,10 +52,10 @@ export function Header({
   shareSuccess,
 }: HeaderProps) {
   return (
-    <header className='flex items-center justify-between px-3 h-10 bg-mantle border-b border-surface0 shrink-0 gap-3 relative z-40'>
+    <header className='flex items-center justify-between px-3 h-10 md:h-12 bg-mantle border-b border-surface0 shrink-0 gap-3 relative z-40'>
       {/* Brand */}
       <div className='flex items-center gap-2'>
-        <span className='text-xs font-bold tracking-tight font-mono'>
+        <span className='text-xs md:text-sm font-bold tracking-tight font-mono'>
           TS<span className='text-mauve'>Play</span>
         </span>
       </div>
@@ -68,7 +68,7 @@ export function Header({
             onClick={() => {
               setActiveTab(tab)
             }}
-            className={`px-2.5 py-1 rounded border-none text-xxs font-semibold font-mono cursor-pointer tracking-wide uppercase transition-all duration-150 ${
+            className={`px-2.5 py-1 md:px-3 md:py-1.5 rounded border-none text-xxs md:text-xs font-semibold font-mono cursor-pointer tracking-wide uppercase transition-all duration-150 ${
               activeTab === tab
                 ? 'bg-mauve/20 text-mauve shadow-sm'
                 : 'bg-transparent text-overlay1 hover:text-text'
@@ -80,7 +80,7 @@ export function Header({
       </div>
 
       {/* Actions */}
-      <div className='flex items-center gap-1.5 shrink-0'>
+      <div className='flex items-center gap-1.5 md:gap-2 shrink-0'>
         {/* Theme toggle */}
         <IconButton
           onClick={() => {
@@ -92,25 +92,24 @@ export function Header({
               : 'Switch to Mocha (dark)'
           }
           tooltipAlign='right'
-          size='xs'
           variant='surface'
+          className='w-6 h-6 md:w-8 md:h-8'
         >
-          {themeMode === 'mocha' ? <Sun size={14} /> : <Moon size={14} />}
+          {themeMode === 'mocha' ? <Sun className='w-3.5 h-3.5 md:w-4 md:h-4' /> : <Moon className='w-3.5 h-3.5 md:w-4 md:h-4' />}
         </IconButton>
 
         {/* Separator */}
-        <div className='w-px h-3.5 bg-surface1 shrink-0 mx-0.5' />
+        <div className='w-px h-3.5 md:h-4 bg-surface1 shrink-0 mx-0.5 md:mx-1' />
 
         {/* Copy all */}
         <IconButton
           onClick={handleCopyAll}
           title={`Copy all ${activeTab}`}
           tooltipAlign='right'
-          size='xs'
           variant='surface'
-          className={copied ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}
+          className={`w-6 h-6 md:w-8 md:h-8 ${copied ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}`}
         >
-          {copied ? <Check size={14} /> : <Copy size={14} />}
+          {copied ? <Check className='w-3.5 h-3.5 md:w-4 md:h-4' /> : <Copy className='w-3.5 h-3.5 md:w-4 md:h-4' />}
         </IconButton>
 
         {/* Delete all */}
@@ -118,11 +117,10 @@ export function Header({
           onClick={handleDeleteAll}
           title={`Clear ${activeTab} editor`}
           tooltipAlign='right'
-          size='xs'
           variant='surface'
-          className='text-red hover:text-red'
+          className='w-6 h-6 md:w-8 md:h-8 text-red hover:text-red'
         >
-          <Trash2 size={14} />
+          <Trash2 className='w-3.5 h-3.5 md:w-4 md:h-4' />
         </IconButton>
 
         {/* Format */}
@@ -131,43 +129,39 @@ export function Header({
           disabled={formatting}
           title='Format all files with Prettier (TS + JS + DTS)'
           tooltipAlign='right'
-          size='xs'
           variant='surface'
-          className={formatSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}
+          className={`w-6 h-6 md:w-8 md:h-8 ${formatSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}`}
         >
           {formatting ? (
             <Loader2
-              size={14}
-              className='animate-spin'
+              className='w-3.5 h-3.5 md:w-4 md:h-4 animate-spin'
             />
           ) : formatSuccess ? (
-            <Check size={14} />
+            <Check className='w-3.5 h-3.5 md:w-4 md:h-4' />
           ) : (
-            <Wand2 size={14} />
+            <Wand2 className='w-3.5 h-3.5 md:w-4 md:h-4' />
           )}
         </IconButton>
 
         {/* Separator */}
-        <div className='w-px h-3.5 bg-surface1 shrink-0 mx-0.5' />
+        <div className='w-px h-3.5 md:h-4 bg-surface1 shrink-0 mx-0.5 md:mx-1' />
 
         {/* Run */}
         <Button
           onClick={async () => doRun(false)}
           disabled={isRunning || compilerStatus !== 'ready'}
           variant='primary'
-          size='xs'
           title='Run (compile + execute)'
           tooltipAlign='right'
-          className='font-mono tracking-wide'
+          className='font-mono tracking-wide px-2 py-1 md:px-3 md:py-1.5 text-xs md:text-sm h-6 md:h-8'
         >
           {isRunning ? (
             <Loader2
-              size={12}
-              className='animate-spin'
+              className='w-3 h-3 md:w-3.5 md:h-3.5 animate-spin'
             />
           ) : (
             <Play
-              size={12}
+              className='w-3 h-3 md:w-3.5 md:h-3.5'
               fill='currentColor'
             />
           )}
@@ -177,27 +171,25 @@ export function Header({
         </Button>
 
         {/* Separator */}
-        <div className='w-px h-3.5 bg-surface1 shrink-0 mx-0.5' />
+        <div className='w-px h-3.5 md:h-4 bg-surface1 shrink-0 mx-0.5 md:mx-1' />
 
         {/* Share */}
         <IconButton
           onClick={handleShare}
           title={sharing ? 'Sharing...' : 'Share snippet (expires in 7 days)'}
           tooltipAlign='right'
-          size='xs'
           variant='surface'
           disabled={sharing}
-          className={shareSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}
+          className={`w-6 h-6 md:w-8 md:h-8 ${shareSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}`}
         >
           {sharing ? (
             <Loader2
-              size={14}
-              className='animate-spin'
+              className='w-3.5 h-3.5 md:w-4 md:h-4 animate-spin'
             />
           ) : shareSuccess ? (
-            <Check size={14} />
+            <Check className='w-3.5 h-3.5 md:w-4 md:h-4' />
           ) : (
-            <Share2 size={14} />
+            <Share2 className='w-3.5 h-3.5 md:w-4 md:h-4' />
           )}
         </IconButton>
       </div>
