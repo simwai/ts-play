@@ -100,10 +100,11 @@ export function IconButton({
       {title && (
         <div
           className={cn(
-            'absolute top-full mt-1.5 px-2 py-1 bg-crust text-text text-[11px] font-mono rounded border border-surface1 shadow-md z-50 whitespace-nowrap pointer-events-none transition-opacity duration-150',
-            tooltipAlign === 'center' && 'left-1/2 -translate-x-1/2',
-            tooltipAlign === 'right' && 'right-0',
-            tooltipAlign === 'left' && 'left-0',
+            'absolute top-full mt-1.5 px-2 py-1 bg-crust text-text text-[11px] font-mono rounded border border-surface1 shadow-md z-50 pointer-events-none transition-opacity duration-150',
+            'w-max max-w-[250px] whitespace-normal',
+            tooltipAlign === 'center' && 'left-1/2 -translate-x-1/2 text-center',
+            tooltipAlign === 'right' && 'right-0 text-right',
+            tooltipAlign === 'left' && 'left-0 text-left',
             showTooltip ? 'opacity-100' : 'opacity-0',
             'group-hover:opacity-100'
           )}

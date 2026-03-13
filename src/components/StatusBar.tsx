@@ -64,7 +64,7 @@ export function StatusBar({
         <IconButton
           onClick={handleUndo}
           title='Undo'
-          tooltipAlign='center'
+          tooltipAlign='right'
           size='sm'
           variant='ghost'
           className='w-[20px] h-[20px] p-0 text-overlay1 hover:text-text shrink-0'
@@ -74,7 +74,7 @@ export function StatusBar({
         <IconButton
           onClick={handleRedo}
           title='Redo'
-          tooltipAlign='center'
+          tooltipAlign='right'
           size='sm'
           variant='ghost'
           className='w-[20px] h-[20px] p-0 text-overlay1 hover:text-text shrink-0'

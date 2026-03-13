@@ -91,6 +91,7 @@ export function Header({
               ? 'Switch to Latte (light)'
               : 'Switch to Mocha (dark)'
           }
+          tooltipAlign='right'
           size='sm'
           variant='surface'
           className='w-[22px] h-[22px] p-0'
@@ -105,6 +106,7 @@ export function Header({
         <IconButton
           onClick={handleCopyAll}
           title={`Copy all ${activeTab}`}
+          tooltipAlign='right'
           size='sm'
           variant='surface'
           className={`w-[22px] h-[22px] p-0 ${copied ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}`}
@@ -116,6 +118,7 @@ export function Header({
         <IconButton
           onClick={handleDeleteAll}
           title={`Clear ${activeTab} editor`}
+          tooltipAlign='right'
           size='sm'
           variant='surface'
           className='w-[22px] h-[22px] p-0 text-red hover:text-red'
@@ -128,6 +131,7 @@ export function Header({
           onClick={handleFormat}
           disabled={formatting}
           title='Format all files with Prettier (TS + JS + DTS)'
+          tooltipAlign='right'
           size='sm'
           variant='surface'
           className={`w-[22px] h-[22px] p-0 ${formatSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}`}
@@ -153,6 +157,7 @@ export function Header({
           disabled={isRunning || compilerStatus !== 'ready'}
           variant='primary'
           title='Run (compile + execute)'
+          tooltipAlign='right'
           className='font-mono tracking-wide px-2 py-0 h-[22px] min-w-[22px] text-[10px] gap-1.5'
         >
           {isRunning ? (
