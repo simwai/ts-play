@@ -32,10 +32,17 @@ export function Button({
   const touchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleTouchStart = () => {
+    if (touchTimer.current) clearTimeout(touchTimer.current);
     touchTimer.current = setTimeout(() => setShowTooltip(true), 400);
   };
   
   const handleTouchEnd = () => {
+    if (touchTimer.current) clearTimeout(touchTimer.current);
+    // Tooltip auf Mobile nach dem Loslassen noch 2 Sekunden anzeigen
+    setTimeout(() => setShowTooltip(false), 2000);
+  };
+
+  const handleTouchMove = () => {
     if (touchTimer.current) clearTimeout(touchTimer.current);
     setShowTooltip(false);
   };
@@ -51,7 +58,7 @@ export function Button({
       onMouseUp={() => setPressed(false)}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      onTouchMove={handleTouchEnd}
+      onTouchMove={handleTouchMove}
       className={cn(
         "group relative px-[14px] py-[7px] text-[13px] font-inherit rounded-[5px] flex items-center gap-[5px] transition-all duration-120 whitespace-nowrap",
         variant === 'primary' ? "font-bold" : "font-medium",

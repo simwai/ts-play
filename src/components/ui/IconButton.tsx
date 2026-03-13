@@ -30,10 +30,17 @@ export function IconButton({
   const touchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleTouchStart = () => {
+    if (touchTimer.current) clearTimeout(touchTimer.current);
     touchTimer.current = setTimeout(() => setShowTooltip(true), 400);
   };
   
   const handleTouchEnd = () => {
+    if (touchTimer.current) clearTimeout(touchTimer.current);
+    // Tooltip auf Mobile nach dem Loslassen noch 2 Sekunden anzeigen
+    setTimeout(() => setShowTooltip(false), 2000);
+  };
+
+  const handleTouchMove = () => {
     if (touchTimer.current) clearTimeout(touchTimer.current);
     setShowTooltip(false);
   };
@@ -48,7 +55,7 @@ export function IconButton({
       onMouseUp={() => setPressed(false)}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      onTouchMove={handleTouchEnd}
+      onTouchMove={handleTouchMove}
       className={cn(
         "group relative rounded-[5px] text-[13px] leading-none flex items-center justify-center shrink-0 transition-all duration-120",
         size === 'sm' ? "px-[6px] py-[3px]" : "px-[9px] py-[5px]",

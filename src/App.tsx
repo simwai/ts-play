@@ -625,7 +625,7 @@ export function App() {
   return (
     <div className="flex flex-col h-[100dvh] bg-base text-text font-sans overflow-hidden">
       {/* ── Header ── */}
-      <header className="flex items-center justify-between px-1.5 h-9 bg-mantle border-b border-surface0 shrink-0 gap-1">
+      <header className="flex items-center justify-between px-1.5 h-9 bg-mantle border-b border-surface0 shrink-0 gap-1 relative z-40">
         {/* Brand */}
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold tracking-tight font-mono">
@@ -787,15 +787,15 @@ export function App() {
       </header>
 
       {/* ── Status bar ── */}
-      <div className="flex items-center justify-between px-3.5 bg-crust border-b border-surface0 shrink-0 overflow-hidden" style={{ height: compactForKeyboard ? 20 : 24 }}>
-        <div className="flex items-center gap-3 flex-1 min-w-0">
+      <div className="grid grid-cols-3 items-center px-3.5 bg-crust border-b border-surface0 shrink-0 relative z-30" style={{ height: compactForKeyboard ? 20 : 24 }}>
+        <div className="flex items-center justify-start min-w-0">
           <span className={`text-[10px] font-mono tracking-wide truncate ${statusColorClass}`}>
             {statusLabel}
           </span>
         </div>
         
-        <div className="flex items-center justify-center shrink-0 px-2">
-          <span className="text-[10px] text-overlay0 font-mono">
+        <div className="flex items-center justify-center min-w-0">
+          <span className="text-[10px] text-overlay0 font-mono truncate">
             {activeTab === 'ts' ? 'TypeScript' : activeTab === 'js' ? 'JavaScript' : 'Declarations'}
             {activeTab === 'js' && jsDirty && (
               <span className="ml-1.5 text-peach">● modified</span>
@@ -803,7 +803,7 @@ export function App() {
           </span>
         </div>
 
-        <div className="flex items-center justify-end gap-1 flex-1 min-w-0">
+        <div className="flex items-center justify-end gap-1 min-w-0">
           <IconButton
             onClick={() => document.execCommand('undo')}
             title="Undo"
