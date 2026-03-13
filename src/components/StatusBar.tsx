@@ -37,7 +37,7 @@ export function StatusBar({
   return (
     <div
       className='flex items-center justify-between px-4 bg-crust border-b border-surface0 shrink-0 relative z-30 gap-4'
-      style={{ height: compactForKeyboard ? 24 : 32 }}
+      style={{ height: compactForKeyboard ? '1.5rem' : '2rem' }}
     >
       <div className='flex items-center justify-start flex-1 min-w-0'>
         <span

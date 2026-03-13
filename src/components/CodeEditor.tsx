@@ -449,6 +449,11 @@ export const CodeEditor = React.memo(
       e.stopPropagation()
     }, [])
 
+    const handleBlur = useCallback(() => {
+      // Close autocomplete when editor loses focus
+      setCompletions([])
+    }, [])
+
     useEffect(() => {
       if (!keyboardOpen || readOnly) return
       const id = globalThis.setTimeout(() => {
@@ -560,6 +565,7 @@ export const CodeEditor = React.memo(
               onClick={updateTypeInfo}
               onKeyUp={updateTypeInfo}
               onTouchStart={onTouchStart}
+              onBlur={handleBlur}
               spellCheck={false}
               autoCorrect='off'
               autoCapitalize='off'
@@ -583,11 +589,14 @@ export const CodeEditor = React.memo(
               <ul
                 role="listbox"
                 aria-label="Autocomplete suggestions"
-                className='hidden md:block absolute m-0 p-0 list-none bg-mantle border border-surface1 rounded-md shadow-lg shadow-black/30 z-50 max-h-52 overflow-y-auto min-w-48'
+                className='hidden md:block absolute m-0 p-0 list-none bg-mantle border border-surface1 rounded-md shadow-lg shadow-black/30 z-50 max-h-52 overflow-y-auto min-w-48 text-sm'
                 style={{
                   top: popupPos.top,
                   left: popupPos.left,
-                  fontSize: 13,
+                }}
+                onMouseDown={(e) => {
+                  // Prevent focus loss from textarea when clicking the scrollbar or popup
+                  e.preventDefault()
                 }}
               >
                 {completions.map((comp, i) => (
