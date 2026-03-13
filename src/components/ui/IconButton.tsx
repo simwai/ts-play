@@ -1,9 +1,10 @@
-import { CSSProperties, ReactNode, useState } from 'react';
+import { CSSProperties, ReactNode, useState, useRef } from 'react';
 import { cn } from '../../utils/cn';
 
 interface IconButtonProps {
   onClick?: (e: React.MouseEvent) => void;
   title?: string;
+  tooltipAlign?: 'center' | 'right' | 'left';
   disabled?: boolean;
   children: ReactNode;
   variant?: 'ghost' | 'surface' | 'danger';
@@ -15,6 +16,7 @@ interface IconButtonProps {
 export function IconButton({
   onClick,
   title,
+  tooltipAlign = 'center',
   disabled = false,
   children,
   variant = 'surface',
@@ -24,18 +26,31 @@ export function IconButton({
 }: IconButtonProps) {
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const touchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleTouchStart = () => {
+    touchTimer.current = setTimeout(() => setShowTooltip(true), 400);
+  };
+  
+  const handleTouchEnd = () => {
+    if (touchTimer.current) clearTimeout(touchTimer.current);
+    setShowTooltip(false);
+  };
 
   return (
     <button
       onClick={onClick}
-      title={title}
       disabled={disabled}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { setHovered(false); setPressed(false); }}
       onMouseDown={() => setPressed(true)}
       onMouseUp={() => setPressed(false)}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchMove={handleTouchEnd}
       className={cn(
-        "rounded-[5px] text-[13px] leading-none flex items-center justify-center shrink-0 transition-all duration-120",
+        "group relative rounded-[5px] text-[13px] leading-none flex items-center justify-center shrink-0 transition-all duration-120",
         size === 'sm' ? "px-[6px] py-[3px]" : "px-[9px] py-[5px]",
         disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer opacity-100",
         pressed && !disabled ? "scale-[0.93]" : "scale-100",
@@ -49,6 +64,17 @@ export function IconButton({
       style={style}
     >
       {children}
+      {title && (
+        <div className={cn(
+          "absolute top-full mt-1.5 px-2 py-1 bg-crust text-text text-[11px] font-mono rounded border border-surface1 shadow-md z-50 whitespace-nowrap pointer-events-none transition-opacity duration-150",
+          tooltipAlign === 'center' && "left-1/2 -translate-x-1/2",
+          tooltipAlign === 'right' && "right-0",
+          tooltipAlign === 'left' && "left-0",
+          showTooltip ? "opacity-100 visible" : "opacity-0 invisible md:group-hover:opacity-100 md:group-hover:visible"
+        )}>
+          {title}
+        </div>
+      )}
     </button>
   );
 }

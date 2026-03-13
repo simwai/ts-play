@@ -1,4 +1,4 @@
-import { CSSProperties, ReactNode, useState } from 'react';
+import { CSSProperties, ReactNode, useState, useRef } from 'react';
 import { cn } from '../../utils/cn';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
@@ -9,6 +9,7 @@ interface ButtonProps {
   children: ReactNode;
   variant?: Variant;
   title?: string;
+  tooltipAlign?: 'center' | 'right' | 'left';
   style?: CSSProperties;
   type?: 'button' | 'submit' | 'reset';
   className?: string;
@@ -20,25 +21,39 @@ export function Button({
   children,
   variant = 'secondary',
   title,
+  tooltipAlign = 'center',
   style,
   type = 'button',
   className,
 }: ButtonProps) {
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const touchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleTouchStart = () => {
+    touchTimer.current = setTimeout(() => setShowTooltip(true), 400);
+  };
+  
+  const handleTouchEnd = () => {
+    if (touchTimer.current) clearTimeout(touchTimer.current);
+    setShowTooltip(false);
+  };
 
   return (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled}
-      title={title}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { setHovered(false); setPressed(false); }}
       onMouseDown={() => setPressed(true)}
       onMouseUp={() => setPressed(false)}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchMove={handleTouchEnd}
       className={cn(
-        "px-[14px] py-[7px] text-[13px] font-inherit rounded-[5px] flex items-center gap-[5px] transition-all duration-120 whitespace-nowrap",
+        "group relative px-[14px] py-[7px] text-[13px] font-inherit rounded-[5px] flex items-center gap-[5px] transition-all duration-120 whitespace-nowrap",
         variant === 'primary' ? "font-bold" : "font-medium",
         disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer opacity-100",
         pressed && !disabled ? "scale-[0.97]" : "scale-100",
@@ -53,6 +68,17 @@ export function Button({
       style={style}
     >
       {children}
+      {title && (
+        <div className={cn(
+          "absolute top-full mt-1.5 px-2 py-1 bg-crust text-text text-[11px] font-mono rounded border border-surface1 shadow-md z-50 whitespace-nowrap pointer-events-none transition-opacity duration-150",
+          tooltipAlign === 'center' && "left-1/2 -translate-x-1/2",
+          tooltipAlign === 'right' && "right-0",
+          tooltipAlign === 'left' && "left-0",
+          showTooltip ? "opacity-100 visible" : "opacity-0 invisible md:group-hover:opacity-100 md:group-hover:visible"
+        )}>
+          {title}
+        </div>
+      )}
     </button>
   );
 }

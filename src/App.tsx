@@ -788,13 +788,13 @@ export function App() {
 
       {/* ── Status bar ── */}
       <div className="flex items-center justify-between px-3.5 bg-crust border-b border-surface0 shrink-0 overflow-hidden" style={{ height: compactForKeyboard ? 20 : 24 }}>
-        <div className="flex items-center gap-3 w-1/3">
-          <span className={`text-[10px] font-mono tracking-wide ${statusColorClass}`}>
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <span className={`text-[10px] font-mono tracking-wide truncate ${statusColorClass}`}>
             {statusLabel}
           </span>
         </div>
         
-        <div className="flex items-center justify-center flex-1">
+        <div className="flex items-center justify-center shrink-0 px-2">
           <span className="text-[10px] text-overlay0 font-mono">
             {activeTab === 'ts' ? 'TypeScript' : activeTab === 'js' ? 'JavaScript' : 'Declarations'}
             {activeTab === 'js' && jsDirty && (
@@ -803,14 +803,14 @@ export function App() {
           </span>
         </div>
 
-        <div className="flex items-center justify-end gap-1 w-1/3">
+        <div className="flex items-center justify-end gap-1 flex-1 min-w-0">
           <IconButton
             onClick={() => document.execCommand('undo')}
             title="Undo"
             tooltipAlign="center"
             size="sm"
             variant="ghost"
-            className="w-[20px] h-[20px] p-0 text-overlay0 hover:text-text"
+            className="w-[20px] h-[20px] p-0 text-overlay1 hover:text-text shrink-0"
           >
             <Undo2 size={12} />
           </IconButton>
@@ -820,7 +820,7 @@ export function App() {
             tooltipAlign="center"
             size="sm"
             variant="ghost"
-            className="w-[20px] h-[20px] p-0 text-overlay0 hover:text-text"
+            className="w-[20px] h-[20px] p-0 text-overlay1 hover:text-text shrink-0"
           >
             <Redo2 size={12} />
           </IconButton>
@@ -831,7 +831,7 @@ export function App() {
             tooltipAlign="right"
             size="sm"
             variant="ghost"
-            className="w-[20px] h-[20px] p-0 text-overlay0 hover:text-text"
+            className="w-[20px] h-[20px] p-0 text-overlay1 hover:text-text shrink-0"
           >
             <Settings size={12} />
           </IconButton>
