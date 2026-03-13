@@ -1,4 +1,5 @@
 /// <reference lib="webworker" />
+/// <reference types="vite/client" />
 import * as esbuild from 'esbuild-wasm'
 import esbuildWasmUrl from 'esbuild-wasm/esbuild.wasm?url'
 import * as TS from 'typescript'
