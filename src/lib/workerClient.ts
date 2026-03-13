@@ -5,7 +5,11 @@ class WorkerClient {
   private worker: Worker | undefined
   private readonly resolves = new Map<
     number,
-    { resolve: Function; reject: Function }
+    {
+      resolve: Function
+      reject: Function
+      timeoutId: ReturnType<typeof setTimeout>
+    }
   >()
 
   private msgId = 0
@@ -19,6 +23,7 @@ class WorkerClient {
         const { id, success, payload, error } = e.data
         const p = this.resolves.get(id)
         if (p) {
+          clearTimeout(p.timeoutId)
           this.resolves.delete(id)
           if (success) p.resolve(payload)
           else p.reject(new Error(error))
@@ -39,7 +44,14 @@ class WorkerClient {
   private async send<T>(type: string, payload?: any): Promise<T> {
     return new Promise((resolve, reject) => {
       const id = ++this.msgId
-      this.resolves.set(id, { resolve, reject })
+
+      // Timeout to prevent memory leaks if the worker hangs
+      const timeoutId = setTimeout(() => {
+        this.resolves.delete(id)
+        reject(new Error(`Worker request '${type}' timed out after 15s`))
+      }, 15_000)
+
+      this.resolves.set(id, { resolve, reject, timeoutId })
       this.getWorker().postMessage({ id, type, payload })
     })
   }

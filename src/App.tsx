@@ -14,7 +14,7 @@ import {
   Settings,
 } from 'lucide-react'
 import { type ThemeMode } from './lib/theme'
-import { CodeEditor } from './components/CodeEditor'
+import { CodeEditor, type CodeEditorRef } from './components/CodeEditor'
 import { Console, type ConsoleMessage } from './components/Console'
 import { OverrideModal } from './components/Modal'
 import {
@@ -24,11 +24,15 @@ import {
 import { Button } from './components/ui/Button'
 import { IconButton } from './components/ui/IconButton'
 import { syncNodeModulesToWorker } from './lib/typings'
-import { decodeSharePayload, encodeSharePayload } from './lib/shareCodec'
+import { decodeSharePayload } from './lib/shareCodec'
 import { useVirtualKeyboard } from './hooks/useVirtualKeyboard'
 import { formatAllFiles, loadPrettier } from './lib/formatter'
 import { workerClient } from './lib/workerClient'
 import { writeFiles, runCommand, getWebContainer } from './lib/webcontainer'
+import { useLocalStorage } from './hooks/useLocalStorage'
+import { useResizePanel } from './hooks/useResizePanel'
+import { useSwipeTabs } from './hooks/useSwipeTabs'
+import { shareSnippet, loadSharedSnippet } from './lib/api'
 
 const DEFAULT_TS = `// TypeScript Playground
 // Long-press any word on mobile to see type info ✨
@@ -86,7 +90,10 @@ const DEFAULT_TSCONFIG = `{
   }
 }`
 
-// ── Custom Hooks (Kent C. Dodds Style Refactoring) ────────────────────────────
+const TABS = ['ts', 'js', 'dts'] as const
+type TabType = (typeof TABS)[number]
+
+// ── Custom Hooks ──────────────────────────────────────────────────────────────
 
 function useConsoleManager() {
   const [messages, setMessages] = useState<ConsoleMessage[]>([])
@@ -272,39 +279,27 @@ export function App() {
   }, [themeMode])
 
   // Initialize state from localStorage or fallback to defaults
-  const [tsCode, setTsCode] = useState(
-    () => localStorage.getItem('tsplay_ts') ?? DEFAULT_TS
+  const [tsCode, setTsCode] = useLocalStorage('tsplay_ts', DEFAULT_TS)
+  const [jsCode, setJsCode] = useLocalStorage(
+    'tsplay_js',
+    '// Press Run to compile TypeScript →'
   )
-  const [jsCode, setJsCode] = useState(
-    () =>
-      localStorage.getItem('tsplay_js') ??
-      '// Press Run to compile TypeScript →'
+  const [dtsCode, setDtsCode] = useLocalStorage(
+    'tsplay_dts',
+    '// .d.ts declarations will appear here'
   )
-  const [dtsCode, setDtsCode] = useState(
-    () =>
-      localStorage.getItem('tsplay_dts') ??
-      '// .d.ts declarations will appear here'
+  const [tsConfigString, setTsConfigString] = useLocalStorage(
+    'tsplay_tsconfig',
+    DEFAULT_TSCONFIG
   )
-  const [activeTab, setActiveTab] = useState<'ts' | 'js' | 'dts'>('ts')
 
-  const [tsConfigString, setTsConfigString] = useState(
-    () => localStorage.getItem('tsplay_tsconfig') ?? DEFAULT_TSCONFIG
-  )
+  const [activeTab, setActiveTab] = useState<TabType>('ts')
   const [temporaryTsConfig, setTemporaryTsConfig] = useState(tsConfigString)
 
-  // Persist code to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem('tsplay_ts', tsCode)
-  }, [tsCode])
-  useEffect(() => {
-    localStorage.setItem('tsplay_js', jsCode)
-  }, [jsCode])
-  useEffect(() => {
-    localStorage.setItem('tsplay_dts', dtsCode)
-  }, [dtsCode])
-  useEffect(() => {
-    localStorage.setItem('tsplay_tsconfig', tsConfigString)
-  }, [tsConfigString])
+  // Editor Refs for Undo/Redo
+  const tsEditorRef = useRef<CodeEditorRef>(null)
+  const jsEditorRef = useRef<CodeEditorRef>(null)
+  const dtsEditorRef = useRef<CodeEditorRef>(null)
 
   // Send tsconfig to worker whenever it changes
   useEffect(() => {
@@ -325,25 +320,23 @@ export function App() {
   const previousPkgsRef = useRef<Set<string>>(new Set())
   const installQueue = useRef<Promise<void>>(Promise.resolve())
 
-  const [panelHeight, setPanelHeight] = useState(180)
-  const [isResizing, setIsResizing] = useState(false)
-  const resizeStartY = useRef(0)
-  const resizeStartHeight = useRef(0)
-
   const [packageManagerOpen, setPackageManagerOpen] = useState(false)
   const { keyboardOpen, keyboardHeight, isMobileLike } = useVirtualKeyboard()
   const compactForKeyboard = keyboardOpen && isMobileLike
+
+  const { panelHeight, isResizing, handleResizeStart } = useResizePanel()
+  const { swipeRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeTabs(
+    activeTab,
+    setActiveTab,
+    TABS,
+    compactForKeyboard
+  )
 
   const [copied, setCopied] = useState(false)
   const [sharing, setSharing] = useState(false)
   const [shareSuccess, setShareSuccess] = useState(false)
   const [formatting, setFormatting] = useState(false)
   const [formatSuccess, setFormatSuccess] = useState(false)
-
-  const swipeRef = useRef<HTMLDivElement>(null)
-  const touchStartX = useRef(0)
-  const touchStartY = useRef(0)
-  const swiping = useRef(false)
 
   // Custom Hooks
   const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } =
@@ -368,13 +361,12 @@ export function App() {
       ) {
         e.preventDefault()
         setActiveTab((previous) => {
-          const tabs: Array<'ts' | 'js' | 'dts'> = ['ts', 'js', 'dts']
-          const idx = tabs.indexOf(previous)
+          const idx = TABS.indexOf(previous)
           if (e.key === 'ArrowLeft') {
-            return tabs[(idx - 1 + tabs.length) % tabs.length]
+            return TABS[(idx - 1 + TABS.length) % TABS.length]
           }
 
-          return tabs[(idx + 1) % tabs.length]
+          return TABS[(idx + 1) % TABS.length]
         })
       }
     }
@@ -502,144 +494,6 @@ export function App() {
     }
   }, [installedPackages, addMessage])
 
-  const getApiCandidates = useCallback((path: string) => {
-    const normalized = path.replace(/^\/+/, '')
-    const base = new URL(document.baseURI || globalThis.location.href)
-    const currentDir = new URL('./', globalThis.location.href)
-    const candidates = [
-      new URL(normalized, base).toString(),
-      new URL(normalized, currentDir).toString(),
-      `${globalThis.location.origin}/${normalized}`,
-    ]
-    return [...new Set(candidates)]
-  }, [])
-
-  const fetchApiJson = useCallback(
-    async (path: string, init?: RequestInit) => {
-      const candidates = getApiCandidates(path)
-      let lastError: Error | undefined = undefined
-
-      for (const url of candidates) {
-        try {
-          const res = await fetch(url, init)
-          const text = await res.text()
-          let data: any = undefined
-          try {
-            data = JSON.parse(text)
-          } catch {
-            const preview = text.slice(0, 300).replaceAll('\n', ' ')
-            if (!res.ok) {
-              lastError = new Error(
-                `Share API failed (${res.status} ${res.statusText}) at ${url}. Raw response: ${preview}...`
-              )
-              continue
-            }
-
-            lastError = new Error(
-              `Share API returned invalid JSON at ${url}. Raw response: ${preview}...`
-            )
-            continue
-          }
-
-          if (!res.ok) {
-            lastError = new Error(
-              data?.error || `Share API failed (${res.status}).`
-            )
-            continue
-          }
-
-          return data
-        } catch (error) {
-          lastError = error as Error
-        }
-      }
-
-      throw (
-        lastError ??
-        new Error(
-          'Share service unavailable. Ensure the PHP API is served correctly.'
-        )
-      )
-    },
-    [getApiCandidates]
-  )
-
-  const handleResizeStart = useCallback(
-    (e: React.MouseEvent | React.TouchEvent) => {
-      if (!consoleOpen && !packageManagerOpen) return
-      e.preventDefault()
-      setIsResizing(true)
-      resizeStartY.current = 'touches' in e ? e.touches[0].clientY : e.clientY
-      resizeStartHeight.current = panelHeight
-    },
-    [panelHeight, consoleOpen, packageManagerOpen]
-  )
-
-  const handleResizeMove = useCallback(
-    (e: MouseEvent | TouchEvent) => {
-      if (!isResizing) return
-      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
-      const deltaY = resizeStartY.current - clientY
-      const newHeight = Math.max(
-        80,
-        Math.min(400, resizeStartHeight.current + deltaY)
-      )
-      setPanelHeight(newHeight)
-    },
-    [isResizing]
-  )
-
-  const handleResizeEnd = useCallback(() => {
-    setIsResizing(false)
-  }, [])
-
-  useEffect(() => {
-    if (isResizing) {
-      globalThis.addEventListener('mousemove', handleResizeMove)
-      globalThis.addEventListener('mouseup', handleResizeEnd)
-      globalThis.addEventListener('touchmove', handleResizeMove, {
-        passive: false,
-      })
-      globalThis.addEventListener('touchend', handleResizeEnd)
-      document.body.style.cursor = 'ns-resize'
-      document.body.style.userSelect = 'none'
-    }
-
-    return () => {
-      globalThis.removeEventListener('mousemove', handleResizeMove)
-      globalThis.removeEventListener('mouseup', handleResizeEnd)
-      globalThis.removeEventListener('touchmove', handleResizeMove)
-      globalThis.removeEventListener('touchend', handleResizeEnd)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-  }, [isResizing, handleResizeMove, handleResizeEnd])
-
-  const getApiUrl = useCallback((path: string) => {
-    return new URL(path.replace(/^\//, ''), document.baseURI).toString()
-  }, [])
-
-  const parseJsonResponse = useCallback(async (res: Response) => {
-    const text = await res.text()
-    let data: any
-    try {
-      data = JSON.parse(text)
-    } catch {
-      const preview = text.slice(0, 300).replaceAll('\n', ' ')
-      throw new Error(
-        res.ok
-          ? `Share API returned invalid JSON. Raw response: ${preview}...`
-          : `Share API failed (${res.status}). Raw response: ${preview}...`
-      )
-    }
-
-    if (!res.ok) {
-      throw new Error(data?.error || `Request failed with status ${res.status}`)
-    }
-
-    return data
-  }, [])
-
   useEffect(() => {
     const parameters = new URLSearchParams(globalThis.location.search)
     const embedded =
@@ -663,8 +517,7 @@ export function App() {
 
     const shareId = parameters.get('share')
     if (shareId) {
-      fetch(getApiUrl(`api/get.php?id=${encodeURIComponent(shareId)}`))
-        .then(parseJsonResponse)
+      loadSharedSnippet(shareId)
         .then((data) => {
           if (data.success) {
             setTsCode(data.tsCode)
@@ -686,7 +539,7 @@ export function App() {
           ])
         })
     }
-  }, [addMessage, fetchApiJson, getApiUrl, parseJsonResponse])
+  }, [addMessage, setTsCode, setJsCode])
 
   const handleCopyAll = useCallback(() => {
     const code =
@@ -722,7 +575,7 @@ export function App() {
     } else {
       setDtsCode('')
     }
-  }, [activeTab])
+  }, [activeTab, setTsCode, setJsCode, setDtsCode])
 
   const handleFormat = useCallback(async () => {
     setFormatting(true)
@@ -750,7 +603,7 @@ export function App() {
     } finally {
       setFormatting(false)
     }
-  }, [tsCode, jsCode, dtsCode, addMessage])
+  }, [tsCode, jsCode, dtsCode, addMessage, setTsCode, setJsCode, setDtsCode])
 
   const doRun = useCallback(
     async (skipDirtyCheck = false) => {
@@ -774,73 +627,62 @@ export function App() {
         }
       )
     },
-    [jsDirty, runCode, clearMessages, addMessage]
+    [jsDirty, runCode, clearMessages, addMessage, setJsCode, setDtsCode]
   )
 
-  const isEditorTarget = (target: EventTarget | undefined) => {
-    if (!(target instanceof HTMLElement)) return false
-    return Boolean(target.closest('textarea'))
-  }
+  const handleShare = useCallback(async () => {
+    setSharing(true)
+    try {
+      const result = await shareSnippet({
+        tsCode,
+        jsCode,
+        packages: installedPackages,
+      })
 
-  const onTouchStart = useCallback(
-    (e: React.TouchEvent) => {
-      if (compactForKeyboard) return
-      if (isEditorTarget(e.target)) return
-      touchStartX.current = e.touches[0].clientX
-      touchStartY.current = e.touches[0].clientY
-      swiping.current = false
-    },
-    [compactForKeyboard]
-  )
-
-  const onTouchMove = useCallback(
-    (e: React.TouchEvent) => {
-      if (compactForKeyboard) return
-      if (isEditorTarget(e.target)) return
-      const dx = e.touches[0].clientX - touchStartX.current
-      const dy = e.touches[0].clientY - touchStartY.current
-      if (!swiping.current && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) {
-        swiping.current = true
-      }
-
-      if (swiping.current) e.preventDefault()
-    },
-    [compactForKeyboard]
-  )
-
-  const onTouchEnd = useCallback(
-    (e: React.TouchEvent) => {
-      if (compactForKeyboard) return
-      if (isEditorTarget(e.target)) return
-      if (!swiping.current) return
-      const dx = e.changedTouches[0].clientX - touchStartX.current
-      const dy = e.changedTouches[0].clientY - touchStartY.current
-      if (Math.abs(dx) < Math.abs(dy) * 1.5) return
-      if (Math.abs(dx) < 40) return
-
-      const tabs: Array<'ts' | 'js' | 'dts'> = ['ts', 'js', 'dts']
-      const currentIndex = tabs.indexOf(activeTab)
-
-      if (dx < 0) {
-        const nextIndex = (currentIndex + 1) % tabs.length
-        setActiveTab(tabs[nextIndex])
+      if (result.type === 'server') {
+        const url = new URL(globalThis.location.href)
+        url.searchParams.set('share', result.id)
+        url.searchParams.delete('code')
+        url.hash = ''
+        await navigator.clipboard.writeText(url.toString())
+        setShareSuccess(true)
+        addMessage('info', [
+          `✓ Share link copied! Expires in ${result.ttlDays} days`,
+        ])
       } else {
-        const previousIndex = (currentIndex - 1 + tabs.length) % tabs.length
-        setActiveTab(tabs[previousIndex])
+        const url = new URL(globalThis.location.href)
+        url.searchParams.delete('share')
+        url.searchParams.delete('code')
+        url.hash = `code=${result.token}`
+        await navigator.clipboard.writeText(url.toString())
+        setShareSuccess(true)
+        addMessage('warn', [
+          `PHP share unavailable: ${result.error?.message}`,
+          'Copied embedded compressed link instead. It is stored in the URL itself and has no 7-day TTL.',
+        ])
       }
 
-      swiping.current = false
-    },
-    [activeTab, compactForKeyboard]
-  )
-
-  const togglePackageManager = useCallback(() => {
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur()
+      setTimeout(() => {
+        setShareSuccess(false)
+      }, 2000)
+    } catch (error) {
+      addMessage('error', [`Failed to share: ${(error as Error).message}`])
+    } finally {
+      setSharing(false)
     }
+  }, [tsCode, jsCode, installedPackages, addMessage])
 
-    setPackageManagerOpen((o) => !o)
-  }, [])
+  const handleUndo = useCallback(() => {
+    if (activeTab === 'ts') tsEditorRef.current?.undo()
+    else if (activeTab === 'js') jsEditorRef.current?.undo()
+    else if (activeTab === 'dts') dtsEditorRef.current?.undo()
+  }, [activeTab])
+
+  const handleRedo = useCallback(() => {
+    if (activeTab === 'ts') tsEditorRef.current?.redo()
+    else if (activeTab === 'js') jsEditorRef.current?.redo()
+    else if (activeTab === 'dts') dtsEditorRef.current?.redo()
+  }, [activeTab])
 
   const statusLabel =
     compilerStatus === 'loading'
@@ -868,7 +710,7 @@ export function App() {
 
         {/* Tabs */}
         <div className='flex bg-surface0 rounded-[5px] p-[1px] gap-[1px] shrink'>
-          {(['ts', 'js', 'dts'] as const).map((tab) => (
+          {TABS.map((tab) => (
             <button
               key={tab}
               onClick={() => {
@@ -982,64 +824,7 @@ export function App() {
 
           {/* Share */}
           <IconButton
-            onClick={async () => {
-              setSharing(true)
-              try {
-                const data = await fetchApiJson('api/share.php', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    tsCode,
-                    jsCode,
-                    packages: installedPackages,
-                  }),
-                })
-                if (data.success) {
-                  const url = new URL(globalThis.location.href)
-                  url.searchParams.set('share', data.id)
-                  url.searchParams.delete('code')
-                  url.hash = ''
-                  const shareUrl = url.toString()
-                  await navigator.clipboard.writeText(shareUrl)
-                  setShareSuccess(true)
-                  addMessage('info', [
-                    `✓ Share link copied! Expires in ${data.ttlDays ?? data.expires ?? 7} days`,
-                  ])
-                  setTimeout(() => {
-                    setShareSuccess(false)
-                  }, 2000)
-                } else {
-                  throw new Error(data.error || 'Share API returned an error')
-                }
-              } catch (error) {
-                try {
-                  const token = await encodeSharePayload({
-                    tsCode,
-                    jsCode,
-                    packages: installedPackages,
-                  })
-                  const url = new URL(globalThis.location.href)
-                  url.searchParams.delete('share')
-                  url.searchParams.delete('code')
-                  url.hash = `code=${token}`
-                  await navigator.clipboard.writeText(url.toString())
-                  setShareSuccess(true)
-                  addMessage('warn', [
-                    `PHP share unavailable: ${(error as Error).message}`,
-                    'Copied embedded compressed link instead. It is stored in the URL itself and has no 7-day TTL.',
-                  ])
-                  setTimeout(() => {
-                    setShareSuccess(false)
-                  }, 2000)
-                } catch (error) {
-                  addMessage('error', [
-                    `Failed to share: ${(error as Error).message}`,
-                  ])
-                }
-              } finally {
-                setSharing(false)
-              }
-            }}
+            onClick={handleShare}
             title={sharing ? 'Sharing...' : 'Share snippet (expires in 7 days)'}
             tooltipAlign='right'
             size='sm'
@@ -1089,7 +874,7 @@ export function App() {
 
         <div className='flex items-center justify-end gap-1 flex-1 min-w-0'>
           <IconButton
-            onClick={() => document.execCommand('undo')}
+            onClick={handleUndo}
             title='Undo'
             tooltipAlign='center'
             size='sm'
@@ -1099,7 +884,7 @@ export function App() {
             <Undo2 size={12} />
           </IconButton>
           <IconButton
-            onClick={() => document.execCommand('redo')}
+            onClick={handleRedo}
             title='Redo'
             tooltipAlign='center'
             size='sm'
@@ -1148,6 +933,7 @@ export function App() {
           {/* TS Editor */}
           <div className='w-[33.333%] h-full shrink-0'>
             <CodeEditor
+              ref={tsEditorRef}
               value={tsCode}
               onChange={setTsCode}
               onCursorChange={(pos) => {
@@ -1163,6 +949,7 @@ export function App() {
           {/* JS Editor */}
           <div className='w-[33.333%] h-full shrink-0'>
             <CodeEditor
+              ref={jsEditorRef}
               value={jsCode}
               onChange={(v) => {
                 setJsCode(v)
@@ -1176,6 +963,7 @@ export function App() {
           {/* DTS Editor */}
           <div className='w-[33.333%] h-full shrink-0'>
             <CodeEditor
+              ref={dtsEditorRef}
               value={dtsCode}
               onChange={setDtsCode}
               language='typescript'
