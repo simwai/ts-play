@@ -171,6 +171,18 @@ export const CodeEditor = React.memo(
     const redoStack = useRef<Array<{ v: string; c: number }>>([])
     const lastSaveTime = useRef<number>(0)
     const lastCursorPos = useRef<number>(0)
+    const nextCursorPos = useRef<number | undefined>(undefined)
+
+    // Synchronously restore cursor position after React updates the DOM
+    useLayoutEffect(() => {
+      if (nextCursorPos.current !== undefined && textareaRef.current) {
+        textareaRef.current.selectionStart = textareaRef.current.selectionEnd =
+          nextCursorPos.current
+        lastCursorPos.current = nextCursorPos.current
+        onCursorChange?.(nextCursorPos.current)
+        nextCursorPos.current = undefined
+      }
+    }, [value, onCursorChange])
 
     const saveState = useCallback(
       (value_: string, cursor: number, force = false) => {
@@ -189,30 +201,20 @@ export const CodeEditor = React.memo(
       const ta = textareaRef.current
       redoStack.current.push({ v: value, c: ta?.selectionStart || 0 })
       const previous = undoStack.current.pop()!
+      
+      nextCursorPos.current = previous.c
       onChange(previous.v)
-      requestAnimationFrame(() => {
-        if (ta) {
-          ta.selectionStart = ta.selectionEnd = previous.c
-          lastCursorPos.current = previous.c
-          onCursorChange?.(previous.c)
-        }
-      })
-    }, [value, onChange, onCursorChange])
+    }, [value, onChange])
 
     const handleRedo = useCallback(() => {
       if (redoStack.current.length === 0) return
       const ta = textareaRef.current
       undoStack.current.push({ v: value, c: ta?.selectionStart || 0 })
       const next = redoStack.current.pop()!
+      
+      nextCursorPos.current = next.c
       onChange(next.v)
-      requestAnimationFrame(() => {
-        if (ta) {
-          ta.selectionStart = ta.selectionEnd = next.c
-          lastCursorPos.current = next.c
-          onCursorChange?.(next.c)
-        }
-      })
-    }, [value, onChange, onCursorChange])
+    }, [value, onChange])
 
     useImperativeHandle(
       ref,
@@ -376,16 +378,11 @@ export const CodeEditor = React.memo(
       saveState(value, pos, true)
       const next =
         value.slice(0, pos - wordLength) + insertText + value.slice(pos)
+      
+      nextCursorPos.current = pos - wordLength + insertText.length
       onChange(next)
       setCompletions([])
-
-      requestAnimationFrame(() => {
-        const newPos = pos - wordLength + insertText.length
-        ta.selectionStart = ta.selectionEnd = newPos
-        lastCursorPos.current = newPos
-        onCursorChange?.(newPos)
-      })
-    }, [completions, selIndex, value, onChange, saveState, onCursorChange])
+    }, [completions, selIndex, value, onChange, saveState])
 
     const onKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -441,12 +438,9 @@ export const CodeEditor = React.memo(
           const end = ta.selectionEnd
           saveState(value, start, true)
           const next = value.slice(0, start) + '  ' + value.slice(end)
+          
+          nextCursorPos.current = start + 2
           onChange(next)
-          requestAnimationFrame(() => {
-            ta.selectionStart = ta.selectionEnd = start + 2
-            lastCursorPos.current = start + 2
-            onCursorChange?.(start + 2)
-          })
         }
       },
       [
@@ -458,7 +452,6 @@ export const CodeEditor = React.memo(
         completions,
         insertCompletion,
         triggerAutocomplete,
-        onCursorChange,
       ]
     )
 
