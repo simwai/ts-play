@@ -91,11 +91,11 @@ export const Console = React.memo(function Console({
                 onClear()
               }}
               variant='secondary'
+              size='sm'
               title='Clear console'
               tooltipAlign='right'
-              className='text-xs px-2 py-1 h-auto'
             >
-              <Eraser size={12} />
+              <Eraser size={14} />
               Clear
             </Button>
           ) : undefined
@@ -108,14 +108,14 @@ export const Console = React.memo(function Console({
           style={{ height: contentHeight }}
         >
           {messages.length === 0 ? (
-            <div className='flex items-center justify-center h-full text-overlay0 text-xs italic font-mono'>
+            <div className='flex items-center justify-center h-full text-overlay0 text-sm italic font-mono'>
               No output yet — press Run to execute
             </div>
           ) : (
             messages.map((m, idx) => (
               <div
                 key={`${m.ts}-${idx}`}
-                className={`flex items-start gap-2 px-3 py-1.5 border-b border-surface0/40 ${
+                className={`flex items-start gap-3 px-4 py-2.5 border-b border-surface0/40 ${
                   m.type === 'error'
                     ? 'bg-red/5'
                     : m.type === 'warn'
@@ -129,7 +129,7 @@ export const Console = React.memo(function Console({
                   className='mt-0.5'
                 />
                 <pre
-                  className={`m-0 p-0 text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}
+                  className={`m-0 p-0 text-sm leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}
                 >
                   {m.args.join(' ')}
                 </pre>

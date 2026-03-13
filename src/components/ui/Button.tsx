@@ -2,12 +2,14 @@ import { type CSSProperties, type ReactNode, useState, useRef } from 'react'
 import { cn } from '../../utils/cn'
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost'
+type Size = 'sm' | 'md' | 'lg'
 
 type ButtonProps = {
   onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
   disabled?: boolean
   children: ReactNode
   variant?: Variant
+  size?: Size
   title?: string
   tooltipAlign?: 'center' | 'right' | 'left'
   style?: CSSProperties
@@ -15,11 +17,18 @@ type ButtonProps = {
   className?: string
 }
 
+const sizeClasses: Record<Size, string> = {
+  sm: 'px-3 py-1.5 text-xs',
+  md: 'px-4 py-2 text-sm',
+  lg: 'px-5 py-2.5 text-base',
+}
+
 export function Button({
   onClick,
   disabled = false,
   children,
   variant = 'secondary',
+  size = 'md',
   title,
   tooltipAlign = 'center',
   style,
@@ -74,7 +83,8 @@ export function Button({
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchMove}
       className={cn(
-        'group relative px-3.5 py-1.5 text-sm font-inherit rounded-md flex items-center gap-1.5 transition-all duration-150 whitespace-nowrap',
+        'group relative font-inherit rounded-md flex items-center justify-center gap-2 transition-all duration-150 whitespace-nowrap',
+        sizeClasses[size],
         variant === 'primary' ? 'font-bold' : 'font-medium',
         disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer opacity-100',
         pressed && !disabled ? 'scale-95' : 'scale-100',
@@ -92,8 +102,8 @@ export function Button({
       {title && (
         <div
           className={cn(
-            'absolute top-full mt-1.5 px-2 py-1 bg-crust text-text text-xs font-mono rounded-md border border-surface1 shadow-md z-50 pointer-events-none transition-opacity duration-150',
-            'w-max max-w-[250px] whitespace-normal',
+            'absolute top-full mt-2 px-2.5 py-1.5 bg-crust text-text text-xs font-mono rounded-md border border-surface1 shadow-lg z-50 pointer-events-none transition-opacity duration-150',
+            'w-max max-w-[250px] whitespace-normal font-normal',
             tooltipAlign === 'center' && 'left-1/2 -translate-x-1/2 text-center',
             tooltipAlign === 'right' && 'right-0 text-right',
             tooltipAlign === 'left' && 'left-0 text-left',

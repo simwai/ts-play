@@ -66,13 +66,13 @@ export function TypeInfoBar({
 
   return (
     <div
-      className='shrink-0 bg-mantle border-t border-surface0 py-1 pr-2.5 overflow-y-auto max-h-24 min-h-7 box-border pointer-events-auto text-xs font-mono'
-      style={{ paddingLeft: gutterW + 8 }}
+      className='shrink-0 bg-mantle border-t border-surface0 py-2 pr-4 overflow-y-auto max-h-32 min-h-8 box-border pointer-events-auto text-sm font-mono'
+      style={{ paddingLeft: gutterW + 16 }}
     >
       {hasDiag && activeDiag && <DiagRow diag={activeDiag} />}
       {hasTypeInfo && typeInfo && <TypeRow info={typeInfo} />}
       {isEmpty && (
-        <span className='text-overlay0 text-xxs italic'>
+        <span className='text-overlay0 text-xs italic'>
           {language === 'typescript'
             ? 'Move cursor over a symbol for type info'
             : 'JavaScript output'}
@@ -86,16 +86,16 @@ function DiagRow({ diag }: { diag: TSDiagnostic }) {
   const isError = diag.category === 'error'
   const colorClass = isError ? 'text-red' : 'text-yellow'
   return (
-    <div className='flex items-start gap-1.5'>
-      <span className={`${colorClass} shrink-0 leading-4`}>
+    <div className='flex items-start gap-2'>
+      <span className={`${colorClass} shrink-0 leading-5`}>
         {isError ? '✖' : '⚠'}
       </span>
       <span
-        className={`${colorClass} whitespace-pre-wrap wrap-break-word leading-4 flex-1`}
+        className={`${colorClass} whitespace-pre-wrap wrap-break-word leading-5 flex-1`}
       >
         {diag.message}
       </span>
-      <span className='text-overlay0 shrink-0 leading-4 text-xxs'>
+      <span className='text-overlay0 shrink-0 leading-5 text-xs'>
         [{diag.line + 1}:{diag.character + 1}]
       </span>
     </div>
@@ -108,10 +108,10 @@ function TypeRow({ info }: { info: TypeInfo }) {
   const kcBorder = kindBorderClass(info.kind)
 
   return (
-    <div className='flex flex-col gap-1'>
-      <div className='flex items-baseline gap-1.5 flex-wrap'>
+    <div className='flex flex-col gap-1.5'>
+      <div className='flex items-baseline gap-2 flex-wrap'>
         <span
-          className={`text-tiny font-bold tracking-wider uppercase rounded-sm px-1 py-px shrink-0 leading-tight border ${kc} ${kcBg} ${kcBorder}`}
+          className={`text-xs font-bold tracking-wider uppercase rounded-md px-1.5 py-0.5 shrink-0 leading-tight border ${kc} ${kcBg} ${kcBorder}`}
         >
           {info.kind}
         </span>
@@ -123,13 +123,13 @@ function TypeRow({ info }: { info: TypeInfo }) {
       </div>
 
       {info.jsDoc && (
-        <div className='text-overlay1 text-xxs italic whitespace-pre-wrap wrap-break-word leading-tight pl-1 border-l-2 border-surface1'>
+        <div className='text-overlay1 text-xs italic whitespace-pre-wrap wrap-break-word leading-relaxed pl-2 border-l-2 border-surface1'>
           {renderWithLinks(info.jsDoc)}
         </div>
       )}
 
       {info.signature && info.signature !== info.typeAnnotation && (
-        <div className='text-overlay1 text-xxs whitespace-pre-wrap wrap-break-word leading-tight'>
+        <div className='text-overlay1 text-xs whitespace-pre-wrap wrap-break-word leading-relaxed'>
           {renderWithLinks(info.signature)}
         </div>
       )}

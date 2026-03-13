@@ -1,6 +1,8 @@
 import { type CSSProperties, type ReactNode, useState, useRef } from 'react'
 import { cn } from '../../utils/cn'
 
+type Size = 'xs' | 'sm' | 'md' | 'lg'
+
 type IconButtonProps = {
   onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
   title?: string
@@ -8,9 +10,16 @@ type IconButtonProps = {
   disabled?: boolean
   children: ReactNode
   variant?: 'ghost' | 'surface' | 'danger'
-  size?: 'sm' | 'md'
+  size?: Size
   style?: CSSProperties
   className?: string
+}
+
+const sizeClasses: Record<Size, string> = {
+  xs: 'w-6 h-6 text-xs',
+  sm: 'w-8 h-8 text-sm',
+  md: 'w-10 h-10 text-base',
+  lg: 'w-12 h-12 text-lg',
 }
 
 export function IconButton({
@@ -71,8 +80,8 @@ export function IconButton({
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchMove}
       className={cn(
-        'group relative rounded-md text-sm leading-none flex items-center justify-center shrink-0 transition-all duration-150',
-        size === 'sm' ? 'px-1.5 py-1' : 'px-2 py-1.5',
+        'group relative rounded-md leading-none flex items-center justify-center shrink-0 transition-all duration-150',
+        sizeClasses[size],
         disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer opacity-100',
         pressed && !disabled ? 'scale-95' : 'scale-100',
         {
@@ -88,8 +97,8 @@ export function IconButton({
       {title && (
         <div
           className={cn(
-            'absolute top-full mt-1.5 px-2 py-1 bg-crust text-text text-xs font-mono rounded-md border border-surface1 shadow-md z-50 pointer-events-none transition-opacity duration-150',
-            'w-max max-w-[250px] whitespace-normal',
+            'absolute top-full mt-2 px-2.5 py-1.5 bg-crust text-text text-xs font-mono rounded-md border border-surface1 shadow-lg z-50 pointer-events-none transition-opacity duration-150',
+            'w-max max-w-[250px] whitespace-normal font-normal',
             tooltipAlign === 'center' && 'left-1/2 -translate-x-1/2 text-center',
             tooltipAlign === 'right' && 'right-0 text-right',
             tooltipAlign === 'left' && 'left-0 text-left',

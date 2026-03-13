@@ -52,26 +52,26 @@ export function Header({
   shareSuccess,
 }: HeaderProps) {
   return (
-    <header className='flex items-center justify-between px-1.5 h-9 bg-mantle border-b border-surface0 shrink-0 gap-1 relative z-40'>
+    <header className='flex items-center justify-between px-4 h-12 bg-mantle border-b border-surface0 shrink-0 gap-4 relative z-40'>
       {/* Brand */}
       <div className='flex items-center gap-2'>
-        <span className='text-xs font-bold tracking-tight font-mono'>
+        <span className='text-sm font-bold tracking-tight font-mono'>
           TS<span className='text-mauve'>Play</span>
         </span>
       </div>
 
       {/* Tabs */}
-      <div className='flex bg-surface0 rounded-md p-px gap-px shrink'>
+      <div className='flex bg-surface0 rounded-lg p-1 gap-1 shrink'>
         {TABS.map((tab) => (
           <button
             key={tab}
             onClick={() => {
               setActiveTab(tab)
             }}
-            className={`px-1.5 py-0.5 rounded-md border-none text-tiny font-semibold font-mono cursor-pointer tracking-wide uppercase transition-all duration-150 ${
+            className={`px-3 py-1.5 rounded-md border-none text-xs font-semibold font-mono cursor-pointer tracking-wide uppercase transition-all duration-150 ${
               activeTab === tab
-                ? 'bg-mauve/20 text-mauve'
-                : 'bg-transparent text-overlay1'
+                ? 'bg-mauve/20 text-mauve shadow-sm'
+                : 'bg-transparent text-overlay1 hover:text-text'
             }`}
           >
             {tab}
@@ -80,7 +80,7 @@ export function Header({
       </div>
 
       {/* Actions */}
-      <div className='flex items-center gap-1 shrink-0'>
+      <div className='flex items-center gap-2 shrink-0'>
         {/* Theme toggle */}
         <IconButton
           onClick={() => {
@@ -94,13 +94,12 @@ export function Header({
           tooltipAlign='right'
           size='sm'
           variant='surface'
-          className='w-5.5 h-5.5 p-0'
         >
-          {themeMode === 'mocha' ? <Sun size={14} /> : <Moon size={14} />}
+          {themeMode === 'mocha' ? <Sun size={16} /> : <Moon size={16} />}
         </IconButton>
 
         {/* Separator */}
-        <div className='w-px h-2.5 bg-surface1 shrink-0' />
+        <div className='w-px h-4 bg-surface1 shrink-0 mx-1' />
 
         {/* Copy all */}
         <IconButton
@@ -109,9 +108,9 @@ export function Header({
           tooltipAlign='right'
           size='sm'
           variant='surface'
-          className={`w-5.5 h-5.5 p-0 ${copied ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}`}
+          className={copied ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}
         >
-          {copied ? <Check size={14} /> : <Copy size={14} />}
+          {copied ? <Check size={16} /> : <Copy size={16} />}
         </IconButton>
 
         {/* Delete all */}
@@ -121,9 +120,9 @@ export function Header({
           tooltipAlign='right'
           size='sm'
           variant='surface'
-          className='w-5.5 h-5.5 p-0 text-red hover:text-red'
+          className='text-red hover:text-red'
         >
-          <Trash2 size={14} />
+          <Trash2 size={16} />
         </IconButton>
 
         {/* Format */}
@@ -134,40 +133,41 @@ export function Header({
           tooltipAlign='right'
           size='sm'
           variant='surface'
-          className={`w-5.5 h-5.5 p-0 ${formatSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}`}
+          className={formatSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}
         >
           {formatting ? (
             <Loader2
-              size={14}
+              size={16}
               className='animate-spin'
             />
           ) : formatSuccess ? (
-            <Check size={14} />
+            <Check size={16} />
           ) : (
-            <Wand2 size={14} />
+            <Wand2 size={16} />
           )}
         </IconButton>
 
         {/* Separator */}
-        <div className='w-px h-2.5 bg-surface1 shrink-0' />
+        <div className='w-px h-4 bg-surface1 shrink-0 mx-1' />
 
         {/* Run */}
         <Button
           onClick={async () => doRun(false)}
           disabled={isRunning || compilerStatus !== 'ready'}
           variant='primary'
+          size='sm'
           title='Run (compile + execute)'
           tooltipAlign='right'
-          className='font-mono tracking-wide px-2 py-0 h-5.5 min-w-5.5 text-xxs gap-1.5'
+          className='font-mono tracking-wide'
         >
           {isRunning ? (
             <Loader2
-              size={12}
+              size={14}
               className='animate-spin'
             />
           ) : (
             <Play
-              size={12}
+              size={14}
               fill='currentColor'
             />
           )}
@@ -177,7 +177,7 @@ export function Header({
         </Button>
 
         {/* Separator */}
-        <div className='w-px h-2.5 bg-surface1 shrink-0' />
+        <div className='w-px h-4 bg-surface1 shrink-0 mx-1' />
 
         {/* Share */}
         <IconButton
@@ -187,17 +187,17 @@ export function Header({
           size='sm'
           variant='surface'
           disabled={sharing}
-          className={`w-5.5 h-5.5 p-0 ${shareSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}`}
+          className={shareSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}
         >
           {sharing ? (
             <Loader2
-              size={14}
+              size={16}
               className='animate-spin'
             />
           ) : shareSuccess ? (
-            <Check size={14} />
+            <Check size={16} />
           ) : (
-            <Share2 size={14} />
+            <Share2 size={16} />
           )}
         </IconButton>
       </div>

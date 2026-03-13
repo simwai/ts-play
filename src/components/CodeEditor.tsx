@@ -29,12 +29,12 @@ export type CodeEditorRef = {
   redo: () => void
 }
 
-const LINE_H = 20
-const PAD_TOP = 12
-const PAD_X = 12
-const GUTTER_W = 44
-const FONT_SIZE = 13
-const CHAR_W = 7.8
+const LINE_H = 24
+const PAD_TOP = 16
+const PAD_X = 16
+const GUTTER_W = 48
+const FONT_SIZE = 14
+const CHAR_W = 8.4
 
 const EMPTY_LIBS = {}
 
@@ -489,7 +489,7 @@ export const CodeEditor = React.memo(
               paddingBottom: PAD_TOP,
               fontSize: FONT_SIZE,
               lineHeight: `${LINE_H}px`,
-              paddingRight: 8,
+              paddingRight: 12,
               minHeight: contentHeight,
             }}
           >
@@ -583,11 +583,11 @@ export const CodeEditor = React.memo(
               <ul
                 role="listbox"
                 aria-label="Autocomplete suggestions"
-                className='hidden md:block absolute m-0 p-0 list-none bg-mantle border border-surface1 rounded-md shadow-lg shadow-black/30 z-50 max-h-[150px] overflow-y-auto min-w-[150px]'
+                className='hidden md:block absolute m-0 p-0 list-none bg-mantle border border-surface1 rounded-md shadow-lg shadow-black/30 z-50 max-h-[200px] overflow-y-auto min-w-[180px]'
                 style={{
                   top: popupPos.top,
                   left: popupPos.left,
-                  fontSize: 12,
+                  fontSize: 13,
                 }}
               >
                 {completions.map((comp, i) => (
@@ -595,7 +595,7 @@ export const CodeEditor = React.memo(
                     key={comp.name}
                     role="option"
                     aria-selected={i === selIndex}
-                    className={`px-2 py-1 cursor-pointer flex justify-between gap-3 ${i === selIndex ? 'bg-surface0 text-text' : 'bg-transparent text-subtext0'}`}
+                    className={`px-3 py-1.5 cursor-pointer flex justify-between gap-4 ${i === selIndex ? 'bg-surface0 text-text' : 'bg-transparent text-subtext0'}`}
                     onMouseDown={(e) => {
                       e.preventDefault()
                       setSelIndex(i)
@@ -603,7 +603,7 @@ export const CodeEditor = React.memo(
                     }}
                   >
                     <span>{comp.name}</span>
-                    <span className='text-overlay0 text-xxs'>
+                    <span className='text-overlay0 text-xs'>
                       {comp.kind}
                     </span>
                   </li>
