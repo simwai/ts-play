@@ -211,7 +211,6 @@ async function initLanguageService() {
       return [...dirs]
     },
     useCaseSensitiveFileNames: () => true,
-    getCanonicalFileName: (fileName) => fileName,
     getNewLine: () => '\n',
   }
 
