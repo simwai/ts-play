@@ -21,7 +21,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           onBlur?.(e)
         }}
         className={cn(
-          'w-full px-[10px] py-[8px] text-[13px] font-inherit rounded-[5px] outline-none box-border transition-colors duration-140 bg-base text-text border',
+          'w-full px-2.5 py-2 text-sm font-inherit rounded-md outline-none box-border transition-colors duration-150 bg-base text-text border',
           focused ? 'border-lavender' : 'border-surface1',
           className
         )}

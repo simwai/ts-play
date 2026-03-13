@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 
 @theme {
+  /* Colors */
   --color-base: var(--base);
   --color-mantle: var(--mantle);
   --color-crust: var(--crust);
@@ -28,6 +29,23 @@
   --color-sapphire: var(--sapphire);
   --color-blue: var(--blue);
   --color-lavender: var(--lavender);
+
+  /* Custom Fonts */
+  --font-mono: 'Victor Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  /* Custom Spacing */
+  --spacing-4_5: 1.125rem; /* 18px */
+  --spacing-5_5: 1.375rem; /* 22px */
+
+  /* Custom Font Sizes */
+  --text-xxs: 0.625rem; /* 10px */
+  --text-xxs--line-height: 0.875rem; /* 14px */
+  --text-tiny: 0.5625rem; /* 9px */
+  --text-tiny--line-height: 0.75rem; /* 12px */
+
+  /* Custom Border Radii */
+  --radius-sm: 3px;
+  --radius-md: 5px;
 }
 
 @layer base {

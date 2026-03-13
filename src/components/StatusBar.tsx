@@ -41,14 +41,14 @@ export function StatusBar({
     >
       <div className='flex items-center justify-start flex-1 min-w-0'>
         <span
-          className={`text-[10px] font-mono tracking-wide truncate ${statusColorClass}`}
+          className={`text-xxs font-mono tracking-wide truncate ${statusColorClass}`}
         >
           {statusLabel}
         </span>
       </div>
 
       <div className='flex items-center justify-center shrink-0 min-w-0'>
-        <span className='text-[10px] text-overlay0 font-mono truncate'>
+        <span className='text-xxs text-overlay0 font-mono truncate'>
           {activeTab === 'ts'
             ? 'TypeScript'
             : activeTab === 'js'
@@ -67,7 +67,7 @@ export function StatusBar({
           tooltipAlign='right'
           size='sm'
           variant='ghost'
-          className='w-[20px] h-[20px] p-0 text-overlay1 hover:text-text shrink-0'
+          className='w-5 h-5 p-0 text-overlay1 hover:text-text shrink-0'
         >
           <Undo2 size={12} />
         </IconButton>
@@ -77,7 +77,7 @@ export function StatusBar({
           tooltipAlign='right'
           size='sm'
           variant='ghost'
-          className='w-[20px] h-[20px] p-0 text-overlay1 hover:text-text shrink-0'
+          className='w-5 h-5 p-0 text-overlay1 hover:text-text shrink-0'
         >
           <Redo2 size={12} />
         </IconButton>
@@ -88,7 +88,7 @@ export function StatusBar({
           tooltipAlign='right'
           size='sm'
           variant='ghost'
-          className='w-[20px] h-[20px] p-0 text-overlay1 hover:text-text shrink-0'
+          className='w-5 h-5 p-0 text-overlay1 hover:text-text shrink-0'
         >
           <Settings size={12} />
         </IconButton>

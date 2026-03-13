@@ -18,9 +18,6 @@ type Props = {
   contentHeight: number
 }
 
-const FONT =
-  "'Victor Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace"
-
 function typeVariant(
   type: ConsoleMessage['type']
 ): 'error' | 'warn' | 'info' | 'default' {
@@ -96,7 +93,7 @@ export const Console = React.memo(function Console({
               variant='ghost'
               size='sm'
               title='Clear console'
-              className='text-[11px] px-2 py-0.5 border border-surface1 flex items-center gap-1'
+              className='text-xs px-2 py-0.5 border border-surface1 flex items-center gap-1'
             >
               <Eraser size={12} />
               Clear
@@ -111,10 +108,7 @@ export const Console = React.memo(function Console({
           style={{ height: contentHeight }}
         >
           {messages.length === 0 ? (
-            <div
-              className='flex items-center justify-center h-full text-overlay0 text-xs italic'
-              style={{ fontFamily: FONT }}
-            >
+            <div className='flex items-center justify-center h-full text-overlay0 text-xs italic font-mono'>
               No output yet — press Run to execute
             </div>
           ) : (
@@ -132,11 +126,10 @@ export const Console = React.memo(function Console({
                 <Badge
                   label={typeLabel(m.type)}
                   variant={typeVariant(m.type)}
-                  className='mt-[2px]'
+                  className='mt-0.5'
                 />
                 <pre
-                  className={`m-0 p-0 text-xs leading-[18px] whitespace-pre-wrap break-words flex-1 ${typeColorClass(m.type)}`}
-                  style={{ fontFamily: FONT }}
+                  className={`m-0 p-0 text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}
                 >
                   {m.args.join(' ')}
                 </pre>

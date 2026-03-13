@@ -26,31 +26,31 @@ export function PanelHeader({
       onClick={onToggle}
       onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onToggle()}
       className={cn(
-        'flex items-center justify-between px-[12px] py-[6px] cursor-pointer select-none min-h-[32px] transition-colors duration-120 bg-mantle hover:bg-surface0',
+        'flex items-center justify-between px-3 py-1.5 cursor-pointer select-none min-h-8 transition-colors duration-150 bg-mantle hover:bg-surface0',
         className
       )}
     >
-      <div className='flex items-center gap-[7px]'>
-        <span className='font-mono text-[11px] font-bold tracking-[0.06em] uppercase text-subtext0'>
+      <div className='flex items-center gap-2'>
+        <span className='font-mono text-xs font-bold tracking-wider uppercase text-subtext0'>
           {label}
         </span>
         {left}
       </div>
 
-      <div className='flex items-center gap-[8px]'>
+      <div className='flex items-center gap-2'>
         {right && (
           <div
             onClick={(e) => {
               e.stopPropagation()
             }}
-            className='flex items-center gap-[6px]'
+            className='flex items-center gap-1.5'
           >
             {right}
           </div>
         )}
         <span
           className={cn(
-            'text-[12px] inline-block leading-none pointer-events-none transition-transform duration-200 text-overlay1',
+            'text-xs inline-block leading-none pointer-events-none transition-transform duration-200 text-overlay1',
             isOpen ? 'rotate-180' : 'rotate-0'
           )}
         >

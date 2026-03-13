@@ -34,8 +34,6 @@ const LINE_H = 20
 const PAD_TOP = 12
 const PAD_X = 12
 const GUTTER_W = 44
-const FONT =
-  "'Victor Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace"
 const FONT_SIZE = 13
 const CHAR_W = 7.8
 
@@ -107,7 +105,6 @@ const layerStyle = (contentHeight: number): React.CSSProperties => ({
   right: 0,
   margin: 0,
   padding: `${PAD_TOP}px ${PAD_X}px`,
-  fontFamily: FONT,
   fontSize: FONT_SIZE,
   lineHeight: `${LINE_H}px`,
   letterSpacing: '0',
@@ -532,7 +529,7 @@ export const CodeEditor = React.memo(
     )
 
     return (
-      <div className='relative w-full h-full overflow-hidden flex flex-col'>
+      <div className='relative w-full h-full overflow-hidden flex flex-col font-mono'>
         <div
           ref={scrollRef}
           onScroll={onScroll}
@@ -550,7 +547,6 @@ export const CodeEditor = React.memo(
               width: GUTTER_W,
               paddingTop: PAD_TOP,
               paddingBottom: PAD_TOP,
-              fontFamily: FONT,
               fontSize: FONT_SIZE,
               lineHeight: `${LINE_H}px`,
               paddingRight: 8,
@@ -582,7 +578,6 @@ export const CodeEditor = React.memo(
               className='absolute inset-0 invisible pointer-events-none -z-10 box-border whitespace-pre-wrap wrap-break-word'
               style={{
                 padding: `${PAD_TOP}px ${PAD_X}px`,
-                fontFamily: FONT,
                 fontSize: FONT_SIZE,
                 lineHeight: `${LINE_H}px`,
               }}
@@ -646,11 +641,10 @@ export const CodeEditor = React.memo(
 
             {completions.length > 0 && (
               <ul
-                className='hidden md:block absolute m-0 p-0 list-none bg-mantle border border-surface1 rounded-md shadow-[0_4px_12px_rgba(0,0,0,0.3)] z-50 max-h-[150px] overflow-y-auto min-w-[150px]'
+                className='hidden md:block absolute m-0 p-0 list-none bg-mantle border border-surface1 rounded-md shadow-lg shadow-black/30 z-50 max-h-[150px] overflow-y-auto min-w-[150px]'
                 style={{
                   top: popupPos.top,
                   left: popupPos.left,
-                  fontFamily: FONT,
                   fontSize: 12,
                 }}
               >
@@ -665,7 +659,7 @@ export const CodeEditor = React.memo(
                     }}
                   >
                     <span>{comp.name}</span>
-                    <span className='text-overlay0 text-[10px]'>
+                    <span className='text-overlay0 text-xxs'>
                       {comp.kind}
                     </span>
                   </li>

@@ -2,9 +2,6 @@ import React from 'react'
 import { type TypeInfo } from '../../hooks/useTypeInfo'
 import { type TSDiagnostic } from '../../hooks/useTSDiagnostics'
 
-const FONT =
-  "'Victor Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace"
-
 type TypeInfoBarProps = {
   typeInfo: TypeInfo | undefined
   activeDiag: TSDiagnostic | undefined
@@ -69,13 +66,13 @@ export function TypeInfoBar({
 
   return (
     <div
-      className='shrink-0 bg-mantle border-t border-surface0 py-[5px] pr-2.5 overflow-y-auto max-h-24 min-h-[26px] box-border pointer-events-auto text-[11px]'
-      style={{ paddingLeft: gutterW + 8, fontFamily: FONT }}
+      className='shrink-0 bg-mantle border-t border-surface0 py-1 pr-2.5 overflow-y-auto max-h-24 min-h-7 box-border pointer-events-auto text-xs font-mono'
+      style={{ paddingLeft: gutterW + 8 }}
     >
       {hasDiag && activeDiag && <DiagRow diag={activeDiag} />}
       {hasTypeInfo && typeInfo && <TypeRow info={typeInfo} />}
       {isEmpty && (
-        <span className='text-overlay0 text-[10px] italic'>
+        <span className='text-overlay0 text-xxs italic'>
           {language === 'typescript'
             ? 'Move cursor over a symbol for type info'
             : 'JavaScript output'}
@@ -98,7 +95,7 @@ function DiagRow({ diag }: { diag: TSDiagnostic }) {
       >
         {diag.message}
       </span>
-      <span className='text-overlay0 shrink-0 leading-4 text-[10px]'>
+      <span className='text-overlay0 shrink-0 leading-4 text-xxs'>
         [{diag.line + 1}:{diag.character + 1}]
       </span>
     </div>
@@ -111,10 +108,10 @@ function TypeRow({ info }: { info: TypeInfo }) {
   const kcBorder = kindBorderClass(info.kind)
 
   return (
-    <div className='flex flex-col gap-[3px]'>
-      <div className='flex items-baseline gap-[5px] flex-wrap'>
+    <div className='flex flex-col gap-1'>
+      <div className='flex items-baseline gap-1.5 flex-wrap'>
         <span
-          className={`text-[9px] font-bold tracking-[0.08em] uppercase rounded-[3px] px-1 py-px shrink-0 leading-3.5 border ${kc} ${kcBg} ${kcBorder}`}
+          className={`text-tiny font-bold tracking-wider uppercase rounded-sm px-1 py-px shrink-0 leading-tight border ${kc} ${kcBg} ${kcBorder}`}
         >
           {info.kind}
         </span>
@@ -126,13 +123,13 @@ function TypeRow({ info }: { info: TypeInfo }) {
       </div>
 
       {info.jsDoc && (
-        <div className='text-overlay1 text-[10px] italic whitespace-pre-wrap wrap-break-word leading-[15px] pl-1 border-l-2 border-surface1'>
+        <div className='text-overlay1 text-xxs italic whitespace-pre-wrap wrap-break-word leading-tight pl-1 border-l-2 border-surface1'>
           {renderWithLinks(info.jsDoc)}
         </div>
       )}
 
       {info.signature && info.signature !== info.typeAnnotation && (
-        <div className='text-overlay1 text-[10px] whitespace-pre-wrap wrap-break-word leading-[15px]'>
+        <div className='text-overlay1 text-xxs whitespace-pre-wrap wrap-break-word leading-tight'>
           {renderWithLinks(info.signature)}
         </div>
       )}

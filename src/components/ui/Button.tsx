@@ -42,7 +42,6 @@ export function Button({
 
   const handleTouchEnd = () => {
     if (touchTimer.current) clearTimeout(touchTimer.current)
-    // Tooltip auf Mobile nach dem Loslassen noch 2 Sekunden anzeigen
     setTimeout(() => {
       setShowTooltip(false)
     }, 2000)
@@ -68,34 +67,22 @@ export function Button({
       onClick={handleClick}
       disabled={disabled}
       aria-label={title}
-      onMouseLeave={() => {
-        setPressed(false)
-      }}
-      onMouseDown={() => {
-        setPressed(true)
-      }}
-      onMouseUp={() => {
-        setPressed(false)
-      }}
+      onMouseLeave={() => setPressed(false)}
+      onMouseDown={() => setPressed(true)}
+      onMouseUp={() => setPressed(false)}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchMove}
       className={cn(
-        'group relative px-[14px] py-[7px] text-[13px] font-inherit rounded-[5px] flex items-center gap-[5px] transition-all duration-120 whitespace-nowrap',
+        'group relative px-3.5 py-1.5 text-sm font-inherit rounded-md flex items-center gap-1.5 transition-all duration-150 whitespace-nowrap',
         variant === 'primary' ? 'font-bold' : 'font-medium',
-        disabled
-          ? 'cursor-not-allowed opacity-50'
-          : 'cursor-pointer opacity-100',
-        pressed && !disabled ? 'scale-[0.97]' : 'scale-100',
+        disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer opacity-100',
+        pressed && !disabled ? 'scale-95' : 'scale-100',
         {
-          'bg-green text-crust hover:bg-teal border-none':
-            variant === 'primary',
-          'bg-surface0 text-text hover:bg-surface1 border border-surface1':
-            variant === 'secondary',
-          'bg-red/15 text-red hover:bg-red/25 border border-red/40 hover:border-red/60':
-            variant === 'danger',
-          'bg-transparent text-text hover:bg-surface0 border-none':
-            variant === 'ghost',
+          'bg-green text-crust hover:bg-teal border-none': variant === 'primary',
+          'bg-surface0 text-text hover:bg-surface1 border border-surface1': variant === 'secondary',
+          'bg-red/15 text-red hover:bg-red/25 border border-red/40 hover:border-red/60': variant === 'danger',
+          'bg-transparent text-text hover:bg-surface0 border-none': variant === 'ghost',
         },
         className
       )}
@@ -105,7 +92,7 @@ export function Button({
       {title && (
         <div
           className={cn(
-            'absolute top-full mt-1.5 px-2 py-1 bg-crust text-text text-[11px] font-mono rounded border border-surface1 shadow-md z-50 pointer-events-none transition-opacity duration-150',
+            'absolute top-full mt-1.5 px-2 py-1 bg-crust text-text text-xs font-mono rounded-md border border-surface1 shadow-md z-50 pointer-events-none transition-opacity duration-150',
             'w-max max-w-[250px] whitespace-normal',
             tooltipAlign === 'center' && 'left-1/2 -translate-x-1/2 text-center',
             tooltipAlign === 'right' && 'right-0 text-right',

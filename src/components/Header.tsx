@@ -61,14 +61,14 @@ export function Header({
       </div>
 
       {/* Tabs */}
-      <div className='flex bg-surface0 rounded-[5px] p-[1px] gap-[1px] shrink'>
+      <div className='flex bg-surface0 rounded-md p-px gap-px shrink'>
         {TABS.map((tab) => (
           <button
             key={tab}
             onClick={() => {
               setActiveTab(tab)
             }}
-            className={`px-1.5 py-0.5 rounded border-none text-[9px] font-semibold font-mono cursor-pointer tracking-wide uppercase transition-all duration-160 ${
+            className={`px-1.5 py-0.5 rounded-md border-none text-tiny font-semibold font-mono cursor-pointer tracking-wide uppercase transition-all duration-150 ${
               activeTab === tab
                 ? 'bg-mauve/20 text-mauve'
                 : 'bg-transparent text-overlay1'
@@ -94,7 +94,7 @@ export function Header({
           tooltipAlign='right'
           size='sm'
           variant='surface'
-          className='w-[22px] h-[22px] p-0'
+          className='w-5.5 h-5.5 p-0'
         >
           {themeMode === 'mocha' ? <Sun size={14} /> : <Moon size={14} />}
         </IconButton>
@@ -109,7 +109,7 @@ export function Header({
           tooltipAlign='right'
           size='sm'
           variant='surface'
-          className={`w-[22px] h-[22px] p-0 ${copied ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}`}
+          className={`w-5.5 h-5.5 p-0 ${copied ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}`}
         >
           {copied ? <Check size={14} /> : <Copy size={14} />}
         </IconButton>
@@ -121,7 +121,7 @@ export function Header({
           tooltipAlign='right'
           size='sm'
           variant='surface'
-          className='w-[22px] h-[22px] p-0 text-red hover:text-red'
+          className='w-5.5 h-5.5 p-0 text-red hover:text-red'
         >
           <Trash2 size={14} />
         </IconButton>
@@ -134,7 +134,7 @@ export function Header({
           tooltipAlign='right'
           size='sm'
           variant='surface'
-          className={`w-[22px] h-[22px] p-0 ${formatSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}`}
+          className={`w-5.5 h-5.5 p-0 ${formatSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}`}
         >
           {formatting ? (
             <Loader2
@@ -158,7 +158,7 @@ export function Header({
           variant='primary'
           title='Run (compile + execute)'
           tooltipAlign='right'
-          className='font-mono tracking-wide px-2 py-0 h-[22px] min-w-[22px] text-[10px] gap-1.5'
+          className='font-mono tracking-wide px-2 py-0 h-5.5 min-w-5.5 text-xxs gap-1.5'
         >
           {isRunning ? (
             <Loader2
@@ -187,7 +187,7 @@ export function Header({
           size='sm'
           variant='surface'
           disabled={sharing}
-          className={`w-[22px] h-[22px] p-0 ${shareSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}`}
+          className={`w-5.5 h-5.5 p-0 ${shareSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''}`}
         >
           {sharing ? (
             <Loader2
