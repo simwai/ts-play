@@ -351,7 +351,7 @@ export const CodeEditor = React.memo(function CodeEditor({
           <textarea ref={textareaRef} value={value} readOnly={readOnly} onChange={handleTextChange} onKeyDown={onKeyDown} onSelect={updateTypeInfo} onClick={updateTypeInfo} onKeyUp={updateTypeInfo} onTouchStart={onTouchStart} spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" wrap="soft" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" className="text-transparent bg-transparent border-none outline-none resize-none z-20 caret-lavender" style={{ ...layerStyle(contentHeight), height: contentHeight, WebkitTextFillColor: 'transparent', cursor: readOnly ? 'default' : 'text', touchAction: 'pan-y', caretShape: 'bar' }} />
           
           {completions.length > 0 && (
-            <ul className="absolute m-0 p-0 list-none bg-mantle border border-surface1 rounded-md shadow-[0_4px_12px_rgba(0,0,0,0.3)] z-50 max-h-[150px] overflow-y-auto min-w-[150px]" style={{ top: popupPos.top, left: popupPos.left, fontFamily: FONT, fontSize: 12 }}>
+            <ul className="hidden md:block absolute m-0 p-0 list-none bg-mantle border border-surface1 rounded-md shadow-[0_4px_12px_rgba(0,0,0,0.3)] z-50 max-h-[150px] overflow-y-auto min-w-[150px]" style={{ top: popupPos.top, left: popupPos.left, fontFamily: FONT, fontSize: 12 }}>
               {completions.map((comp, i) => (
                 <li
                   key={comp.name}
