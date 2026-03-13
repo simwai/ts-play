@@ -4,7 +4,7 @@ import { cn } from '../../utils/cn'
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost'
 
 type ButtonProps = {
-  onClick?: () => void
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
   disabled?: boolean
   children: ReactNode
   variant?: Variant
@@ -26,14 +26,16 @@ export function Button({
   type = 'button',
   className,
 }: ButtonProps) {
-  const [hovered, setHovered] = useState(false)
   const [pressed, setPressed] = useState(false)
   const [showTooltip, setShowTooltip] = useState(false)
-  const touchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(null)
+  const touchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const isLongPress = useRef(false)
 
   const handleTouchStart = () => {
+    isLongPress.current = false
     if (touchTimer.current) clearTimeout(touchTimer.current)
     touchTimer.current = setTimeout(() => {
+      isLongPress.current = true
       setShowTooltip(true)
     }, 400)
   }
@@ -51,16 +53,22 @@ export function Button({
     setShowTooltip(false)
   }
 
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (isLongPress.current) {
+      e.preventDefault()
+      isLongPress.current = false
+      return
+    }
+    onClick?.(e)
+  }
+
   return (
     <button
       type={type}
-      onClick={onClick}
+      onClick={handleClick}
       disabled={disabled}
-      onMouseEnter={() => {
-        setHovered(true)
-      }}
+      aria-label={title}
       onMouseLeave={() => {
-        setHovered(false)
         setPressed(false)
       }}
       onMouseDown={() => {
