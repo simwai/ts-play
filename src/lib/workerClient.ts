@@ -44,6 +44,10 @@ class WorkerClient {
   updateExtraLibs(libs: Record<string, string>) { 
     return this.send<void>('UPDATE_EXTRA_LIBS', { libs }); 
   }
+
+  updateConfig(tsconfig: string) {
+    return this.send<void>('UPDATE_CONFIG', { tsconfig });
+  }
   
   getDiagnostics() { 
     return this.send<TSDiagnostic[]>('GET_DIAGNOSTICS'); 

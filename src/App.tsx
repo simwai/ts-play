@@ -59,6 +59,19 @@ async function fetchData(url: string): Promise<string> {
 console.log("Type:", typeof fetchData);
 `;
 
+const DEFAULT_TSCONFIG = `{
+  "compilerOptions": {
+    "strict": true,
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  }
+}`;
+
 // ── Custom Hooks (Kent C. Dodds Style Refactoring) ────────────────────────────
 
 function useConsoleManager() {
@@ -191,10 +204,19 @@ export function App() {
   const [dtsCode, setDtsCode] = useState(() => localStorage.getItem('tsplay_dts') ?? '// .d.ts declarations will appear here');
   const [activeTab, setActiveTab] = useState<'ts' | 'js' | 'dts'>('ts');
 
+  const [tsConfigStr, setTsConfigStr] = useState(() => localStorage.getItem('tsplay_tsconfig') ?? DEFAULT_TSCONFIG);
+  const [tempTsConfig, setTempTsConfig] = useState(tsConfigStr);
+
   // Persist code to localStorage whenever it changes
   useEffect(() => { localStorage.setItem('tsplay_ts', tsCode); }, [tsCode]);
   useEffect(() => { localStorage.setItem('tsplay_js', jsCode); }, [jsCode]);
   useEffect(() => { localStorage.setItem('tsplay_dts', dtsCode); }, [dtsCode]);
+  useEffect(() => { localStorage.setItem('tsplay_tsconfig', tsConfigStr); }, [tsConfigStr]);
+
+  // Send tsconfig to worker whenever it changes
+  useEffect(() => {
+    workerClient.updateConfig(tsConfigStr).catch(console.error);
+  }, [tsConfigStr]);
 
   const [jsDirty, setJsDirty] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -826,7 +848,10 @@ export function App() {
           </IconButton>
           <div className="w-px h-2.5 bg-surface1 mx-0.5 shrink-0" />
           <IconButton
-            onClick={() => setShowSettings(true)}
+            onClick={() => {
+              setTempTsConfig(tsConfigStr);
+              setShowSettings(true);
+            }}
             title="Settings"
             tooltipAlign="right"
             size="sm"
@@ -952,14 +977,31 @@ export function App() {
                 <label className="text-xs font-bold text-subtext0">tsconfig.json</label>
                 <textarea 
                   className="bg-surface0 border border-surface1 rounded px-2 py-1.5 text-sm text-text outline-none focus:border-mauve font-mono resize-y min-h-[120px]"
-                  defaultValue={'{\n  "compilerOptions": {\n    "strict": true,\n    "target": "ESNext"\n  }\n}'}
+                  value={tempTsConfig}
+                  onChange={e => setTempTsConfig(e.target.value)}
                   spellCheck={false}
                 />
+                {(() => {
+                  try {
+                    JSON.parse(tempTsConfig);
+                    return null;
+                  } catch (e) {
+                    return <span className="text-[10px] text-red">Invalid JSON. Fallback config will be used.</span>;
+                  }
+                })()}
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-surface0 bg-base">
               <Button onClick={() => setShowSettings(false)} variant="ghost">Cancel</Button>
-              <Button onClick={() => setShowSettings(false)} variant="primary">Save Changes</Button>
+              <Button 
+                onClick={() => {
+                  setTsConfigStr(tempTsConfig);
+                  setShowSettings(false);
+                }} 
+                variant="primary"
+              >
+                Save Changes
+              </Button>
             </div>
           </div>
         </div>

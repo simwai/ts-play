@@ -112,6 +112,22 @@ declare var global: any;
 declare var Buffer: any;
 `;
 
+const defaultCompilerOptions: TS.CompilerOptions = {
+  target: TS.ScriptTarget.ES2020,
+  module: TS.ModuleKind.ESNext,
+  moduleResolution: 100, // TS.ModuleResolutionKind.Bundler
+  resolveJsonModule: true,
+  allowImportingTsExtensions: true,
+  lib: Object.keys(rawLibs),
+  esModuleInterop: true,
+  strict: true,
+  skipLibCheck: true,
+  suppressExcessPropertyErrors: true,
+  noImplicitAny: false,
+};
+
+let currentCompilerOptions: TS.CompilerOptions = { ...defaultCompilerOptions };
+
 function ensureRequiredLibsLoaded() {
   for (const [fileName, content] of Object.entries(rawLibs)) {
     if (content) libFiles[fileName] = { version: 1, content };
@@ -121,19 +137,6 @@ function ensureRequiredLibsLoaded() {
 
 async function initLanguageService() {
   if (ls) return;
-  const compilerOptions: TS.CompilerOptions = {
-    target: TS.ScriptTarget.ES2020,
-    module: TS.ModuleKind.ESNext,
-    moduleResolution: 100, // TS.ModuleResolutionKind.Bundler (supports package.json "exports")
-    resolveJsonModule: true,
-    allowImportingTsExtensions: true,
-    lib: Object.keys(rawLibs),
-    esModuleInterop: true,
-    strict: true,
-    skipLibCheck: true,
-    suppressExcessPropertyErrors: true,
-    noImplicitAny: false,
-  };
 
   const host: TS.LanguageServiceHost = {
     getScriptFileNames: () => ['/main.ts', ...Object.keys(libFiles).map(n => `/${n}`), ...Object.keys(extraLibs)],
@@ -157,7 +160,7 @@ async function initLanguageService() {
       return undefined;
     },
     getCurrentDirectory: () => "/",
-    getCompilationSettings: () => compilerOptions,
+    getCompilationSettings: () => currentCompilerOptions,
     getDefaultLibFileName: () => '/lib.es2020.d.ts',
     fileExists: (fileName) => {
       const normalized = fileName.replace(/^\/+/, '');
@@ -472,6 +475,30 @@ self.onmessage = async (e: MessageEvent) => {
 
       case 'UPDATE_EXTRA_LIBS': {
         extraLibs = payload.libs;
+        result = true;
+        break;
+      }
+
+      case 'UPDATE_CONFIG': {
+        try {
+          const parsed = JSON.parse(payload.tsconfig);
+          const { options } = TS.convertCompilerOptionsFromJson(parsed.compilerOptions || {}, '/');
+          currentCompilerOptions = {
+            ...defaultCompilerOptions,
+            ...options,
+            // Force these to ensure the playground doesn't break
+            moduleResolution: 100, 
+            allowImportingTsExtensions: true,
+          };
+        } catch (err) {
+          // Fallback to default if JSON is invalid
+          currentCompilerOptions = { ...defaultCompilerOptions };
+        }
+        
+        // Force a version bump on main.ts to trigger re-evaluation with new options
+        if (files['main.ts']) {
+          files['main.ts'].version += 1;
+        }
         result = true;
         break;
       }
