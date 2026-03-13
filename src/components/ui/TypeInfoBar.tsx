@@ -66,7 +66,7 @@ export function TypeInfoBar({
 
   return (
     <div
-      className='shrink-0 bg-mantle border-t border-surface0 py-2 pr-4 overflow-y-auto max-h-32 min-h-8 box-border pointer-events-auto text-sm font-mono'
+      className='shrink-0 bg-mantle border-t border-surface0 py-2 pr-4 overflow-y-auto max-h-32 min-h-8 box-border pointer-events-auto text-xs font-mono'
       style={{ paddingLeft: gutterW + 16 }}
     >
       {hasDiag && activeDiag && <DiagRow diag={activeDiag} />}
@@ -87,15 +87,15 @@ function DiagRow({ diag }: { diag: TSDiagnostic }) {
   const colorClass = isError ? 'text-red' : 'text-yellow'
   return (
     <div className='flex items-start gap-2'>
-      <span className={`${colorClass} shrink-0 leading-5`}>
+      <span className={`${colorClass} shrink-0 leading-relaxed`}>
         {isError ? '✖' : '⚠'}
       </span>
       <span
-        className={`${colorClass} whitespace-pre-wrap wrap-break-word leading-5 flex-1`}
+        className={`${colorClass} whitespace-pre-wrap wrap-break-word leading-relaxed flex-1`}
       >
         {diag.message}
       </span>
-      <span className='text-overlay0 shrink-0 leading-5 text-xs'>
+      <span className='text-overlay0 shrink-0 leading-relaxed text-xs'>
         [{diag.line + 1}:{diag.character + 1}]
       </span>
     </div>
@@ -109,9 +109,9 @@ function TypeRow({ info }: { info: TypeInfo }) {
 
   return (
     <div className='flex flex-col gap-1.5'>
-      <div className='flex items-baseline gap-2 flex-wrap'>
+      <div className='flex items-baseline gap-2 flex-wrap leading-relaxed'>
         <span
-          className={`text-xs font-bold tracking-wider uppercase rounded-md px-1.5 py-0.5 shrink-0 leading-tight border ${kc} ${kcBg} ${kcBorder}`}
+          className={`text-xxs font-bold tracking-wider uppercase rounded-md px-1.5 py-0.5 shrink-0 leading-tight border ${kc} ${kcBg} ${kcBorder}`}
         >
           {info.kind}
         </span>
