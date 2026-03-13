@@ -1063,10 +1063,10 @@ export function App() {
 
       {/* ── Status bar ── */}
       <div
-        className='grid grid-cols-3 items-center px-3.5 bg-crust border-b border-surface0 shrink-0 relative z-30'
+        className='flex items-center justify-between px-3.5 bg-crust border-b border-surface0 shrink-0 relative z-30 gap-2'
         style={{ height: compactForKeyboard ? 20 : 24 }}
       >
-        <div className='flex items-center justify-start min-w-0'>
+        <div className='flex items-center justify-start flex-1 min-w-0'>
           <span
             className={`text-[10px] font-mono tracking-wide truncate ${statusColorClass}`}
           >
@@ -1074,7 +1074,7 @@ export function App() {
           </span>
         </div>
 
-        <div className='flex items-center justify-center min-w-0'>
+        <div className='flex items-center justify-center shrink-0 min-w-0'>
           <span className='text-[10px] text-overlay0 font-mono truncate'>
             {activeTab === 'ts'
               ? 'TypeScript'
@@ -1087,7 +1087,7 @@ export function App() {
           </span>
         </div>
 
-        <div className='flex items-center justify-end gap-1 min-w-0'>
+        <div className='flex items-center justify-end gap-1 flex-1 min-w-0'>
           <IconButton
             onClick={() => document.execCommand('undo')}
             title='Undo'

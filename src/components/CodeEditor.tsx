@@ -140,14 +140,14 @@ export const CodeEditor = React.memo(function CodeEditor({
   const rafRef = useRef<number>(0)
 
   const { getTypeInfo } = useTypeInfo()
-  const [typeInfo, setTypeInfo] = useState<TypeInfo | undefined>(null)
+  const [typeInfo, setTypeInfo] = useState<TypeInfo | undefined>(undefined)
   const [lineHeights, setLineHeights] = useState<number[]>([])
   const diagnostics = useTSDiagnostics(
     value,
     language === 'typescript',
     extraLibs
   )
-  const [activeDiag, setActiveDiag] = useState<TSDiagnostic | undefined>(null)
+  const [activeDiag, setActiveDiag] = useState<TSDiagnostic | undefined>(undefined)
 
   const [completions, setCompletions] = useState<any[]>([])
   const [selIndex, setSelIndex] = useState(0)
@@ -469,11 +469,11 @@ export const CodeEditor = React.memo(function CodeEditor({
     if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(async () => {
       const info = await getTypeInfo(value, pos)
-      setTypeInfo(info ?? null)
+      setTypeInfo(info ?? undefined)
       const diag = diagnostics.find(
         (d) => pos >= d.start && pos <= d.start + d.length
       )
-      setActiveDiag(diag ?? null)
+      setActiveDiag(diag ?? undefined)
       scrollSelectionIntoView()
     }, 80)
   }, [value, getTypeInfo, diagnostics, scrollSelectionIntoView, onCursorChange])
@@ -556,7 +556,7 @@ export const CodeEditor = React.memo(function CodeEditor({
           <div
             ref={measureRef}
             aria-hidden
-            className='absolute inset-0 invisible pointer-events-none -z-10 box-border whitespace-pre-wrap break-words'
+            className='absolute inset-0 invisible pointer-events-none -z-10 box-border whitespace-pre-wrap wrap-break-word'
             style={{
               padding: `${PAD_TOP}px ${PAD_X}px`,
               fontFamily: FONT,
