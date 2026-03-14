@@ -214,7 +214,7 @@ async function initLanguageService() {
       return [...dirs]
     },
     // Added readDirectory to fully support TS module resolution in virtual FS
-    readDirectory(path, extensions, exclude, include, depth) {
+    readDirectory(path, extensions, _exclude, _include, _depth) {
       const normalized = path === '/' ? '/' : '/' + path.replace(/^\/+/, '').replace(/\/+$/, '') + '/'
       const results: string[] = []
       
