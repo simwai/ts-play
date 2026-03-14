@@ -73,7 +73,9 @@ class WorkerClient {
   }
 
   async validateConfig(tsconfig: string) {
-    return this.send<{ valid: boolean; error?: string }>('VALIDATE_CONFIG', { tsconfig })
+    return this.send<{ valid: boolean; error?: string }>('VALIDATE_CONFIG', {
+      tsconfig,
+    })
   }
 
   async getDiagnostics() {

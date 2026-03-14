@@ -52,9 +52,10 @@ export function SettingsModal({
       const ta = e.currentTarget
       const start = ta.selectionStart
       const end = ta.selectionEnd
-      const next = temporaryTsConfig.slice(0, start) + '  ' + temporaryTsConfig.slice(end)
+      const next =
+        temporaryTsConfig.slice(0, start) + '  ' + temporaryTsConfig.slice(end)
       setTemporaryTsConfig(next)
-      
+
       // Synchronously restore cursor position after React updates the DOM
       setTimeout(() => {
         ta.selectionStart = ta.selectionEnd = start + 2
@@ -97,7 +98,7 @@ export function SettingsModal({
             <label className='text-sm font-bold text-subtext0'>
               TypeScript Version
             </label>
-            <select 
+            <select
               disabled
               className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none opacity-60 cursor-not-allowed'
             >
