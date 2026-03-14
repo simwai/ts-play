@@ -36,6 +36,20 @@ export function SettingsModal({
     const timer = setTimeout(async () => {
       try {
         const res = await workerClient.validateConfig(temporaryTsConfig)
+        
+        if (!res.valid) {
+          // Try formatting with json5 to see if it resolves the issue (e.g., unquoted keys)
+          const formatted = await formatJson(temporaryTsConfig)
+          if (formatted !== temporaryTsConfig) {
+            const formattedRes = await workerClient.validateConfig(formatted)
+            if (formattedRes.valid) {
+              setIsValid(true)
+              setErrorMsg('Syntax will be auto-formatted on save (e.g., adding missing quotes).')
+              return
+            }
+          }
+        }
+
         setIsValid(res.valid)
         setErrorMsg(res.error || null)
       } catch {
@@ -121,8 +135,8 @@ export function SettingsModal({
               onKeyDown={handleKeyDown}
               spellCheck={false}
             />
-            {!isValid && errorMsg && (
-              <span className='text-xs text-red whitespace-pre-wrap'>
+            {errorMsg && (
+              <span className={`text-xs whitespace-pre-wrap ${isValid ? 'text-yellow' : 'text-red'}`}>
                 {errorMsg}
               </span>
             )}
