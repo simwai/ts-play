@@ -127,7 +127,8 @@ const defaultCompilerOptions: TS.CompilerOptions = {
 }
 
 let currentCompilerOptions: TS.CompilerOptions = { ...defaultCompilerOptions }
-let currentTsConfigRaw: string | undefined
+// Store the parsed object instead of the raw string to prevent esbuild crashes on invalid JSON
+let currentTsConfigParsed: esbuild.TsconfigRaw | undefined
 
 function ensureRequiredLibsLoaded() {
   for (const [fileName, content] of Object.entries(rawLibs)) {
@@ -151,9 +152,9 @@ async function initLanguageService() {
       if (normalized === 'main.ts')
         return String(files['main.ts']?.version ?? 0)
       if (libFiles[normalized]) return String(libFiles[normalized].version)
-      if (extraLibs[fileName]) return String(extraLibs[fileName].length)
-      if (extraLibs['/' + normalized])
-        return String(extraLibs['/' + normalized].length)
+      // extraLibs are immutable per update, so version 1 is safe and avoids length collisions
+      if (extraLibs[fileName] !== undefined || extraLibs['/' + normalized] !== undefined) 
+        return '1'
       return '0'
     },
     getScriptSnapshot(fileName) {
@@ -211,6 +212,19 @@ async function initLanguageService() {
       }
 
       return [...dirs]
+    },
+    // Added readDirectory to fully support TS module resolution in virtual FS
+    readDirectory(path, extensions, exclude, include, depth) {
+      const normalized = path === '/' ? '/' : '/' + path.replace(/^\/+/, '').replace(/\/+$/, '') + '/'
+      const results: string[] = []
+      
+      for (const file of Object.keys(extraLibs)) {
+        if (file.startsWith(normalized)) {
+          if (extensions && !extensions.some(ext => file.endsWith(ext))) continue
+          results.push(file)
+        }
+      }
+      return results
     },
     useCaseSensitiveFileNames: () => true,
     getNewLine: () => '\n',
@@ -559,13 +573,15 @@ globalThis.onmessage = async (e: MessageEvent) => {
       }
 
       case 'UPDATE_CONFIG': {
-        currentTsConfigRaw = payload.tsconfig
         try {
           const { config, error } = TS.parseConfigFileTextToJson(
             'tsconfig.json',
             payload.tsconfig
           )
           if (error) throw new Error('Invalid config')
+
+          // Store the parsed object for esbuild to prevent crashes on invalid JSON
+          currentTsConfigParsed = config
 
           const { options } = TS.convertCompilerOptionsFromJson(
             config?.compilerOptions || {},
@@ -581,6 +597,7 @@ globalThis.onmessage = async (e: MessageEvent) => {
         } catch {
           // Fallback to default if JSON is invalid
           currentCompilerOptions = { ...defaultCompilerOptions }
+          currentTsConfigParsed = undefined
         }
 
         // Force a version bump on main.ts to trigger re-evaluation with new options
@@ -735,7 +752,7 @@ globalThis.onmessage = async (e: MessageEvent) => {
           bundle: false, // Do not bundle external dependencies, WebContainer handles them
           format: 'esm',
           target: 'es2020',
-          tsconfigRaw: currentTsConfigRaw,
+          tsconfigRaw: currentTsConfigParsed, // Pass the parsed object instead of raw string
           write: false,
           sourcemap: false,
           stdin: {
