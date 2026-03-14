@@ -36,7 +36,7 @@ export function SettingsModal({
     const timer = setTimeout(async () => {
       try {
         const res = await workerClient.validateConfig(temporaryTsConfig)
-        
+
         if (!res.valid) {
           // Try formatting with json5 to see if it resolves the issue (e.g., unquoted keys)
           const formatted = await formatJson(temporaryTsConfig)
@@ -44,7 +44,9 @@ export function SettingsModal({
             const formattedRes = await workerClient.validateConfig(formatted)
             if (formattedRes.valid) {
               setIsValid(true)
-              setErrorMsg('Syntax will be auto-formatted on save (e.g., adding missing quotes).')
+              setErrorMsg(
+                'Syntax will be auto-formatted on save (e.g., adding missing quotes).'
+              )
               return
             }
           }
@@ -136,7 +138,9 @@ export function SettingsModal({
               spellCheck={false}
             />
             {errorMsg && (
-              <span className={`text-xs whitespace-pre-wrap ${isValid ? 'text-yellow' : 'text-red'}`}>
+              <span
+                className={`text-xs whitespace-pre-wrap ${isValid ? 'text-yellow' : 'text-red'}`}
+              >
                 {errorMsg}
               </span>
             )}
