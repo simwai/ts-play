@@ -33,6 +33,20 @@ export async function formatCode(
   return formatted
 }
 
+export async function formatJson(code: string): Promise<string> {
+  try {
+    return await prettier.format(code, {
+      parser: 'json5', // json5 safely supports comments and trailing commas
+      plugins: [prettierPluginBabel, prettierPluginEstree],
+      printWidth: 80,
+      tabWidth: 2,
+      useTabs: false,
+    })
+  } catch {
+    return code // Fallback to raw if formatting fails
+  }
+}
+
 export async function formatAllFiles(
   tsCode: string,
   jsCode: string,

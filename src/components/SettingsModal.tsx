@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Button } from './ui/Button'
 import { IconButton } from './ui/IconButton'
+import { workerClient } from '../lib/workerClient'
+import { formatJson } from '../lib/formatter'
 
 type SettingsModalProps = {
   isOpen: boolean
@@ -16,12 +18,63 @@ export function SettingsModal({
   onSave,
 }: SettingsModalProps) {
   const [temporaryTsConfig, setTemporaryTsConfig] = useState(tsConfigString)
+  const [isValid, setIsValid] = useState(true)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [isFormatting, setIsFormatting] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
       setTemporaryTsConfig(tsConfigString)
+      setIsValid(true)
+      setErrorMsg(null)
     }
   }, [isOpen, tsConfigString])
+
+  // Debounced validation via the worker
+  useEffect(() => {
+    if (!isOpen) return
+    const timer = setTimeout(async () => {
+      try {
+        const res = await workerClient.validateConfig(temporaryTsConfig)
+        setIsValid(res.valid)
+        setErrorMsg(res.error || null)
+      } catch {
+        setIsValid(false)
+        setErrorMsg('Validation failed')
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [temporaryTsConfig, isOpen])
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      const ta = e.currentTarget
+      const start = ta.selectionStart
+      const end = ta.selectionEnd
+      const next = temporaryTsConfig.slice(0, start) + '  ' + temporaryTsConfig.slice(end)
+      setTemporaryTsConfig(next)
+      
+      // Synchronously restore cursor position after React updates the DOM
+      setTimeout(() => {
+        ta.selectionStart = ta.selectionEnd = start + 2
+      }, 0)
+    }
+  }
+
+  const handleSave = async () => {
+    if (!isValid) return
+    setIsFormatting(true)
+    try {
+      const formatted = await formatJson(temporaryTsConfig)
+      onSave(formatted)
+    } catch {
+      onSave(temporaryTsConfig) // Fallback to raw if formatting fails
+    } finally {
+      setIsFormatting(false)
+      onClose()
+    }
+  }
 
   if (!isOpen) return null
 
@@ -44,11 +97,15 @@ export function SettingsModal({
             <label className='text-sm font-bold text-subtext0'>
               TypeScript Version
             </label>
-            <select className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none focus:border-mauve'>
+            <select 
+              disabled
+              className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none opacity-60 cursor-not-allowed'
+            >
               <option>5.9.3 (Default)</option>
-              <option>5.8.2</option>
-              <option>5.7.3</option>
             </select>
+            <span className='text-xs text-overlay0'>
+              Version switching is not yet supported.
+            </span>
           </div>
           <div className='flex flex-col gap-2'>
             <label className='text-sm font-bold text-subtext0'>
@@ -60,20 +117,14 @@ export function SettingsModal({
               onChange={(e) => {
                 setTemporaryTsConfig(e.target.value)
               }}
+              onKeyDown={handleKeyDown}
               spellCheck={false}
             />
-            {(() => {
-              try {
-                JSON.parse(temporaryTsConfig)
-                return null
-              } catch {
-                return (
-                  <span className='text-xs text-red'>
-                    Invalid JSON. Fallback config will be used.
-                  </span>
-                )
-              }
-            })()}
+            {!isValid && errorMsg && (
+              <span className='text-xs text-red whitespace-pre-wrap'>
+                {errorMsg}
+              </span>
+            )}
           </div>
         </div>
         <div className='flex items-center justify-end gap-3 px-6 py-4 border-t border-surface0 bg-base'>
@@ -84,13 +135,11 @@ export function SettingsModal({
             Cancel
           </Button>
           <Button
-            onClick={() => {
-              onSave(temporaryTsConfig)
-              onClose()
-            }}
+            onClick={handleSave}
             variant='primary'
+            disabled={!isValid || isFormatting}
           >
-            Save Changes
+            {isFormatting ? 'Saving...' : 'Save Changes'}
           </Button>
         </div>
       </div>

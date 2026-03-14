@@ -559,9 +559,14 @@ globalThis.onmessage = async (e: MessageEvent) => {
 
       case 'UPDATE_CONFIG': {
         try {
-          const parsed = JSON.parse(payload.tsconfig)
+          const { config, error } = TS.parseConfigFileTextToJson(
+            'tsconfig.json',
+            payload.tsconfig
+          )
+          if (error) throw new Error('Invalid config')
+
           const { options } = TS.convertCompilerOptionsFromJson(
-            parsed.compilerOptions || {},
+            config?.compilerOptions || {},
             '/'
           )
           currentCompilerOptions = {
@@ -582,6 +587,25 @@ globalThis.onmessage = async (e: MessageEvent) => {
         }
 
         result = true
+        break
+      }
+
+      case 'VALIDATE_CONFIG': {
+        const { error } = TS.parseConfigFileTextToJson(
+          'tsconfig.json',
+          payload.tsconfig
+        )
+        if (error) {
+          let message = 'Invalid JSON'
+          try {
+            message = TS.flattenDiagnosticMessageText(error.messageText, '\n')
+          } catch {
+            message = String(error.messageText)
+          }
+          result = { valid: false, error: message }
+        } else {
+          result = { valid: true }
+        }
         break
       }
 

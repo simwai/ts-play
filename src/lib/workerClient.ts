@@ -72,6 +72,10 @@ class WorkerClient {
     return this.send<void>('UPDATE_CONFIG', { tsconfig })
   }
 
+  async validateConfig(tsconfig: string) {
+    return this.send<{ valid: boolean; error?: string }>('VALIDATE_CONFIG', { tsconfig })
+  }
+
   async getDiagnostics() {
     return this.send<TSDiagnostic[]>('GET_DIAGNOSTICS')
   }
