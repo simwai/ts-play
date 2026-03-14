@@ -11,6 +11,20 @@ type SettingsModalProps = {
   onSave: (newConfig: string) => void
 }
 
+// Helper to automatically add double quotes to unquoted JSON keys
+function fixLooseJson(code: string): string {
+  return code.replace(/([a-zA-Z_$][\w$]*)\s*:/g, (match, key, offset, str) => {
+    let i = offset - 1
+    while (i >= 0 && /\s/.test(str[i])) i--
+    // If the key is already preceded by a quote, leave it alone
+    if (str[i] === '"' || str[i] === "'") {
+      return match
+    }
+    // Otherwise, wrap the key in double quotes
+    return `"${key}":`
+  })
+}
+
 export function SettingsModal({
   isOpen,
   onClose,
@@ -38,11 +52,11 @@ export function SettingsModal({
         const res = await workerClient.validateConfig(temporaryTsConfig)
 
         if (!res.valid) {
-          // Try formatting with json5 to see if it resolves the issue (e.g., unquoted keys)
-          const formatted = await formatJson(temporaryTsConfig)
-          if (formatted !== temporaryTsConfig) {
-            const formattedRes = await workerClient.validateConfig(formatted)
-            if (formattedRes.valid) {
+          // Try fixing unquoted keys before giving up
+          const fixed = fixLooseJson(temporaryTsConfig)
+          if (fixed !== temporaryTsConfig) {
+            const fixedRes = await workerClient.validateConfig(fixed)
+            if (fixedRes.valid) {
               setIsValid(true)
               setErrorMsg(
                 'Syntax will be auto-formatted on save (e.g., adding missing quotes).'
@@ -83,10 +97,24 @@ export function SettingsModal({
     if (!isValid) return
     setIsFormatting(true)
     try {
-      const formatted = await formatJson(temporaryTsConfig)
-      onSave(formatted)
+      let toSave = temporaryTsConfig
+
+      // If it's currently invalid but fixable, fix it first
+      const res = await workerClient.validateConfig(toSave)
+      if (!res.valid) {
+        const fixed = fixLooseJson(toSave)
+        const fixedRes = await workerClient.validateConfig(fixed)
+        if (fixedRes.valid) {
+          toSave = fixed
+        }
+      }
+
+      const formatted = await formatJson(toSave)
+      // Ensure Prettier didn't strip quotes (json5 parser sometimes does)
+      const finalSave = fixLooseJson(formatted)
+      onSave(finalSave)
     } catch {
-      onSave(temporaryTsConfig) // Fallback to raw if formatting fails
+      onSave(fixLooseJson(temporaryTsConfig)) // Fallback
     } finally {
       setIsFormatting(false)
       onClose()

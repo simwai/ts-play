@@ -41,6 +41,7 @@ export async function formatJson(code: string): Promise<string> {
       printWidth: 80,
       tabWidth: 2,
       useTabs: false,
+      quoteProps: 'preserve', // Ensures Prettier doesn't strip the quotes we just added
     })
   } catch {
     return code // Fallback to raw if formatting fails
