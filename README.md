@@ -23,9 +23,11 @@ But we didn't stop at a simple editor. We packed a full Node.js environment righ
 ## ✨ Features
 
 - **WebContainers Inside:** Run real Node.js directly in your browser. No backend execution required.
-- **Auto npm Installs:** Just type `import React from 'react'` and watch TSPlay automatically detect and install the package in the background.
-- **TypeScript Language Service:** Running in a dedicated Web Worker, providing real-time diagnostics, type information on hover/tap, and smart autocomplete.
-- **Prettier Formatting:** Built-in code formatting to keep your snippets clean.
+- **Auto npm Installs:** Just type `import React from 'react'` and watch TSPlay automatically detect, install, and fetch typings in the background.
+- **TypeScript Language Service:** Runs in a dedicated Web Worker, providing real-time diagnostics, smart autocomplete, and type information on hover (or tap on mobile).
+- **True Mobile UX:** Features swipe-to-change tabs, dynamic virtual keyboard avoidance, and responsive font scaling for the ultimate smartphone coding experience.
+- **Customizable Compiler:** Edit your `tsconfig.json` on the fly with native TS validation, auto-formatting, and instant compiler updates.
+- **Prettier Formatting:** Built-in code formatting for TS, JS, and JSON to keep your snippets clean.
 - **Shareable Snippets:** Share your code instantly via compressed URLs (client-side only) or our lightweight PHP backend.
 - **Offline Capable:** Once loaded, the core editor and compiler work entirely in your browser.
 
