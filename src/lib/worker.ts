@@ -153,7 +153,10 @@ async function initLanguageService() {
         return String(files['main.ts']?.version ?? 0)
       if (libFiles[normalized]) return String(libFiles[normalized].version)
       // extraLibs are immutable per update, so version 1 is safe and avoids length collisions
-      if (extraLibs[fileName] !== undefined || extraLibs['/' + normalized] !== undefined) 
+      if (
+        extraLibs[fileName] !== undefined ||
+        extraLibs['/' + normalized] !== undefined
+      )
         return '1'
       return '0'
     },
@@ -215,12 +218,16 @@ async function initLanguageService() {
     },
     // Added readDirectory to fully support TS module resolution in virtual FS
     readDirectory(path, extensions, _exclude, _include, _depth) {
-      const normalized = path === '/' ? '/' : '/' + path.replace(/^\/+/, '').replace(/\/+$/, '') + '/'
+      const normalized =
+        path === '/'
+          ? '/'
+          : '/' + path.replace(/^\/+/, '').replace(/\/+$/, '') + '/'
       const results: string[] = []
-      
+
       for (const file of Object.keys(extraLibs)) {
         if (file.startsWith(normalized)) {
-          if (extensions && !extensions.some(ext => file.endsWith(ext))) continue
+          if (extensions && !extensions.some((ext) => file.endsWith(ext)))
+            continue
           results.push(file)
         }
       }
