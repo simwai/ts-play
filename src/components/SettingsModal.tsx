@@ -3,6 +3,7 @@ import { Button } from './ui/Button'
 import { IconButton } from './ui/IconButton'
 import { workerClient } from '../lib/workerClient'
 import { formatJson } from '../lib/formatter'
+import { DEFAULT_TSCONFIG } from '../lib/constants'
 
 type SettingsModalProps = {
   isOpen: boolean
@@ -175,6 +176,13 @@ export function SettingsModal({
           </div>
         </div>
         <div className='flex items-center justify-end gap-3 px-6 py-4 border-t border-surface0 bg-base'>
+          <Button
+            onClick={() => setTemporaryTsConfig(DEFAULT_TSCONFIG)}
+            variant='ghost'
+            className='mr-auto text-red hover:bg-red/10'
+          >
+            Reset to Default
+          </Button>
           <Button
             onClick={onClose}
             variant='ghost'

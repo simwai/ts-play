@@ -127,6 +127,7 @@ const defaultCompilerOptions: TS.CompilerOptions = {
 }
 
 let currentCompilerOptions: TS.CompilerOptions = { ...defaultCompilerOptions }
+let currentTsConfigRaw: string | undefined
 
 function ensureRequiredLibsLoaded() {
   for (const [fileName, content] of Object.entries(rawLibs)) {
@@ -558,6 +559,7 @@ globalThis.onmessage = async (e: MessageEvent) => {
       }
 
       case 'UPDATE_CONFIG': {
+        currentTsConfigRaw = payload.tsconfig
         try {
           const { config, error } = TS.parseConfigFileTextToJson(
             'tsconfig.json',
@@ -733,6 +735,7 @@ globalThis.onmessage = async (e: MessageEvent) => {
           bundle: false, // Do not bundle external dependencies, WebContainer handles them
           format: 'esm',
           target: 'es2020',
+          tsconfigRaw: currentTsConfigRaw,
           write: false,
           sourcemap: false,
           stdin: {

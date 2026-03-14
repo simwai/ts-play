@@ -19,7 +19,7 @@ import { shareSnippet, loadSharedSnippet } from './lib/api'
 import { useConsoleManager } from './hooks/useConsoleManager'
 import { useCompilerManager } from './hooks/useCompilerManager'
 import { usePackageManager } from './hooks/usePackageManager'
-import { TABS, type TabType } from './lib/constants'
+import { TABS, type TabType, DEFAULT_TSCONFIG } from './lib/constants'
 
 const DEFAULT_TS = `// TypeScript Playground
 // Long-press any word on mobile to see type info ✨
@@ -63,19 +63,6 @@ async function fetchData(url: string): Promise<string> {
 
 console.log("Type:", typeof fetchData);
 `
-
-const DEFAULT_TSCONFIG = `{
-  "compilerOptions": {
-    "strict": true,
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "resolveJsonModule": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true
-  }
-}`
 
 export function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('mocha')
