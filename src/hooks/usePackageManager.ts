@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { workerClient } from '../lib/workerClient'
-import { runCommand } from '../lib/webcontainer'
+import { runCommand, getWebContainer } from '../lib/webcontainer'
 import { syncNodeModulesToWorker } from '../lib/typings'
 import type { InstalledPackage } from '../components/PackageManager'
 import type { ConsoleMessage } from '../components/Console'
@@ -57,6 +57,13 @@ export function usePackageManager(
   useEffect(() => {
     checkImports()
   }, [tsCode, checkImports])
+
+  // Trigger check when WebContainer is ready
+  useEffect(() => {
+    getWebContainer().then(() => {
+      checkImports()
+    })
+  }, [checkImports])
 
   // Background NPM Install/Uninstall Queue
   useEffect(() => {
