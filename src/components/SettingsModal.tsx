@@ -197,6 +197,19 @@ export function SettingsModal({
             {isFormatting ? 'Saving...' : 'Save Changes'}
           </Button>
         </div>
+        <div className="px-6 py-4 border-t border-surface0 bg-mantle flex flex-col items-center gap-2">
+          <p className="text-xs text-subtext0">
+            Made with 💜 by simwai feat. jules and aider
+          </p>
+          <a
+            href="https://github.com/simwai/ts-play"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-mauve hover:underline"
+          >
+            GitHub Repository
+          </a>
+        </div>
       </div>
     </div>
   )
