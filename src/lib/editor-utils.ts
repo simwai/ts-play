@@ -42,6 +42,7 @@ export function buildHtml(code: string): string {
     'public',
     'protected',
     'static',
+    'in',
   ]
   const types = [
     'Type',
@@ -77,35 +78,39 @@ export function buildHtml(code: string): string {
     'Uncapitalize',
   ]
 
+  const keywordsPattern = keywords.join('|')
+  const typesPattern = types.join('|')
+
   const tokenRegex = new RegExp(
-    \`(//.*|/\\*[\\s\\S]*?\\*/|'.*?'|".*?"|\`[\\s\\S]*?\`|\\b(?:\${keywords.join('|')})\\b|\\b(?:\${types.join('|')})\\b)\`,
+    '(//.*|/\\*[\\s\\S]*?\\*/|\'.*?\'|".*?"|`[\\s\\S]*?`|\\b(?:' + keywordsPattern + ')\\b|\\b(?:' + typesPattern + ')\\b)',
     'g',
   )
 
-  const tokens = code.split(tokenRegex)
+  const parts = code.split(tokenRegex)
+  let html = ''
 
-  return tokens
-    .map((token, index) => {
-      if (index % 2 === 0) {
-        return escapeHtml(token)
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]
+    if (part === undefined) continue
+    if (i % 2 === 0) {
+      html += escapeHtml(part)
+    } else {
+      const escapedToken = escapeHtml(part)
+      if (part.startsWith('//') || part.startsWith('/*')) {
+        html += '<span class="text-overlay2 italic">' + escapedToken + '</span>'
+      } else if (part.startsWith("\'") || part.startsWith('"') || part.startsWith('`')) {
+        html += '<span class="text-green">' + escapedToken + '</span>'
+      } else if (keywords.indexOf(part) !== -1) {
+        html += '<span class="text-mauve">' + escapedToken + '</span>'
+      } else if (types.indexOf(part) !== -1) {
+        html += '<span class="text-blue">' + escapedToken + '</span>'
+      } else {
+        html += escapedToken
       }
+    }
+  }
 
-      const escapedToken = escapeHtml(token)
-      if (token.startsWith('//') || token.startsWith('/*')) {
-        return \`<span class="text-overlay2 italic">\${escapedToken}</span>\`
-      }
-      if (token.startsWith("'") || token.startsWith('"') || token.startsWith('`')) {
-        return \`<span class="text-green">\${escapedToken}</span>\`
-      }
-      if (keywords.includes(token)) {
-        return \`<span class="text-mauve">\${escapedToken}</span>\`
-      }
-      if (types.includes(token)) {
-        return \`<span class="text-blue">\${escapedToken}</span>\`
-      }
-      return escapedToken
-    })
-    .join('')
+  return html
 }
 
 export function buildSquiggles(code: string, diagnostics: TSDiagnostic[]): string {
@@ -122,9 +127,7 @@ export function buildSquiggles(code: string, diagnostics: TSDiagnostic[]): strin
     const diagnosticText = code.slice(diagnostic.start, diagnostic.start + diagnostic.length)
 
     const severityClass = diagnostic.category === 1 ? 'decoration-red' : 'decoration-yellow'
-    htmlResult += \`<span class="underline underline-wavy \${severityClass} decoration-2">\${escapeHtml(
-      diagnosticText,
-    )}</span>\`
+    htmlResult += '<span class="underline underline-wavy ' + severityClass + ' decoration-2">' + escapeHtml(diagnosticText) + '</span>'
 
     currentPosition = diagnostic.start + diagnostic.length
   }
