@@ -575,6 +575,10 @@ globalThis.onmessage = async (e: MessageEvent) => {
 
       case 'UPDATE_EXTRA_LIBS': {
         extraLibs = payload.libs
+        // Force a version bump on main.ts to trigger re-evaluation with new libs
+        if (files['main.ts']) {
+          files['main.ts'].version += 1
+        }
         result = true
         break
       }
@@ -706,7 +710,7 @@ globalThis.onmessage = async (e: MessageEvent) => {
           : undefined
         const namePart = info.displayParts?.find((p) =>
           [
-            'localName',
+            'localName', 'variableName',
             'parameterName',
             'methodName',
             'functionName',
@@ -714,8 +718,8 @@ globalThis.onmessage = async (e: MessageEvent) => {
             'interfaceName',
             'aliasName',
             'propertyName',
-            'enumName',
-            'moduleName',
+            'enumName', 'enumMemberName',
+            'moduleName', 'typeParameterName',
           ].includes(p.kind)
         )
         result = {

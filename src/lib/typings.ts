@@ -33,7 +33,7 @@ export async function syncNodeModulesToWorker(): Promise<
             await walk(path)
           } else if (
             isFile && // Catch .d.ts, .ts, .mts, .cts and package.json
-            (entry.name.endsWith('.ts') || entry.name === 'package.json')
+            (entry.name.endsWith('.ts') || entry.name.endsWith('.mts') || entry.name.endsWith('.cts') || entry.name === 'package.json')
           ) {
             try {
               const content = await instance.fs.readFile(path, 'utf8')
