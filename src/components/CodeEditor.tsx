@@ -13,10 +13,10 @@ import { workerClient } from '../lib/workerClient'
 import { TypeInfoBar } from './ui/TypeInfoBar'
 import { buildHtml, buildSquiggles } from '../lib/editor-utils'
 
-type Props = {
+type CodeEditorProps = {
   value: string
-  onChange: (v: string) => void
-  onCursorChange?: (pos: number) => void
+  onChange: (newValue: string) => void
+  onCursorChange?: (cursorPosition: number) => void
   language: 'typescript' | 'javascript'
   readOnly?: boolean
   extraLibs?: Record<string, string>
@@ -30,23 +30,23 @@ export type CodeEditorRef = {
   redo: () => void
 }
 
-const PAD_TOP = 16
-const EMPTY_LIBS = {}
+const EDITOR_PADDING_TOP = 16
+const EMPTY_LIBRARIES = {}
 
-const layerStyle = (
+const getLayerStyle = (
   contentHeight: number,
   fontSize: number,
-  lineH: number,
-  padX: number
+  lineHeight: number,
+  paddingX: number
 ): React.CSSProperties => ({
   position: 'absolute',
   top: 0,
   left: 0,
   right: 0,
   margin: 0,
-  padding: `${PAD_TOP}px ${padX}px`,
+  padding: `${EDITOR_PADDING_TOP}px ${paddingX}px`,
   fontSize: fontSize,
-  lineHeight: `${lineH}px`,
+  lineHeight: `${lineHeight}px`,
   letterSpacing: '0',
   fontKerning: 'none',
   fontVariantLigatures: 'none',
@@ -64,490 +64,497 @@ const layerStyle = (
 })
 
 export const CodeEditor = React.memo(
-  React.forwardRef<CodeEditorRef, Props>(function CodeEditor(
+  React.forwardRef<CodeEditorRef, CodeEditorProps>(function CodeEditor(
     {
       value,
       onChange,
       onCursorChange,
       language,
       readOnly = false,
-      extraLibs = EMPTY_LIBS,
+      extraLibs = EMPTY_LIBRARIES,
       keyboardOpen = false,
       keyboardHeight = 0,
       isMobileLike = false,
     },
-    ref
+    componentRef
   ) {
-    const scrollRef = useRef<HTMLDivElement>(null)
-    const textareaRef = useRef<HTMLTextAreaElement>(null)
-    const preRef = useRef<HTMLPreElement>(null)
-    const gutterRef = useRef<HTMLDivElement>(null)
-    const measureRef = useRef<HTMLDivElement>(null)
-    const codeWrapRef = useRef<HTMLDivElement>(null)
-    const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
-      undefined
-    )
-    const rafRef = useRef<number>(0)
+    const scrollContainerRef = useRef<HTMLDivElement>(null)
+    const textInputRef = useRef<HTMLTextAreaElement>(null)
+    const codeDisplayRef = useRef<HTMLPreElement>(null)
+    const lineGutterRef = useRef<HTMLDivElement>(null)
+    const heightMeasurementRef = useRef<HTMLDivElement>(null)
+    const editorWrapperRef = useRef<HTMLDivElement>(null)
+    const typeInfoDebounceTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+    const animationFrameRequest = useRef<number>(0)
 
-    const FONT_SIZE = isMobileLike ? 12 : 14
-    const LINE_H = isMobileLike ? 20 : 24
-    const CHAR_W = isMobileLike ? 7.2 : 8.4
-    const GUTTER_W = isMobileLike ? 36 : 48
-    const PAD_X = isMobileLike ? 12 : 16
+    const fontSize = isMobileLike ? 12 : 14
+    const lineHeight = isMobileLike ? 20 : 24
+    const characterWidth = isMobileLike ? 7.2 : 8.4
+    const gutterWidth = isMobileLike ? 36 : 48
+    const horizontalPadding = isMobileLike ? 12 : 16
 
     const { getTypeInfo } = useTypeInfo()
     const [typeInfo, setTypeInfo] = useState<TypeInfo | undefined>(undefined)
-    const [lineHeights, setLineHeights] = useState<number[]>([])
-    const diagnostics = useTSDiagnostics(
-      value,
-      language === 'typescript',
-      extraLibs
-    )
-    const [activeDiag, setActiveDiag] = useState<TSDiagnostic | undefined>(
-      undefined
-    )
+    const [renderedLineHeights, setRenderedLineHeights] = useState<number[]>([])
+    const diagnostics = useTSDiagnostics(value, language === 'typescript', extraLibs)
+    const [activeDiagnostic, setActiveDiagnostic] = useState<TSDiagnostic | undefined>(undefined)
 
-    const [completions, setCompletions] = useState<any[]>([])
-    const [selIndex, setSelIndex] = useState(0)
-    const [popupPos, setPopupPos] = useState({ top: 0, left: 0 })
+    const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<any[]>([])
+    const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0)
+    const [autocompletePopupPosition, setAutocompletePopupPosition] = useState({ top: 0, left: 0 })
 
-    const undoStack = useRef<Array<{ v: string; c: number }>>([])
-    const redoStack = useRef<Array<{ v: string; c: number }>>([])
-    const lastSaveTime = useRef<number>(0)
-    const lastCursorPos = useRef<number>(0)
-    const nextCursorPos = useRef<number | undefined>(undefined)
+    const undoHistoryStack = useRef<Array<{ value: string; cursor: number }>>([])
+    const redoHistoryStack = useRef<Array<{ value: string; cursor: number }>>([])
+    const lastStateSaveTimestamp = useRef<number>(0)
+    const previousCursorPosition = useRef<number>(0)
+    const pendingCursorPosition = useRef<number | undefined>(undefined)
 
-    // Synchronously restore cursor position after React updates the DOM
     useLayoutEffect(() => {
-      if (nextCursorPos.current !== undefined && textareaRef.current) {
-        textareaRef.current.selectionStart = textareaRef.current.selectionEnd =
-          nextCursorPos.current
-        lastCursorPos.current = nextCursorPos.current
-        onCursorChange?.(nextCursorPos.current)
-        nextCursorPos.current = undefined
+      const isCursorPositionPending = pendingCursorPosition.current !== undefined && textInputRef.current
+      if (isCursorPositionPending) {
+        textInputRef.current!.selectionStart = textInputRef.current!.selectionEnd = pendingCursorPosition.current!
+        previousCursorPosition.current = pendingCursorPosition.current!
+        onCursorChange?.(pendingCursorPosition.current!)
+        pendingCursorPosition.current = undefined
       }
     }, [value, onCursorChange])
 
-    const saveState = useCallback(
-      (value_: string, cursor: number, force = false) => {
-        const now = Date.now()
-        if (force || now - lastSaveTime.current > 500) {
-          undoStack.current.push({ v: value_, c: cursor })
-          redoStack.current = []
-          lastSaveTime.current = now
+    const saveEditorState = useCallback(
+      (currentValue: string, cursorPosition: number, forceSave = false) => {
+        const currentTime = Date.now()
+        const shouldSaveNewState = forceSave || currentTime - lastStateSaveTimestamp.current > 500
+        if (shouldSaveNewState) {
+          undoHistoryStack.current.push({ value: currentValue, cursor: cursorPosition })
+          redoHistoryStack.current = []
+          lastStateSaveTimestamp.current = currentTime
         }
       },
       []
     )
 
-    const handleUndo = useCallback(() => {
-      if (undoStack.current.length === 0) return
-      const ta = textareaRef.current
-      redoStack.current.push({ v: value, c: ta?.selectionStart || 0 })
-      const previous = undoStack.current.pop()!
+    const undoLastChange = useCallback(() => {
+      const canUndo = undoHistoryStack.current.length > 0
+      if (!canUndo) return
 
-      nextCursorPos.current = previous.c
-      onChange(previous.v)
+      const currentTextArea = textInputRef.current
+      redoHistoryStack.current.push({ value, cursor: currentTextArea?.selectionStart || 0 })
+
+      const previousState = undoHistoryStack.current.pop()!
+      pendingCursorPosition.current = previousState.cursor
+      onChange(previousState.value)
     }, [value, onChange])
 
-    const handleRedo = useCallback(() => {
-      if (redoStack.current.length === 0) return
-      const ta = textareaRef.current
-      undoStack.current.push({ v: value, c: ta?.selectionStart || 0 })
-      const next = redoStack.current.pop()!
+    const redoLastUndo = useCallback(() => {
+      const canRedo = redoHistoryStack.current.length > 0
+      if (!canRedo) return
 
-      nextCursorPos.current = next.c
-      onChange(next.v)
+      const currentTextArea = textInputRef.current
+      undoHistoryStack.current.push({ value, cursor: currentTextArea?.selectionStart || 0 })
+
+      const nextState = redoHistoryStack.current.pop()!
+      pendingCursorPosition.current = nextState.cursor
+      onChange(nextState.value)
     }, [value, onChange])
 
     useImperativeHandle(
-      ref,
+      componentRef,
       () => ({
-        undo: handleUndo,
-        redo: handleRedo,
+        undo: undoLastChange,
+        redo: redoLastUndo,
       }),
-      [handleUndo, handleRedo]
+      [undoLastChange, redoLastUndo]
     )
 
-    const linesArray = useMemo(() => value.split('\n'), [value])
-    const lineCount = linesArray.length
-    const measuredLineHeights = useMemo(
-      () =>
-        lineHeights.length === lineCount
-          ? lineHeights
-          : new Array(lineCount).fill(LINE_H),
-      [lineHeights, lineCount, LINE_H]
+    const linesOfCode = useMemo(() => value.split('\n'), [value])
+    const totalLineCount = linesOfCode.length
+    const effectiveLineHeights = useMemo(
+      () => renderedLineHeights.length === totalLineCount ? renderedLineHeights : new Array(totalLineCount).fill(lineHeight),
+      [renderedLineHeights, totalLineCount, lineHeight]
     )
-    const contentHeight = useMemo(
-      () => measuredLineHeights.reduce((sum, h) => sum + h, 0) + PAD_TOP * 2,
-      [measuredLineHeights]
+    const totalContentHeight = useMemo(
+      () => effectiveLineHeights.reduce((total, height) => total + height, 0) + EDITOR_PADDING_TOP * 2,
+      [effectiveLineHeights]
     )
 
-    const measureWraps = useCallback(() => {
-      if (!measureRef.current) return
-      const next = [...measureRef.current.children].map((child) =>
-        Math.max(
-          LINE_H,
-          Math.ceil((child as HTMLElement).getBoundingClientRect().height)
-        )
+    const measureLineWrapHeights = useCallback(() => {
+      const measurementContainer = heightMeasurementRef.current
+      if (!measurementContainer) return
+
+      const nextLineHeights = [...measurementContainer.children].map((lineElement) =>
+        Math.max(lineHeight, Math.ceil((lineElement as HTMLElement).getBoundingClientRect().height))
       )
-      setLineHeights((previous) =>
-        previous.length === next.length &&
-        previous.every((v, i) => v === next[i])
-          ? previous
-          : next
-      )
-    }, [LINE_H])
 
-    useLayoutEffect(() => {
-      if (!codeWrapRef.current) return
-      const ro = new ResizeObserver(() => {
-        cancelAnimationFrame(rafRef.current)
-        rafRef.current = requestAnimationFrame(measureWraps)
+      setRenderedLineHeights((previousHeights) => {
+        const isHeightUniform = previousHeights.length === nextLineHeights.length &&
+                                previousHeights.every((height, index) => height === nextLineHeights[index])
+        return isHeightUniform ? previousHeights : nextLineHeights
       })
-      ro.observe(codeWrapRef.current)
-      return () => {
-        ro.disconnect()
-        cancelAnimationFrame(rafRef.current)
-      }
-    }, [measureWraps])
+    }, [lineHeight])
 
     useLayoutEffect(() => {
-      cancelAnimationFrame(rafRef.current)
-      rafRef.current = requestAnimationFrame(measureWraps)
-    }, [measureWraps])
+      if (!editorWrapperRef.current) return
+      const resizeObserver = new ResizeObserver(() => {
+        cancelAnimationFrame(animationFrameRequest.current)
+        animationFrameRequest.current = requestAnimationFrame(measureLineWrapHeights)
+      })
+      resizeObserver.observe(editorWrapperRef.current)
+      return () => {
+        resizeObserver.disconnect()
+        cancelAnimationFrame(animationFrameRequest.current)
+      }
+    }, [measureLineWrapHeights])
+
+    useLayoutEffect(() => {
+      cancelAnimationFrame(animationFrameRequest.current)
+      animationFrameRequest.current = requestAnimationFrame(measureLineWrapHeights)
+    }, [measureLineWrapHeights])
 
     useEffect(() => {
-      if (preRef.current) preRef.current.innerHTML = buildHtml(value) + '\n'
+      if (codeDisplayRef.current) {
+        codeDisplayRef.current.innerHTML = buildHtml(value) + '\n'
+      }
     }, [value])
 
-    const onScroll = useCallback(() => {
-      if (!scrollRef.current) return
-      const { scrollTop } = scrollRef.current
-      if (gutterRef.current) gutterRef.current.scrollTop = scrollTop
-      if (textareaRef.current) textareaRef.current.scrollTop = scrollTop
+    const synchronizeScroll = useCallback(() => {
+      const scroller = scrollContainerRef.current
+      if (!scroller) return
+
+      const { scrollTop } = scroller
+      if (lineGutterRef.current) lineGutterRef.current.scrollTop = scrollTop
+      if (textInputRef.current) textInputRef.current.scrollTop = scrollTop
     }, [])
 
-    const scrollSelectionIntoView = useCallback(() => {
-      const ta = textareaRef.current
-      const scroller = scrollRef.current
-      if (!ta || !scroller) return
-      const pos = ta.selectionStart
-      const before = value.slice(0, pos)
-      const logicalLineIndex = Math.max(0, before.split('\n').length - 1)
-      const y =
-        PAD_TOP +
-        measuredLineHeights
-          .slice(0, logicalLineIndex)
-          .reduce((sum, h) => sum + h, 0)
-      const lineHeight = measuredLineHeights[logicalLineIndex] ?? LINE_H
-      const visibleTop = scroller.scrollTop
-      const bottomInset = keyboardOpen
-        ? Math.min(120, Math.max(0, keyboardHeight * 0.12))
-        : 0
-      const visibleBottom =
-        scroller.scrollTop + scroller.clientHeight - 56 - bottomInset
+    const ensureSelectionIsVisible = useCallback(() => {
+      const textArea = textInputRef.current
+      const scroller = scrollContainerRef.current
+      if (!textArea || !scroller) return
 
-      if (y < visibleTop + 8)
-        scroller.scrollTo({ top: Math.max(0, y - 24), behavior: 'smooth' })
-      else if (y + lineHeight > visibleBottom)
+      const cursorPosition = textArea.selectionStart
+      const textBeforeCursor = value.slice(0, cursorPosition)
+      const lineIndexOfCursor = Math.max(0, textBeforeCursor.split('\n').length - 1)
+
+      const cursorVerticalOffset = EDITOR_PADDING_TOP + effectiveLineHeights.slice(0, lineIndexOfCursor).reduce((sum, h) => sum + h, 0)
+      const currentLineHeight = effectiveLineHeights[lineIndexOfCursor] ?? lineHeight
+
+      const visibleTop = scroller.scrollTop
+      const keyboardInset = keyboardOpen ? Math.min(120, Math.max(0, keyboardHeight * 0.12)) : 0
+      const visibleBottom = scroller.scrollTop + scroller.clientHeight - 56 - keyboardInset
+
+      const isAboveVisibleArea = cursorVerticalOffset < visibleTop + 8
+      const isBelowVisibleArea = cursorVerticalOffset + currentLineHeight > visibleBottom
+
+      if (isAboveVisibleArea) {
+        scroller.scrollTo({ top: Math.max(0, cursorVerticalOffset - 24), behavior: 'smooth' })
+      } else if (isBelowVisibleArea) {
         scroller.scrollTo({
-          top: Math.max(
-            0,
-            y + lineHeight - scroller.clientHeight + 56 + bottomInset + 24
-          ),
+          top: Math.max(0, cursorVerticalOffset + currentLineHeight - scroller.clientHeight + 56 + keyboardInset + 24),
           behavior: 'smooth',
         })
-    }, [keyboardHeight, keyboardOpen, measuredLineHeights, value, LINE_H])
+      }
+    }, [keyboardHeight, keyboardOpen, effectiveLineHeights, value, lineHeight])
 
-    const triggerAutocomplete = useCallback(
-      async (code: string, pos: number, explicit = false) => {
-        if (language !== 'typescript') return
-        const before = code.slice(0, pos)
-        const match = /[\w$]+$/.exec(before)
-        const prefix = match ? match[0] : ''
-        const isDot = before.endsWith('.')
+    const requestAutocompleteSuggestions = useCallback(
+      async (currentCode: string, cursorPosition: number, isExplicitInvocation = false) => {
+        const isNotTypeScript = language !== 'typescript'
+        if (isNotTypeScript) return
 
-        if (!explicit && !match && !isDot) {
-          setCompletions([])
+        const textBeforeCursor = currentCode.slice(0, cursorPosition)
+        const wordMatch = /[\w$]+$/.exec(textBeforeCursor)
+        const currentWordPrefix = wordMatch ? wordMatch[0] : ''
+        const isAtMemberAccess = textBeforeCursor.endsWith('.')
+
+        const shouldSkipAutocomplete = !isExplicitInvocation && !wordMatch && !isAtMemberAccess
+        if (shouldSkipAutocomplete) {
+          setAutocompleteSuggestions([])
           return
         }
 
-        await workerClient.updateFile('main.ts', code)
+        await workerClient.updateFile('main.ts', currentCode)
 
-        const entries = await workerClient.getCompletions(pos)
-        if (entries && entries.length > 0) {
-          const filtered = prefix
-            ? entries.filter((e) =>
-                e.name.toLowerCase().startsWith(prefix.toLowerCase())
-              )
-            : entries
+        const suggestionEntries = await workerClient.getCompletions(cursorPosition)
+        if (suggestionEntries && suggestionEntries.length > 0) {
+          const filteredSuggestions = currentWordPrefix
+            ? suggestionEntries.filter((entry) => entry.name.toLowerCase().startsWith(currentWordPrefix.toLowerCase()))
+            : suggestionEntries
 
-          if (filtered.length > 0) {
-            const logicalLineIndex = Math.max(0, before.split('\n').length - 1)
-            const y =
-              PAD_TOP +
-              measuredLineHeights
-                .slice(0, logicalLineIndex)
-                .reduce((sum, h) => sum + h, 0) +
-              (measuredLineHeights[logicalLineIndex] ?? LINE_H)
-            const lastLine = before.split('\n').pop() || ''
-            const x = PAD_X + (lastLine.length - prefix.length) * CHAR_W
+          const hasValidSuggestions = filteredSuggestions.length > 0
+          if (hasValidSuggestions) {
+            const lineIndexOfCursor = Math.max(0, textBeforeCursor.split('\n').length - 1)
+            const popupTop = EDITOR_PADDING_TOP + effectiveLineHeights.slice(0, lineIndexOfCursor).reduce((sum, h) => sum + h, 0) + (effectiveLineHeights[lineIndexOfCursor] ?? lineHeight)
+            const currentLineText = textBeforeCursor.split('\n').pop() || ''
+            const popupLeft = horizontalPadding + (currentLineText.length - currentWordPrefix.length) * characterWidth
 
-            setPopupPos({ top: y, left: x })
-            setCompletions(filtered.slice(0, 50))
-            setSelIndex(0)
+            setAutocompletePopupPosition({ top: popupTop, left: popupLeft })
+            setAutocompleteSuggestions(filteredSuggestions.slice(0, 50))
+            setSelectedSuggestionIndex(0)
           } else {
-            setCompletions([])
+            setAutocompleteSuggestions([])
           }
         } else {
-          setCompletions([])
+          setAutocompleteSuggestions([])
         }
       },
-      [language, measuredLineHeights, LINE_H, PAD_X, CHAR_W]
+      [language, effectiveLineHeights, lineHeight, horizontalPadding, characterWidth]
     )
 
-    const insertCompletion = useCallback(() => {
-      if (completions.length === 0) return
-      const ta = textareaRef.current
-      if (!ta) return
-      const pos = ta.selectionStart
-      const before = value.slice(0, pos)
-      const match = /[\w$]+$/.exec(before)
-      const wordLength = match ? match[0].length : 0
+    const applyAutocompleteSelection = useCallback(() => {
+      const hasNoSuggestions = autocompleteSuggestions.length === 0
+      if (hasNoSuggestions) return
 
-      const comp = completions[selIndex]
-      const insertText = comp.insertText || comp.name
+      const textArea = textInputRef.current
+      if (!textArea) return
 
-      saveState(value, pos, true)
-      const next =
-        value.slice(0, pos - wordLength) + insertText + value.slice(pos)
+      const cursorPosition = textArea.selectionStart
+      const textBeforeCursor = value.slice(0, cursorPosition)
+      const wordMatch = /[\w$]+$/.exec(textBeforeCursor)
+      const lengthOfWordToReplace = wordMatch ? wordMatch[0].length : 0
 
-      nextCursorPos.current = pos - wordLength + insertText.length
-      onChange(next)
-      setCompletions([])
-    }, [completions, selIndex, value, onChange, saveState])
+      const selectedSuggestion = autocompleteSuggestions[selectedSuggestionIndex]
+      const textToInsert = selectedSuggestion.insertText || selectedSuggestion.name
 
-    const onKeyDown = useCallback(
-      (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (completions.length > 0) {
-          if (e.key === 'ArrowDown') {
-            e.preventDefault()
-            setSelIndex((i) => Math.min(i + 1, completions.length - 1))
+      saveEditorState(value, cursorPosition, true)
+      const updatedCode = value.slice(0, cursorPosition - lengthOfWordToReplace) + textToInsert + value.slice(cursorPosition)
+
+      pendingCursorPosition.current = cursorPosition - lengthOfWordToReplace + textToInsert.length
+      onChange(updatedCode)
+      setAutocompleteSuggestions([])
+    }, [autocompleteSuggestions, selectedSuggestionIndex, value, onChange, saveEditorState])
+
+    const handleKeyDown = useCallback(
+      (keyEvent: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        const isAutocompleteActive = autocompleteSuggestions.length > 0
+        if (isAutocompleteActive) {
+          if (keyEvent.key === 'ArrowDown') {
+            keyEvent.preventDefault()
+            setSelectedSuggestionIndex((currentIndex) => Math.min(currentIndex + 1, autocompleteSuggestions.length - 1))
             return
           }
 
-          if (e.key === 'ArrowUp') {
-            e.preventDefault()
-            setSelIndex((i) => Math.max(i - 1, 0))
+          if (keyEvent.key === 'ArrowUp') {
+            keyEvent.preventDefault()
+            setSelectedSuggestionIndex((currentIndex) => Math.max(currentIndex - 1, 0))
             return
           }
 
-          if (e.key === 'Enter' || e.key === 'Tab') {
-            e.preventDefault()
-            insertCompletion()
+          if (keyEvent.key === 'Enter' || keyEvent.key === 'Tab') {
+            keyEvent.preventDefault()
+            applyAutocompleteSelection()
             return
           }
 
-          if (e.key === 'Escape') {
-            e.preventDefault()
-            setCompletions([])
+          if (keyEvent.key === 'Escape') {
+            keyEvent.preventDefault()
+            setAutocompleteSuggestions([])
             return
           }
         }
 
-        if ((e.ctrlKey || e.metaKey) && (e.key === ' ' || e.code === 'Space')) {
-          e.preventDefault()
-          triggerAutocomplete(value, e.currentTarget.selectionStart, true)
+        const isAutocompleteShortcut = (keyEvent.ctrlKey || keyEvent.metaKey) && (keyEvent.key === ' ' || keyEvent.code === 'Space')
+        if (isAutocompleteShortcut) {
+          keyEvent.preventDefault()
+          requestAutocompleteSuggestions(value, keyEvent.currentTarget.selectionStart, true)
           return
         }
 
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-          e.preventDefault()
-          if (e.shiftKey) handleRedo()
-          else handleUndo()
+        const isUndoShortcut = (keyEvent.ctrlKey || keyEvent.metaKey) && keyEvent.key.toLowerCase() === 'z'
+        if (isUndoShortcut) {
+          keyEvent.preventDefault()
+          if (keyEvent.shiftKey) redoLastUndo()
+          else undoLastChange()
           return
         }
 
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-          e.preventDefault()
-          handleRedo()
+        const isRedoShortcut = (keyEvent.ctrlKey || keyEvent.metaKey) && keyEvent.key.toLowerCase() === 'y'
+        if (isRedoShortcut) {
+          keyEvent.preventDefault()
+          redoLastUndo()
           return
         }
 
-        if (e.key === 'Tab') {
-          e.preventDefault()
-          const ta = e.currentTarget
-          const start = ta.selectionStart
-          const end = ta.selectionEnd
-          saveState(value, start, true)
-          const next = value.slice(0, start) + '  ' + value.slice(end)
+        const isTabKey = keyEvent.key === 'Tab'
+        if (isTabKey) {
+          keyEvent.preventDefault()
+          const textArea = keyEvent.currentTarget
+          const selectionStart = textArea.selectionStart
+          const selectionEnd = textArea.selectionEnd
+          saveEditorState(value, selectionStart, true)
+          const updatedCode = value.slice(0, selectionStart) + '  ' + value.slice(selectionEnd)
 
-          nextCursorPos.current = start + 2
-          onChange(next)
+          pendingCursorPosition.current = selectionStart + 2
+          onChange(updatedCode)
         }
       },
       [
         value,
         onChange,
-        handleUndo,
-        handleRedo,
-        saveState,
-        completions,
-        insertCompletion,
-        triggerAutocomplete,
+        undoLastChange,
+        redoLastUndo,
+        saveEditorState,
+        autocompleteSuggestions,
+        applyAutocompleteSelection,
+        requestAutocompleteSuggestions,
       ]
     )
 
-    const handleTextChange = useCallback(
-      (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const newValue = e.target.value
-        const pos = e.target.selectionStart
-        const isPasteOrCut = Math.abs(newValue.length - value.length) > 1
-        saveState(value, lastCursorPos.current, isPasteOrCut)
-        onChange(newValue)
-        lastCursorPos.current = pos
-        onCursorChange?.(pos)
+    const handleTextInputChange = useCallback(
+      (changeEvent: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const newValue = changeEvent.target.value
+        const cursorPosition = changeEvent.target.selectionStart
+        const isBulkEdit = Math.abs(newValue.length - value.length) > 1
 
-        if (isPasteOrCut) {
-          setCompletions([])
+        saveEditorState(value, previousCursorPosition.current, isBulkEdit)
+        onChange(newValue)
+        previousCursorPosition.current = cursorPosition
+        onCursorChange?.(cursorPosition)
+
+        if (isBulkEdit) {
+          setAutocompleteSuggestions([])
         } else {
-          triggerAutocomplete(newValue, pos)
+          requestAutocompleteSuggestions(newValue, cursorPosition)
         }
       },
-      [value, onChange, saveState, triggerAutocomplete, onCursorChange]
+      [value, onChange, saveEditorState, requestAutocompleteSuggestions, onCursorChange]
     )
 
-    const updateTypeInfo = useCallback(() => {
-      const ta = textareaRef.current
-      if (!ta) return
-      const pos = ta.selectionStart
-      if (lastCursorPos.current !== pos) {
-        lastCursorPos.current = pos
-        onCursorChange?.(pos)
+    const handleCursorMovement = useCallback(() => {
+      const textArea = textInputRef.current
+      if (!textArea) return
+
+      const cursorPosition = textArea.selectionStart
+      const hasCursorMoved = previousCursorPosition.current !== cursorPosition
+      if (hasCursorMoved) {
+        previousCursorPosition.current = cursorPosition
+        onCursorChange?.(cursorPosition)
       }
 
-      if (timerRef.current) clearTimeout(timerRef.current)
-      timerRef.current = setTimeout(async () => {
-        const info = await getTypeInfo(value, pos)
-        setTypeInfo(info)
-        const diag = diagnostics.find(
-          (d) => pos >= d.start && pos <= d.start + d.length
+      if (typeInfoDebounceTimer.current) {
+        clearTimeout(typeInfoDebounceTimer.current)
+      }
+
+      typeInfoDebounceTimer.current = setTimeout(async () => {
+        const information = await getTypeInfo(value, cursorPosition)
+        setTypeInfo(information)
+
+        const matchingDiagnostic = diagnostics.find(
+          (diagnostic) => cursorPosition >= diagnostic.start && cursorPosition <= diagnostic.start + diagnostic.length
         )
-        setActiveDiag(diag)
-        scrollSelectionIntoView()
+        setActiveDiagnostic(matchingDiagnostic)
+        ensureSelectionIsVisible()
       }, 80)
     }, [
       value,
       getTypeInfo,
       diagnostics,
-      scrollSelectionIntoView,
+      ensureSelectionIsVisible,
       onCursorChange,
     ])
 
     useEffect(
       () => () => {
-        if (timerRef.current) clearTimeout(timerRef.current)
+        if (typeInfoDebounceTimer.current) {
+          clearTimeout(typeInfoDebounceTimer.current)
+        }
       },
       []
     )
 
-    const onTouchStart = useCallback((e: React.TouchEvent) => {
-      e.stopPropagation()
+    const preventTouchPropagation = useCallback((touchEvent: React.TouchEvent) => {
+      touchEvent.stopPropagation()
     }, [])
 
-    const handleBlur = useCallback(() => {
-      // Close autocomplete when editor loses focus
-      setCompletions([])
+    const handleEditorBlur = useCallback(() => {
+      setAutocompleteSuggestions([])
     }, [])
 
     useEffect(() => {
-      if (!keyboardOpen || readOnly) return
-      const id = globalThis.setTimeout(() => {
-        scrollSelectionIntoView()
-      }, 50)
-      return () => {
-        globalThis.clearTimeout(id)
-      }
-    }, [keyboardOpen, readOnly, scrollSelectionIntoView])
+      const shouldScrollOnKeyboardOpen = keyboardOpen && !readOnly
+      if (!shouldScrollOnKeyboardOpen) return
 
-    const gutterItems = useMemo(
-      () =>
-        linesArray.map((_, idx) => ({
-          number: idx + 1,
-          height: measuredLineHeights[idx],
-        })),
-      [linesArray, measuredLineHeights]
+      const scrollTimeoutId = globalThis.setTimeout(() => {
+        ensureSelectionIsVisible()
+      }, 50)
+
+      return () => {
+        globalThis.clearTimeout(scrollTimeoutId)
+      }
+    }, [keyboardOpen, readOnly, ensureSelectionIsVisible])
+
+    const gutterListItems = useMemo(
+      () => linesOfCode.map((_, index) => ({
+        lineNumber: index + 1,
+        lineHeight: effectiveLineHeights[index],
+      })),
+      [linesOfCode, effectiveLineHeights]
     )
 
     return (
       <div className='relative w-full h-full overflow-hidden flex flex-col font-mono'>
         <div
-          ref={scrollRef}
-          onScroll={onScroll}
+          ref={scrollContainerRef}
+          onScroll={synchronizeScroll}
           className='flex-1 overflow-y-auto overflow-x-hidden flex min-h-0 bg-base'
         >
           <div
-            ref={gutterRef}
+            ref={lineGutterRef}
             className='shrink-0 overflow-hidden bg-mantle border-r border-surface0 select-none text-overlay0 text-right box-border'
             style={{
-              width: GUTTER_W,
-              paddingTop: PAD_TOP,
-              paddingBottom: PAD_TOP,
-              fontSize: FONT_SIZE,
-              lineHeight: `${LINE_H}px`,
+              width: gutterWidth,
+              paddingTop: EDITOR_PADDING_TOP,
+              paddingBottom: EDITOR_PADDING_TOP,
+              fontSize: fontSize,
+              lineHeight: `${lineHeight}px`,
               paddingRight: isMobileLike ? 8 : 12,
-              minHeight: contentHeight,
+              minHeight: totalContentHeight,
             }}
           >
-            {gutterItems.map(({ number, height }) => (
+            {gutterListItems.map(({ lineNumber, lineHeight }) => (
               <div
-                key={number}
+                key={lineNumber}
                 style={{
-                  height,
+                  height: lineHeight,
                   display: 'flex',
                   alignItems: 'flex-start',
                   justifyContent: 'flex-end',
                 }}
               >
-                {number}
+                {lineNumber}
               </div>
             ))}
           </div>
           <div
-            ref={codeWrapRef}
+            ref={editorWrapperRef}
             className='flex-1 relative min-w-0'
-            style={{ minHeight: contentHeight }}
+            style={{ minHeight: totalContentHeight }}
           >
             <div
-              ref={measureRef}
+              ref={heightMeasurementRef}
               aria-hidden
               className='absolute inset-0 invisible pointer-events-none -z-10 box-border whitespace-pre-wrap wrap-break-word'
               style={{
-                padding: `${PAD_TOP}px ${PAD_X}px`,
-                fontSize: FONT_SIZE,
-                lineHeight: `${LINE_H}px`,
+                padding: `${EDITOR_PADDING_TOP}px ${horizontalPadding}px`,
+                fontSize: fontSize,
+                lineHeight: `${lineHeight}px`,
               }}
             >
-              {linesArray.map((line, idx) => (
+              {linesOfCode.map((lineText, index) => (
                 <div
-                  key={`measure-${idx}`}
+                  key={`measure-${index}`}
                   style={{
-                    minHeight: LINE_H,
+                    minHeight: lineHeight,
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-word',
                     overflowWrap: 'break-word',
                   }}
                 >
-                  {line === '' ? ' ' : line.replaceAll('\t', '  ')}
+                  {lineText === '' ? ' ' : lineText.replaceAll('\t', '  ')}
                 </div>
               ))}
             </div>
             <pre
-              ref={preRef}
+              ref={codeDisplayRef}
               aria-hidden
               className='text-text bg-transparent pointer-events-none'
-              style={layerStyle(contentHeight, FONT_SIZE, LINE_H, PAD_X)}
+              style={getLayerStyle(totalContentHeight, fontSize, lineHeight, horizontalPadding)}
             />
             <pre
               aria-hidden
@@ -555,19 +562,19 @@ export const CodeEditor = React.memo(
                 __html: buildSquiggles(value, diagnostics),
               }}
               className='text-transparent bg-transparent pointer-events-none z-10'
-              style={layerStyle(contentHeight, FONT_SIZE, LINE_H, PAD_X)}
+              style={getLayerStyle(totalContentHeight, fontSize, lineHeight, horizontalPadding)}
             />
             <textarea
-              ref={textareaRef}
+              ref={textInputRef}
               value={value}
               readOnly={readOnly}
-              onChange={handleTextChange}
-              onKeyDown={onKeyDown}
-              onSelect={updateTypeInfo}
-              onClick={updateTypeInfo}
-              onKeyUp={updateTypeInfo}
-              onTouchStart={onTouchStart}
-              onBlur={handleBlur}
+              onChange={handleTextInputChange}
+              onKeyDown={handleKeyDown}
+              onSelect={handleCursorMovement}
+              onClick={handleCursorMovement}
+              onKeyUp={handleCursorMovement}
+              onTouchStart={preventTouchPropagation}
+              onBlur={handleEditorBlur}
               spellCheck={false}
               autoCorrect='off'
               autoCapitalize='off'
@@ -578,8 +585,8 @@ export const CodeEditor = React.memo(
               data-enable-grammarly='false'
               className='text-transparent bg-transparent border-none outline-none resize-none z-20 caret-lavender'
               style={{
-                ...layerStyle(contentHeight, FONT_SIZE, LINE_H, PAD_X),
-                height: contentHeight,
+                ...getLayerStyle(totalContentHeight, fontSize, lineHeight, horizontalPadding),
+                height: totalContentHeight,
                 WebkitTextFillColor: 'transparent',
                 cursor: readOnly ? 'default' : 'text',
                 touchAction: 'pan-y',
@@ -587,34 +594,33 @@ export const CodeEditor = React.memo(
               }}
             />
 
-            {completions.length > 0 && (
+            {autocompleteSuggestions.length > 0 && (
               <ul
                 role='listbox'
                 aria-label='Autocomplete suggestions'
                 className='hidden md:block absolute m-0 p-0 list-none bg-mantle border border-surface1 rounded-md shadow-lg shadow-black/30 z-50 max-h-52 overflow-y-auto min-w-48 text-sm'
                 style={{
-                  top: popupPos.top,
-                  left: popupPos.left,
+                  top: autocompletePopupPosition.top,
+                  left: autocompletePopupPosition.left,
                 }}
-                onMouseDown={(e) => {
-                  // Prevent focus loss from textarea when clicking the scrollbar or popup
-                  e.preventDefault()
+                onMouseDown={(mouseDownEvent) => {
+                  mouseDownEvent.preventDefault()
                 }}
               >
-                {completions.map((comp, i) => (
+                {autocompleteSuggestions.map((suggestion, index) => (
                   <li
-                    key={comp.name}
+                    key={suggestion.name}
                     role='option'
-                    aria-selected={i === selIndex}
-                    className={`px-3 py-1.5 cursor-pointer flex justify-between gap-4 ${i === selIndex ? 'bg-surface0 text-text' : 'bg-transparent text-subtext0'}`}
-                    onMouseDown={(e) => {
-                      e.preventDefault()
-                      setSelIndex(i)
-                      insertCompletion()
+                    aria-selected={index === selectedSuggestionIndex}
+                    className={`px-3 py-1.5 cursor-pointer flex justify-between gap-4 ${index === selectedSuggestionIndex ? 'bg-surface0 text-text' : 'bg-transparent text-subtext0'}`}
+                    onMouseDown={(mouseDownEvent) => {
+                      mouseDownEvent.preventDefault()
+                      setSelectedSuggestionIndex(index)
+                      applyAutocompleteSelection()
                     }}
                   >
-                    <span>{comp.name}</span>
-                    <span className='text-overlay0 text-xs'>{comp.kind}</span>
+                    <span>{suggestion.name}</span>
+                    <span className='text-overlay0 text-xs'>{suggestion.kind}</span>
                   </li>
                 ))}
               </ul>
@@ -623,9 +629,9 @@ export const CodeEditor = React.memo(
         </div>
         <TypeInfoBar
           typeInfo={typeInfo}
-          activeDiag={activeDiag}
+          activeDiag={activeDiagnostic}
           language={language}
-          gutterW={GUTTER_W}
+          gutterW={gutterWidth}
         />
       </div>
     )

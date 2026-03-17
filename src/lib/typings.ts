@@ -1,55 +1,59 @@
 import { getWebContainer } from './webcontainer'
 
-export async function syncNodeModulesToWorker(): Promise<
-  Record<string, string>
-> {
-  const instance = await getWebContainer()
-  const libs: Record<string, string> = {}
+export async function syncNodeModulesToWorker(): Promise<Record<string, string>> {
+  const containerInstance = await getWebContainer()
+  const libraryFiles: Record<string, string> = {}
 
-  async function walk(dir: string) {
+  async function recursivelyCollectTypeDefinitions(directoryPath: string) {
     try {
-      const entries = await instance.fs.readdir(dir, { withFileTypes: true })
+      const directoryEntries = await containerInstance.fs.readdir(directoryPath, { withFileTypes: true })
+
       await Promise.all(
-        entries.map(async (entry) => {
-          const path = `${dir}/${entry.name}`
-          if (entry.name === '.bin') return // Skip binaries
+        directoryEntries.map(async (entry) => {
+          const entryPath = `${directoryPath}/${entry.name}`
 
-          let isDir = entry.isDirectory()
-          let isFile = entry.isFile()
+          if (entry.name === '.bin') {
+            return
+          }
 
-          // WebContainers use symlinks heavily for node_modules. We MUST resolve them.
-          const entryAny = entry as any
-          if (entryAny.isSymbolicLink?.() || (!isDir && !isFile)) {
+          let isDirectoryEntry = entry.isDirectory()
+          let isFileEntry = entry.isFile()
+
+          const isPotentiallySymlink = (entry as any).isSymbolicLink?.() || (!isDirectoryEntry && !isFileEntry)
+          if (isPotentiallySymlink) {
             try {
-              const stat = await (instance.fs as any).stat(path)
-              isDir = stat.isDirectory()
-              isFile = stat.isFile()
+              const entryStats = await (containerInstance.fs as any).stat(entryPath)
+              isDirectoryEntry = entryStats.isDirectory()
+              isFileEntry = entryStats.isFile()
             } catch {
-              return // Broken symlink
+              return
             }
           }
 
-          if (isDir) {
-            await walk(path)
-          } else if (
-            isFile && // Catch .d.ts, .ts, .mts, .cts and package.json
-            (entry.name.endsWith('.ts') || entry.name.endsWith('.mts') || entry.name.endsWith('.cts') || entry.name === 'package.json')
-          ) {
-            try {
-              const content = await instance.fs.readFile(path, 'utf8')
-              // TS in the worker resolves from root '/', so we prefix the path
-              libs[`/${path}`] = content
-            } catch {
-              // Ignore read errors for individual files
+          if (isDirectoryEntry) {
+            await recursivelyCollectTypeDefinitions(entryPath)
+          } else if (isFileEntry) {
+            const hasTypeScriptExtension = entry.name.endsWith('.ts') ||
+                                          entry.name.endsWith('.mts') ||
+                                          entry.name.endsWith('.cts')
+            const isPackageManifest = entry.name === 'package.json'
+
+            if (hasTypeScriptExtension || isPackageManifest) {
+              try {
+                const fileContent = await containerInstance.fs.readFile(entryPath, 'utf8')
+                libraryFiles[`/${entryPath}`] = fileContent
+              } catch {
+                // Silently skip files that cannot be read
+              }
             }
           }
         })
       )
     } catch {
-      // Ignore directory read errors
+      // Silently skip directories that cannot be accessed
     }
   }
 
-  await walk('node_modules')
-  return libs
+  await recursivelyCollectTypeDefinitions('node_modules')
+  return libraryFiles
 }

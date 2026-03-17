@@ -47,15 +47,15 @@ import lib_es2020_number_d_ts from 'typescript/lib/lib.es2020.number.d.ts?raw'
 import lib_dom_d_ts from 'typescript/lib/lib.dom.d.ts?raw'
 import lib_dom_iterable_d_ts from 'typescript/lib/lib.dom.iterable.d.ts?raw'
 
-let ls: TS.LanguageService | undefined
-let esbuildReady = false
-let globalInitPromise: Promise<void> | undefined
+let languageService: TS.LanguageService | undefined
+let isEsbuildInitialized = false
+let workerInitializationPromise: Promise<void> | undefined
 
-const files: Record<string, { version: number; content: string }> = {}
-const libFiles: Record<string, { version: number; content: string }> = {}
-let extraLibs: Record<string, string> = {}
+const virtualFiles: Record<string, { version: number; content: string }> = {}
+const defaultLibraryFiles: Record<string, { version: number; content: string }> = {}
+let externalPackageDefinitions: Record<string, string> = {}
 
-const rawLibs: Record<string, string> = {
+const embeddedTypeScriptLibraries: Record<string, string> = {
   'lib.es5.d.ts': lib_es5_d_ts,
   'lib.es2015.d.ts': lib_es2015_d_ts,
   'lib.es2015.core.d.ts': lib_es2015_core_d_ts,
@@ -101,7 +101,7 @@ const rawLibs: Record<string, string> = {
   'lib.dom.iterable.d.ts': lib_dom_iterable_d_ts,
 }
 
-const node_d_ts = `
+const nodeEnvironmentDefinitions = `
 declare var process: any;
 declare var require: any;
 declare var module: any;
@@ -115,10 +115,10 @@ declare var Buffer: any;
 const defaultCompilerOptions: TS.CompilerOptions = {
   target: TS.ScriptTarget.ES2020,
   module: TS.ModuleKind.ESNext,
-  moduleResolution: 100, // TS.ModuleResolutionKind.Bundler
+  moduleResolution: 100,
   resolveJsonModule: true,
   allowImportingTsExtensions: true,
-  lib: Object.keys(rawLibs),
+  lib: Object.keys(embeddedTypeScriptLibraries),
   esModuleInterop: true,
   strict: true,
   skipLibCheck: true,
@@ -127,47 +127,43 @@ const defaultCompilerOptions: TS.CompilerOptions = {
 }
 
 let currentCompilerOptions: TS.CompilerOptions = { ...defaultCompilerOptions }
-// Store the parsed object instead of the raw string to prevent esbuild crashes on invalid JSON
-let currentTsConfigParsed: esbuild.TsconfigRaw | undefined
+let parsedTypeScriptConfiguration: esbuild.TsconfigRaw | undefined
 
-function ensureRequiredLibsLoaded() {
-  for (const [fileName, content] of Object.entries(rawLibs)) {
-    if (content) libFiles[fileName] = { version: 1, content }
+function loadDefaultTypeScriptLibraries() {
+  for (const [fileName, content] of Object.entries(embeddedTypeScriptLibraries)) {
+    if (content) defaultLibraryFiles[fileName] = { version: 1, content }
   }
 
-  libFiles['node.d.ts'] = { version: 1, content: node_d_ts }
+  defaultLibraryFiles['node.d.ts'] = { version: 1, content: nodeEnvironmentDefinitions }
 }
 
-async function initLanguageService() {
-  if (ls) return
+async function initializeLanguageService() {
+  if (languageService) return
 
-  const host: TS.LanguageServiceHost = {
+  const languageServiceHost: TS.LanguageServiceHost = {
     getScriptFileNames: () => [
       '/main.ts',
-      ...Object.keys(libFiles).map((n) => `/${n}`),
-      ...Object.keys(extraLibs),
+      ...Object.keys(defaultLibraryFiles).map((fileName) => `/${fileName}`),
+      ...Object.keys(externalPackageDefinitions),
     ],
     getScriptVersion(fileName) {
-      const normalized = fileName.replace(/^\/+/, '')
-      if (normalized === 'main.ts')
-        return String(files['main.ts']?.version ?? 0)
-      if (libFiles[normalized]) return String(libFiles[normalized].version)
-      // extraLibs are immutable per update, so version 1 is safe and avoids length collisions
-      if (
-        extraLibs[fileName] !== undefined ||
-        extraLibs['/' + normalized] !== undefined
-      )
-        return '1'
+      const normalizedPath = fileName.replace(/^\/+/, '')
+      if (normalizedPath === 'main.ts')
+        return String(virtualFiles['main.ts']?.version ?? 0)
+      if (defaultLibraryFiles[normalizedPath]) return String(defaultLibraryFiles[normalizedPath].version)
+
+      const isExternalLibrary = externalPackageDefinitions[fileName] !== undefined || externalPackageDefinitions['/' + normalizedPath] !== undefined
+      if (isExternalLibrary) return '1'
       return '0'
     },
     getScriptSnapshot(fileName) {
-      const normalized = fileName.replace(/^\/+/, '')
+      const normalizedPath = fileName.replace(/^\/+/, '')
       let content: string | undefined
-      if (normalized === 'main.ts') content = files['main.ts']?.content
-      else if (libFiles[normalized]) content = libFiles[normalized].content
-      else if (extraLibs[fileName] !== undefined) content = extraLibs[fileName]
-      else if (extraLibs['/' + normalized] !== undefined)
-        content = extraLibs['/' + normalized]
+      if (normalizedPath === 'main.ts') content = virtualFiles['main.ts']?.content
+      else if (defaultLibraryFiles[normalizedPath]) content = defaultLibraryFiles[normalizedPath].content
+      else if (externalPackageDefinitions[fileName] !== undefined) content = externalPackageDefinitions[fileName]
+      else if (externalPackageDefinitions['/' + normalizedPath] !== undefined)
+        content = externalPackageDefinitions['/' + normalizedPath]
 
       if (content !== undefined) return TS.ScriptSnapshot.fromString(content)
       return undefined
@@ -176,327 +172,289 @@ async function initLanguageService() {
     getCompilationSettings: () => currentCompilerOptions,
     getDefaultLibFileName: () => '/lib.es2020.d.ts',
     fileExists(fileName) {
-      const normalized = fileName.replace(/^\/+/, '')
+      const normalizedPath = fileName.replace(/^\/+/, '')
       return (
-        normalized === 'main.ts' ||
-        Boolean(libFiles[normalized]) ||
-        extraLibs[fileName] !== undefined ||
-        extraLibs['/' + normalized] !== undefined
+        normalizedPath === 'main.ts' ||
+        Boolean(defaultLibraryFiles[normalizedPath]) ||
+        externalPackageDefinitions[fileName] !== undefined ||
+        externalPackageDefinitions['/' + normalizedPath] !== undefined
       )
     },
     readFile(fileName) {
-      const normalized = fileName.replace(/^\/+/, '')
-      if (normalized === 'main.ts') return files['main.ts']?.content
-      if (libFiles[normalized]) return libFiles[normalized].content
-      if (extraLibs[fileName] !== undefined) return extraLibs[fileName]
-      if (extraLibs['/' + normalized] !== undefined)
-        return extraLibs['/' + normalized]
+      const normalizedPath = fileName.replace(/^\/+/, '')
+      if (normalizedPath === 'main.ts') return virtualFiles['main.ts']?.content
+      if (defaultLibraryFiles[normalizedPath]) return defaultLibraryFiles[normalizedPath].content
+      if (externalPackageDefinitions[fileName] !== undefined) return externalPackageDefinitions[fileName]
+      if (externalPackageDefinitions['/' + normalizedPath] !== undefined)
+        return externalPackageDefinitions['/' + normalizedPath]
       return undefined
     },
-    // Crucial for module resolution to traverse virtual node_modules
-    directoryExists(dirName) {
-      if (dirName === '/' || dirName === '') return true
-      const normalized =
-        '/' + dirName.replace(/^\/+/, '').replace(/\/+$/, '') + '/'
-      return Object.keys(extraLibs).some((path) => path.startsWith(normalized))
+    directoryExists(directoryName) {
+      if (directoryName === '/' || directoryName === '') return true
+      const normalizedPath = '/' + directoryName.replace(/^\/+/, '').replace(/\/+$/, '') + '/'
+      return Object.keys(externalPackageDefinitions).some((filePath) => filePath.startsWith(normalizedPath))
     },
-    getDirectories(dirName) {
-      const normalized =
-        '/' + dirName.replace(/^\/+/, '').replace(/\/+$/, '') + '/'
-      const dirs = new Set<string>()
-      for (const path of Object.keys(extraLibs)) {
-        if (path.startsWith(normalized)) {
-          const rest = path.slice(normalized.length)
-          const nextSlash = rest.indexOf('/')
-          if (nextSlash !== -1) {
-            dirs.add(rest.slice(0, nextSlash))
+    getDirectories(directoryName) {
+      const normalizedPath = '/' + directoryName.replace(/^\/+/, '').replace(/\/+$/, '') + '/'
+      const subDirectories = new Set<string>()
+      for (const filePath of Object.keys(externalPackageDefinitions)) {
+        if (filePath.startsWith(normalizedPath)) {
+          const remainingPath = filePath.slice(normalizedPath.length)
+          const firstPathSeparatorIndex = remainingPath.indexOf('/')
+          if (firstPathSeparatorIndex !== -1) {
+            subDirectories.add(remainingPath.slice(0, firstPathSeparatorIndex))
           }
         }
       }
 
-      return [...dirs]
+      return [...subDirectories]
     },
-    // Added readDirectory to fully support TS module resolution in virtual FS
     readDirectory(path, extensions, _exclude, _include, _depth) {
-      const normalized =
-        path === '/'
-          ? '/'
-          : '/' + path.replace(/^\/+/, '').replace(/\/+$/, '') + '/'
-      const results: string[] = []
+      const normalizedPath = path === '/' ? '/' : '/' + path.replace(/^\/+/, '').replace(/\/+$/, '') + '/'
+      const matchedFiles: string[] = []
 
-      for (const file of Object.keys(extraLibs)) {
-        if (file.startsWith(normalized)) {
-          if (extensions && !extensions.some((ext) => file.endsWith(ext)))
-            continue
-          results.push(file)
+      for (const filePath of Object.keys(externalPackageDefinitions)) {
+        if (filePath.startsWith(normalizedPath)) {
+          const hasMatchingExtension = extensions && !extensions.some((extension) => filePath.endsWith(extension))
+          if (hasMatchingExtension) continue
+          matchedFiles.push(filePath)
         }
       }
-      return results
+      return matchedFiles
     },
     useCaseSensitiveFileNames: () => true,
     getNewLine: () => '\n',
   }
 
-  ls = TS.createLanguageService(host, TS.createDocumentRegistry())
+  languageService = TS.createLanguageService(languageServiceHost, TS.createDocumentRegistry())
 }
 
-function extractClassDeclaration(lines: string[]): string[] {
-  const result: string[] = []
-  const firstLine = lines[0].trim()
-  const isExport = firstLine.startsWith('export')
-  const prefix = isExport ? 'export declare' : 'declare'
-  const cleaned = firstLine
+function extractClassDeclarationSkeleton(sourceLines: string[]): string[] {
+  const skeletonLines: string[] = []
+  const classSignatureLine = sourceLines[0].trim()
+  const isExported = classSignatureLine.startsWith('export')
+  const declarationPrefix = isExported ? 'export declare' : 'declare'
+  const normalizedClassSignature = classSignatureLine
     .replace(/^export\s+/, '')
     .replace(
       /^(abstract\s+)?class/,
-      `${prefix} $1class`.replaceAll(/\s+/g, ' ')
+      `${declarationPrefix} $1class`.replaceAll(/\s+/g, ' ')
     )
-  result.push(cleaned.includes('{') ? cleaned : cleaned + ' {')
+  skeletonLines.push(normalizedClassSignature.includes('{') ? normalizedClassSignature : normalizedClassSignature + ' {')
 
-  for (let i = 1; i < lines.length - 1; i++) {
-    const line = lines[i].trim()
-    if (!line || line === '{' || line === '}') continue
+  for (let i = 1; i < sourceLines.length - 1; i++) {
+    const currentLine = sourceLines[i].trim()
+    if (!currentLine || currentLine === '{' || currentLine === '}') continue
 
-    const propMatch =
-      /^(public|private|protected|readonly|static|\s)*(\w+)\s*[?!]?\s*:\s*([^;=]+)/.exec(
-        line
-      )
-    if (propMatch) {
-      result.push(`  ${propMatch[2]}: ${propMatch[3].trim()};`)
+    const propertyMatch = /^(public|private|protected|readonly|static|\s)*(\w+)\s*[?!]?\s*:\s*([^;=]+)/.exec(currentLine)
+    if (propertyMatch) {
+      skeletonLines.push(`  ${propertyMatch[2]}: ${propertyMatch[3].trim()};`)
       continue
     }
 
-    const methMatch =
-      /^(public|private|protected|static|async|\s)*(\w+)\s*(<[^>]*>)?\s*\(([^)]*)\)\s*(?::\s*([^{;]+))?/.exec(
-        line
-      )
-    if (methMatch) {
-      const [, , name, gen, parameters, returnValue] = methMatch
-      const isAsync = /\basync\s+/.test(line)
-      if (name === 'constructor') {
-        result.push(`  constructor(${parameters});`)
+    const methodMatch = /^(public|private|protected|static|async|\s)*(\w+)\s*(<[^>]*>)?\s*\(([^)]*)\)\s*(?::\s*([^{;]+))?/.exec(currentLine)
+    if (methodMatch) {
+      const [, , methodName, generics, parameters, returnType] = methodMatch
+      const isAsyncMethod = /\basync\s+/.test(currentLine)
+      if (methodName === 'constructor') {
+        skeletonLines.push(`  constructor(${parameters});`)
       } else {
-        const finalReturnValue =
-          returnValue?.trim() || (isAsync ? 'Promise<void>' : 'void')
-        result.push(
-          `  ${name}${gen || ''}(${parameters}): ${finalReturnValue};`
-        )
+        const effectiveReturnType = returnType?.trim() || (isAsyncMethod ? 'Promise<void>' : 'void')
+        skeletonLines.push(`  ${methodName}${generics || ''}(${parameters}): ${effectiveReturnType};`)
       }
 
-      if (line.includes('{')) {
-        let depth =
-          (line.match(/{/g) || []).length - (line.match(/}/g) || []).length
-        while (depth > 0 && i + 1 < lines.length - 1) {
+      if (currentLine.includes('{')) {
+        let braceDepth = (currentLine.match(/{/g) || []).length - (currentLine.match(/}/g) || []).length
+        while (braceDepth > 0 && i + 1 < sourceLines.length - 1) {
           i++
-          depth += (lines[i].match(/{/g) || []).length
-          depth -= (lines[i].match(/}/g) || []).length
+          braceDepth += (sourceLines[i].match(/{/g) || []).length
+          braceDepth -= (sourceLines[i].match(/}/g) || []).length
         }
       }
     }
   }
 
-  result.push('}')
-  return result
+  skeletonLines.push('}')
+  return skeletonLines
 }
 
-function generateDeclarations(code: string): string {
-  const lines = code.split('\n')
-  const dtsLines: string[] = []
-  let inBlockComment = false
-  let pendingJsDoc: string[] = []
-  let braceDepth = 0
-  let capturing = false
-  let captureLines: string[] = []
-  let captureType = ''
+function generateAmbientDeclarations(sourceCode: string): string {
+  const sourceLines = sourceCode.split('\n')
+  const ambientDeclarationLines: string[] = []
+  let isInsideBlockComment = false
+  let accumulatedJsDoc: string[] = []
+  let currentBraceDepth = 0
+  let isCapturingBlock = false
+  let capturedBlockLines: string[] = []
+  let capturedDeclarationType = ''
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    const trimmed = line.trim()
+  for (let i = 0; i < sourceLines.length; i++) {
+    const lineContent = sourceLines[i]
+    const trimmedLine = lineContent.trim()
 
-    if (inBlockComment) {
-      if (capturing) captureLines.push(line)
-      else pendingJsDoc.push(line)
-      if (trimmed.includes('*/')) inBlockComment = false
+    if (isInsideBlockComment) {
+      if (isCapturingBlock) capturedBlockLines.push(lineContent)
+      else accumulatedJsDoc.push(lineContent)
+      if (trimmedLine.includes('*/')) isInsideBlockComment = false
       continue
     }
 
-    if (trimmed.startsWith('/*')) {
-      inBlockComment = true
-      if (capturing) captureLines.push(line)
-      else pendingJsDoc = [line]
-      if (trimmed.includes('*/')) inBlockComment = false
+    if (trimmedLine.startsWith('/*')) {
+      isInsideBlockComment = true
+      if (isCapturingBlock) capturedBlockLines.push(lineContent)
+      else accumulatedJsDoc = [lineContent]
+      if (trimmedLine.includes('*/')) isInsideBlockComment = false
       continue
     }
 
-    if (capturing) {
-      captureLines.push(line)
-      braceDepth += (line.match(/{/g) || []).length
-      braceDepth -= (line.match(/}/g) || []).length
-      if (braceDepth <= 0) {
-        if (captureType === 'class') {
-          dtsLines.push(...pendingJsDoc)
-          dtsLines.push(...extractClassDeclaration(captureLines))
+    if (isCapturingBlock) {
+      capturedBlockLines.push(lineContent)
+      currentBraceDepth += (lineContent.match(/{/g) || []).length
+      currentBraceDepth -= (lineContent.match(/}/g) || []).length
+      if (currentBraceDepth <= 0) {
+        if (capturedDeclarationType === 'class') {
+          ambientDeclarationLines.push(...accumulatedJsDoc)
+          ambientDeclarationLines.push(...extractClassDeclarationSkeleton(capturedBlockLines))
         } else {
-          dtsLines.push(...pendingJsDoc, ...captureLines)
+          ambientDeclarationLines.push(...accumulatedJsDoc, ...capturedBlockLines)
         }
 
-        dtsLines.push('')
-        capturing = false
-        captureLines = []
-        pendingJsDoc = []
-        captureType = ''
+        ambientDeclarationLines.push('')
+        isCapturingBlock = false
+        capturedBlockLines = []
+        accumulatedJsDoc = []
+        capturedDeclarationType = ''
       }
 
       continue
     }
 
-    if (trimmed.startsWith('//')) continue
-    if (!trimmed) continue
-    if (trimmed.startsWith('import ') || trimmed.startsWith('require('))
-      continue
+    if (trimmedLine.startsWith('//')) continue
+    if (!trimmedLine) continue
+    const isImportOrRequire = trimmedLine.startsWith('import ') || trimmedLine.startsWith('require(')
+    if (isImportOrRequire) continue
 
-    if (/^(export\s+)?interface\s+/.test(trimmed)) {
-      capturing = true
-      captureType = 'interface'
-      captureLines = [line]
-      braceDepth =
-        (line.match(/{/g) || []).length - (line.match(/}/g) || []).length
-      if (braceDepth <= 0 && line.includes('}')) {
-        dtsLines.push(...pendingJsDoc, line, '')
-        capturing = false
-        captureLines = []
-        pendingJsDoc = []
+    const interfaceDeclarationMatch = /^(export\s+)?interface\s+/.test(trimmedLine)
+    if (interfaceDeclarationMatch) {
+      isCapturingBlock = true
+      capturedDeclarationType = 'interface'
+      capturedBlockLines = [lineContent]
+      currentBraceDepth = (lineContent.match(/{/g) || []).length - (lineContent.match(/}/g) || []).length
+      const isSingleLineInterface = currentBraceDepth <= 0 && lineContent.includes('}')
+      if (isSingleLineInterface) {
+        ambientDeclarationLines.push(...accumulatedJsDoc, lineContent, '')
+        isCapturingBlock = false
+        capturedBlockLines = []
+        accumulatedJsDoc = []
       }
 
       continue
     }
 
-    if (/^(export\s+)?type\s+\w+/.test(trimmed)) {
-      dtsLines.push(...pendingJsDoc)
-      if (!trimmed.includes(';') && trimmed.includes('{')) {
-        capturing = true
-        captureType = 'type'
-        captureLines = [line]
-        braceDepth =
-          (line.match(/{/g) || []).length - (line.match(/}/g) || []).length
+    const typeAliasDeclarationMatch = /^(export\s+)?type\s+\w+/.test(trimmedLine)
+    if (typeAliasDeclarationMatch) {
+      ambientDeclarationLines.push(...accumulatedJsDoc)
+      const isMultiLineTypeAlias = !trimmedLine.includes(';') && trimmedLine.includes('{')
+      if (isMultiLineTypeAlias) {
+        isCapturingBlock = true
+        capturedDeclarationType = 'type'
+        capturedBlockLines = [lineContent]
+        currentBraceDepth = (lineContent.match(/{/g) || []).length - (lineContent.match(/}/g) || []).length
       } else {
-        dtsLines.push(
-          trimmed.startsWith('export') ? line : `export ${line}`,
-          ''
-        )
+        const ambientTypeAlias = trimmedLine.startsWith('export') ? lineContent : `export ${lineContent}`
+        ambientDeclarationLines.push(ambientTypeAlias, '')
       }
 
-      pendingJsDoc = []
+      accumulatedJsDoc = []
       continue
     }
 
-    if (/^(export\s+)?(const\s+)?enum\s+/.test(trimmed)) {
-      capturing = true
-      captureType = 'enum'
-      const declLine = trimmed.startsWith('export') ? line : `export ${line}`
-      captureLines = [
-        declLine.replace(/^(export\s+)?(const\s+)?enum/, 'declare enum'),
-      ]
-      braceDepth =
-        (line.match(/{/g) || []).length - (line.match(/}/g) || []).length
+    const enumDeclarationMatch = /^(export\s+)?(const\s+)?enum\s+/.test(trimmedLine)
+    if (enumDeclarationMatch) {
+      isCapturingBlock = true
+      capturedDeclarationType = 'enum'
+      const exportedEnumLine = trimmedLine.startsWith('export') ? lineContent : `export ${lineContent}`
+      capturedBlockLines = [exportedEnumLine.replace(/^(export\s+)?(const\s+)?enum/, 'declare enum')]
+      currentBraceDepth = (lineContent.match(/{/g) || []).length - (lineContent.match(/}/g) || []).length
       continue
     }
 
-    if (/^(export\s+)?(abstract\s+)?class\s+/.test(trimmed)) {
-      capturing = true
-      captureType = 'class'
-      captureLines = [line]
-      braceDepth =
-        (line.match(/{/g) || []).length - (line.match(/}/g) || []).length
+    const classDeclarationMatch = /^(export\s+)?(abstract\s+)?class\s+/.test(trimmedLine)
+    if (classDeclarationMatch) {
+      isCapturingBlock = true
+      capturedDeclarationType = 'class'
+      capturedBlockLines = [lineContent]
+      currentBraceDepth = (lineContent.match(/{/g) || []).length - (lineContent.match(/}/g) || []).length
       continue
     }
 
-    const fnMatch =
-      /^(export\s+)?(async\s+)?function\s+(\w+)\s*(<[^>]*>)?\s*\(([^)]*)\)\s*(?::\s*([^{]+?))?/.exec(
-        trimmed
-      )
-    if (fnMatch) {
-      const [, exp, isAsync, name, generics, parameters, returnType] = fnMatch
-      const gen = generics || ''
-      const returnValue =
-        returnType?.trim() || (isAsync ? 'Promise<void>' : 'void')
-      const prefix = exp ? 'export declare' : 'declare'
-      dtsLines.push(
-        ...pendingJsDoc,
-        `${prefix} function ${name}${gen}(${parameters}): ${returnValue};`,
+    const functionDeclarationMatch = /^(export\s+)?(async\s+)?function\s+(\w+)\s*(<[^>]*>)?\s*\(([^)]*)\)\s*(?::\s*([^{]+?))?/.exec(trimmedLine)
+    if (functionDeclarationMatch) {
+      const [, exportPrefix, isAsyncFunction, functionName, functionGenerics, functionParameters, functionReturnType] = functionDeclarationMatch
+      const genericsString = functionGenerics || ''
+      const effectiveReturnType = functionReturnType?.trim() || (isAsyncFunction ? 'Promise<void>' : 'void')
+      const ambientPrefix = exportPrefix ? 'export declare' : 'declare'
+      ambientDeclarationLines.push(
+        ...accumulatedJsDoc,
+        `${ambientPrefix} function ${functionName}${genericsString}(${functionParameters}): ${effectiveReturnType};`,
         ''
       )
-      pendingJsDoc = []
-      if (trimmed.includes('{')) {
-        let depth =
-          (line.match(/{/g) || []).length - (line.match(/}/g) || []).length
-        while (depth > 0 && i + 1 < lines.length) {
+      accumulatedJsDoc = []
+      if (trimmedLine.includes('{')) {
+        let braceDepth = (lineContent.match(/{/g) || []).length - (lineContent.match(/}/g) || []).length
+        while (braceDepth > 0 && i + 1 < sourceLines.length) {
           i++
-          depth += (lines[i].match(/{/g) || []).length
-          depth -= (lines[i].match(/}/g) || []).length
+          braceDepth += (sourceLines[i].match(/{/g) || []).length
+          braceDepth -= (sourceLines[i].match(/}/g) || []).length
         }
       }
 
       continue
     }
 
-    const constMatch =
-      /^(export\s+)?(const|let|var)\s+(\w+)\s*(?::\s*([^=]+?))?\s*=/.exec(
-        trimmed
-      )
-    if (constMatch) {
-      const [, exp, _kind, name, explicitType] = constMatch
-      const prefix = exp ? 'export declare' : 'declare'
+    const variableDeclarationMatch = /^(export\s+)?(const|let|var)\s+(\w+)\s*(?::\s*([^=]+?))?\s*=/.exec(trimmedLine)
+    if (variableDeclarationMatch) {
+      const [, exportPrefix, , variableName, explicitVariableType] = variableDeclarationMatch
+      const ambientPrefix = exportPrefix ? 'export declare' : 'declare'
 
-      if (explicitType) {
-        dtsLines.push(...pendingJsDoc)
-        dtsLines.push(`${prefix} const ${name}: ${explicitType.trim()};`, '')
+      if (explicitVariableType) {
+        ambientDeclarationLines.push(...accumulatedJsDoc)
+        ambientDeclarationLines.push(`${ambientPrefix} const ${variableName}: ${explicitVariableType.trim()};`, '')
       } else {
-        const valueMatch = /=\s*(.+?)(?:;|$)/.exec(trimmed)
-        if (valueMatch) {
-          const value = valueMatch[1].trim()
+        const variableValueMatch = /=\s*(.+?)(?:;|$)/.exec(trimmedLine)
+        if (variableValueMatch) {
+          const variableValue = variableValueMatch[1].trim()
           let inferredType = 'unknown'
-          if (/^["'`]/.test(value)) inferredType = 'string'
-          else if (/^\d/.test(value)) inferredType = 'number'
-          else if (value === 'true' || value === 'false')
-            inferredType = 'boolean'
-          else if (value.startsWith('[')) inferredType = 'unknown[]'
-          else if (value.startsWith('{'))
-            inferredType = 'Record<string, unknown>'
-          else if (value.startsWith('new ')) {
-            const className = /new\s+(\w+)/.exec(value)?.[1]
-            inferredType = className || 'unknown'
+          if (/^["'`]/.test(variableValue)) inferredType = 'string'
+          else if (/^\d/.test(variableValue)) inferredType = 'number'
+          else if (variableValue === 'true' || variableValue === 'false') inferredType = 'boolean'
+          else if (variableValue.startsWith('[')) inferredType = 'unknown[]'
+          else if (variableValue.startsWith('{')) inferredType = 'Record<string, unknown>'
+          else if (variableValue.startsWith('new ')) {
+            const classNameMatch = /new\s+(\w+)/.exec(variableValue)
+            inferredType = classNameMatch?.[1] || 'unknown'
           }
 
-          if (
-            value.includes('=>') ||
-            value.startsWith('function') ||
-            value.startsWith('async')
-          ) {
-            const arrowMatch =
-              /(?:async\s+)?\(([^)]*)\)\s*(?::\s*([^=]+?))?\s*=>/.exec(value)
-            if (arrowMatch) {
-              const aParameters = arrowMatch[1]
-              const aReturnValue = arrowMatch[2]?.trim() || 'void'
-              const isAsync = value.startsWith('async')
-              const returnValueType =
-                isAsync && !aReturnValue.startsWith('Promise')
-                  ? `Promise<${aReturnValue}>`
-                  : aReturnValue
-              dtsLines.push(
-                ...pendingJsDoc,
-                `${prefix} const ${name}: (${aParameters}) => ${returnValueType};`,
+          const isArrowFunction = variableValue.includes('=>') || variableValue.startsWith('function') || variableValue.startsWith('async')
+          if (isArrowFunction) {
+            const arrowFunctionSignatureMatch = /(?:async\s+)?\(([^)]*)\)\s*(?::\s*([^=]+?))?\s*=>/.exec(variableValue)
+            if (arrowFunctionSignatureMatch) {
+              const arrowParameters = arrowFunctionSignatureMatch[1]
+              const arrowReturnType = arrowFunctionSignatureMatch[2]?.trim() || 'void'
+              const isAsyncArrow = variableValue.startsWith('async')
+              const effectiveArrowReturnType = isAsyncArrow && !arrowReturnType.startsWith('Promise') ? `Promise<${arrowReturnType}>` : arrowReturnType
+              ambientDeclarationLines.push(
+                ...accumulatedJsDoc,
+                `${ambientPrefix} const ${variableName}: (${arrowParameters}) => ${effectiveArrowReturnType};`,
                 ''
               )
-              pendingJsDoc = []
-              if (trimmed.includes('{')) {
-                let depth =
-                  (line.match(/{/g) || []).length -
-                  (line.match(/}/g) || []).length
-                while (depth > 0 && i + 1 < lines.length) {
+              accumulatedJsDoc = []
+              if (trimmedLine.includes('{')) {
+                let braceDepth = (lineContent.match(/{/g) || []).length - (lineContent.match(/}/g) || []).length
+                while (braceDepth > 0 && i + 1 < sourceLines.length) {
                   i++
-                  depth += (lines[i].match(/{/g) || []).length
-                  depth -= (lines[i].match(/}/g) || []).length
+                  braceDepth += (sourceLines[i].match(/{/g) || []).length
+                  braceDepth -= (sourceLines[i].match(/}/g) || []).length
                 }
               }
 
@@ -504,67 +462,68 @@ function generateDeclarations(code: string): string {
             }
           }
 
-          dtsLines.push(
-            ...pendingJsDoc,
-            `${prefix} const ${name}: ${inferredType};`,
+          ambientDeclarationLines.push(
+            ...accumulatedJsDoc,
+            `${ambientPrefix} const ${variableName}: ${inferredType};`,
             ''
           )
         }
       }
 
-      pendingJsDoc = []
-      if (trimmed.includes('{') && !trimmed.includes('}')) {
-        let depth =
-          (line.match(/{/g) || []).length - (line.match(/}/g) || []).length
-        while (depth > 0 && i + 1 < lines.length) {
+      accumulatedJsDoc = []
+      const isMultiLineVariableDeclaration = trimmedLine.includes('{') && !trimmedLine.includes('}')
+      if (isMultiLineVariableDeclaration) {
+        let braceDepth = (lineContent.match(/{/g) || []).length - (lineContent.match(/}/g) || []).length
+        while (braceDepth > 0 && i + 1 < sourceLines.length) {
           i++
-          depth += (lines[i].match(/{/g) || []).length
-          depth -= (lines[i].match(/}/g) || []).length
+          braceDepth += (sourceLines[i].match(/{/g) || []).length
+          braceDepth -= (sourceLines[i].match(/}/g) || []).length
         }
       }
 
       continue
     }
 
-    pendingJsDoc = []
+    accumulatedJsDoc = []
   }
 
-  return dtsLines.join('\n').trim() || '// No exported declarations found'
+  const generatedDeclarationsContent = ambientDeclarationLines.join('\n').trim()
+  return generatedDeclarationsContent || '// No exported declarations found'
 }
 
-const getErrorMessage = (e: unknown) =>
-  e instanceof Error ? e.message : String(e)
+const getErrorMessage = (error: unknown) => error instanceof Error ? error.message : String(error)
 
-globalThis.onmessage = async (e: MessageEvent) => {
-  const { id, type, payload } = e.data
+globalThis.onmessage = async (messageEvent: MessageEvent) => {
+  const { id, type, payload } = messageEvent.data
   try {
     let result: any
 
     switch (type) {
       case 'INIT': {
-        globalInitPromise ||= (async () => {
-          ensureRequiredLibsLoaded()
-          if (!esbuildReady) {
+        workerInitializationPromise ||= (async () => {
+          loadDefaultTypeScriptLibraries()
+          if (!isEsbuildInitialized) {
             await esbuild.initialize({
               wasmURL: esbuildWasmUrl,
               worker: false,
             })
-            esbuildReady = true
+            isEsbuildInitialized = true
           }
 
-          await initLanguageService()
+          await initializeLanguageService()
         })()
-        await globalInitPromise
+        await workerInitializationPromise
         result = true
         break
       }
 
       case 'UPDATE_FILE': {
         const { filename, content } = payload
-        const normalized = filename.replace(/^\/+/, '')
-        if (files[normalized]?.content !== content) {
-          files[normalized] = {
-            version: (files[normalized]?.version || 0) + 1,
+        const normalizedFileName = filename.replace(/^\/+/, '')
+        const fileState = virtualFiles[normalizedFileName]
+        if (!fileState || fileState.content !== content) {
+          virtualFiles[normalizedFileName] = {
+            version: (fileState?.version || 0) + 1,
             content,
           }
         }
@@ -574,10 +533,10 @@ globalThis.onmessage = async (e: MessageEvent) => {
       }
 
       case 'UPDATE_EXTRA_LIBS': {
-        extraLibs = payload.libs
-        // Force a version bump on main.ts to trigger re-evaluation with new libs
-        if (files['main.ts']) {
-          files['main.ts'].version += 1
+        externalPackageDefinitions = payload.libs
+        const mainTsFile = virtualFiles['main.ts']
+        if (mainTsFile) {
+          mainTsFile.version += 1
         }
         result = true
         break
@@ -585,35 +544,26 @@ globalThis.onmessage = async (e: MessageEvent) => {
 
       case 'UPDATE_CONFIG': {
         try {
-          const { config, error } = TS.parseConfigFileTextToJson(
-            'tsconfig.json',
-            payload.tsconfig
-          )
+          const { config, error } = TS.parseConfigFileTextToJson('tsconfig.json', payload.tsconfig)
           if (error) throw new Error('Invalid config')
 
-          // Store the parsed object for esbuild to prevent crashes on invalid JSON
-          currentTsConfigParsed = config
+          parsedTypeScriptConfiguration = config
 
-          const { options } = TS.convertCompilerOptionsFromJson(
-            config?.compilerOptions || {},
-            '/'
-          )
+          const { options } = TS.convertCompilerOptionsFromJson(config?.compilerOptions || {}, '/')
           currentCompilerOptions = {
             ...defaultCompilerOptions,
             ...options,
-            // Force these to ensure the playground doesn't break
             moduleResolution: 100,
             allowImportingTsExtensions: true,
           }
         } catch {
-          // Fallback to default if JSON is invalid
           currentCompilerOptions = { ...defaultCompilerOptions }
-          currentTsConfigParsed = undefined
+          parsedTypeScriptConfiguration = undefined
         }
 
-        // Force a version bump on main.ts to trigger re-evaluation with new options
-        if (files['main.ts']) {
-          files['main.ts'].version += 1
+        const mainTsFile = virtualFiles['main.ts']
+        if (mainTsFile) {
+          mainTsFile.version += 1
         }
 
         result = true
@@ -621,18 +571,15 @@ globalThis.onmessage = async (e: MessageEvent) => {
       }
 
       case 'VALIDATE_CONFIG': {
-        const { error } = TS.parseConfigFileTextToJson(
-          'tsconfig.json',
-          payload.tsconfig
-        )
+        const { error } = TS.parseConfigFileTextToJson('tsconfig.json', payload.tsconfig)
         if (error) {
-          let message = 'Invalid JSON'
+          let errorMessage = 'Invalid JSON'
           try {
-            message = TS.flattenDiagnosticMessageText(error.messageText, '\n')
+            errorMessage = TS.flattenDiagnosticMessageText(error.messageText, '\n')
           } catch {
-            message = String(error.messageText)
+            errorMessage = String(error.messageText)
           }
-          result = { valid: false, error: message }
+          result = { valid: false, error: errorMessage }
         } else {
           result = { valid: true }
         }
@@ -640,130 +587,115 @@ globalThis.onmessage = async (e: MessageEvent) => {
       }
 
       case 'GET_DIAGNOSTICS': {
-        if (!ls) {
+        if (!languageService) {
           result = []
           break
         }
 
-        const syntactic = ls.getSyntacticDiagnostics('main.ts') || []
-        const semantic = ls.getSemanticDiagnostics('main.ts') || []
-        const all = [...syntactic, ...semantic]
-        const ignoredCodes = new Set([1128, 2308])
-        const filtered = all.filter((d) => !ignoredCodes.has(d.code))
+        const syntacticDiagnostics = languageService.getSyntacticDiagnostics('main.ts') || []
+        const semanticDiagnostics = languageService.getSemanticDiagnostics('main.ts') || []
+        const allDiagnostics = [...syntacticDiagnostics, ...semanticDiagnostics]
+        const ignoredDiagnosticCodes = new Set([1128, 2308])
+        const filteredDiagnostics = allDiagnostics.filter((diagnostic) => !ignoredDiagnosticCodes.has(diagnostic.code))
 
-        const code = files['main.ts']?.content || ''
-        const lineStarts = [0]
-        for (let i = 0; i < code.length; i++) {
-          if (code[i] === '\n') lineStarts.push(i + 1)
+        const mainTsContent = virtualFiles['main.ts']?.content || ''
+        const lineStartPositions = [0]
+        for (let i = 0; i < mainTsContent.length; i++) {
+          if (mainTsContent[i] === '\n') lineStartPositions.push(i + 1)
         }
 
-        result = filtered.map((d) => {
-          const start = d.start || 0
-          let l = 0
-          let r = lineStarts.length - 1
-          while (l <= r) {
-            const m = (l + r) >> 1
-            if (lineStarts[m] <= start) l = m + 1
-            else r = m - 1
+        result = filteredDiagnostics.map((diagnostic) => {
+          const startPosition = diagnostic.start || 0
+          let low = 0
+          let high = lineStartPositions.length - 1
+          while (low <= high) {
+            const middle = (low + high) >> 1
+            if (lineStartPositions[middle] <= startPosition) low = middle + 1
+            else high = middle - 1
           }
 
-          const line = r
-          const character = start - lineStarts[line]
+          const lineNumber = high
+          const characterPosition = startPosition - lineStartPositions[lineNumber]
 
-          let message = 'Unknown error'
+          let flattenedMessage = 'Unknown error'
           try {
-            message = TS.flattenDiagnosticMessageText(d.messageText, '\n')
+            flattenedMessage = TS.flattenDiagnosticMessageText(diagnostic.messageText, '\n')
           } catch {
-            message = String(d.messageText)
+            flattenedMessage = String(diagnostic.messageText)
           }
 
           return {
-            start,
-            length: d.length || 0,
-            message,
-            category:
-              d.category === TS.DiagnosticCategory.Warning
-                ? 'warning'
-                : 'error',
-            line,
-            character,
+            start: startPosition,
+            length: diagnostic.length || 0,
+            message: flattenedMessage,
+            category: diagnostic.category === TS.DiagnosticCategory.Warning ? 'warning' : 'error',
+            line: lineNumber,
+            character: characterPosition,
           }
         })
         break
       }
 
       case 'GET_TYPE_INFO': {
-        if (!ls) {
+        if (!languageService) {
           result = undefined
           break
         }
 
-        const info = ls.getQuickInfoAtPosition('main.ts', payload.offset)
-        if (!info) {
+        const quickInfo = languageService.getQuickInfoAtPosition('main.ts', payload.offset)
+        if (!quickInfo) {
           result = undefined
           break
         }
 
-        const displayString = TS.displayPartsToString(info.displayParts)
-        const docString = info.documentation
-          ? TS.displayPartsToString(info.documentation)
-          : undefined
-        const namePart = info.displayParts?.find((p) =>
-          [
-            'localName', 'variableName',
-            'parameterName',
-            'methodName',
-            'functionName',
-            'className',
-            'interfaceName',
-            'aliasName',
-            'propertyName',
-            'enumName', 'enumMemberName',
-            'moduleName', 'typeParameterName',
-          ].includes(p.kind)
-        )
+        const typeDisplayString = TS.displayPartsToString(quickInfo.displayParts)
+        const documentationString = quickInfo.documentation ? TS.displayPartsToString(quickInfo.documentation) : undefined
+
+        const validNameKinds = [
+          'localName', 'variableName', 'parameterName', 'methodName', 'functionName',
+          'className', 'interfaceName', 'aliasName', 'propertyName', 'enumName',
+          'enumMemberName', 'moduleName', 'typeParameterName'
+        ]
+        const namePart = quickInfo.displayParts?.find((part) => validNameKinds.includes(part.kind))
+
         result = {
           name: namePart ? namePart.text : '',
-          kind: info.kind,
-          typeAnnotation: displayString,
-          jsDoc: docString,
+          kind: quickInfo.kind,
+          typeAnnotation: typeDisplayString,
+          jsDoc: documentationString,
         }
         break
       }
 
       case 'GET_COMPLETIONS': {
-        if (!ls) {
+        if (!languageService) {
           result = []
           break
         }
 
-        const completions = ls.getCompletionsAtPosition(
-          'main.ts',
-          payload.offset,
-          undefined
-        )
-        if (!completions) {
+        const completionInfo = languageService.getCompletionsAtPosition('main.ts', payload.offset, undefined)
+        if (!completionInfo) {
           result = []
           break
         }
 
-        result = completions.entries.map((e) => ({
-          name: e.name,
-          kind: e.kind,
-          insertText: e.insertText,
+        result = completionInfo.entries.map((entry) => ({
+          name: entry.name,
+          kind: entry.kind,
+          insertText: entry.insertText,
         }))
         break
       }
 
       case 'COMPILE': {
-        if (globalInitPromise) await globalInitPromise
-        if (!esbuildReady) throw new Error('esbuild not initialized')
+        if (workerInitializationPromise) await workerInitializationPromise
+        if (!isEsbuildInitialized) throw new Error('esbuild not initialized')
 
-        const jsBuild = await esbuild.build({
-          bundle: false, // Do not bundle external dependencies, WebContainer handles them
+        const esbuildResult = await esbuild.build({
+          bundle: false,
           format: 'esm',
           target: 'es2020',
-          tsconfigRaw: currentTsConfigParsed, // Pass the parsed object instead of raw string
+          tsconfigRaw: parsedTypeScriptConfiguration,
           write: false,
           sourcemap: false,
           stdin: {
@@ -773,130 +705,58 @@ globalThis.onmessage = async (e: MessageEvent) => {
           },
         })
 
-        const js = jsBuild.outputFiles?.[0]?.text || ''
-        const dts = generateDeclarations(payload.code)
-        result = { js, dts }
+        const compiledJavaScript = esbuildResult.outputFiles?.[0]?.text || ''
+        const generatedDeclarations = generateAmbientDeclarations(payload.code)
+        result = { js: compiledJavaScript, dts: generatedDeclarations }
         break
       }
 
       case 'DETECT_IMPORTS': {
-        if (globalInitPromise) await globalInitPromise
-        const sourceFile = TS.createSourceFile(
-          'temp.ts',
-          payload.code,
-          TS.ScriptTarget.Latest,
-          true
-        )
-        const imports = new Set<string>()
+        if (workerInitializationPromise) await workerInitializationPromise
+        const sourceFile = TS.createSourceFile('temp.ts', payload.code, TS.ScriptTarget.Latest, true)
+        const detectedImportNames = new Set<string>()
 
-        // Node.js built-in modules that should not be added to package.json
-        const builtinModules = new Set([
-          'assert',
-          'async_hooks',
-          'buffer',
-          'child_process',
-          'cluster',
-          'console',
-          'constants',
-          'crypto',
-          'dgram',
-          'diagnostics_channel',
-          'dns',
-          'domain',
-          'events',
-          'fs',
-          'fs/promises',
-          'http',
-          'http2',
-          'https',
-          'inspector',
-          'module',
-          'net',
-          'os',
-          'path',
-          'path/posix',
-          'path/win32',
-          'perf_hooks',
-          'process',
-          'punycode',
-          'querystring',
-          'readline',
-          'repl',
-          'stream',
-          'stream/promises',
-          'stream/consumers',
-          'stream/web',
-          'string_decoder',
-          'sys',
-          'timers',
-          'timers/promises',
-          'tls',
-          'trace_events',
-          'tty',
-          'url',
-          'util',
-          'util/types',
-          'v8',
-          'vm',
-          'wasi',
-          'worker_threads',
-          'zlib',
+        const nodeBuiltinModules = new Set([
+          'assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'console', 'constants',
+          'crypto', 'dgram', 'diagnostics_channel', 'dns', 'domain', 'events', 'fs', 'fs/promises',
+          'http', 'http2', 'https', 'inspector', 'module', 'net', 'os', 'path', 'path/posix',
+          'path/win32', 'perf_hooks', 'process', 'punycode', 'querystring', 'readline', 'repl',
+          'stream', 'stream/promises', 'stream/consumers', 'stream/web', 'string_decoder', 'sys',
+          'timers', 'timers/promises', 'tls', 'trace_events', 'tty', 'url', 'util', 'util/types',
+          'v8', 'vm', 'wasi', 'worker_threads', 'zlib',
         ])
 
-        function visit(node: TS.Node) {
+        const extractModuleFromNode = (node: TS.Node) => {
           if (TS.isImportDeclaration(node)) {
-            const text = (node.moduleSpecifier as TS.StringLiteral)?.text
-            if (
-              text &&
-              !text.startsWith('.') &&
-              !text.startsWith('/') &&
-              !text.startsWith('http')
-            ) {
-              const parts = text.split('/')
-              const name = text.startsWith('@')
-                ? `${parts[0]}/${parts[1]}`
-                : parts[0]
-              if (
-                name &&
-                !builtinModules.has(name) &&
-                !name.startsWith('node:')
-              ) {
-                imports.add(name)
+            const moduleSpecifier = (node.moduleSpecifier as TS.StringLiteral)?.text
+            if (moduleSpecifier && !moduleSpecifier.startsWith('.') && !moduleSpecifier.startsWith('/') && !moduleSpecifier.startsWith('http')) {
+              const pathParts = moduleSpecifier.split('/')
+              const packageName = moduleSpecifier.startsWith('@') ? `${pathParts[0]}/${pathParts[1]}` : pathParts[0]
+              const isNotBuiltin = packageName && !nodeBuiltinModules.has(packageName) && !packageName.startsWith('node:')
+              if (isNotBuiltin) {
+                detectedImportNames.add(packageName)
               }
             }
-          } else if (
-            TS.isCallExpression(node) &&
-            node.expression.kind === TS.SyntaxKind.ImportKeyword
-          ) {
-            const arg = node.arguments[0]
-            if (arg && TS.isStringLiteral(arg)) {
-              const { text } = arg
-              if (
-                text &&
-                !text.startsWith('.') &&
-                !text.startsWith('/') &&
-                !text.startsWith('http')
-              ) {
-                const parts = text.split('/')
-                const name = text.startsWith('@')
-                  ? `${parts[0]}/${parts[1]}`
-                  : parts[0]
-                if (
-                  name &&
-                  !builtinModules.has(name) &&
-                  !name.startsWith('node:')
-                ) {
-                  imports.add(name)
+          } else if (TS.isCallExpression(node) && node.expression.kind === TS.SyntaxKind.ImportKeyword) {
+            const firstArgument = node.arguments[0]
+            if (firstArgument && TS.isStringLiteral(firstArgument)) {
+              const moduleSpecifier = firstArgument.text
+              if (moduleSpecifier && !moduleSpecifier.startsWith('.') && !moduleSpecifier.startsWith('/') && !moduleSpecifier.startsWith('http')) {
+                const pathParts = moduleSpecifier.split('/')
+                const packageName = moduleSpecifier.startsWith('@') ? `${pathParts[0]}/${pathParts[1]}` : pathParts[0]
+                const isNotBuiltin = packageName && !nodeBuiltinModules.has(packageName) && !packageName.startsWith('node:')
+                if (isNotBuiltin) {
+                  detectedImportNames.add(packageName)
                 }
               }
             }
           }
 
-          TS.forEachChild(node, visit)
+          TS.forEachChild(node, extractModuleFromNode)
         }
 
-        visit(sourceFile)
-        result = [...imports]
+        extractModuleFromNode(sourceFile)
+        result = [...detectedImportNames]
         break
       }
 
