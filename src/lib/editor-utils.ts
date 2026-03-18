@@ -36,7 +36,9 @@ export function buildHtml(code: string): string {
     const className = tokenTypeToClass[token.type]
     const escapedValue = escapeHtml(token.value)
     if (className) {
-      html += `<span class="${className}">${escapedValue}</span>`
+      // Use <i> for italics to allow CSS override
+      const tag = className.includes('italic') ? 'i' : 'span'
+      html += `<${tag} class="${className}">${escapedValue}</${tag}>`
     } else {
       html += escapedValue
     }

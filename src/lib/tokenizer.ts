@@ -147,8 +147,11 @@ export function tokenize(code: string): Token[] {
     if (code[i] === '/' && code[i + 1] === '*') {
       const start = i
       i += 2
-      while (i < length && !(code[i] === '*' && code[i + 1] === '/')) i++
-      i += 2
+      while (i < length && !(code[i] === '*' && code[i + 1] === '/')) {
+        // Handle inner block comments or just keep going
+        i++
+      }
+      if (i < length) i += 2 // Skip */
       tokens.push({
         type: 'comment',
         value: code.slice(start, i),
@@ -173,11 +176,11 @@ export function tokenize(code: string): Token[] {
     if (code[i] === '`') {
       const start = i++
       while (i < length && code[i] !== '`') {
-        if (code[i] === '\\') i++
+        if (code[i] === '\\' && i + 1 < length) i++
         i++
       }
 
-      i++
+      if (i < length) i++
       tokens.push({ type: 'string', value: code.slice(start, i), index: start })
       continue
     }
@@ -187,11 +190,11 @@ export function tokenize(code: string): Token[] {
       const q = code[i]
       const start = i++
       while (i < length && code[i] !== q) {
-        if (code[i] === '\\') i++
+        if (code[i] === '\\' && i + 1 < length) i++
         i++
       }
 
-      i++
+      if (i < length) i++
       tokens.push({ type: 'string', value: code.slice(start, i), index: start })
       continue
     }
@@ -217,7 +220,7 @@ export function tokenize(code: string): Token[] {
       else if (keywords.has(word)) type = 'keyword'
       else if (types.has(word)) type = 'type'
       // Function call?
-      else if (/[\w$]/.test(word[0]) && code[i] === '(') type = 'function'
+      else if (/^[a-zA-Z_$]/.test(word) && code[i] === '(') type = 'function'
       tokens.push({ type, value: word, index: start })
       continue
     }

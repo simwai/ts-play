@@ -45,20 +45,15 @@ export type CodeEditorRef = {
 const EDITOR_PADDING_TOP = 16
 const EMPTY_LIBRARIES = {}
 
-const getLayerStyle = (
-  contentHeight: number,
+// Consolidated styling for consistency
+const getSharedStyles = (
   fontSize: number,
   lineHeight: number,
   paddingX: number
 ): React.CSSProperties => ({
-  position: 'absolute',
-  top: 0,
-  left: 0,
-  right: 0,
-  margin: 0,
-  padding: `${EDITOR_PADDING_TOP}px ${paddingX}px`,
   fontSize: fontSize,
   lineHeight: `${lineHeight}px`,
+  fontFamily: 'inherit', // inherit from container's font-mono
   letterSpacing: '0',
   fontKerning: 'none',
   fontVariantLigatures: 'none',
@@ -68,11 +63,26 @@ const getLayerStyle = (
   whiteSpace: 'pre-wrap',
   wordBreak: 'break-word',
   overflowWrap: 'break-word',
+  padding: `${EDITOR_PADDING_TOP}px ${paddingX}px`,
+  tabSize: 2,
+})
+
+const getLayerStyle = (
+  contentHeight: number,
+  fontSize: number,
+  lineHeight: number,
+  paddingX: number
+): React.CSSProperties => ({
+  ...getSharedStyles(fontSize, lineHeight, paddingX),
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  margin: 0,
   overflowY: 'hidden',
   overflowX: 'hidden',
   boxSizing: 'border-box',
   minHeight: contentHeight,
-  tabSize: 2,
 })
 
 export const CodeEditor = React.memo(
@@ -106,8 +116,8 @@ export const CodeEditor = React.memo(
     const animationFrameRequest = useRef<number>(0)
 
     const baseFontSize = fontSizeOverride ?? (isMobileLike ? 12 : 14)
-    const lineHeight = Math.round(baseFontSize * 1.7) // Roughly 24 for 14, 20 for 12
-    const characterWidth = baseFontSize * 0.6 // Roughly 8.4 for 14, 7.2 for 12
+    const lineHeight = Math.round(baseFontSize * 1.7)
+    const characterWidth = baseFontSize * 0.6
     const gutterWidth = hideGutter ? 0 : (isMobileLike ? 36 : 48)
     const horizontalPadding = isMobileLike ? 12 : 16
 
@@ -115,7 +125,6 @@ export const CodeEditor = React.memo(
     const [typeInfo, setTypeInfo] = useState<TypeInfo | undefined>(undefined)
     const [renderedLineHeights, setRenderedLineHeights] = useState<number[]>([])
 
-    // We only use diagnostics if not disabled
     const diagnostics = useTSDiagnostics(value, !disableDiagnostics && language === 'typescript', extraLibs)
     const [activeDiagnostic, setActiveDiagnostic] = useState<TSDiagnostic | undefined>(undefined)
 
@@ -318,9 +327,10 @@ export const CodeEditor = React.memo(
       [language, effectiveLineHeights, lineHeight, horizontalPadding, characterWidth, disableAutocomplete]
     )
 
-    const applyAutocompleteSelection = useCallback(() => {
-      const hasNoSuggestions = autocompleteSuggestions.length === 0
-      if (hasNoSuggestions) return
+    const applyAutocompleteSelection = useCallback((indexOverride?: number) => {
+      const index = typeof indexOverride === "number" ? indexOverride : selectedSuggestionIndex
+      const suggestion = autocompleteSuggestions[index]
+      if (!suggestion) return
 
       const textArea = textInputRef.current
       if (!textArea) return
@@ -330,8 +340,7 @@ export const CodeEditor = React.memo(
       const wordMatch = /[\w$]+$/.exec(textBeforeCursor)
       const lengthOfWordToReplace = wordMatch ? wordMatch[0].length : 0
 
-      const selectedSuggestion = autocompleteSuggestions[selectedSuggestionIndex]
-      const textToInsert = selectedSuggestion.insertText || selectedSuggestion.name
+      const textToInsert = suggestion.insertText || suggestion.name
 
       saveEditorState(value, cursorPosition, true)
       const updatedCode = value.slice(0, cursorPosition - lengthOfWordToReplace) + textToInsert + value.slice(cursorPosition)
@@ -513,7 +522,7 @@ export const CodeEditor = React.memo(
     const extraBottomPadding = hideTypeInfo ? 0 : 80
 
     return (
-      <div className={cn('relative w-full h-full overflow-hidden font-mono flex flex-col', className)}>
+      <div className={cn('code-editor relative w-full h-full overflow-hidden font-mono flex flex-col', className)}>
         <div
           className='flex-1 relative overflow-hidden min-h-0 bg-base'
         >
@@ -559,12 +568,8 @@ export const CodeEditor = React.memo(
               <div
                 ref={heightMeasurementRef}
                 aria-hidden
-                className='absolute inset-0 invisible pointer-events-none -z-10 box-border whitespace-pre-wrap wrap-break-word'
-                style={{
-                  padding: `${EDITOR_PADDING_TOP}px ${horizontalPadding}px`,
-                  fontSize: baseFontSize,
-                  lineHeight: `${lineHeight}px`,
-                }}
+                className='absolute inset-0 invisible pointer-events-none -z-10 box-border'
+                style={getSharedStyles(baseFontSize, lineHeight, horizontalPadding)}
               >
                 {linesOfCode.map((lineText, index) => (
                   <div
@@ -647,8 +652,7 @@ export const CodeEditor = React.memo(
                       className={`px-3 py-1.5 cursor-pointer flex justify-between gap-4 ${index === selectedSuggestionIndex ? 'bg-surface0 text-text' : 'bg-transparent text-subtext0'}`}
                       onMouseDown={(mouseDownEvent) => {
                         mouseDownEvent.preventDefault()
-                        setSelectedSuggestionIndex(index)
-                        applyAutocompleteSelection()
+                        applyAutocompleteSelection(index)
                       }}
                     >
                       <span>{suggestion.name}</span>
