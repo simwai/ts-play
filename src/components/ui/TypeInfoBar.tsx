@@ -115,7 +115,7 @@ function TypeRow({ info }: { info: TypeInfo }) {
         >
           {info.kind}
         </span>
-        <span className='text-text font-semibold shrink-0'>{info.name}</span>
+        <span className='text-text font-semibold shrink-0'>{info.name || (info.kind === 'keyword' ? '' : 'unknown')}</span>
         <span className='text-overlay0 shrink-0'>:</span>
         <span className='text-yellow whitespace-pre-wrap wrap-break-word flex-[1_1_7.5rem] min-w-0'>
           {info.typeAnnotation}

@@ -1,62 +1,137 @@
-import { getSyntaxColors } from './theme'
-import { tokenize } from './tokenizer'
 import type { TSDiagnostic } from '../hooks/useTSDiagnostics'
 
-export function escHtml(s: string): string {
-  return s
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/\'/g, '&#039;')
 }
 
 export function buildHtml(code: string): string {
-  const sc = getSyntaxColors()
-  const COLOR: Record<string, string> = {
-    keyword: sc.keyword,
-    string: sc.string,
-    number: sc.number,
-    comment: sc.comment,
-    function: sc.function,
-    type: sc.type,
-    operator: sc.operator,
-    punctuation: sc.punctuation,
-    decorator: sc.decorator,
-    variable: sc.variable,
-    constant: sc.constant,
-    boolean: sc.boolean,
-    property: sc.property,
-    parameter: sc.parameter,
-    plain: 'var(--text)',
+  const keywords = [
+    'export',
+    'type',
+    'const',
+    'import',
+    'from',
+    'readonly',
+    'as',
+    'extends',
+    'infer',
+    'never',
+    'keyof',
+    'typeof',
+    'interface',
+    'class',
+    'function',
+    'return',
+    'if',
+    'else',
+    'for',
+    'while',
+    'new',
+    'async',
+    'await',
+    'try',
+    'catch',
+    'throw',
+    'implements',
+    'private',
+    'public',
+    'protected',
+    'static',
+    'in',
+  ]
+  const types = [
+    'Type',
+    'Static',
+    'String',
+    'Number',
+    'Boolean',
+    'Object',
+    'Array',
+    'Any',
+    'Unknown',
+    'Never',
+    'Void',
+    'Null',
+    'Undefined',
+    'Symbol',
+    'BigInt',
+    'Record',
+    'Partial',
+    'Required',
+    'Readonly',
+    'Pick',
+    'Omit',
+    'Exclude',
+    'Extract',
+    'NonNullable',
+    'ReturnType',
+    'InstanceType',
+    'ThisType',
+    'Uppercase',
+    'Lowercase',
+    'Capitalize',
+    'Uncapitalize',
+  ]
+
+  const keywordsPattern = keywords.join('|')
+  const typesPattern = types.join('|')
+
+  const tokenRegex = new RegExp(
+    '(//.*|/\\*[\\s\\S]*?\\*/|\'.*?\'|".*?"|`[\\s\\S]*?`|\\b(?:' + keywordsPattern + ')\\b|\\b(?:' + typesPattern + ')\\b)',
+    'g',
+  )
+
+  const parts = code.split(tokenRegex)
+  let html = ''
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]
+    if (part === undefined) continue
+    if (i % 2 === 0) {
+      html += escapeHtml(part)
+    } else {
+      const escapedToken = escapeHtml(part)
+      if (part.startsWith('//') || part.startsWith('/*')) {
+        html += '<span class="text-overlay2 italic">' + escapedToken + '</span>'
+      } else if (part.startsWith("\'") || part.startsWith('"') || part.startsWith('`')) {
+        html += '<span class="text-green">' + escapedToken + '</span>'
+      } else if (keywords.indexOf(part) !== -1) {
+        html += '<span class="text-mauve">' + escapedToken + '</span>'
+      } else if (types.indexOf(part) !== -1) {
+        html += '<span class="text-blue">' + escapedToken + '</span>'
+      } else {
+        html += escapedToken
+      }
+    }
   }
-  return tokenize(code)
-    .map((tok) => {
-      const color = COLOR[tok.type] ?? 'var(--text)'
-      const safe = escHtml(tok.value)
-      return `<span style="color:${color}">${safe}</span>`
-    })
-    .join('')
+
+  return html
 }
 
-export function buildSquiggles(
-  code: string,
-  diagnostics: TSDiagnostic[]
-): string {
-  if (diagnostics.length === 0) return escHtml(code)
-  const sorted = [...diagnostics].sort((a, b) => a.start - b.start)
-  const parts: string[] = []
-  let cursor = 0
-  for (const d of sorted) {
-    const { start } = d
-    const end = Math.min(d.start + d.length, code.length)
-    if (start < cursor) continue
-    if (start > cursor) parts.push(escHtml(code.slice(cursor, start)))
-    const color = d.category === 'error' ? 'var(--red)' : 'var(--yellow)'
-    parts.push(
-      `<span style="text-decoration:underline wavy ${color};text-decoration-thickness:1.5px;text-underline-offset:3px;">${escHtml(code.slice(start, end))}</span>`
-    )
-    cursor = end
+export function buildSquiggles(code: string, diagnostics: TSDiagnostic[]): string {
+  if (diagnostics.length === 0) return escapeHtml(code)
+
+  const sortedDiagnostics = [...diagnostics].sort((a, b) => a.start - b.start)
+  let htmlResult = ''
+  let currentPosition = 0
+
+  for (const diagnostic of sortedDiagnostics) {
+    if (diagnostic.start < currentPosition) continue
+
+    htmlResult += escapeHtml(code.slice(currentPosition, diagnostic.start))
+    const diagnosticText = code.slice(diagnostic.start, diagnostic.start + diagnostic.length)
+
+    const severityClass = diagnostic.category === 1 ? 'decoration-red' : 'decoration-yellow'
+    htmlResult += '<span class="underline underline-wavy ' + severityClass + ' decoration-2">' + escapeHtml(diagnosticText) + '</span>'
+
+    currentPosition = diagnostic.start + diagnostic.length
   }
 
-  if (cursor < code.length) parts.push(escHtml(code.slice(cursor)))
-  return parts.join('')
+  htmlResult += escapeHtml(code.slice(currentPosition))
+  return htmlResult
 }
