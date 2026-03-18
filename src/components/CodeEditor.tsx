@@ -531,7 +531,7 @@ export const CodeEditor = React.memo(
     const sharedStyles = useMemo(() => getSharedStyles(baseFontSize, lineHeight, horizontalPadding, lineWrap), [baseFontSize, lineHeight, horizontalPadding, lineWrap])
 
     return (
-      <div className={cn('code-editor relative w-full h-full overflow-hidden font-mono flex flex-col', className)}>
+      <div data-testid="code-editor-container" className={cn('code-editor relative w-full h-full overflow-hidden font-mono flex flex-col', className)}>
         <div
           className='flex-1 relative overflow-hidden min-h-0 bg-base'
         >
@@ -609,7 +609,7 @@ export const CodeEditor = React.memo(
 
               {/* Display Layer (Highlighted Code) */}
               <pre
-                ref={codeDisplayRef}
+                ref={codeDisplayRef} data-testid="code-editor-display"
                 aria-hidden
                 className='text-text bg-transparent pointer-events-none'
                 style={getLayerStyle(totalContentHeight, baseFontSize, lineHeight, horizontalPadding, lineWrap)}
@@ -666,7 +666,7 @@ export const CodeEditor = React.memo(
 
               {/* Input Layer */}
               <textarea
-                ref={textInputRef}
+                ref={textInputRef} data-testid="code-editor-textarea"
                 value={value}
                 readOnly={readOnly}
                 onChange={handleTextInputChange}
@@ -698,7 +698,7 @@ export const CodeEditor = React.memo(
 
               {autocompleteSuggestions.length > 0 && (
                 <ul
-                  role='listbox'
+                  role='listbox' data-testid="autocomplete-listbox"
                   aria-label='Autocomplete suggestions'
                   className='hidden md:block absolute m-0 p-0 list-none bg-mantle border border-surface1 rounded-md shadow-lg shadow-black/30 z-50 max-h-52 overflow-y-auto min-w-48 text-sm'
                   style={{
@@ -712,7 +712,7 @@ export const CodeEditor = React.memo(
                   {autocompleteSuggestions.map((suggestion, index) => (
                     <li
                       key={suggestion.name}
-                      role='option'
+                      role='option' data-testid="autocomplete-option"
                       aria-selected={index === selectedSuggestionIndex}
                       className={`px-3 py-1.5 cursor-pointer flex justify-between gap-4 ${index === selectedSuggestionIndex ? 'bg-surface0 text-text' : 'bg-transparent text-subtext0'}`}
                       onMouseDown={(mouseDownEvent) => {

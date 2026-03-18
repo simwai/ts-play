@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { workerClient } from '../lib/workerClient'
 import { loadPrettier } from '../lib/formatter'
 import { writeFiles, runCommand } from '../lib/webcontainer'
 import type { ConsoleMessage } from '../components/Console'
+import type { WebContainerProcess } from '@webcontainer/api'
 
 export function useCompilerManager(
   tsCode: string,
@@ -12,6 +13,8 @@ export function useCompilerManager(
     'loading' | 'ready' | 'error'
   >('loading')
   const [isRunning, setIsRunning] = useState(false)
+  const currentProcess = useRef<WebContainerProcess | null>(null)
+  const timeoutRef = useRef<number | null>(null)
 
   useEffect(() => {
     workerClient
@@ -33,6 +36,19 @@ export function useCompilerManager(
     }
   }, [compilerStatus])
 
+  const stopCode = useCallback(() => {
+    if (currentProcess.current) {
+      currentProcess.current.kill()
+      currentProcess.current = null
+      addMessage('info', ['Execution stopped by user.'])
+    }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
+    setIsRunning(false)
+  }, [addMessage])
+
   const runCode = useCallback(
     async (
       pendingInstalls: Promise<void>,
@@ -52,12 +68,32 @@ export function useCompilerManager(
         await pendingInstalls
 
         addMessage('info', ['Executing via Node.js...'])
-        const exitCode = await runCommand('node', ['index.js'], (out) => {
-          // Do NOT strip ANSI codes if we want to support them in the console
+        const { exit, process } = await runCommand('node', ['index.js'], (out) => {
           if (out.trim()) addMessage('log', [out.trim()])
         })
 
-        if (exitCode !== 0) {
+        currentProcess.current = process
+
+        // Set 5 minute timeout
+        timeoutRef.current = window.setTimeout(() => {
+          if (currentProcess.current) {
+            currentProcess.current.kill()
+            currentProcess.current = null
+            addMessage('error', ['Execution timed out after 5 minutes.'])
+            setIsRunning(false)
+          }
+        }, 300000)
+
+        const exitCode = await exit
+
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current)
+          timeoutRef.current = null
+        }
+
+        currentProcess.current = null
+
+        if (exitCode !== 0 && isRunning) {
           addMessage('error', [`Process exited with code ${exitCode}`])
         }
       } catch (error) {
@@ -66,8 +102,8 @@ export function useCompilerManager(
         setIsRunning(false)
       }
     },
-    [tsCode, addMessage]
+    [tsCode, addMessage, isRunning]
   )
 
-  return { compilerStatus, isRunning, runCode }
+  return { compilerStatus, isRunning, runCode, stopCode }
 }
