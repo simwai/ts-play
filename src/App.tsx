@@ -94,6 +94,10 @@ export function App() {
     'tsplay_truecolor',
     true
   )
+  const [lineWrap, setLineWrap] = useLocalStorage(
+    'tsplay_linewrap',
+    true
+  )
 
   const [activeTab, setActiveTab] = useState<TabType>('ts')
 
@@ -418,6 +422,8 @@ export function App() {
           setShowSettings(true)
         }}
         compactForKeyboard={compactForKeyboard}
+        lineWrap={lineWrap}
+        setLineWrap={setLineWrap}
       />
 
       {/* ── Editors ── */}
@@ -455,6 +461,7 @@ export function App() {
               keyboardOpen={keyboardOpen}
               keyboardHeight={keyboardHeight}
               isMobileLike={isMobileLike}
+              lineWrap={lineWrap}
             />
           </div>
           {/* JS Editor */}
@@ -470,6 +477,7 @@ export function App() {
               keyboardOpen={keyboardOpen}
               keyboardHeight={keyboardHeight}
               isMobileLike={isMobileLike}
+              lineWrap={lineWrap}
             />
           </div>
           {/* DTS Editor */}
@@ -483,6 +491,7 @@ export function App() {
               keyboardOpen={keyboardOpen}
               keyboardHeight={keyboardHeight}
               isMobileLike={isMobileLike}
+              lineWrap={lineWrap}
             />
           </div>
         </div>
@@ -544,6 +553,8 @@ export function App() {
         onSave={setTsConfigString}
         trueColorEnabled={trueColorEnabled}
         setTrueColorEnabled={setTrueColorEnabled}
+        lineWrap={lineWrap}
+        setLineWrap={setLineWrap}
       />
     </div>
   )

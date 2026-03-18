@@ -35,6 +35,7 @@ export type CodeEditorProps = {
   disableAutocomplete?: boolean
   disableDiagnostics?: boolean
   className?: string
+  lineWrap?: boolean
 }
 
 export type CodeEditorRef = {
@@ -49,7 +50,8 @@ const EMPTY_LIBRARIES = {}
 const getSharedStyles = (
   fontSize: number,
   lineHeight: number,
-  paddingX: number
+  paddingX: number,
+  lineWrap: boolean
 ): React.CSSProperties => ({
   fontSize: fontSize,
   lineHeight: `${lineHeight}px`,
@@ -60,9 +62,9 @@ const getSharedStyles = (
   textRendering: 'geometricPrecision',
   WebkitFontSmoothing: 'antialiased',
   MozOsxFontSmoothing: 'grayscale',
-  whiteSpace: 'pre-wrap',
-  wordBreak: 'break-word',
-  overflowWrap: 'break-word',
+  whiteSpace: lineWrap ? 'pre-wrap' : 'pre',
+  wordBreak: lineWrap ? 'break-word' : 'normal',
+  overflowWrap: lineWrap ? 'break-word' : 'normal',
   padding: `${EDITOR_PADDING_TOP}px ${paddingX}px`,
   tabSize: 2,
 })
@@ -71,9 +73,10 @@ const getLayerStyle = (
   contentHeight: number,
   fontSize: number,
   lineHeight: number,
-  paddingX: number
+  paddingX: number,
+  lineWrap: boolean
 ): React.CSSProperties => ({
-  ...getSharedStyles(fontSize, lineHeight, paddingX),
+  ...getSharedStyles(fontSize, lineHeight, paddingX, lineWrap),
   position: 'absolute',
   top: 0,
   left: 0,
@@ -103,6 +106,7 @@ export const CodeEditor = React.memo(
       disableAutocomplete = false,
       disableDiagnostics = false,
       className,
+      lineWrap = true,
     },
     componentRef
   ) {
@@ -236,11 +240,11 @@ export const CodeEditor = React.memo(
     useLayoutEffect(() => {
       cancelAnimationFrame(animationFrameRequest.current)
       animationFrameRequest.current = requestAnimationFrame(measureLineWrapHeights)
-    }, [measureLineWrapHeights])
+    }, [measureLineWrapHeights, lineWrap, value])
 
     useEffect(() => {
       if (codeDisplayRef.current) {
-        codeDisplayRef.current.innerHTML = buildHtml(value) + '\n'
+        // Since we handle rendering per line, we don't need innerHTML here anymore
       }
     }, [value])
 
@@ -248,9 +252,12 @@ export const CodeEditor = React.memo(
       const scroller = scrollContainerRef.current
       if (!scroller) return
 
-      const { scrollTop } = scroller
+      const { scrollTop, scrollLeft } = scroller
       if (lineGutterRef.current) lineGutterRef.current.scrollTop = scrollTop
-      if (textInputRef.current) textInputRef.current.scrollTop = scrollTop
+      if (textInputRef.current) {
+        textInputRef.current.scrollTop = scrollTop
+        textInputRef.current.scrollLeft = scrollLeft
+      }
     }, [])
 
     const ensureSelectionIsVisible = useCallback(() => {
@@ -521,6 +528,8 @@ export const CodeEditor = React.memo(
 
     const extraBottomPadding = hideTypeInfo ? 0 : 80
 
+    const sharedStyles = useMemo(() => getSharedStyles(baseFontSize, lineHeight, horizontalPadding, lineWrap), [baseFontSize, lineHeight, horizontalPadding, lineWrap])
+
     return (
       <div className={cn('code-editor relative w-full h-full overflow-hidden font-mono flex flex-col', className)}>
         <div
@@ -529,7 +538,7 @@ export const CodeEditor = React.memo(
           <div
             ref={scrollContainerRef}
             onScroll={synchronizeScroll}
-            className='absolute inset-0 overflow-y-auto overflow-x-hidden flex'
+            className='absolute inset-0 overflow-auto flex'
           >
             {!hideGutter && (
               <div
@@ -563,44 +572,99 @@ export const CodeEditor = React.memo(
             <div
               ref={editorWrapperRef}
               className='flex-1 relative min-w-0'
-              style={{ minHeight: totalContentHeight + extraBottomPadding }}
+              style={{
+                minHeight: totalContentHeight + extraBottomPadding,
+                width: lineWrap ? '100%' : 'max-content'
+              }}
             >
+              {/* Measurement Layer */}
               <div
                 ref={heightMeasurementRef}
                 aria-hidden
                 className='absolute inset-0 invisible pointer-events-none -z-10 box-border'
-                style={getSharedStyles(baseFontSize, lineHeight, horizontalPadding)}
+                style={sharedStyles}
               >
-                {linesOfCode.map((lineText, index) => (
-                  <div
-                    key={`measure-${index}`}
-                    style={{
-                      minHeight: lineHeight,
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                      overflowWrap: 'break-word',
-                    }}
-                  >
-                    {lineText === '' ? ' ' : lineText.replaceAll('\t', '  ')}
-                  </div>
-                ))}
+                {linesOfCode.map((lineText, index) => {
+                  const leadingSpaces = lineText.match(/^\s*/)?.[0] || ''
+                  const indentWidth = leadingSpaces.length * characterWidth
+                  const wrapIndent = indentWidth + (characterWidth * 2)
+
+                  return (
+                    <div
+                      key={`measure-${index}`}
+                      style={{
+                        minHeight: lineHeight,
+                        whiteSpace: lineWrap ? 'pre-wrap' : 'pre',
+                        wordBreak: lineWrap ? 'break-word' : 'normal',
+                        overflowWrap: lineWrap ? 'break-word' : 'normal',
+                        paddingLeft: lineWrap ? wrapIndent : 0,
+                        textIndent: lineWrap ? -wrapIndent + indentWidth : 0,
+                      }}
+                    >
+                      {lineText === '' ? ' ' : lineText.replaceAll('\t', '  ')}
+                    </div>
+                  )
+                })}
               </div>
+
+              {/* Display Layer (Highlighted Code) */}
               <pre
                 ref={codeDisplayRef}
                 aria-hidden
                 className='text-text bg-transparent pointer-events-none'
-                style={getLayerStyle(totalContentHeight, baseFontSize, lineHeight, horizontalPadding)}
-              />
+                style={getLayerStyle(totalContentHeight, baseFontSize, lineHeight, horizontalPadding, lineWrap)}
+              >
+                {linesOfCode.map((lineText, index) => {
+                   const leadingSpaces = lineText.match(/^\s*/)?.[0] || ''
+                   const indentWidth = leadingSpaces.length * characterWidth
+                   const wrapIndent = indentWidth + (characterWidth * 2)
+
+                   return (
+                     <div
+                       key={`line-${index}`}
+                       style={{
+                         paddingLeft: lineWrap ? wrapIndent : 0,
+                         textIndent: lineWrap ? -wrapIndent + indentWidth : 0,
+                         minHeight: lineHeight,
+                       }}
+                       dangerouslySetInnerHTML={{ __html: buildHtml(lineText) + '\n' }}
+                     />
+                   )
+                })}
+              </pre>
+
+              {/* Diagnostics Layer (Squiggles) */}
               {!disableDiagnostics && (
-                <pre
+                <div
                   aria-hidden
-                  dangerouslySetInnerHTML={{
-                    __html: buildSquiggles(value, diagnostics),
-                  }}
-                  className='text-transparent bg-transparent pointer-events-none z-10'
-                  style={getLayerStyle(totalContentHeight, baseFontSize, lineHeight, horizontalPadding)}
-                />
+                  className='text-transparent bg-transparent pointer-events-none z-10 absolute inset-0'
+                  style={getLayerStyle(totalContentHeight, baseFontSize, lineHeight, horizontalPadding, lineWrap)}
+                >
+                   {linesOfCode.map((lineText, index) => {
+                      const leadingSpaces = lineText.match(/^\s*/)?.[0] || ''
+                      const indentWidth = leadingSpaces.length * characterWidth
+                      const wrapIndent = indentWidth + (characterWidth * 2)
+                      const lineStartOffset = linesOfCode.slice(0, index).join('\n').length + (index > 0 ? 1 : 0)
+                      const lineEndOffset = lineStartOffset + lineText.length
+                      const lineDiagnostics = diagnostics.filter(d => d.start >= lineStartOffset && d.start < lineEndOffset)
+                      const relativeDiagnostics = lineDiagnostics.map(d => ({ ...d, start: d.start - lineStartOffset }))
+
+                      return (
+                        <div
+                          key={`diag-${index}`}
+                          style={{
+                            paddingLeft: lineWrap ? wrapIndent : 0,
+                            textIndent: lineWrap ? -wrapIndent + indentWidth : 0,
+                            minHeight: lineHeight
+                          }}
+                          dangerouslySetInnerHTML={{ __html: buildSquiggles(lineText, relativeDiagnostics) + '\n' }}
+                        />
+                      )
+                   })}
+                </div>
               )}
+
+              {/* Input Layer */}
               <textarea
                 ref={textInputRef}
                 value={value}
@@ -616,14 +680,15 @@ export const CodeEditor = React.memo(
                 autoCorrect='off'
                 autoCapitalize='off'
                 autoComplete='off'
-                wrap='soft'
+                wrap={lineWrap ? 'soft' : 'off'}
                 data-gramm='false'
                 data-gramm_editor='false'
                 data-enable-grammarly='false'
                 className='text-transparent bg-transparent border-none outline-none resize-none z-20 caret-lavender'
                 style={{
-                  ...getLayerStyle(totalContentHeight, baseFontSize, lineHeight, horizontalPadding),
+                  ...getLayerStyle(totalContentHeight, baseFontSize, lineHeight, horizontalPadding, lineWrap),
                   height: totalContentHeight,
+                  width: lineWrap ? '100%' : 'max-content',
                   WebkitTextFillColor: 'transparent',
                   cursor: readOnly ? 'default' : 'text',
                   touchAction: 'pan-y',
