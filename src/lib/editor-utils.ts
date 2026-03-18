@@ -10,7 +10,7 @@ export function escapeHtml(text: string): string {
     .replace(/\'/g, '&#039;')
 }
 
-const TOKEN_TYPE_TO_CLASS: Record<TokenType, string> = {
+const tokenTypeToClass: Record<TokenType, string> = {
   keyword: 'text-mauve',
   string: 'text-green',
   number: 'text-peach',
@@ -33,7 +33,7 @@ export function buildHtml(code: string): string {
   let html = ''
 
   for (const token of tokens) {
-    const className = TOKEN_TYPE_TO_CLASS[token.type]
+    const className = tokenTypeToClass[token.type]
     const escapedValue = escapeHtml(token.value)
     if (className) {
       html += `<span class="${className}">${escapedValue}</span>`
