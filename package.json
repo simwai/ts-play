@@ -24,6 +24,12 @@
     "react-dom": "19.2.3",
     "tailwind-merge": "3.4.0"
   },
+  "browserslist": [
+    "> 0.5%",
+    "last 3 versions",
+    "Firefox ESR",
+    "not dead"
+  ],
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.17",
     "@tailwindcss/vite": "4.1.17",

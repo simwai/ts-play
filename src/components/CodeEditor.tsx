@@ -12,8 +12,14 @@ import { useTSDiagnostics, type TSDiagnostic } from '../hooks/useTSDiagnostics'
 import { workerClient } from '../lib/workerClient'
 import { TypeInfoBar } from './ui/TypeInfoBar'
 import { buildHtml, buildSquiggles } from '../lib/editor-utils'
+import { clsx, type ClassValue } from 'clsx'
+import { twMerge } from 'tailwind-merge'
 
-type CodeEditorProps = {
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+
+export type CodeEditorProps = {
   value: string
   onChange: (newValue: string) => void
   onCursorChange?: (cursorPosition: number) => void
@@ -23,6 +29,12 @@ type CodeEditorProps = {
   keyboardOpen?: boolean
   keyboardHeight?: number
   isMobileLike?: boolean
+  hideGutter?: boolean
+  hideTypeInfo?: boolean
+  fontSizeOverride?: number
+  disableAutocomplete?: boolean
+  disableDiagnostics?: boolean
+  className?: string
 }
 
 export type CodeEditorRef = {
@@ -75,6 +87,12 @@ export const CodeEditor = React.memo(
       keyboardOpen = false,
       keyboardHeight = 0,
       isMobileLike = false,
+      hideGutter = false,
+      hideTypeInfo = false,
+      fontSizeOverride,
+      disableAutocomplete = false,
+      disableDiagnostics = false,
+      className,
     },
     componentRef
   ) {
@@ -87,16 +105,18 @@ export const CodeEditor = React.memo(
     const typeInfoDebounceTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
     const animationFrameRequest = useRef<number>(0)
 
-    const fontSize = isMobileLike ? 12 : 14
-    const lineHeight = isMobileLike ? 20 : 24
-    const characterWidth = isMobileLike ? 7.2 : 8.4
-    const gutterWidth = isMobileLike ? 36 : 48
+    const baseFontSize = fontSizeOverride ?? (isMobileLike ? 12 : 14)
+    const lineHeight = Math.round(baseFontSize * 1.7) // Roughly 24 for 14, 20 for 12
+    const characterWidth = baseFontSize * 0.6 // Roughly 8.4 for 14, 7.2 for 12
+    const gutterWidth = hideGutter ? 0 : (isMobileLike ? 36 : 48)
     const horizontalPadding = isMobileLike ? 12 : 16
 
     const { getTypeInfo } = useTypeInfo()
     const [typeInfo, setTypeInfo] = useState<TypeInfo | undefined>(undefined)
     const [renderedLineHeights, setRenderedLineHeights] = useState<number[]>([])
-    const diagnostics = useTSDiagnostics(value, language === 'typescript', extraLibs)
+
+    // We only use diagnostics if not disabled
+    const diagnostics = useTSDiagnostics(value, !disableDiagnostics && language === 'typescript', extraLibs)
     const [activeDiagnostic, setActiveDiagnostic] = useState<TSDiagnostic | undefined>(undefined)
 
     const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<any[]>([])
@@ -255,6 +275,7 @@ export const CodeEditor = React.memo(
 
     const requestAutocompleteSuggestions = useCallback(
       async (currentCode: string, cursorPosition: number, isExplicitInvocation = false) => {
+        if (disableAutocomplete) return
         const isNotTypeScript = language !== 'typescript'
         if (isNotTypeScript) return
 
@@ -294,7 +315,7 @@ export const CodeEditor = React.memo(
           setAutocompleteSuggestions([])
         }
       },
-      [language, effectiveLineHeights, lineHeight, horizontalPadding, characterWidth]
+      [language, effectiveLineHeights, lineHeight, horizontalPadding, characterWidth, disableAutocomplete]
     )
 
     const applyAutocompleteSelection = useCallback(() => {
@@ -432,10 +453,10 @@ export const CodeEditor = React.memo(
       }
 
       typeInfoDebounceTimer.current = setTimeout(async () => {
-        const information = await getTypeInfo(value, cursorPosition)
+        const information = hideTypeInfo ? undefined : await getTypeInfo(value, cursorPosition)
         setTypeInfo(information)
 
-        const matchingDiagnostic = diagnostics.find(
+        const matchingDiagnostic = disableDiagnostics ? undefined : diagnostics.find(
           (diagnostic) => cursorPosition >= diagnostic.start && cursorPosition <= diagnostic.start + diagnostic.length
         )
         setActiveDiagnostic(matchingDiagnostic)
@@ -447,6 +468,8 @@ export const CodeEditor = React.memo(
       diagnostics,
       ensureSelectionIsVisible,
       onCursorChange,
+      hideTypeInfo,
+      disableDiagnostics
     ])
 
     useEffect(
@@ -487,152 +510,164 @@ export const CodeEditor = React.memo(
       [linesOfCode, effectiveLineHeights]
     )
 
+    const extraBottomPadding = hideTypeInfo ? 0 : 80
+
     return (
-      <div className='relative w-full h-full overflow-hidden flex flex-col font-mono'>
+      <div className={cn('relative w-full h-full overflow-hidden font-mono flex flex-col', className)}>
         <div
-          ref={scrollContainerRef}
-          onScroll={synchronizeScroll}
-          className='flex-1 overflow-y-auto overflow-x-hidden flex min-h-0 bg-base'
+          className='flex-1 relative overflow-hidden min-h-0 bg-base'
         >
           <div
-            ref={lineGutterRef}
-            className='shrink-0 overflow-hidden bg-mantle border-r border-surface0 select-none text-overlay0 text-right box-border'
-            style={{
-              width: gutterWidth,
-              paddingTop: EDITOR_PADDING_TOP,
-              paddingBottom: EDITOR_PADDING_TOP,
-              fontSize: fontSize,
-              lineHeight: `${lineHeight}px`,
-              paddingRight: isMobileLike ? 8 : 12,
-              minHeight: totalContentHeight,
-            }}
+            ref={scrollContainerRef}
+            onScroll={synchronizeScroll}
+            className='absolute inset-0 overflow-y-auto overflow-x-hidden flex'
           >
-            {gutterListItems.map(({ lineNumber, lineHeight }) => (
+            {!hideGutter && (
               <div
-                key={lineNumber}
+                ref={lineGutterRef}
+                className='shrink-0 overflow-hidden bg-mantle border-r border-surface0 select-none text-overlay0 text-right box-border'
                 style={{
-                  height: lineHeight,
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  justifyContent: 'flex-end',
+                  width: gutterWidth,
+                  paddingTop: EDITOR_PADDING_TOP,
+                  paddingBottom: EDITOR_PADDING_TOP + extraBottomPadding,
+                  fontSize: baseFontSize,
+                  lineHeight: `${lineHeight}px`,
+                  paddingRight: isMobileLike ? 8 : 12,
+                  minHeight: totalContentHeight,
                 }}
               >
-                {lineNumber}
-              </div>
-            ))}
-          </div>
-          <div
-            ref={editorWrapperRef}
-            className='flex-1 relative min-w-0'
-            style={{ minHeight: totalContentHeight }}
-          >
-            <div
-              ref={heightMeasurementRef}
-              aria-hidden
-              className='absolute inset-0 invisible pointer-events-none -z-10 box-border whitespace-pre-wrap wrap-break-word'
-              style={{
-                padding: `${EDITOR_PADDING_TOP}px ${horizontalPadding}px`,
-                fontSize: fontSize,
-                lineHeight: `${lineHeight}px`,
-              }}
-            >
-              {linesOfCode.map((lineText, index) => (
-                <div
-                  key={`measure-${index}`}
-                  style={{
-                    minHeight: lineHeight,
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                    overflowWrap: 'break-word',
-                  }}
-                >
-                  {lineText === '' ? ' ' : lineText.replaceAll('\t', '  ')}
-                </div>
-              ))}
-            </div>
-            <pre
-              ref={codeDisplayRef}
-              aria-hidden
-              className='text-text bg-transparent pointer-events-none'
-              style={getLayerStyle(totalContentHeight, fontSize, lineHeight, horizontalPadding)}
-            />
-            <pre
-              aria-hidden
-              dangerouslySetInnerHTML={{
-                __html: buildSquiggles(value, diagnostics),
-              }}
-              className='text-transparent bg-transparent pointer-events-none z-10'
-              style={getLayerStyle(totalContentHeight, fontSize, lineHeight, horizontalPadding)}
-            />
-            <textarea
-              ref={textInputRef}
-              value={value}
-              readOnly={readOnly}
-              onChange={handleTextInputChange}
-              onKeyDown={handleKeyDown}
-              onSelect={handleCursorMovement}
-              onClick={handleCursorMovement}
-              onKeyUp={handleCursorMovement}
-              onTouchStart={preventTouchPropagation}
-              onBlur={handleEditorBlur}
-              spellCheck={false}
-              autoCorrect='off'
-              autoCapitalize='off'
-              autoComplete='off'
-              wrap='soft'
-              data-gramm='false'
-              data-gramm_editor='false'
-              data-enable-grammarly='false'
-              className='text-transparent bg-transparent border-none outline-none resize-none z-20 caret-lavender'
-              style={{
-                ...getLayerStyle(totalContentHeight, fontSize, lineHeight, horizontalPadding),
-                height: totalContentHeight,
-                WebkitTextFillColor: 'transparent',
-                cursor: readOnly ? 'default' : 'text',
-                touchAction: 'pan-y',
-                caretShape: 'bar',
-              }}
-            />
-
-            {autocompleteSuggestions.length > 0 && (
-              <ul
-                role='listbox'
-                aria-label='Autocomplete suggestions'
-                className='hidden md:block absolute m-0 p-0 list-none bg-mantle border border-surface1 rounded-md shadow-lg shadow-black/30 z-50 max-h-52 overflow-y-auto min-w-48 text-sm'
-                style={{
-                  top: autocompletePopupPosition.top,
-                  left: autocompletePopupPosition.left,
-                }}
-                onMouseDown={(mouseDownEvent) => {
-                  mouseDownEvent.preventDefault()
-                }}
-              >
-                {autocompleteSuggestions.map((suggestion, index) => (
-                  <li
-                    key={suggestion.name}
-                    role='option'
-                    aria-selected={index === selectedSuggestionIndex}
-                    className={`px-3 py-1.5 cursor-pointer flex justify-between gap-4 ${index === selectedSuggestionIndex ? 'bg-surface0 text-text' : 'bg-transparent text-subtext0'}`}
-                    onMouseDown={(mouseDownEvent) => {
-                      mouseDownEvent.preventDefault()
-                      setSelectedSuggestionIndex(index)
-                      applyAutocompleteSelection()
+                {gutterListItems.map(({ lineNumber, lineHeight }) => (
+                  <div
+                    key={lineNumber}
+                    style={{
+                      height: lineHeight,
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      justifyContent: 'flex-end',
                     }}
                   >
-                    <span>{suggestion.name}</span>
-                    <span className='text-overlay0 text-xs'>{suggestion.kind}</span>
-                  </li>
+                    {lineNumber}
+                  </div>
                 ))}
-              </ul>
+              </div>
             )}
+            <div
+              ref={editorWrapperRef}
+              className='flex-1 relative min-w-0'
+              style={{ minHeight: totalContentHeight + extraBottomPadding }}
+            >
+              <div
+                ref={heightMeasurementRef}
+                aria-hidden
+                className='absolute inset-0 invisible pointer-events-none -z-10 box-border whitespace-pre-wrap wrap-break-word'
+                style={{
+                  padding: `${EDITOR_PADDING_TOP}px ${horizontalPadding}px`,
+                  fontSize: baseFontSize,
+                  lineHeight: `${lineHeight}px`,
+                }}
+              >
+                {linesOfCode.map((lineText, index) => (
+                  <div
+                    key={`measure-${index}`}
+                    style={{
+                      minHeight: lineHeight,
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      overflowWrap: 'break-word',
+                    }}
+                  >
+                    {lineText === '' ? ' ' : lineText.replaceAll('\t', '  ')}
+                  </div>
+                ))}
+              </div>
+              <pre
+                ref={codeDisplayRef}
+                aria-hidden
+                className='text-text bg-transparent pointer-events-none'
+                style={getLayerStyle(totalContentHeight, baseFontSize, lineHeight, horizontalPadding)}
+              />
+              {!disableDiagnostics && (
+                <pre
+                  aria-hidden
+                  dangerouslySetInnerHTML={{
+                    __html: buildSquiggles(value, diagnostics),
+                  }}
+                  className='text-transparent bg-transparent pointer-events-none z-10'
+                  style={getLayerStyle(totalContentHeight, baseFontSize, lineHeight, horizontalPadding)}
+                />
+              )}
+              <textarea
+                ref={textInputRef}
+                value={value}
+                readOnly={readOnly}
+                onChange={handleTextInputChange}
+                onKeyDown={handleKeyDown}
+                onSelect={handleCursorMovement}
+                onClick={handleCursorMovement}
+                onKeyUp={handleCursorMovement}
+                onTouchStart={preventTouchPropagation}
+                onBlur={handleEditorBlur}
+                spellCheck={false}
+                autoCorrect='off'
+                autoCapitalize='off'
+                autoComplete='off'
+                wrap='soft'
+                data-gramm='false'
+                data-gramm_editor='false'
+                data-enable-grammarly='false'
+                className='text-transparent bg-transparent border-none outline-none resize-none z-20 caret-lavender'
+                style={{
+                  ...getLayerStyle(totalContentHeight, baseFontSize, lineHeight, horizontalPadding),
+                  height: totalContentHeight,
+                  WebkitTextFillColor: 'transparent',
+                  cursor: readOnly ? 'default' : 'text',
+                  touchAction: 'pan-y',
+                  caretShape: 'bar',
+                }}
+              />
+
+              {autocompleteSuggestions.length > 0 && (
+                <ul
+                  role='listbox'
+                  aria-label='Autocomplete suggestions'
+                  className='hidden md:block absolute m-0 p-0 list-none bg-mantle border border-surface1 rounded-md shadow-lg shadow-black/30 z-50 max-h-52 overflow-y-auto min-w-48 text-sm'
+                  style={{
+                    top: autocompletePopupPosition.top,
+                    left: autocompletePopupPosition.left,
+                  }}
+                  onMouseDown={(mouseDownEvent) => {
+                    mouseDownEvent.preventDefault()
+                  }}
+                >
+                  {autocompleteSuggestions.map((suggestion, index) => (
+                    <li
+                      key={suggestion.name}
+                      role='option'
+                      aria-selected={index === selectedSuggestionIndex}
+                      className={`px-3 py-1.5 cursor-pointer flex justify-between gap-4 ${index === selectedSuggestionIndex ? 'bg-surface0 text-text' : 'bg-transparent text-subtext0'}`}
+                      onMouseDown={(mouseDownEvent) => {
+                        mouseDownEvent.preventDefault()
+                        setSelectedSuggestionIndex(index)
+                        applyAutocompleteSelection()
+                      }}
+                    >
+                      <span>{suggestion.name}</span>
+                      <span className='text-overlay0 text-xs'>{suggestion.kind}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </div>
-        <TypeInfoBar
-          typeInfo={typeInfo}
-          activeDiag={activeDiagnostic}
-          language={language}
-          gutterW={gutterWidth}
-        />
+        {!hideTypeInfo && (
+          <TypeInfoBar
+            typeInfo={typeInfo}
+            activeDiag={activeDiagnostic}
+            language={language}
+            gutterW={gutterWidth}
+          />
+        )}
       </div>
     )
   })

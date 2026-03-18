@@ -4,6 +4,7 @@ import { IconButton } from './ui/IconButton'
 import { workerClient } from '../lib/workerClient'
 import { formatJson } from '../lib/formatter'
 import { DEFAULT_TSCONFIG } from '../lib/constants'
+import { CodeEditor } from './CodeEditor'
 
 type SettingsModalProps = {
   isOpen: boolean
@@ -77,23 +78,6 @@ export function SettingsModal({
     return () => clearTimeout(timer)
   }, [temporaryTsConfig, isOpen])
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Tab') {
-      e.preventDefault()
-      const ta = e.currentTarget
-      const start = ta.selectionStart
-      const end = ta.selectionEnd
-      const next =
-        temporaryTsConfig.slice(0, start) + '  ' + temporaryTsConfig.slice(end)
-      setTemporaryTsConfig(next)
-
-      // Synchronously restore cursor position after React updates the DOM
-      setTimeout(() => {
-        ta.selectionStart = ta.selectionEnd = start + 2
-      }, 0)
-    }
-  }
-
   const handleSave = async () => {
     if (!isValid) return
     setIsFormatting(true)
@@ -126,7 +110,7 @@ export function SettingsModal({
 
   return (
     <div className='fixed inset-0 z-50 flex items-center justify-center bg-crust/80 backdrop-blur-sm p-4'>
-      <div className='bg-mantle border border-surface1 rounded-xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden'>
+      <div className='bg-mantle border border-surface1 rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden'>
         <div className='flex items-center justify-between px-6 py-4 border-b border-surface0 bg-base'>
           <h2 className='text-base font-bold text-text'>Settings</h2>
           <IconButton
@@ -157,15 +141,18 @@ export function SettingsModal({
             <label className='text-sm font-bold text-subtext0'>
               tsconfig.json
             </label>
-            <textarea
-              className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none focus:border-mauve font-mono resize-y min-h-40'
-              value={temporaryTsConfig}
-              onChange={(e) => {
-                setTemporaryTsConfig(e.target.value)
-              }}
-              onKeyDown={handleKeyDown}
-              spellCheck={false}
-            />
+            <div className='border border-surface1 rounded-md overflow-hidden bg-base focus-within:border-mauve transition-colors h-64'>
+              <CodeEditor
+                language='typescript'
+                value={temporaryTsConfig}
+                onChange={setTemporaryTsConfig}
+                hideGutter={true}
+                hideTypeInfo={true}
+                fontSizeOverride={12}
+                disableAutocomplete={true}
+                disableDiagnostics={true}
+              />
+            </div>
             {errorMsg && (
               <span
                 className={`text-xs whitespace-pre-wrap ${isValid ? 'text-yellow' : 'text-red'}`}

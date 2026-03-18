@@ -2,21 +2,26 @@ import React from 'react'
 import { type TypeInfo } from '../../hooks/useTypeInfo'
 import { type TSDiagnostic } from '../../hooks/useTSDiagnostics'
 import { buildHtml, escapeHtml } from '../../lib/editor-utils'
+import { clsx, type ClassValue } from 'clsx'
+import { twMerge } from 'tailwind-merge'
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
 
 type TypeInfoBarProps = {
   typeInfo: TypeInfo | undefined
   activeDiag: TSDiagnostic | undefined
   language: 'typescript' | 'javascript'
   gutterW: number
+  absolute?: boolean
 }
 
 function renderWithLinksAndHighlight(text: string) {
-  // Regex to match markdown links, raw URLs, or inline code snippets in backticks
   const regex = /(\[[^\]]+]\(https?:\/\/[^\s)]+\)|https?:\/\/[^\s)]+|`[^`]+`)/g
   const parts = text.split(regex)
 
   return parts.map((part, i) => {
-    // Markdown link: [text](url)
     const mdMatch = /^\[([^\]]+)]\((https?:\/\/[^\s)]+)\)$/.exec(part)
     if (mdMatch) {
       return (
@@ -35,7 +40,6 @@ function renderWithLinksAndHighlight(text: string) {
       )
     }
 
-    // Raw URL
     const urlMatch = /^(https?:\/\/[^\s)]+)$/.exec(part)
     if (urlMatch) {
       return (
@@ -54,7 +58,6 @@ function renderWithLinksAndHighlight(text: string) {
       )
     }
 
-    // Inline code snippet in backticks
     if (part.startsWith('`') && part.endsWith('`')) {
       const code = part.slice(1, -1)
       return (
@@ -75,6 +78,7 @@ export function TypeInfoBar({
   activeDiag,
   language,
   gutterW,
+  absolute = true,
 }: TypeInfoBarProps) {
   const hasDiag = Boolean(activeDiag)
   const hasTypeInfo = !hasDiag && Boolean(typeInfo)
@@ -82,7 +86,10 @@ export function TypeInfoBar({
 
   return (
     <div
-      className='shrink-0 bg-mantle border-t border-surface0 py-2 pr-4 overflow-y-auto max-h-32 min-h-8 box-border pointer-events-auto text-xxs md:text-xs font-mono'
+      className={cn(
+        'shrink-0 bg-mantle/95 backdrop-blur-md border-t border-surface0 py-2 pr-4 overflow-y-auto max-h-32 min-h-8 box-border pointer-events-auto text-xxs md:text-xs font-mono z-30',
+        absolute && 'absolute bottom-0 left-0 right-0'
+      )}
       style={{ paddingLeft: gutterW + 16 }}
     >
       {hasDiag && activeDiag && <DiagRow diag={activeDiag} />}
