@@ -649,7 +649,18 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
         }
 
         const typeDisplayString = TS.displayPartsToString(quickInfo.displayParts)
-        const documentationString = quickInfo.documentation ? TS.displayPartsToString(quickInfo.documentation) : undefined
+        let documentationString = quickInfo.documentation ? TS.displayPartsToString(quickInfo.documentation) : ''
+
+        if (quickInfo.tags) {
+          const tagsString = quickInfo.tags
+            .map((tag) => {
+              const tagText = TS.displayPartsToString(tag.text)
+              return `@${tag.name}${tagText ? ' ' + tagText : ''}`
+            })
+            .join('\n')
+          if (documentationString) documentationString += '\n\n' + tagsString
+          else documentationString = tagsString
+        }
 
         const validNameKinds = [
           'localName', 'variableName', 'parameterName', 'methodName', 'functionName',
@@ -662,7 +673,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
           name: namePart ? namePart.text : '',
           kind: quickInfo.kind,
           typeAnnotation: typeDisplayString,
-          jsDoc: documentationString,
+          jsDoc: documentationString || undefined,
         }
         break
       }

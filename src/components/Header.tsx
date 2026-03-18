@@ -52,7 +52,7 @@ export function Header({
   shareSuccess,
 }: HeaderProps) {
   return (
-    <header className='flex items-center justify-between px-1.5 md:px-3 h-9 md:h-12 bg-mantle border-b border-surface0 shrink-0 gap-1.5 md:gap-3 relative z-40'>
+    <header className='flex items-center justify-between px-1.5 md:px-3 h-9 md:h-12 bg-mantle border-b border-surface0 shrink-0 gap-1.5 md:gap-3 relative z-40 touch-none'>
       {/* Brand */}
       <div className='flex items-center gap-1.5 md:gap-2'>
         <span className='text-xs md:text-sm font-bold tracking-tight font-mono'>

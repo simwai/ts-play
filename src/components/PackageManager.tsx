@@ -21,7 +21,7 @@ export const PackageManager = React.memo(function PackageManager({
   contentHeight,
 }: Props) {
   return (
-    <div className='border-t border-surface0 bg-mantle shrink-0'>
+    <div className='border-t border-surface0 bg-mantle shrink-0 overscroll-none'>
       <PanelHeader
         label='📦 Auto-Detected Packages'
         isOpen={isOpen}
@@ -35,7 +35,7 @@ export const PackageManager = React.memo(function PackageManager({
 
       {isOpen && (
         <div
-          className='overflow-y-auto overflow-x-hidden border-t border-surface0 p-4 flex flex-col gap-4 box-border'
+          className='overflow-y-auto overflow-x-hidden border-t border-surface0 p-4 flex flex-col gap-4 box-border overscroll-contain touch-pan-y'
           style={{ height: `${contentHeight}rem` }}
         >
           {packages.length > 0 ? (

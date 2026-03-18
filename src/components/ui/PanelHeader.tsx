@@ -26,7 +26,7 @@ export function PanelHeader({
       onClick={onToggle}
       onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onToggle()}
       className={cn(
-        'flex items-center justify-between px-4 py-2 cursor-pointer select-none h-10 transition-colors duration-150 bg-mantle hover:bg-surface0',
+        'flex items-center justify-between px-4 py-2 cursor-pointer select-none h-10 transition-colors duration-150 bg-mantle hover:bg-surface0 touch-none',
         className
       )}
     >

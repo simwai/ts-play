@@ -61,7 +61,7 @@ export const Console = React.memo(function Console({
   const warns = messages.filter((m) => m.type === 'warn').length
 
   return (
-    <div className='flex flex-col border-t border-surface0 bg-mantle shrink-0'>
+    <div className='flex flex-col border-t border-surface0 bg-mantle shrink-0 overscroll-none'>
       <PanelHeader
         label='Console'
         isOpen={isOpen}
@@ -104,7 +104,7 @@ export const Console = React.memo(function Console({
 
       {isOpen && (
         <div
-          className='overflow-y-auto overflow-x-hidden border-t border-surface0'
+          className='overflow-y-auto overflow-x-hidden border-t border-surface0 overscroll-contain touch-pan-y'
           style={{ height: `${contentHeight}rem` }}
         >
           {messages.length === 0 ? (

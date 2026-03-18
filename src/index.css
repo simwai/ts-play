@@ -116,8 +116,17 @@
     @apply border-surface0;
     box-sizing: border-box;
   }
+
+  html, body {
+    overscroll-behavior: none;
+    touch-action: pan-x pan-y;
+  }
+
   body {
     @apply bg-crust text-text m-0 overflow-hidden;
+    height: 100dvh;
+    width: 100vw;
+    position: fixed;
   }
 
   /* Change italic font variant to JetBrains Mono instead of Victor Mono */
