@@ -53,8 +53,8 @@ export function useCompilerManager(
 
         addMessage('info', ['Executing via Node.js...'])
         const exitCode = await runCommand('node', ['index.js'], (out) => {
-          const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
-          if (clean) addMessage('log', [clean])
+          // Do NOT strip ANSI codes if we want to support them in the console
+          if (out.trim()) addMessage('log', [out.trim()])
         })
 
         if (exitCode !== 0) {

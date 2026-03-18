@@ -90,6 +90,10 @@ export function App() {
     'tsplay_tsconfig',
     DEFAULT_TSCONFIG
   )
+  const [trueColorEnabled, setTrueColorEnabled] = useLocalStorage(
+    'tsplay_truecolor',
+    true
+  )
 
   const [activeTab, setActiveTab] = useState<TabType>('ts')
 
@@ -506,6 +510,7 @@ export function App() {
             isOpen={consoleOpen}
             onToggle={toggleConsole}
             contentHeight={panelHeight}
+            trueColorEnabled={trueColorEnabled}
           />
 
           {/* ── Package Manager ── */}
@@ -537,6 +542,8 @@ export function App() {
         }}
         tsConfigString={tsConfigString}
         onSave={setTsConfigString}
+        trueColorEnabled={trueColorEnabled}
+        setTrueColorEnabled={setTrueColorEnabled}
       />
     </div>
   )
