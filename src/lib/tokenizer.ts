@@ -21,7 +21,7 @@ export type Token = {
   index: number // Char index in original string
 }
 
-const KEYWORDS = new Set([
+const keywords = new Set([
   'abstract',
   'as',
   'async',
@@ -88,7 +88,7 @@ const KEYWORDS = new Set([
   'yield',
 ])
 
-const TYPES = new Set([
+const types = new Set([
   'string',
   'number',
   'boolean',
@@ -214,8 +214,8 @@ export function tokenize(code: string): Token[] {
       const word = code.slice(start, i)
       let type: TokenType = 'variable'
       if (word === 'true' || word === 'false') type = 'boolean'
-      else if (KEYWORDS.has(word)) type = 'keyword'
-      else if (TYPES.has(word)) type = 'type'
+      else if (keywords.has(word)) type = 'keyword'
+      else if (types.has(word)) type = 'type'
       // Function call?
       else if (/[\w$]/.test(word[0]) && code[i] === '(') type = 'function'
       tokens.push({ type, value: word, index: start })
