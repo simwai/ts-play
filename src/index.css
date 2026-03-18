@@ -118,15 +118,23 @@
   }
 
   html, body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
     overscroll-behavior: none;
-    touch-action: pan-x pan-y;
+    touch-action: none; /* Default to none, enable pan on scrollables */
   }
 
   body {
-    @apply bg-crust text-text m-0 overflow-hidden;
-    height: 100dvh;
-    width: 100vw;
-    position: fixed;
+    @apply bg-crust text-text;
+    position: relative;
+  }
+
+  #root {
+    height: 100%;
+    width: 100%;
   }
 
   /* Change italic font variant to JetBrains Mono instead of Victor Mono */
