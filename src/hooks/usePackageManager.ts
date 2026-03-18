@@ -33,25 +33,30 @@ export function usePackageManager(
       const currentLine = lines[cursorLineIdx] || ''
 
       // Delay detection if the user is actively editing an import line
-      if (/\bimport\b/.test(currentLine)) {
+      // or if the line is incomplete (e.g., just 'import')
+      if (/\bimport\b/.test(currentLine) && !currentLine.includes('from') && !currentLine.includes('import(')) {
         return
       }
 
       try {
         const detected = await workerClient.detectImports(tsCode)
+        const detectedSorted = [...detected].sort()
+
         setInstalledPackages((previous) => {
-          const previousNames = previous
+          const previousNamesSorted = previous
             .map((p) => p.name)
             .sort()
-            .join(',')
-          const newNames = [...detected].sort().join(',')
-          if (previousNames === newNames) return previous
-          return detected.map((name) => ({ name, version: 'latest' }))
+
+          if (JSON.stringify(previousNamesSorted) === JSON.stringify(detectedSorted)) {
+            return previous
+          }
+
+          return detectedSorted.map((name) => ({ name, version: 'latest' }))
         })
       } catch (error) {
         console.error('Failed to detect imports:', error)
       }
-    }, 500)
+    }, 1000) // Increased debounce to 1s for more stability
   }, [tsCode])
 
   useEffect(() => {
