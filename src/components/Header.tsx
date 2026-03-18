@@ -7,6 +7,7 @@ import {
   Wand2,
   Loader2,
   Play,
+  Square,
   Share2,
 } from 'lucide-react'
 import { IconButton } from './ui/IconButton'
@@ -31,6 +32,7 @@ type HeaderProps = {
   handleShare: () => void
   sharing: boolean
   shareSuccess: boolean
+  stopCode?: () => void
 }
 
 export function Header({
@@ -50,6 +52,7 @@ export function Header({
   handleShare,
   sharing,
   shareSuccess,
+  stopCode,
 }: HeaderProps) {
   return (
     <header className='flex items-center justify-between px-1.5 md:px-3 h-9 md:h-12 bg-mantle border-b border-surface0 shrink-0 gap-1.5 md:gap-3 relative z-40'>
@@ -163,28 +166,43 @@ export function Header({
         {/* Separator */}
         <div className='w-px h-3.5 md:h-5 bg-surface1 shrink-0 mx-0.5 md:mx-1' />
 
-        {/* Run */}
-        <Button
-          onClick={async () => doRun(false)}
-          disabled={isRunning || compilerStatus !== 'ready'}
-          variant='primary'
-          size='sm'
-          title='Run (compile + execute)'
-          tooltipAlign='right'
-          className='font-mono tracking-wide'
-        >
-          {isRunning ? (
-            <Loader2 className='w-3 h-3 md:w-4 md:h-4 animate-spin' />
-          ) : (
+        {/* Run / Stop */}
+        {isRunning ? (
+          <Button
+            onClick={() => stopCode?.()} data-testid="header-stop-button"
+            variant='primary'
+            size='sm'
+            title='Stop execution'
+            tooltipAlign='right'
+            className='font-mono tracking-wide bg-red! border-red! hover:bg-red/80 active:bg-red/90'
+          >
+            <Square
+              className='w-3 h-3 md:w-4 md:h-4'
+              fill='currentColor'
+            />
+            <span className='hidden sm:inline'>
+              Stop
+            </span>
+          </Button>
+        ) : (
+          <Button
+            onClick={async () => doRun(false)} data-testid="header-run-button"
+            disabled={compilerStatus !== 'ready'}
+            variant='primary'
+            size='sm'
+            title='Run (compile + execute)'
+            tooltipAlign='right'
+            className='font-mono tracking-wide'
+          >
             <Play
               className='w-3 h-3 md:w-4 md:h-4'
               fill='currentColor'
             />
-          )}
-          <span className='hidden sm:inline'>
-            {isRunning ? 'Running…' : 'Run'}
-          </span>
-        </Button>
+            <span className='hidden sm:inline'>
+              Run
+            </span>
+          </Button>
+        )}
 
         {/* Separator */}
         <div className='w-px h-3.5 md:h-5 bg-surface1 shrink-0 mx-0.5 md:mx-1' />

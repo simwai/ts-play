@@ -45,7 +45,7 @@ export function StatusBar({
     >
       <div className='flex items-center justify-start flex-1 min-w-0'>
         <span
-          className={`text-3xs md:text-xs font-mono tracking-wide truncate ${statusColorClass}`}
+          className={`text-3xs md:text-xs font-mono tracking-wide truncate ${statusColorClass}`} data-testid="status-bar-compiler-status"
         >
           {statusLabel}
         </span>
@@ -67,7 +67,7 @@ export function StatusBar({
       <div className='flex items-center justify-end gap-1 md:gap-1.5 flex-1 min-w-0'>
         <IconButton
           onClick={() => setLineWrap(!lineWrap)}
-          title={lineWrap ? 'Disable Line Wrap' : 'Enable Line Wrap'}
+          title={lineWrap ? 'Disable Line Wrap' : 'Enable Line Wrap'} data-testid="status-bar-wrap-toggle"
           tooltipAlign='right'
           size='xs'
           variant='ghost'
@@ -99,7 +99,7 @@ export function StatusBar({
         <div className='w-px h-3 md:h-4 bg-surface1 mx-0.5 md:mx-1 shrink-0' />
         <IconButton
           onClick={onOpenSettings}
-          title='Settings'
+          title='Settings' data-testid="status-bar-settings-button"
           tooltipAlign='right'
           size='xs'
           variant='ghost'

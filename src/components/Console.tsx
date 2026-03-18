@@ -74,7 +74,7 @@ export const Console = React.memo(function Console({
   const warns = messages.filter((m) => m.type === 'warn').length
 
   return (
-    <div className='flex flex-col border-t border-surface0 bg-mantle shrink-0'>
+    <div className='flex flex-col border-t border-surface0 bg-mantle shrink-0' data-testid="console-container">
       <PanelHeader
         label='Console'
         isOpen={isOpen}
@@ -105,7 +105,7 @@ export const Console = React.memo(function Console({
               }}
               variant='secondary'
               size='xs'
-              title='Clear console'
+              title='Clear console' data-testid="console-clear-button"
               tooltipAlign='right'
             >
               <Eraser size={12} />
@@ -131,7 +131,7 @@ export const Console = React.memo(function Console({
 
               return (
                 <div
-                  key={`${m.ts}-${idx}`}
+                  key={`${m.ts}-${idx}`} data-testid="console-message"
                   className={`flex items-start gap-2.5 px-3 py-1.5 border-b border-surface0/40 ${
                     m.type === 'error'
                       ? 'bg-red/5'

@@ -136,7 +136,7 @@ export function App() {
   // Custom Hooks
   const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } =
     useConsoleManager()
-  const { compilerStatus, isRunning, runCode } = useCompilerManager(
+  const { compilerStatus, isRunning, runCode, stopCode } = useCompilerManager(
     tsCode,
     addMessage
   )
@@ -410,6 +410,7 @@ export function App() {
         handleShare={handleShare}
         sharing={sharing}
         shareSuccess={shareSuccess}
+        stopCode={stopCode}
       />
 
       <StatusBar

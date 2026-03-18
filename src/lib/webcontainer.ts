@@ -1,4 +1,4 @@
-import { WebContainer } from '@webcontainer/api'
+import { WebContainer, type WebContainerProcess } from '@webcontainer/api'
 
 let webcontainerInstance: WebContainer | undefined
 let bootPromise: Promise<WebContainer> | undefined
@@ -51,7 +51,7 @@ export async function runCommand(
   cmd: string,
   args: string[],
   onOutput: (data: string) => void
-) {
+): Promise<{ exit: Promise<number>; process: WebContainerProcess }> {
   const instance = await getWebContainer()
   const process = await instance.spawn(cmd, args)
 
@@ -63,5 +63,5 @@ export async function runCommand(
     })
   )
 
-  return process.exit
+  return { exit: process.exit, process }
 }

@@ -118,11 +118,11 @@ export function SettingsModal({
 
   return (
     <div className='fixed inset-0 z-50 flex items-center justify-center bg-crust/80 backdrop-blur-sm p-4'>
-      <div className='bg-mantle border border-surface1 rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden'>
+      <div className='bg-mantle border border-surface1 rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden' data-testid="settings-modal">
         <div className='flex items-center justify-between px-6 py-4 border-b border-surface0 bg-base'>
           <h2 className='text-base font-bold text-text'>Settings</h2>
           <IconButton
-            onClick={onClose}
+            onClick={onClose} data-testid="settings-cancel-button"
             size='sm'
             variant='ghost'
             className='-mr-2'
@@ -130,9 +130,9 @@ export function SettingsModal({
             <span className='text-xl leading-none'>&times;</span>
           </IconButton>
         </div>
-        <div className='p-6 flex flex-col gap-5'>
-          <div className='flex items-center justify-between'>
-             <div className='flex flex-col gap-2 flex-1 mr-4'>
+        <div className='p-6 flex flex-col gap-6'>
+          <div className='flex flex-col gap-4'>
+             <div className='flex flex-col gap-2'>
               <label className='text-sm font-bold text-subtext0'>
                 TypeScript Version
               </label>
@@ -146,35 +146,38 @@ export function SettingsModal({
                 Version switching is not yet supported.
               </span>
             </div>
+
             <div className='flex flex-col gap-4'>
               <div className='flex flex-col gap-2'>
                 <label className='text-sm font-bold text-subtext0'>
                   Interpret ANSI Escapes
                 </label>
-                <div className='flex items-center h-[38px]'>
+                <div className='flex items-center'>
                   <input
                     type='checkbox'
                     checked={trueColorEnabled}
-                    onChange={(e) => setTrueColorEnabled(e.target.checked)}
+                    onChange={(e) => setTrueColorEnabled(e.target.checked)} data-testid="settings-ansi-toggle"
                     className='w-5 h-5 accent-mauve cursor-pointer'
                   />
                 </div>
               </div>
+
               <div className='flex flex-col gap-2'>
                 <label className='text-sm font-bold text-subtext0'>
                   Line Wrapping
                 </label>
-                <div className='flex items-center h-[38px]'>
+                <div className='flex items-center'>
                   <input
                     type='checkbox'
                     checked={lineWrap}
-                    onChange={(e) => setLineWrap(e.target.checked)}
+                    onChange={(e) => setLineWrap(e.target.checked)} data-testid="settings-wrap-toggle"
                     className='w-5 h-5 accent-mauve cursor-pointer'
                   />
                 </div>
               </div>
             </div>
           </div>
+
           <div className='flex flex-col gap-2'>
             <label className='text-sm font-bold text-subtext0'>
               tsconfig.json
@@ -210,14 +213,14 @@ export function SettingsModal({
             Reset to Default
           </Button>
           <Button
-            onClick={onClose}
+            onClick={onClose} data-testid="settings-cancel-button"
             variant='ghost'
           >
             Cancel
           </Button>
           <Button
             onClick={handleSave}
-            variant='primary'
+            variant='primary' data-testid="settings-save-button"
             disabled={!isValid || isFormatting}
           >
             {isFormatting ? 'Saving...' : 'Save Changes'}
@@ -226,7 +229,7 @@ export function SettingsModal({
         <div className="px-6 py-4 border-t border-surface0 bg-mantle flex flex-col items-center gap-2 relative overflow-hidden">
           <div className="absolute inset-0 opacity-10 bg-gradient-to-r from-mauve via-pink to-mauve animate-gradient-x pointer-events-none" />
           <p className="text-xs text-subtext0 relative z-10">
-            Made with 💜 by simwai feat. <span className="font-graffonti text-sm bg-lit-gradient animate-lit-gradient bg-clip-text text-transparent drop-shadow-sm">jules</span> and <span className="font-graffonti text-sm bg-lit-gradient animate-lit-gradient bg-clip-text text-transparent drop-shadow-sm">aider</span>
+            Made with 💜 by <span className="font-graffonti text-base bg-lit-gradient animate-lit-gradient bg-clip-text text-transparent drop-shadow-sm">simwai</span> feat. jules and aider
           </p>
           <a
             href="https://github.com/simwai/ts-play"
