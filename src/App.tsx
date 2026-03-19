@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { type ThemeMode } from './lib/theme'
-import { CodeEditor, type CodeEditorRef } from './components/CodeEditor'
+import { CodeEditor, type CodeEditorHandle } from './components/CodeEditor'
 import { Console } from './components/Console'
 import { OverrideModal } from './components/Modal'
 import { PackageManager } from './components/PackageManager'
@@ -19,11 +19,10 @@ import { shareSnippet, loadSharedSnippet } from './lib/api'
 import { useConsoleManager } from './hooks/useConsoleManager'
 import { useCompilerManager } from './hooks/useCompilerManager'
 import { usePackageManager } from './hooks/usePackageManager'
-import { useTSDiagnostics } from './hooks/useTSDiagnostics'
 import { TABS, type TabType, DEFAULT_TSCONFIG } from './lib/constants'
 
 const DEFAULT_TS = `// TypeScript Playground
-// Long-press any word on mobile to see type info ✨
+// Now powered by Monaco Editor! ✨
 
 interface User {
   name: string;
@@ -48,21 +47,9 @@ const alice: User = {
 const message = greet(alice);
 console.log(message);
 
-// Generics
-function identity<T>(value: T): T {
-  return value;
-}
-
-const result = identity<number>(42);
-console.log("Identity:", result);
-
-// Async / await
-async function fetchData(url: string): Promise<string> {
-  const response = await fetch(url);
-  return response.text();
-}
-
-console.log("Type:", typeof fetchData);
+// Try using a library (ATA will fetch it automatically)
+import { map } from 'lodash-es';
+console.log("Mapped:", map([1, 2, 3], x => x * 2));
 `
 
 export function App() {
@@ -90,12 +77,12 @@ export function App() {
     'tsplay_truecolor',
     true
   )
-  const [lineWrap, setLineWrap] = useLocalStorage('tsplay_linewrap', true)
+  const [lineWrap, setLineWrap] = useLocalStorage('tsplay_linewrap', false)
 
   const [activeTab, setActiveTab] = useState<TabType>('ts')
-  const tsEditorRef = useRef<CodeEditorRef>(null)
-  const jsEditorRef = useRef<CodeEditorRef>(null)
-  const dtsEditorRef = useRef<CodeEditorRef>(null)
+  const tsEditorRef = useRef<CodeEditorHandle>(null)
+  const jsEditorRef = useRef<CodeEditorHandle>(null)
+  const dtsEditorRef = useRef<CodeEditorHandle>(null)
 
   useEffect(() => {
     workerClient.updateConfig(tsConfigString).catch(console.error)
@@ -137,21 +124,10 @@ export function App() {
     installQueue,
     status,
   } = usePackageManager(tsCode, addMessage)
-  const diagnostics = useTSDiagnostics(
-    tsCode,
-    activeTab === 'ts',
-    packageTypings
-  )
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isInput =
-        document.activeElement?.tagName === 'TEXTAREA' ||
-        document.activeElement?.tagName === 'INPUT'
-      if (
-        (e.key === 'ArrowLeft' || e.key === 'ArrowRight') &&
-        (!isInput || e.altKey)
-      ) {
+      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && e.altKey) {
         e.preventDefault()
         setActiveTab((prev) => {
           const idx = TABS.indexOf(prev)
@@ -181,22 +157,10 @@ export function App() {
   const handleCopyAll = useCallback(() => {
     const code =
       activeTab === 'ts' ? tsCode : activeTab === 'js' ? jsCode : dtsCode
-    navigator.clipboard
-      .writeText(code)
-      .then(() => {
-        setCopied(true)
-        setTimeout(() => setCopied(false), 1500)
-      })
-      .catch(() => {
-        const ta = document.createElement('textarea')
-        ta.value = code
-        document.body.append(ta)
-        ta.select()
-        document.execCommand('copy')
-        ta.remove()
-        setCopied(true)
-        setTimeout(() => setCopied(false), 1500)
-      })
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
   }, [activeTab, tsCode, jsCode, dtsCode])
 
   const handleDeleteAll = useCallback(() => {
@@ -389,7 +353,6 @@ export function App() {
               language='typescript'
               extraLibs={packageTypings}
               isMobileLike={isMobileLike}
-              diagnostics={diagnostics}
             />
           </div>
           <div className='w-[33.333%] h-full shrink-0'>

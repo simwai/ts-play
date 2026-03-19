@@ -20,18 +20,7 @@ export async function writeFiles(files: Record<string, string>) {
   const instance = await getWebContainer()
 
   for (const [path, contents] of Object.entries(files)) {
-    // Basic path normalization to avoid "directory doesn't exist" errors for root files
     await instance.fs.writeFile(path, contents)
-  }
-}
-
-export async function readFile(path: string): Promise<string> {
-  const instance = await getWebContainer()
-  try {
-    const content = await instance.fs.readFile(path, 'utf8')
-    return content
-  } catch {
-    return ''
   }
 }
 

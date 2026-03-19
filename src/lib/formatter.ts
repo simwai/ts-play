@@ -3,17 +3,14 @@ import * as prettierPluginBabel from 'prettier/plugins/babel'
 import * as prettierPluginEstree from 'prettier/plugins/estree'
 import * as prettierPluginTypescript from 'prettier/plugins/typescript'
 
-export async function loadPrettier(): Promise<void> {
-  // Prettier is now bundled locally, no need to load from CDN
-}
+export async function loadPrettier(): Promise<void> {}
 
-export async function formatCode(
+async function formatCode(
   code: string,
   language: 'typescript' | 'javascript' | 'dts'
 ): Promise<string> {
   const parser = language === 'javascript' ? 'babel' : 'typescript'
-
-  const formatted = await prettier.format(code, {
+  return await prettier.format(code, {
     parser,
     plugins: [
       prettierPluginBabel,
@@ -29,22 +26,20 @@ export async function formatCode(
     bracketSpacing: true,
     arrowParens: 'always',
   })
-
-  return formatted
 }
 
 export async function formatJson(code: string): Promise<string> {
   try {
     return await prettier.format(code, {
-      parser: 'json5', // json5 safely supports comments and trailing commas
+      parser: 'json5',
       plugins: [prettierPluginBabel, prettierPluginEstree],
       printWidth: 80,
       tabWidth: 2,
       useTabs: false,
-      quoteProps: 'preserve', // Ensures Prettier doesn't strip the quotes we just added
+      quoteProps: 'preserve',
     })
   } catch {
-    return code // Fallback to raw if formatting fails
+    return code
   }
 }
 
@@ -59,7 +54,6 @@ export async function formatAllFiles(
   errors: string[]
 }> {
   const errors: string[] = []
-
   let formattedTs = tsCode
   let formattedJs = jsCode
   let formattedDts = dtsCode
@@ -70,13 +64,11 @@ export async function formatAllFiles(
         formattedTs = r
       })
       .catch((error) => errors.push(`TS: ${error.message}`)),
-
     formatCode(jsCode, 'javascript')
       .then((r) => {
         formattedJs = r
       })
       .catch((error) => errors.push(`JS: ${error.message}`)),
-
     formatCode(dtsCode, 'dts')
       .then((r) => {
         formattedDts = r
