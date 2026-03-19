@@ -2,7 +2,7 @@ import { useRef, useCallback } from 'react'
 
 function isEditorTarget(target: EventTarget | undefined | null) {
   if (!(target instanceof HTMLElement)) return false
-  return Boolean(target.closest('textarea'))
+  return Boolean(target.closest('[data-testid="code-editor-container"]'))
 }
 
 export function useSwipeTabs<T extends string>(

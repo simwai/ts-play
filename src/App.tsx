@@ -302,6 +302,14 @@ export function App() {
     }
   }, [tsCode, jsCode, dtsCode, addMessage, setTsCode, setJsCode, setDtsCode])
 
+  const handleJsChange = useCallback(
+    (v: string) => {
+      setJsCode(v)
+      setJsDirty(true)
+    },
+    [setJsCode]
+  )
+
   const doRun = useCallback(
     async (skipDirtyCheck = false) => {
       if (!skipDirtyCheck && jsDirty) {
@@ -389,6 +397,14 @@ export function App() {
     else if (activeTab === 'dts') dtsEditorRef.current?.redo()
   }, [activeTab])
 
+  const onTsCursorChange = useCallback(
+    (pos: number) => {
+      tsCursorPos.current = pos
+      checkImports()
+    },
+    [checkImports]
+  )
+
   return (
     <div className='flex flex-col h-[100dvh] bg-base text-text font-sans overflow-hidden'>
       <Header
@@ -452,16 +468,10 @@ export function App() {
               ref={tsEditorRef}
               value={tsCode}
               onChange={setTsCode}
-              onCursorChange={(pos) => {
-                tsCursorPos.current = pos
-                checkImports()
-              }}
+              onCursorChange={onTsCursorChange}
               language='typescript'
               extraLibs={packageTypings}
-              keyboardOpen={keyboardOpen}
-              keyboardHeight={keyboardHeight}
               isMobileLike={isMobileLike}
-              lineWrap={lineWrap}
             />
           </div>
           {/* JS Editor */}
@@ -469,15 +479,9 @@ export function App() {
             <CodeEditor
               ref={jsEditorRef}
               value={jsCode}
-              onChange={(v) => {
-                setJsCode(v)
-                setJsDirty(true)
-              }}
+              onChange={handleJsChange}
               language='javascript'
-              keyboardOpen={keyboardOpen}
-              keyboardHeight={keyboardHeight}
               isMobileLike={isMobileLike}
-              lineWrap={lineWrap}
             />
           </div>
           {/* DTS Editor */}
@@ -488,10 +492,7 @@ export function App() {
               onChange={setDtsCode}
               language='typescript'
               readOnly={true}
-              keyboardOpen={keyboardOpen}
-              keyboardHeight={keyboardHeight}
               isMobileLike={isMobileLike}
-              lineWrap={lineWrap}
             />
           </div>
         </div>
