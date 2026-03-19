@@ -1,19 +1,61 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { workerClient } from '../lib/workerClient'
 import { runCommand, getWebContainer } from '../lib/webcontainer'
-import { syncNodeModulesToWorker } from '../lib/typings'
+import { setupTypeAcquisition } from '@typescript/ata'
 import type { InstalledPackage } from '../components/PackageManager'
 import type { ConsoleMessage } from '../components/Console'
+import * as TS from 'typescript'
 
 const BUILTIN_MODULES = new Set([
-  'assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'console', 'constants',
-  'crypto', 'dgram', 'diagnostics_channel', 'dns', 'domain', 'events', 'fs', 'http',
-  'http2', 'https', 'inspector', 'module', 'net', 'os', 'path', 'perf_hooks', 'process',
-  'punycode', 'querystring', 'readline', 'repl', 'stream', 'string_decoder', 'sys',
-  'timers', 'tls', 'trace_events', 'tty', 'url', 'util', 'v8', 'vm', 'worker_threads', 'zlib'
+  'assert',
+  'async_hooks',
+  'buffer',
+  'child_process',
+  'cluster',
+  'console',
+  'constants',
+  'crypto',
+  'dgram',
+  'diagnostics_channel',
+  'dns',
+  'domain',
+  'events',
+  'fs',
+  'http',
+  'http2',
+  'https',
+  'inspector',
+  'module',
+  'net',
+  'os',
+  'path',
+  'perf_hooks',
+  'process',
+  'punycode',
+  'querystring',
+  'readline',
+  'repl',
+  'stream',
+  'string_decoder',
+  'sys',
+  'timers',
+  'tls',
+  'trace_events',
+  'tty',
+  'url',
+  'util',
+  'v8',
+  'vm',
+  'worker_threads',
+  'zlib',
 ])
 
-export type PackageManagerStatus = 'idle' | 'installing' | 'uninstalling' | 'syncing' | 'error'
+export type PackageManagerStatus =
+  | 'idle'
+  | 'installing'
+  | 'uninstalling'
+  | 'syncing'
+  | 'error'
 
 export function usePackageManager(
   tsCode: string,
@@ -29,7 +71,11 @@ export function usePackageManager(
 
   const previousPkgsRef = useRef<Set<string>>(new Set())
   const installQueue = useRef<Promise<void>>(Promise.resolve())
-  const initialSetupDone = useRef(false)
+  const ataRef = useRef<any>(null)
+
+  // Collect typings in a ref to avoid excessive re-renders
+  const pendingTypings = useRef<Record<string, string>>({})
+  const typingUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const tsCursorPos = useRef(0)
   const checkImportsTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(
@@ -44,13 +90,17 @@ export function usePackageManager(
         tsCode.slice(0, tsCursorPos.current).split('\n').length - 1
       const currentLine = lines[cursorLineIdx] || ''
 
-      if (/\bimport\b/.test(currentLine) && !currentLine.includes('from') && !currentLine.includes('import(')) {
+      if (
+        /\bimport\b/.test(currentLine) &&
+        !currentLine.includes('from') &&
+        !currentLine.includes('import(')
+      ) {
         return
       }
 
       try {
         const detected = await workerClient.detectImports(tsCode)
-        const filtered = [...detected].filter(pkg => {
+        const filtered = [...detected].filter((pkg) => {
           if (pkg.startsWith('node:')) return false
           if (BUILTIN_MODULES.has(pkg)) return false
           return true
@@ -58,11 +108,12 @@ export function usePackageManager(
         const detectedSorted = filtered.sort()
 
         setInstalledPackages((previous) => {
-          const previousNamesSorted = previous
-            .map((p) => p.name)
-            .sort()
+          const previousNamesSorted = previous.map((p) => p.name).sort()
 
-          if (JSON.stringify(previousNamesSorted) === JSON.stringify(detectedSorted)) {
+          if (
+            JSON.stringify(previousNamesSorted) ===
+            JSON.stringify(detectedSorted)
+          ) {
             return previous
           }
 
@@ -78,30 +129,49 @@ export function usePackageManager(
     checkImports()
   }, [tsCode, checkImports])
 
-  // Initial silent install of foundational types
-  useEffect(() => {
-    const init = async () => {
-      if (initialSetupDone.current) return
-      initialSetupDone.current = true
+  const flushTypings = useCallback(() => {
+    if (Object.keys(pendingTypings.current).length === 0) return
+    setPackageTypings((prev) => ({
+      ...prev,
+      ...pendingTypings.current,
+    }))
+    pendingTypings.current = {}
+  }, [])
 
-      const container = await getWebContainer()
-      installQueue.current = installQueue.current.then(async () => {
-         try {
-           setStatus('installing')
-           // Silently install @types/node and other basics if missing
-           await runCommand('npm', ['install', '--no-progress', '@types/node'], () => {})
-           const libs = await syncNodeModulesToWorker()
-           setPackageTypings(libs)
-           setStatus('idle')
-         } catch (e) {
-           console.error('Initial ATA failed:', e)
-           setStatus('idle')
-         }
+  // Initialize ATA
+  useEffect(() => {
+    if (!ataRef.current) {
+      ataRef.current = setupTypeAcquisition({
+        projectName: 'ts-play',
+        typescript: TS as any,
+        logger: false,
+        delegate: {
+          receivedFile: (code, path) => {
+            pendingTypings.current[path] = code
+            if (typingUpdateTimer.current)
+              clearTimeout(typingUpdateTimer.current)
+            typingUpdateTimer.current = setTimeout(flushTypings, 500)
+          },
+          errorMessage: (userFacingMessage, error) => {
+            console.error('ATA Error:', userFacingMessage, error)
+          },
+          finished: () => {
+            flushTypings()
+            setStatus('idle')
+          },
+          started: () => {
+            setStatus('syncing')
+          },
+        },
       })
-      checkImports()
     }
-    init()
-  }, [checkImports])
+  }, [flushTypings])
+
+  useEffect(() => {
+    if (ataRef.current && tsCode) {
+      ataRef.current(tsCode)
+    }
+  }, [tsCode])
 
   useEffect(() => {
     const currentNames = new Set(installedPackages.map((p) => p.name))
@@ -115,73 +185,37 @@ export function usePackageManager(
     previousPkgsRef.current = currentNames
 
     const performChanges = async () => {
-       const container = await getWebContainer()
-       try {
-          if (removed.length > 0) {
-            setStatus('uninstalling')
-            addMessage('info', ['npm uninstall ' + removed.join(' ') + '...'])
-            await runCommand('npm', ['uninstall', ...removed], (out) => {
-               const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
-               if (clean && !/^[/\\|\-]$/.test(clean)) addMessage('info', [clean])
-            })
-          }
+      try {
+        if (removed.length > 0) {
+          setStatus('uninstalling')
+          addMessage('info', ['npm uninstall ' + removed.join(' ') + '...'])
+          await runCommand('npm', ['uninstall', ...removed], (out) => {
+            const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
+            if (clean && !/^[/\\|\-]$/.test(clean)) addMessage('info', [clean])
+          })
+        }
 
-          if (added.length > 0) {
-            setStatus('installing')
-            addMessage('info', ['npm install ' + added.join(' ') + '...'])
+        if (added.length > 0) {
+          setStatus('installing')
+          addMessage('info', ['npm install ' + added.join(' ') + '...'])
 
-            const exitCode = await runCommand(
-              'npm',
-              ['install', '--no-progress', ...added],
-              (out) => {
-                const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
-                if (clean && !/^[/\\|\-]$/.test(clean))
-                  addMessage('info', [clean])
-              }
-            )
-
-            if (exitCode === 0) {
-               // ATA Check: for each added package, check if it has types
-               const typesToInstall: string[] = []
-               for (const pkg of added) {
-                  try {
-                    const pkgJsonPath = `node_modules/${pkg}/package.json`
-                    const content = await container.fs.readFile(pkgJsonPath, 'utf8')
-                    const pkgJson = JSON.parse(content)
-
-                    const hasBuiltInTypes = pkgJson.types || pkgJson.typings ||
-                                           (pkgJson.exports && JSON.stringify(pkgJson.exports).includes('.d.ts'))
-
-                    if (!hasBuiltInTypes) {
-                       // Double check if index.d.ts exists
-                       try {
-                          await container.fs.readFile(`node_modules/${pkg}/index.d.ts`)
-                       } catch {
-                          typesToInstall.push(`@types/${pkg}`)
-                       }
-                    }
-                  } catch {
-                    // If we can't find/read package.json, try installing types anyway
-                    typesToInstall.push(`@types/${pkg}`)
-                  }
-               }
-
-               if (typesToInstall.length > 0) {
-                  addMessage('info', ['Silently acquiring type definitions...'])
-                  await runCommand('npm', ['install', '--no-progress', ...typesToInstall], () => {})
-               }
+          await runCommand(
+            'npm',
+            ['install', '--no-progress', ...added],
+            (out) => {
+              const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
+              if (clean && !/^[/\\|\-]$/.test(clean))
+                addMessage('info', [clean])
             }
-          }
-
-          setStatus('syncing')
-          const libs = await syncNodeModulesToWorker()
-          setPackageTypings(libs)
-          setStatus('idle')
-       } catch (error) {
-          console.error('Package management failed:', error)
-          setStatus('error')
-          addMessage('error', ['Package manager error: ' + (error as Error).message])
-       }
+          )
+        }
+      } catch (error) {
+        console.error('Package management failed:', error)
+        setStatus('error')
+        addMessage('error', [
+          'Package manager error: ' + (error as Error).message,
+        ])
+      }
     }
 
     installQueue.current = installQueue.current.then(performChanges)
@@ -193,6 +227,6 @@ export function usePackageManager(
     tsCursorPos,
     checkImports,
     installQueue,
-    status
+    status,
   }
 }

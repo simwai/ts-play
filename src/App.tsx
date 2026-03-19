@@ -94,10 +94,7 @@ export function App() {
     'tsplay_truecolor',
     true
   )
-  const [lineWrap, setLineWrap] = useLocalStorage(
-    'tsplay_linewrap',
-    true
-  )
+  const [lineWrap, setLineWrap] = useLocalStorage('tsplay_linewrap', true)
 
   const [activeTab, setActiveTab] = useState<TabType>('ts')
 

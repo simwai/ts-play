@@ -14,6 +14,7 @@
     "node": ">=20.19.0 <21 || >=22.12.0"
   },
   "dependencies": {
+    "@typescript/ata": "^0.9.8",
     "@webcontainer/api": "^1.6.1",
     "ansi-to-html": "^0.7.2",
     "clsx": "2.1.1",

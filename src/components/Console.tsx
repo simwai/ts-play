@@ -57,14 +57,20 @@ export const Console = React.memo(function Console({
   const bottomRef = useRef<HTMLDivElement>(null)
 
   // Create Ansi converter with truecolor support if enabled
-  const ansiConvert = useMemo(() => new Ansi({
-    newline: false,
-    escapeHtml: true,
-    stream: false,
-    colors: trueColorEnabled ? undefined : {
-      // Standard 16 colors fallback if needed
-    }
-  }), [trueColorEnabled])
+  const ansiConvert = useMemo(
+    () =>
+      new Ansi({
+        newline: false,
+        escapeHtml: true,
+        stream: false,
+        colors: trueColorEnabled
+          ? undefined
+          : {
+              // Standard 16 colors fallback if needed
+            },
+      }),
+    [trueColorEnabled]
+  )
 
   useEffect(() => {
     if (isOpen) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -74,7 +80,10 @@ export const Console = React.memo(function Console({
   const warns = messages.filter((m) => m.type === 'warn').length
 
   return (
-    <div className='flex flex-col border-t border-surface0 bg-mantle shrink-0' data-testid="console-container">
+    <div
+      className='flex flex-col border-t border-surface0 bg-mantle shrink-0'
+      data-testid='console-container'
+    >
       <PanelHeader
         label='Console'
         isOpen={isOpen}
@@ -105,7 +114,8 @@ export const Console = React.memo(function Console({
               }}
               variant='secondary'
               size='xs'
-              title='Clear console' data-testid="console-clear-button"
+              title='Clear console'
+              data-testid='console-clear-button'
               tooltipAlign='right'
             >
               <Eraser size={12} />
@@ -127,11 +137,13 @@ export const Console = React.memo(function Console({
           ) : (
             messages.map((m, idx) => {
               const fullText = m.args.join(' ')
-              const hasAnsi = trueColorEnabled && /[\u001b\u009b]/.test(fullText)
+              const hasAnsi =
+                trueColorEnabled && /[\u001b\u009b]/.test(fullText)
 
               return (
                 <div
-                  key={`${m.ts}-${idx}`} data-testid="console-message"
+                  key={`${m.ts}-${idx}`}
+                  data-testid='console-message'
                   className={`flex items-start gap-2.5 px-3 py-1.5 border-b border-surface0/40 ${
                     m.type === 'error'
                       ? 'bg-red/5'
@@ -148,7 +160,9 @@ export const Console = React.memo(function Console({
                   {hasAnsi ? (
                     <div
                       className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono`}
-                      dangerouslySetInnerHTML={{ __html: ansiConvert.toHtml(fullText) }}
+                      dangerouslySetInnerHTML={{
+                        __html: ansiConvert.toHtml(fullText),
+                      }}
                     />
                   ) : (
                     <pre

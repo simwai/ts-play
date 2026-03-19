@@ -26,7 +26,7 @@ export function StatusBar({
   compactForKeyboard,
   lineWrap,
   setLineWrap,
-  packageManagerStatus
+  packageManagerStatus,
 }: StatusBarProps) {
   const statusLabel =
     compilerStatus === 'loading'
@@ -42,10 +42,15 @@ export function StatusBar({
         : 'text-yellow'
 
   const pmLabel =
-    packageManagerStatus === 'installing' ? 'Installing...' :
-    packageManagerStatus === 'uninstalling' ? 'Uninstalling...' :
-    packageManagerStatus === 'syncing' ? 'Syncing...' :
-    packageManagerStatus === 'error' ? 'PM Error' : ''
+    packageManagerStatus === 'installing'
+      ? 'Installing...'
+      : packageManagerStatus === 'uninstalling'
+        ? 'Uninstalling...'
+        : packageManagerStatus === 'syncing'
+          ? 'Syncing...'
+          : packageManagerStatus === 'error'
+            ? 'PM Error'
+            : ''
 
   return (
     <div
@@ -54,14 +59,15 @@ export function StatusBar({
     >
       <div className='flex items-center justify-start flex-1 min-w-0 gap-2 md:gap-4'>
         <span
-          className={`text-3xs md:text-xs font-mono tracking-wide truncate ${statusColorClass}`} data-testid="status-bar-compiler-status"
+          className={`text-3xs md:text-xs font-mono tracking-wide truncate ${statusColorClass}`}
+          data-testid='status-bar-compiler-status'
         >
           {statusLabel}
         </span>
         {pmLabel && (
-           <span className='text-3xs md:text-xs font-mono tracking-wide text-mauve animate-pulse truncate shrink-0'>
-             {pmLabel}
-           </span>
+          <span className='text-3xs md:text-xs font-mono tracking-wide text-mauve animate-pulse truncate shrink-0'>
+            {pmLabel}
+          </span>
         )}
       </div>
 
@@ -81,11 +87,16 @@ export function StatusBar({
       <div className='flex items-center justify-end gap-1 md:gap-1.5 flex-1 min-w-0'>
         <IconButton
           onClick={() => setLineWrap(!lineWrap)}
-          title={lineWrap ? 'Disable Line Wrap' : 'Enable Line Wrap'} data-testid="status-bar-wrap-toggle"
+          title={lineWrap ? 'Disable Line Wrap' : 'Enable Line Wrap'}
+          data-testid='status-bar-wrap-toggle'
           tooltipAlign='right'
           size='xs'
           variant='ghost'
-          className={lineWrap ? 'text-mauve bg-mauve/10' : 'text-overlay1 hover:text-text'}
+          className={
+            lineWrap
+              ? 'text-mauve bg-mauve/10'
+              : 'text-overlay1 hover:text-text'
+          }
         >
           <WrapText className='w-3 h-3 md:w-4 md:h-4' />
         </IconButton>
@@ -113,7 +124,8 @@ export function StatusBar({
         <div className='w-px h-3 md:h-4 bg-surface1 mx-0.5 md:mx-1 shrink-0' />
         <IconButton
           onClick={onOpenSettings}
-          title='Settings' data-testid="status-bar-settings-button"
+          title='Settings'
+          data-testid='status-bar-settings-button'
           tooltipAlign='right'
           size='xs'
           variant='ghost'

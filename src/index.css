@@ -40,7 +40,8 @@
   --color-lavender: var(--lavender);
 
   /* Custom Fonts */
-  --font-mono: 'JetBrains Mono', 'Victor Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --font-mono:
+    'JetBrains Mono', 'Victor Mono', 'Fira Code', 'Cascadia Code', monospace;
   --font-graffonti: 'Graffonti', sans-serif;
 
   /* Custom Font Sizes */
@@ -60,7 +61,8 @@
   --animate-gradient-x: gradient-x 3s ease infinite;
 
   @keyframes gradient-x {
-    0%, 100% {
+    0%,
+    100% {
       background-position: 0% 50%;
     }
     50% {
@@ -72,13 +74,23 @@
   --animate-lit-gradient: lit-gradient 3s linear infinite;
 
   @keyframes lit-gradient {
-    0% { background-position: 0% 50%; }
-    100% { background-position: 200% 50%; }
+    0% {
+      background-position: 0% 50%;
+    }
+    100% {
+      background-position: 200% 50%;
+    }
   }
 }
 
 .bg-lit-gradient {
-  background: linear-gradient(to right, var(--color-mauve), var(--color-pink), var(--color-sky), var(--color-mauve));
+  background: linear-gradient(
+    to right,
+    var(--color-mauve),
+    var(--color-pink),
+    var(--color-sky),
+    var(--color-mauve)
+  );
   background-size: 200% auto;
   -webkit-background-clip: text !important;
   background-clip: text !important;
@@ -158,12 +170,13 @@
     @apply bg-crust text-text m-0 overflow-hidden;
   }
 
-  /* Change italic font variant to JetBrains Mono instead of Victor Mono */
+  /* Force JetBrains Mono for italics strictly */
   i,
   em,
   .italic,
   .mtk-italic {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-style: italic;
   }
 
   /* Custom Scrollbar & Resizer */
@@ -202,20 +215,15 @@
   animation: gradient-x 3s ease infinite;
 }
 
-/* Ensure the editor uses its own font stack for italics to avoid drifting */
-.code-editor i,
-.code-editor em,
-.code-editor .italic {
-  font-family: inherit !important;
-}
-
 .code-editor textarea {
   -webkit-text-fill-color: transparent !important;
   overflow-wrap: break-word !important;
   word-break: break-word !important;
 }
 
-.code-editor pre, .code-editor textarea, .code-editor div {
+.code-editor pre,
+.code-editor textarea,
+.code-editor div {
   font-variant-ligatures: none !important;
-  font-feature-settings: "liga" 0 !important;
+  font-feature-settings: 'liga' 0 !important;
 }
