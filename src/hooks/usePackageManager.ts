@@ -29,6 +29,7 @@ export function usePackageManager(
 
   const previousPkgsRef = useRef<Set<string>>(new Set())
   const installQueue = useRef<Promise<void>>(Promise.resolve())
+  const initialSetupDone = useRef(false)
 
   const tsCursorPos = useRef(0)
   const checkImportsTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(
@@ -43,7 +44,6 @@ export function usePackageManager(
         tsCode.slice(0, tsCursorPos.current).split('\n').length - 1
       const currentLine = lines[cursorLineIdx] || ''
 
-      // Skip detection if user is mid-import statement
       if (/\bimport\b/.test(currentLine) && !currentLine.includes('from') && !currentLine.includes('import(')) {
         return
       }
@@ -78,13 +78,31 @@ export function usePackageManager(
     checkImports()
   }, [tsCode, checkImports])
 
+  // Initial silent install of foundational types
   useEffect(() => {
-    getWebContainer().then(() => {
+    const init = async () => {
+      if (initialSetupDone.current) return
+      initialSetupDone.current = true
+
+      const container = await getWebContainer()
+      installQueue.current = installQueue.current.then(async () => {
+         try {
+           setStatus('installing')
+           // Silently install @types/node and other basics if missing
+           await runCommand('npm', ['install', '--no-progress', '@types/node'], () => {})
+           const libs = await syncNodeModulesToWorker()
+           setPackageTypings(libs)
+           setStatus('idle')
+         } catch (e) {
+           console.error('Initial ATA failed:', e)
+           setStatus('idle')
+         }
+      })
       checkImports()
-    })
+    }
+    init()
   }, [checkImports])
 
-  // Automated Type Acquisition (ATA) and Lifecycle management
   useEffect(() => {
     const currentNames = new Set(installedPackages.map((p) => p.name))
     const previousNames = previousPkgsRef.current
@@ -97,8 +115,8 @@ export function usePackageManager(
     previousPkgsRef.current = currentNames
 
     const performChanges = async () => {
+       const container = await getWebContainer()
        try {
-          // Handle Removals
           if (removed.length > 0) {
             setStatus('uninstalling')
             addMessage('info', ['npm uninstall ' + removed.join(' ') + '...'])
@@ -108,28 +126,13 @@ export function usePackageManager(
             })
           }
 
-          // Handle Additions (ATA)
           if (added.length > 0) {
             setStatus('installing')
-            const toInstall = [...added]
+            addMessage('info', ['npm install ' + added.join(' ') + '...'])
 
-            // Heuristic for @types: also try to install types if they exist
-            // (e.g., lodash -> @types/lodash)
-            for (const pkg of added) {
-               if (!pkg.startsWith('@types/')) {
-                  toInstall.push(`@types/${pkg}`)
-               }
-            }
-
-            // Ensure @types/node is present if not already
-            if (!currentNames.has('@types/node') && !previousNames.has('@types/node')) {
-               toInstall.push('@types/node')
-            }
-
-            addMessage('info', ['npm install ' + toInstall.join(' ') + '...'])
-            const code = await runCommand(
+            const exitCode = await runCommand(
               'npm',
-              ['install', '--no-progress', ...toInstall],
+              ['install', '--no-progress', ...added],
               (out) => {
                 const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
                 if (clean && !/^[/\\|\-]$/.test(clean))
@@ -137,18 +140,45 @@ export function usePackageManager(
               }
             )
 
-            if (code !== 0) {
-               addMessage('warn', ['Some packages failed to install. This is normal if they lack @types counterparts.'])
+            if (exitCode === 0) {
+               // ATA Check: for each added package, check if it has types
+               const typesToInstall: string[] = []
+               for (const pkg of added) {
+                  try {
+                    const pkgJsonPath = `node_modules/${pkg}/package.json`
+                    const content = await container.fs.readFile(pkgJsonPath, 'utf8')
+                    const pkgJson = JSON.parse(content)
+
+                    const hasBuiltInTypes = pkgJson.types || pkgJson.typings ||
+                                           (pkgJson.exports && JSON.stringify(pkgJson.exports).includes('.d.ts'))
+
+                    if (!hasBuiltInTypes) {
+                       // Double check if index.d.ts exists
+                       try {
+                          await container.fs.readFile(`node_modules/${pkg}/index.d.ts`)
+                       } catch {
+                          typesToInstall.push(`@types/${pkg}`)
+                       }
+                    }
+                  } catch {
+                    // If we can't find/read package.json, try installing types anyway
+                    typesToInstall.push(`@types/${pkg}`)
+                  }
+               }
+
+               if (typesToInstall.length > 0) {
+                  addMessage('info', ['Silently acquiring type definitions...'])
+                  await runCommand('npm', ['install', '--no-progress', ...typesToInstall], () => {})
+               }
             }
           }
 
-          // Sync typings to worker host
           setStatus('syncing')
           const libs = await syncNodeModulesToWorker()
           setPackageTypings(libs)
           setStatus('idle')
        } catch (error) {
-          console.error('Package management lifecycle failed:', error)
+          console.error('Package management failed:', error)
           setStatus('error')
           addMessage('error', ['Package manager error: ' + (error as Error).message])
        }
