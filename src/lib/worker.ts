@@ -176,6 +176,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       case 'UPDATE_EXTRA_LIBS': {
         externalPackageDefinitions = payload.libs
         externalPackageVersion += 1
+        // Trigger re-validation of main file
         if (virtualFiles['main.ts']) virtualFiles['main.ts'].version += 1
         result = true
         break
@@ -192,13 +193,19 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
             readFile: () => tsconfig,
             getCurrentDirectory: () => '/',
           }
-          const { options } = TS.parseJsonConfigFileContent(
+          const { options, errors } = TS.parseJsonConfigFileContent(
             parsed.config,
             host,
             '/'
           )
-          compilerOptions = { ...compilerOptions, ...options }
-          if (virtualFiles['main.ts']) virtualFiles['main.ts'].version += 1
+          if (errors.length === 0) {
+            compilerOptions = { ...compilerOptions, ...options }
+            if (virtualFiles['main.ts']) virtualFiles['main.ts'].version += 1
+          } else {
+            throw new Error(
+              'Invalid tsconfig options: ' + errors[0].messageText
+            )
+          }
         }
         result = true
         break

@@ -29,6 +29,7 @@ type CodeEditorProps = {
   disableAutocomplete?: boolean
   disableDiagnostics?: boolean
   disableShortcuts?: boolean
+  diagnostics?: TSDiagnostic[]
 }
 
 export type CodeEditorHandle = {
@@ -74,6 +75,7 @@ export const CodeEditor = React.memo(
       disableAutocomplete = false,
       disableDiagnostics = false,
       disableShortcuts = false,
+      diagnostics: externalDiagnostics = [],
     } = props
 
     const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -81,8 +83,8 @@ export const CodeEditor = React.memo(
     const codeDisplayRef = useRef<HTMLPreElement>(null)
     const editorWrapperRef = useRef<HTMLDivElement>(null)
     const lineGutterRef = useRef<HTMLDivElement>(null)
+    const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
-    const [diagnostics, setDiagnostics] = useState<TSDiagnostic[]>([])
     const [typeInfo, setTypeInfo] = useState<TypeInfo | undefined>()
     const [activeDiagnostic, setActiveDiagnostic] = useState<
       TSDiagnostic | undefined
@@ -96,7 +98,6 @@ export const CodeEditor = React.memo(
       left: 0,
     })
 
-    // Custom Cursor & Selection State (Desktop only)
     const [selection, setSelection] = useState({ start: 0, end: 0 })
     const [isFocused, setIsFocused] = useState(false)
     const [cursorCoords, setCursorCoords] = useState({ top: 0, left: 0 })
@@ -111,6 +112,7 @@ export const CodeEditor = React.memo(
     const autocompleteDebounceTimer = useRef<
       ReturnType<typeof setTimeout> | undefined
     >(undefined)
+    const lastValueRef = useRef(value)
 
     const linesOfCode = useMemo(() => value.split('\n'), [value])
     const totalContentHeight =
@@ -130,11 +132,14 @@ export const CodeEditor = React.memo(
 
     const measureTextWidth = useCallback(
       (text: string) => {
-        const canvas = document.createElement('canvas')
-        const context = canvas.getContext('2d')
+        if (!canvasRef.current)
+          canvasRef.current = document.createElement('canvas')
+        const context = canvasRef.current.getContext('2d')
         if (context) {
           context.font = `${baseFontSize}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace`
-          return context.measureText(text.replaceAll('\t', '  ')).width
+          // Tabs are 2 spaces. We replace them for measurement to match display.
+          const processedText = text.replaceAll('\t', '  ')
+          return context.measureText(processedText).width
         }
         return 0
       },
@@ -161,33 +166,37 @@ export const CodeEditor = React.memo(
     }, [value, lineHeight, horizontalPadding, measureTextWidth, onCursorChange])
 
     useEffect(() => {
+      if (value !== lastValueRef.current) {
+        updateCursorPosition()
+        lastValueRef.current = value
+      }
+    }, [value, updateCursorPosition])
+
+    useEffect(() => {
       if (!isFocused || !scrollContainerRef.current) return
       const container = scrollContainerRef.current
       const { scrollTop, scrollLeft, clientHeight, clientWidth } = container
-
       const cursorTop = cursorCoords.top
       const cursorLeft = cursorCoords.left
-
       const margin = 20
-      if (cursorTop < scrollTop + margin) {
+      if (cursorTop < scrollTop + margin)
         container.scrollTop = Math.max(0, cursorTop - margin)
-      } else if (cursorTop + lineHeight > scrollTop + clientHeight - margin) {
+      else if (cursorTop + lineHeight > scrollTop + clientHeight - margin)
         container.scrollTop = cursorTop + lineHeight - clientHeight + margin
-      }
-
-      if (cursorLeft < scrollLeft + horizontalPadding + margin) {
+      if (cursorLeft < scrollLeft + horizontalPadding + margin)
         container.scrollLeft = Math.max(
           0,
           cursorLeft - horizontalPadding - margin
         )
-      } else if (cursorLeft > scrollLeft + clientWidth - margin) {
+      else if (cursorLeft > scrollLeft + clientWidth - margin)
         container.scrollLeft = cursorLeft - clientWidth + margin
-      }
     }, [cursorCoords, isFocused, lineHeight, horizontalPadding])
 
     const handleTextInputChange = useCallback(
       (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        onChange?.(e.target.value)
+        const newVal = e.target.value
+        lastValueRef.current = newVal
+        onChange?.(newVal)
       },
       [onChange]
     )
@@ -197,18 +206,16 @@ export const CodeEditor = React.memo(
         if (disableAutocomplete || readOnly) return
         if (autocompleteDebounceTimer.current)
           clearTimeout(autocompleteDebounceTimer.current)
-
         autocompleteDebounceTimer.current = setTimeout(async () => {
           try {
             const results = await workerClient.getCompletions(offset)
             setAutocompleteSuggestions(results || [])
             setSelectedSuggestionIndex(0)
-            if (results && results.length > 0) {
+            if (results && results.length > 0)
               setAutocompletePopupPosition({
                 top: cursorCoords.top + lineHeight,
                 left: cursorCoords.left,
               })
-            }
           } catch (e) {
             setAutocompleteSuggestions([])
           }
@@ -221,23 +228,19 @@ export const CodeEditor = React.memo(
       (index: number) => {
         const suggestion = autocompleteSuggestions[index]
         if (!suggestion || !textInputRef.current) return
-
         const textarea = textInputRef.current
         const start = textarea.selectionStart
         const textBefore = value.substring(0, start)
-
         const lastWordMatch = textBefore.match(/[\w$]+$/)
         const lastWord = lastWordMatch ? lastWordMatch[0] : ''
         const replaceStart = start - lastWord.length
-
         const newValue =
           value.substring(0, replaceStart) +
           (suggestion.insertText || suggestion.name) +
           value.substring(start)
+        lastValueRef.current = newValue
         onChange?.(newValue)
-
         setAutocompleteSuggestions([])
-
         setTimeout(() => {
           const newPos =
             replaceStart + (suggestion.insertText || suggestion.name).length
@@ -252,7 +255,6 @@ export const CodeEditor = React.memo(
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (disableShortcuts) return
-
         if (autocompleteSuggestions.length > 0) {
           if (e.key === 'ArrowDown') {
             e.preventDefault()
@@ -280,13 +282,13 @@ export const CodeEditor = React.memo(
             return
           }
         }
-
         if (e.key === 'Tab' && !readOnly) {
           e.preventDefault()
           const start = e.currentTarget.selectionStart
           const end = e.currentTarget.selectionEnd
           const newValue =
             value.substring(0, start) + '  ' + value.substring(end)
+          lastValueRef.current = newValue
           onChange?.(newValue)
           setTimeout(() => {
             if (textInputRef.current) {
@@ -325,33 +327,25 @@ export const CodeEditor = React.memo(
       updateCursorPosition()
       if (!textInputRef.current) return
       const pos = textInputRef.current.selectionStart
-
       if (typeInfoDebounceTimer.current)
         clearTimeout(typeInfoDebounceTimer.current)
-
-      if (!disableAutocomplete && !readOnly) {
-        requestAutocompleteSuggestions(pos)
-      }
-
+      if (!disableAutocomplete && !readOnly) requestAutocompleteSuggestions(pos)
       typeInfoDebounceTimer.current = setTimeout(async () => {
         const information = hideTypeInfo
           ? undefined
           : await getTypeInfo(value, pos)
         setTypeInfo(information)
-
         const matchingDiagnostic = disableDiagnostics
           ? undefined
-          : diagnostics.find(
-              (diagnostic) =>
-                pos >= diagnostic.start &&
-                pos <= diagnostic.start + diagnostic.length
+          : externalDiagnostics.find(
+              (d) => pos >= d.start && pos <= d.start + d.length
             )
         setActiveDiagnostic(matchingDiagnostic)
       }, 80)
     }, [
       value,
       getTypeInfo,
-      diagnostics,
+      externalDiagnostics,
       hideTypeInfo,
       disableDiagnostics,
       disableAutocomplete,
@@ -361,17 +355,14 @@ export const CodeEditor = React.memo(
     ])
 
     useEffect(() => {
-      if (extraLibs && Object.keys(extraLibs).length > 0) {
+      if (extraLibs && Object.keys(extraLibs).length > 0)
         workerClient.updateExtraLibs(extraLibs)
-      }
     }, [extraLibs])
-
     const handleFocus = useCallback(() => setIsFocused(true), [])
     const handleBlur = useCallback(() => {
       setIsFocused(false)
       setAutocompleteSuggestions([])
     }, [])
-
     const synchronizeScroll = useCallback(() => {
       if (!scrollContainerRef.current) return
       const { scrollTop, scrollLeft } = scrollContainerRef.current
@@ -389,18 +380,14 @@ export const CodeEditor = React.memo(
 
     const selectionBlocks = useMemo(() => {
       if (selection.start === selection.end || isMobileLike) return []
-
       const blocks: { top: number; left: number; width: number }[] = []
       const textBeforeSelection = value.substring(0, selection.start)
       const selectedText = value.substring(selection.start, selection.end)
-
       const startLineIdx = textBeforeSelection.split('\n').length - 1
       const lines = selectedText.split('\n')
-
       lines.forEach((lineText, i) => {
         const lIdx = startLineIdx + i
         const fullLineText = linesOfCode[lIdx]
-
         let left = horizontalPadding
         if (i === 0) {
           const startOffsetInLine =
@@ -409,7 +396,7 @@ export const CodeEditor = React.memo(
           const textBeforeInLine = fullLineText.substring(0, startOffsetInLine)
           left += measureTextWidth(textBeforeInLine)
         }
-
+        // We use ' ' as placeholder for empty lines to show selection height
         const width = measureTextWidth(lineText || ' ')
         blocks.push({
           top: lIdx * lineHeight + EDITOR_PADDING_TOP,
@@ -417,7 +404,6 @@ export const CodeEditor = React.memo(
           width,
         })
       })
-
       return blocks
     }, [
       selection,
@@ -449,7 +435,6 @@ export const CodeEditor = React.memo(
 
     const matchingBrackets = useMemo(() => {
       if (selection.start !== selection.end) return []
-
       const findPartner = (
         pos: number,
         open: string,
@@ -468,7 +453,6 @@ export const CodeEditor = React.memo(
         }
         return -1
       }
-
       const pairs: Record<string, string> = {
         '{': '}',
         '[': ']',
@@ -489,15 +473,14 @@ export const CodeEditor = React.memo(
         if (partner === -1) return null
         return [pos, partner]
       }
-
       return bracketAt(selection.start) || bracketAt(selection.start - 1) || []
     }, [value, selection])
 
-    const highlightedLines = useMemo(() => {
-      return linesOfCode.map((line) => buildHtml(line) + '\n')
-    }, [linesOfCode])
-
-    const extraBottomPadding = hideTypeInfo ? 0 : 80
+    // Important: replace tabs with spaces for consistent display across all layers
+    const highlightedLines = useMemo(
+      () => linesOfCode.map((line) => buildHtml(line.replaceAll('\t', '  '))),
+      [linesOfCode]
+    )
     const sharedStyles = useMemo(
       () => getSharedStyles(baseFontSize, lineHeight, horizontalPadding),
       [baseFontSize, lineHeight, horizontalPadding]
@@ -540,11 +523,11 @@ export const CodeEditor = React.memo(
                 style={{
                   width: gutterWidth,
                   paddingTop: EDITOR_PADDING_TOP,
-                  paddingBottom: EDITOR_PADDING_TOP + extraBottomPadding,
+                  paddingBottom: EDITOR_PADDING_TOP + (hideTypeInfo ? 0 : 80),
                   fontSize: baseFontSize,
                   lineHeight: `${lineHeight}px`,
                   paddingRight: isMobileLike ? 8 : 12,
-                  height: totalContentHeight + extraBottomPadding,
+                  height: totalContentHeight + (hideTypeInfo ? 0 : 80),
                 }}
               >
                 {linesOfCode.map((_, i) => (
@@ -566,12 +549,12 @@ export const CodeEditor = React.memo(
               ref={editorWrapperRef}
               className='flex-1 relative min-w-0'
               style={{
-                height: totalContentHeight + extraBottomPadding,
+                height: totalContentHeight + (hideTypeInfo ? 0 : 80),
                 width: 'max-content',
                 minWidth: '100%',
               }}
             >
-              {/* Selection Rendering (Desktop Only) */}
+              {/* Selection Rendering */}
               {!isMobileLike &&
                 selectionBlocks.map((b, i) => (
                   <div
@@ -585,7 +568,6 @@ export const CodeEditor = React.memo(
                     }}
                   />
                 ))}
-
               {/* Current Line Highlight */}
               {!readOnly && isFocused && (
                 <div
@@ -600,7 +582,6 @@ export const CodeEditor = React.memo(
                   }}
                 />
               )}
-
               {/* Indent Guides */}
               {indentGuides.map((g, i) => (
                 <div
@@ -609,10 +590,8 @@ export const CodeEditor = React.memo(
                   style={{ top: g.top, left: g.left, height: g.height }}
                 />
               ))}
-
               {/* Bracket Highlighting */}
               {matchingBrackets.map((pos) => renderBracketHighlight(pos))}
-
               {/* Display Layer */}
               <pre
                 ref={codeDisplayRef}
@@ -629,8 +608,44 @@ export const CodeEditor = React.memo(
                   />
                 ))}
               </pre>
-
-              {/* Custom Cursor (Desktop Only) */}
+              {/* Diagnostics Layer */}
+              {!disableDiagnostics && (
+                <div
+                  aria-hidden
+                  className='text-transparent bg-transparent pointer-events-none z-10 absolute inset-0'
+                  style={{ ...sharedStyles, height: totalContentHeight }}
+                >
+                  {linesOfCode.map((lineText, index) => {
+                    const lineStartOffset =
+                      linesOfCode.slice(0, index).join('\n').length +
+                      (index > 0 ? 1 : 0)
+                    const lineEndOffset = lineStartOffset + lineText.length
+                    const lineDiagnostics = externalDiagnostics.filter(
+                      (d) =>
+                        d.start >= lineStartOffset && d.start < lineEndOffset
+                    )
+                    const relativeDiagnostics = lineDiagnostics.map((d) => ({
+                      ...d,
+                      start: d.start - lineStartOffset,
+                    }))
+                    // Match tab replacement
+                    const processedLine = lineText.replaceAll('\t', '  ')
+                    return (
+                      <div
+                        key={`diag-${index}`}
+                        style={{ height: lineHeight }}
+                        dangerouslySetInnerHTML={{
+                          __html: buildSquiggles(
+                            processedLine,
+                            relativeDiagnostics
+                          ),
+                        }}
+                      />
+                    )
+                  })}
+                </div>
+              )}
+              {/* Custom Cursor */}
               {!readOnly &&
                 isFocused &&
                 selection.start === selection.end &&
@@ -644,8 +659,7 @@ export const CodeEditor = React.memo(
                     }}
                   />
                 )}
-
-              {/* Input Layer (Controller) */}
+              {/* Input Layer */}
               <textarea
                 ref={textInputRef}
                 data-testid='code-editor-textarea'
@@ -658,6 +672,7 @@ export const CodeEditor = React.memo(
                 onKeyUp={handleCursorMovement}
                 onFocus={handleFocus}
                 onBlur={handleBlur}
+                onPaste={updateCursorPosition}
                 spellCheck={false}
                 autoCorrect='off'
                 autoCapitalize='off'
@@ -678,7 +693,6 @@ export const CodeEditor = React.memo(
                   WebkitTextFillColor: 'transparent',
                 }}
               />
-
               {autocompleteSuggestions.length > 0 && (
                 <ul
                   role='listbox'
