@@ -17,27 +17,28 @@ const defaultLibraryFiles: Record<string, string> = {
   'lib.es2020.d.ts': lib_es2020_d_ts,
   'lib.dom.d.ts': lib_dom_d_ts,
 }
+
+let compilerOptions: TS.CompilerOptions = {
+  target: TS.ScriptTarget.ES2020,
+  module: TS.ModuleKind.ESNext,
+  moduleResolution: TS.ModuleResolutionKind.Node10,
+  resolveJsonModule: true,
+  allowImportingTsExtensions: true,
+  esModuleInterop: true,
+  strict: true,
+  skipLibCheck: true,
+  noImplicitAny: false,
+  baseUrl: '/',
+  paths: {
+    "*": ["node_modules/*"]
+  }
+}
+
 let externalPackageDefinitions: Record<string, string> = {}
 let externalPackageVersion = 0
 
 async function initializeLanguageService() {
   if (languageService) return
-
-  const compilerOptions: TS.CompilerOptions = {
-    target: TS.ScriptTarget.ES2020,
-    module: TS.ModuleKind.ESNext,
-    moduleResolution: TS.ModuleResolutionKind.Node10,
-    resolveJsonModule: true,
-    allowImportingTsExtensions: true,
-    esModuleInterop: true,
-    strict: true,
-    skipLibCheck: true,
-    noImplicitAny: false,
-    baseUrl: '/',
-    paths: {
-      "*": ["node_modules/*"]
-    }
-  }
 
   const host: TS.LanguageServiceHost = {
     getScriptFileNames: () => [
@@ -77,9 +78,6 @@ async function initializeLanguageService() {
 }
 
 function generateAmbientDeclarations(sourceCode: string): string {
-  // Use TypeScript's real compiler to generate declarations if possible,
-  // or fall back to a simplified version if esbuild handles the heavy lifting.
-  // For now, let's keep the user's existing generator logic but simplified.
   return "// Declarations auto-generated from main.ts\n" + sourceCode.split('\n').filter(l => l.startsWith('export')).join('\n');
 }
 
@@ -105,10 +103,10 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       }
 
       case 'UPDATE_FILE': {
-        const { content } = payload
-        const fileState = virtualFiles['main.ts']
+        const { content, filename = 'main.ts' } = payload
+        const fileState = virtualFiles[filename]
         if (!fileState || fileState.content !== content) {
-          virtualFiles['main.ts'] = { version: (fileState?.version || 0) + 1, content }
+          virtualFiles[filename] = { version: (fileState?.version || 0) + 1, content }
         }
         result = true
         break
@@ -119,6 +117,36 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
         externalPackageVersion += 1
         if (virtualFiles['main.ts']) virtualFiles['main.ts'].version += 1
         result = true
+        break
+      }
+
+      case 'UPDATE_CONFIG': {
+        const { tsconfig } = payload
+        const parsed = TS.parseConfigFileTextToJson('tsconfig.json', tsconfig)
+        if (parsed.config) {
+          const host = {
+            useCaseSensitiveFileNames: true,
+            readDirectory: () => [],
+            fileExists: () => true,
+            readFile: () => tsconfig,
+            getCurrentDirectory: () => '/',
+          }
+          const { options } = TS.parseJsonConfigFileContent(parsed.config, host, '/')
+          compilerOptions = { ...compilerOptions, ...options }
+          if (virtualFiles['main.ts']) virtualFiles['main.ts'].version += 1
+        }
+        result = true
+        break
+      }
+
+      case 'VALIDATE_CONFIG': {
+        const { tsconfig } = payload
+        const parsed = TS.parseConfigFileTextToJson('tsconfig.json', tsconfig)
+        if (parsed.error) {
+          result = { valid: false, error: TS.flattenDiagnosticMessageText(parsed.error.messageText, '\n') }
+        } else {
+          result = { valid: true }
+        }
         break
       }
 
@@ -140,11 +168,33 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
         if (!languageService) { result = undefined; break }
         const info = languageService.getQuickInfoAtPosition('main.ts', payload.offset)
         if (!info) { result = undefined; break }
+
+        // Extract symbol name using the specific kinds from memory
+        const SYMBOL_KINDS = new Set([
+           'localName', 'variableName', 'parameterName', 'methodName', 'functionName',
+           'className', 'interfaceName', 'aliasName', 'propertyName', 'enumName',
+           'enumMemberName', 'moduleName', 'typeParameterName'
+        ])
+        const symbolPart = info.displayParts.find(p => SYMBOL_KINDS.has(p.kind))
+        const name = symbolPart ? symbolPart.text : TS.displayPartsToString(info.displayParts)
+
+        const typeAnnotation = TS.displayPartsToString(info.displayParts)
+        let jsDoc = info.documentation ? TS.displayPartsToString(info.documentation) : ''
+
+        // Combine with formatted tags as per memory
+        if (info.tags) {
+           const tagsText = info.tags.map(tag => {
+              const text = TS.displayPartsToString(tag.text)
+              return `\n\n@${tag.name}${text ? ' ' + text : ''}`
+           }).join('')
+           jsDoc += tagsText
+        }
+
         result = {
-          name: TS.displayPartsToString(info.displayParts),
+          name,
           kind: info.kind,
-          typeAnnotation: TS.displayPartsToString(info.displayParts),
-          jsDoc: info.documentation ? TS.displayPartsToString(info.documentation) : undefined,
+          typeAnnotation,
+          jsDoc: jsDoc.trim() || undefined,
         }
         break
       }
