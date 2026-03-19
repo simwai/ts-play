@@ -73,7 +73,6 @@ export function usePackageManager(
   const installQueue = useRef<Promise<void>>(Promise.resolve())
   const ataRef = useRef<any>(null)
 
-  // Collect typings in a ref to avoid excessive re-renders
   const pendingTypings = useRef<Record<string, string>>({})
   const typingUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -138,7 +137,6 @@ export function usePackageManager(
     pendingTypings.current = {}
   }, [])
 
-  // Initialize ATA
   useEffect(() => {
     if (!ataRef.current) {
       ataRef.current = setupTypeAcquisition({
@@ -209,6 +207,7 @@ export function usePackageManager(
             }
           )
         }
+        setStatus('idle')
       } catch (error) {
         console.error('Package management failed:', error)
         setStatus('error')
