@@ -96,6 +96,7 @@ export const CodeEditor = React.memo(
       left: 0,
     })
 
+    // Custom Cursor & Selection State (Desktop only)
     const [selection, setSelection] = useState({ start: 0, end: 0 })
     const [isFocused, setIsFocused] = useState(false)
     const [cursorCoords, setCursorCoords] = useState({ top: 0, left: 0 })
@@ -159,7 +160,6 @@ export const CodeEditor = React.memo(
       onCursorChange?.(start)
     }, [value, lineHeight, horizontalPadding, measureTextWidth, onCursorChange])
 
-    // Scroll to cursor if needed
     useEffect(() => {
       if (!isFocused || !scrollContainerRef.current) return
       const container = scrollContainerRef.current
@@ -212,7 +212,7 @@ export const CodeEditor = React.memo(
           } catch (e) {
             setAutocompleteSuggestions([])
           }
-        }, 50)
+        }, 80)
       },
       [disableAutocomplete, readOnly, cursorCoords, lineHeight]
     )
@@ -388,7 +388,7 @@ export const CodeEditor = React.memo(
     }, [linesOfCode.length, isMobileLike, hideGutter])
 
     const selectionBlocks = useMemo(() => {
-      if (selection.start === selection.end) return []
+      if (selection.start === selection.end || isMobileLike) return []
 
       const blocks: { top: number; left: number; width: number }[] = []
       const textBeforeSelection = value.substring(0, selection.start)
@@ -426,6 +426,7 @@ export const CodeEditor = React.memo(
       horizontalPadding,
       measureTextWidth,
       linesOfCode,
+      isMobileLike,
     ])
 
     const indentGuides = useMemo(() => {
@@ -524,6 +525,7 @@ export const CodeEditor = React.memo(
           'code-editor relative w-full h-full overflow-hidden font-mono flex flex-col',
           className
         )}
+        onClick={() => textInputRef.current?.focus()}
       >
         <div className='flex-1 relative overflow-hidden min-h-0 bg-base'>
           <div
@@ -569,19 +571,20 @@ export const CodeEditor = React.memo(
                 minWidth: '100%',
               }}
             >
-              {/* Selection Rendering */}
-              {selectionBlocks.map((b, i) => (
-                <div
-                  key={i}
-                  className='absolute bg-mauve/20 pointer-events-none'
-                  style={{
-                    top: b.top,
-                    left: b.left,
-                    width: b.width,
-                    height: lineHeight,
-                  }}
-                />
-              ))}
+              {/* Selection Rendering (Desktop Only) */}
+              {!isMobileLike &&
+                selectionBlocks.map((b, i) => (
+                  <div
+                    key={i}
+                    className='absolute bg-mauve/20 pointer-events-none'
+                    style={{
+                      top: b.top,
+                      left: b.left,
+                      width: b.width,
+                      height: lineHeight,
+                    }}
+                  />
+                ))}
 
               {/* Current Line Highlight */}
               {!readOnly && isFocused && (
@@ -627,17 +630,20 @@ export const CodeEditor = React.memo(
                 ))}
               </pre>
 
-              {/* Custom Cursor */}
-              {!readOnly && isFocused && selection.start === selection.end && (
-                <div
-                  className='absolute w-[2px] bg-lavender animate-pulse z-30 pointer-events-none'
-                  style={{
-                    top: cursorCoords.top,
-                    left: cursorCoords.left,
-                    height: lineHeight,
-                  }}
-                />
-              )}
+              {/* Custom Cursor (Desktop Only) */}
+              {!readOnly &&
+                isFocused &&
+                selection.start === selection.end &&
+                !isMobileLike && (
+                  <div
+                    className='absolute w-[2px] bg-lavender animate-pulse z-30 pointer-events-none'
+                    style={{
+                      top: cursorCoords.top,
+                      left: cursorCoords.left,
+                      height: lineHeight,
+                    }}
+                  />
+                )}
 
               {/* Input Layer (Controller) */}
               <textarea
@@ -658,7 +664,12 @@ export const CodeEditor = React.memo(
                 autoComplete='off'
                 wrap='off'
                 data-gramm='false'
-                className='absolute inset-0 bg-transparent border-none outline-none resize-none z-20 caret-transparent selection:bg-transparent'
+                className={cn(
+                  'absolute inset-0 bg-transparent border-none outline-none resize-none z-20',
+                  !isMobileLike
+                    ? 'caret-transparent selection:bg-transparent'
+                    : 'caret-lavender'
+                )}
                 style={{
                   ...sharedStyles,
                   height: totalContentHeight,
