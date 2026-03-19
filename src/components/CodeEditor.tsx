@@ -6,7 +6,6 @@ import React, {
   useMemo,
   forwardRef,
   useImperativeHandle,
-  useLayoutEffect,
 } from 'react'
 import { workerClient } from '../lib/workerClient'
 import { buildHtml, buildSquiggles } from '../lib/editor-utils'
@@ -22,10 +21,7 @@ type CodeEditorProps = {
   language?: 'typescript' | 'javascript' | 'json'
   readOnly?: boolean
   extraLibs?: Record<string, string>
-  keyboardOpen?: boolean
-  keyboardHeight?: number
   isMobileLike?: boolean
-  lineWrap?: boolean
   className?: string
   fontSizeOverride?: number
   hideGutter?: boolean
@@ -47,40 +43,17 @@ const DEFAULT_LINE_HEIGHT = 1.5
 function getSharedStyles(
   fontSize: number,
   lineHeight: number,
-  paddingX: number,
-  lineWrap: boolean
+  paddingX: number
 ): React.CSSProperties {
   return {
     fontSize: `${fontSize}px`,
     lineHeight: `${lineHeight}px`,
     padding: `${EDITOR_PADDING_TOP}px ${paddingX}px`,
-    whiteSpace: lineWrap ? 'pre-wrap' : 'pre',
-    wordBreak: lineWrap ? 'break-word' : 'normal',
-    overflowWrap: lineWrap ? 'break-word' : 'normal',
+    whiteSpace: 'pre',
+    wordBreak: 'normal',
+    overflowWrap: 'normal',
     fontFamily: 'inherit',
     tabSize: 2,
-  }
-}
-
-function getLayerStyle(
-  height: number,
-  fontSize: number,
-  lineHeight: number,
-  paddingX: number,
-  lineWrap: boolean
-): React.CSSProperties {
-  return {
-    ...getSharedStyles(fontSize, lineHeight, paddingX, lineWrap),
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    margin: 0,
-    border: 'none',
-    width: '100%',
-    minHeight: height,
-    pointerEvents: 'none',
-    boxSizing: 'border-box',
-    display: 'block',
   }
 }
 
@@ -93,10 +66,7 @@ export const CodeEditor = React.memo(
       language = 'typescript',
       readOnly = false,
       extraLibs,
-      keyboardOpen,
-      keyboardHeight,
       isMobileLike,
-      lineWrap = false,
       className,
       fontSizeOverride,
       hideGutter = false,
@@ -110,7 +80,6 @@ export const CodeEditor = React.memo(
     const textInputRef = useRef<HTMLTextAreaElement>(null)
     const codeDisplayRef = useRef<HTMLPreElement>(null)
     const editorWrapperRef = useRef<HTMLDivElement>(null)
-    const heightMeasurementRef = useRef<HTMLDivElement>(null)
     const lineGutterRef = useRef<HTMLDivElement>(null)
 
     const [diagnostics, setDiagnostics] = useState<TSDiagnostic[]>([])
@@ -126,11 +95,10 @@ export const CodeEditor = React.memo(
       top: 0,
       left: 0,
     })
-    const [effectiveLineHeights, setEffectiveLineHeights] = useState<number[]>(
-      []
-    )
-    const [totalContentHeight, setTotalContentHeight] = useState(0)
-    const [gutterWidth, setGutterWidth] = useState(0)
+
+    const [selection, setSelection] = useState({ start: 0, end: 0 })
+    const [isFocused, setIsFocused] = useState(false)
+    const [cursorCoords, setCursorCoords] = useState({ top: 0, left: 0 })
 
     const baseFontSize = fontSizeOverride || (isMobileLike ? 13 : 14)
     const lineHeight = Math.round(baseFontSize * DEFAULT_LINE_HEIGHT)
@@ -144,6 +112,8 @@ export const CodeEditor = React.memo(
     >(undefined)
 
     const linesOfCode = useMemo(() => value.split('\n'), [value])
+    const totalContentHeight =
+      linesOfCode.length * lineHeight + EDITOR_PADDING_TOP * 2
 
     useImperativeHandle(ref, () => ({
       undo: () => {
@@ -157,88 +127,70 @@ export const CodeEditor = React.memo(
       },
     }))
 
-    const synchronizeScroll = useCallback(() => {
-      if (!scrollContainerRef.current) return
-      const { scrollTop, scrollLeft } = scrollContainerRef.current
-      if (codeDisplayRef.current)
-        codeDisplayRef.current.style.transform = `translate(${-scrollLeft}px, ${-scrollTop}px)`
-      if (lineGutterRef.current) lineGutterRef.current.scrollTop = scrollTop
-    }, [])
+    const measureTextWidth = useCallback(
+      (text: string) => {
+        const canvas = document.createElement('canvas')
+        const context = canvas.getContext('2d')
+        if (context) {
+          context.font = `${baseFontSize}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace`
+          return context.measureText(text.replaceAll('\t', '  ')).width
+        }
+        return 0
+      },
+      [baseFontSize]
+    )
 
-    const measureLineWrapHeights = useCallback(() => {
-      if (!heightMeasurementRef.current || !lineWrap) {
-        setEffectiveLineHeights(new Array(linesOfCode.length).fill(lineHeight))
-        return
-      }
-      const measureContainer = heightMeasurementRef.current
-      const lineDivs = Array.from(measureContainer.children) as HTMLDivElement[]
-      const heights = lineDivs.map((div) =>
-        Math.max(div.getBoundingClientRect().height, lineHeight)
-      )
-      setEffectiveLineHeights(heights)
-    }, [linesOfCode.length, lineHeight, lineWrap])
+    const updateCursorPosition = useCallback(() => {
+      if (!textInputRef.current) return
+      const start = textInputRef.current.selectionStart
+      const end = textInputRef.current.selectionEnd
+      setSelection({ start, end })
 
-    useLayoutEffect(() => {
-      measureLineWrapHeights()
-    }, [value, lineWrap, measureLineWrapHeights, isMobileLike, baseFontSize])
+      const textBeforeSelection = value.substring(0, start)
+      const linesBefore = textBeforeSelection.split('\n')
+      const lIdx = linesBefore.length - 1
+      const currentLineTextBeforeCursor = linesBefore[lIdx]
 
+      const top = lIdx * lineHeight + EDITOR_PADDING_TOP
+      const left =
+        measureTextWidth(currentLineTextBeforeCursor) + horizontalPadding
+
+      setCursorCoords({ top, left })
+      onCursorChange?.(start)
+    }, [value, lineHeight, horizontalPadding, measureTextWidth, onCursorChange])
+
+    // Scroll to cursor if needed
     useEffect(() => {
-      const total =
-        effectiveLineHeights.reduce((acc, h) => acc + h, 0) +
-        EDITOR_PADDING_TOP * 2
-      setTotalContentHeight(total)
-    }, [effectiveLineHeights])
+      if (!isFocused || !scrollContainerRef.current) return
+      const container = scrollContainerRef.current
+      const { scrollTop, scrollLeft, clientHeight, clientWidth } = container
 
-    useEffect(() => {
-      if (hideGutter) {
-        setGutterWidth(0)
-        return
+      const cursorTop = cursorCoords.top
+      const cursorLeft = cursorCoords.left
+
+      const margin = 20
+      if (cursorTop < scrollTop + margin) {
+        container.scrollTop = Math.max(0, cursorTop - margin)
+      } else if (cursorTop + lineHeight > scrollTop + clientHeight - margin) {
+        container.scrollTop = cursorTop + lineHeight - clientHeight + margin
       }
-      const digitCount = String(linesOfCode.length).length
-      const baseWidth = isMobileLike ? 32 : 44
-      setGutterWidth(baseWidth + (digitCount - 1) * 8)
-    }, [linesOfCode.length, isMobileLike, hideGutter])
+
+      if (cursorLeft < scrollLeft + horizontalPadding + margin) {
+        container.scrollLeft = Math.max(
+          0,
+          cursorLeft - horizontalPadding - margin
+        )
+      } else if (cursorLeft > scrollLeft + clientWidth - margin) {
+        container.scrollLeft = cursorLeft - clientWidth + margin
+      }
+    }, [cursorCoords, isFocused, lineHeight, horizontalPadding])
 
     const handleTextInputChange = useCallback(
       (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const newValue = e.target.value
-        onChange?.(newValue)
+        onChange?.(e.target.value)
       },
       [onChange]
     )
-
-    const getCursorCoordinates = useCallback(() => {
-      if (!textInputRef.current) return { top: 0, left: 0 }
-      const textarea = textInputRef.current
-      const selectionStart = textarea.selectionStart
-      const textBefore = value.substring(0, selectionStart)
-      const lines = textBefore.split('\n')
-      const currentLineIndex = lines.length - 1
-
-      let top =
-        lines
-          .slice(0, currentLineIndex)
-          .reduce(
-            (acc, _, i) => acc + (effectiveLineHeights[i] || lineHeight),
-            0
-          ) + EDITOR_PADDING_TOP
-
-      const canvas = document.createElement('canvas')
-      const context = canvas.getContext('2d')
-      if (context) {
-        context.font = `${baseFontSize}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace`
-        const left =
-          context.measureText(lines[currentLineIndex]).width + horizontalPadding
-        return { top: top + lineHeight, left }
-      }
-      return { top: 0, left: 0 }
-    }, [
-      value,
-      effectiveLineHeights,
-      lineHeight,
-      baseFontSize,
-      horizontalPadding,
-    ])
 
     const requestAutocompleteSuggestions = useCallback(
       async (offset: number) => {
@@ -252,14 +204,17 @@ export const CodeEditor = React.memo(
             setAutocompleteSuggestions(results || [])
             setSelectedSuggestionIndex(0)
             if (results && results.length > 0) {
-              setAutocompletePopupPosition(getCursorCoordinates())
+              setAutocompletePopupPosition({
+                top: cursorCoords.top + lineHeight,
+                left: cursorCoords.left,
+              })
             }
           } catch (e) {
             setAutocompleteSuggestions([])
           }
         }, 50)
       },
-      [disableAutocomplete, readOnly, getCursorCoordinates]
+      [disableAutocomplete, readOnly, cursorCoords, lineHeight]
     )
 
     const applyAutocompleteSelection = useCallback(
@@ -288,9 +243,10 @@ export const CodeEditor = React.memo(
             replaceStart + (suggestion.insertText || suggestion.name).length
           textarea.setSelectionRange(newPos, newPos)
           textarea.focus()
+          updateCursorPosition()
         }, 0)
       },
-      [autocompleteSuggestions, value, onChange]
+      [autocompleteSuggestions, value, onChange, updateCursorPosition]
     )
 
     const handleKeyDown = useCallback(
@@ -335,6 +291,7 @@ export const CodeEditor = React.memo(
           setTimeout(() => {
             if (textInputRef.current) {
               textInputRef.current.setSelectionRange(start + 2, start + 2)
+              updateCursorPosition()
             }
           }, 0)
         }
@@ -347,6 +304,7 @@ export const CodeEditor = React.memo(
         selectedSuggestionIndex,
         applyAutocompleteSelection,
         disableShortcuts,
+        updateCursorPosition,
       ]
     )
 
@@ -363,36 +321,30 @@ export const CodeEditor = React.memo(
       [hideTypeInfo]
     )
 
-    useEffect(() => {
-      if (extraLibs && Object.keys(extraLibs).length > 0) {
-        workerClient.updateExtraLibs(extraLibs)
-      }
-    }, [extraLibs])
-
     const handleCursorMovement = useCallback(() => {
+      updateCursorPosition()
       if (!textInputRef.current) return
-      const cursorPosition = textInputRef.current.selectionStart
-      onCursorChange?.(cursorPosition)
+      const pos = textInputRef.current.selectionStart
 
       if (typeInfoDebounceTimer.current)
         clearTimeout(typeInfoDebounceTimer.current)
 
       if (!disableAutocomplete && !readOnly) {
-        requestAutocompleteSuggestions(cursorPosition)
+        requestAutocompleteSuggestions(pos)
       }
 
       typeInfoDebounceTimer.current = setTimeout(async () => {
         const information = hideTypeInfo
           ? undefined
-          : await getTypeInfo(value, cursorPosition)
+          : await getTypeInfo(value, pos)
         setTypeInfo(information)
 
         const matchingDiagnostic = disableDiagnostics
           ? undefined
           : diagnostics.find(
               (diagnostic) =>
-                cursorPosition >= diagnostic.start &&
-                cursorPosition <= diagnostic.start + diagnostic.length
+                pos >= diagnostic.start &&
+                pos <= diagnostic.start + diagnostic.length
             )
         setActiveDiagnostic(matchingDiagnostic)
       }, 80)
@@ -400,43 +352,145 @@ export const CodeEditor = React.memo(
       value,
       getTypeInfo,
       diagnostics,
-      onCursorChange,
       hideTypeInfo,
       disableDiagnostics,
       disableAutocomplete,
       readOnly,
       requestAutocompleteSuggestions,
+      updateCursorPosition,
     ])
 
-    useEffect(
-      () => () => {
-        if (typeInfoDebounceTimer.current)
-          clearTimeout(typeInfoDebounceTimer.current)
-        if (autocompleteDebounceTimer.current)
-          clearTimeout(autocompleteDebounceTimer.current)
-      },
-      []
-    )
+    useEffect(() => {
+      if (extraLibs && Object.keys(extraLibs).length > 0) {
+        workerClient.updateExtraLibs(extraLibs)
+      }
+    }, [extraLibs])
 
-    const preventTouchPropagation = useCallback(
-      (touchEvent: React.TouchEvent) => {
-        touchEvent.stopPropagation()
-      },
-      []
-    )
-
-    const handleEditorBlur = useCallback(() => {
+    const handleFocus = useCallback(() => setIsFocused(true), [])
+    const handleBlur = useCallback(() => {
+      setIsFocused(false)
       setAutocompleteSuggestions([])
     }, [])
 
-    const gutterListItems = useMemo(
-      () =>
-        linesOfCode.map((_, index) => ({
-          lineNumber: index + 1,
-          lineHeight: effectiveLineHeights[index],
-        })),
-      [linesOfCode, effectiveLineHeights]
-    )
+    const synchronizeScroll = useCallback(() => {
+      if (!scrollContainerRef.current) return
+      const { scrollTop, scrollLeft } = scrollContainerRef.current
+      if (codeDisplayRef.current)
+        codeDisplayRef.current.style.transform = `translate(${-scrollLeft}px, ${-scrollTop}px)`
+      if (lineGutterRef.current) lineGutterRef.current.scrollTop = scrollTop
+    }, [])
+
+    const gutterWidth = useMemo(() => {
+      if (hideGutter) return 0
+      const digitCount = String(linesOfCode.length).length
+      const baseWidth = isMobileLike ? 32 : 44
+      return baseWidth + (digitCount - 1) * 8
+    }, [linesOfCode.length, isMobileLike, hideGutter])
+
+    const selectionBlocks = useMemo(() => {
+      if (selection.start === selection.end) return []
+
+      const blocks: { top: number; left: number; width: number }[] = []
+      const textBeforeSelection = value.substring(0, selection.start)
+      const selectedText = value.substring(selection.start, selection.end)
+
+      const startLineIdx = textBeforeSelection.split('\n').length - 1
+      const lines = selectedText.split('\n')
+
+      lines.forEach((lineText, i) => {
+        const lIdx = startLineIdx + i
+        const fullLineText = linesOfCode[lIdx]
+
+        let left = horizontalPadding
+        if (i === 0) {
+          const startOffsetInLine =
+            selection.start -
+            (value.substring(0, selection.start).lastIndexOf('\n') + 1)
+          const textBeforeInLine = fullLineText.substring(0, startOffsetInLine)
+          left += measureTextWidth(textBeforeInLine)
+        }
+
+        const width = measureTextWidth(lineText || ' ')
+        blocks.push({
+          top: lIdx * lineHeight + EDITOR_PADDING_TOP,
+          left,
+          width,
+        })
+      })
+
+      return blocks
+    }, [
+      selection,
+      value,
+      lineHeight,
+      horizontalPadding,
+      measureTextWidth,
+      linesOfCode,
+    ])
+
+    const indentGuides = useMemo(() => {
+      const guides: { top: number; left: number; height: number }[] = []
+      linesOfCode.forEach((lineText, i) => {
+        const match = lineText.match(/^(\s+)/)
+        if (match) {
+          const spaces = match[1].length
+          for (let s = 2; s <= spaces; s += 2) {
+            guides.push({
+              top: i * lineHeight + EDITOR_PADDING_TOP,
+              left: measureTextWidth(' '.repeat(s)) + horizontalPadding,
+              height: lineHeight,
+            })
+          }
+        }
+      })
+      return guides
+    }, [linesOfCode, lineHeight, horizontalPadding, measureTextWidth])
+
+    const matchingBrackets = useMemo(() => {
+      if (selection.start !== selection.end) return []
+
+      const findPartner = (
+        pos: number,
+        open: string,
+        close: string,
+        direction: 1 | -1
+      ) => {
+        let depth = 0
+        for (
+          let i = pos;
+          direction === 1 ? i < value.length : i >= 0;
+          i += direction
+        ) {
+          if (value[i] === open) depth++
+          if (value[i] === close) depth--
+          if (depth === 0) return i
+        }
+        return -1
+      }
+
+      const pairs: Record<string, string> = {
+        '{': '}',
+        '[': ']',
+        '(': ')',
+        '}': '{',
+        ']': '[',
+        ')': '(',
+      }
+      const bracketAt = (pos: number) => {
+        const c = value[pos]
+        if (!pairs[c]) return null
+        const partner = findPartner(
+          pos,
+          c,
+          pairs[c],
+          '{[('.includes(c) ? 1 : -1
+        )
+        if (partner === -1) return null
+        return [pos, partner]
+      }
+
+      return bracketAt(selection.start) || bracketAt(selection.start - 1) || []
+    }, [value, selection])
 
     const highlightedLines = useMemo(() => {
       return linesOfCode.map((line) => buildHtml(line) + '\n')
@@ -444,27 +498,24 @@ export const CodeEditor = React.memo(
 
     const extraBottomPadding = hideTypeInfo ? 0 : 80
     const sharedStyles = useMemo(
-      () =>
-        getSharedStyles(baseFontSize, lineHeight, horizontalPadding, lineWrap),
-      [baseFontSize, lineHeight, horizontalPadding, lineWrap]
+      () => getSharedStyles(baseFontSize, lineHeight, horizontalPadding),
+      [baseFontSize, lineHeight, horizontalPadding]
     )
-    const layerStyle = useMemo(
-      () =>
-        getLayerStyle(
-          totalContentHeight,
-          baseFontSize,
-          lineHeight,
-          horizontalPadding,
-          lineWrap
-        ),
-      [
-        totalContentHeight,
-        baseFontSize,
-        lineHeight,
-        horizontalPadding,
-        lineWrap,
-      ]
-    )
+
+    const renderBracketHighlight = (pos: number) => {
+      const linesBefore = value.substring(0, pos).split('\n')
+      const lIdx = linesBefore.length - 1
+      const top = lIdx * lineHeight + EDITOR_PADDING_TOP
+      const left = measureTextWidth(linesBefore[lIdx]) + horizontalPadding
+      const width = measureTextWidth(value[pos])
+      return (
+        <div
+          key={`bracket-${pos}`}
+          className='absolute border border-mauve/50 bg-mauve/10 z-0 pointer-events-none'
+          style={{ top, left, width, height: lineHeight }}
+        />
+      )
+    }
 
     return (
       <div
@@ -491,12 +542,12 @@ export const CodeEditor = React.memo(
                   fontSize: baseFontSize,
                   lineHeight: `${lineHeight}px`,
                   paddingRight: isMobileLike ? 8 : 12,
-                  minHeight: totalContentHeight,
+                  height: totalContentHeight + extraBottomPadding,
                 }}
               >
-                {gutterListItems.map(({ lineNumber, lineHeight }) => (
+                {linesOfCode.map((_, i) => (
                   <div
-                    key={lineNumber}
+                    key={i}
                     style={{
                       height: lineHeight,
                       display: 'flex',
@@ -504,7 +555,7 @@ export const CodeEditor = React.memo(
                       justifyContent: 'flex-end',
                     }}
                   >
-                    {lineNumber}
+                    {i + 1}
                   </div>
                 ))}
               </div>
@@ -513,85 +564,82 @@ export const CodeEditor = React.memo(
               ref={editorWrapperRef}
               className='flex-1 relative min-w-0'
               style={{
-                minHeight: totalContentHeight + extraBottomPadding,
-                width: lineWrap ? '100%' : 'max-content',
+                height: totalContentHeight + extraBottomPadding,
+                width: 'max-content',
+                minWidth: '100%',
               }}
             >
-              {/* Measurement Layer */}
-              <div
-                ref={heightMeasurementRef}
-                aria-hidden
-                className='absolute inset-0 invisible pointer-events-none -z-10 box-border'
-                style={sharedStyles}
-              >
-                {linesOfCode.map((lineText, index) => (
-                  <div
-                    key={`measure-${index}`}
-                    style={{ minHeight: lineHeight }}
-                  >
-                    {lineText === '' ? ' ' : lineText.replaceAll('\t', '  ')}
-                  </div>
-                ))}
-              </div>
+              {/* Selection Rendering */}
+              {selectionBlocks.map((b, i) => (
+                <div
+                  key={i}
+                  className='absolute bg-mauve/20 pointer-events-none'
+                  style={{
+                    top: b.top,
+                    left: b.left,
+                    width: b.width,
+                    height: lineHeight,
+                  }}
+                />
+              ))}
+
+              {/* Current Line Highlight */}
+              {!readOnly && isFocused && (
+                <div
+                  className='absolute left-0 right-0 bg-mauve/10 pointer-events-none'
+                  style={{
+                    top:
+                      (value.substring(0, selection.start).split('\n').length -
+                        1) *
+                        lineHeight +
+                      EDITOR_PADDING_TOP,
+                    height: lineHeight,
+                  }}
+                />
+              )}
+
+              {/* Indent Guides */}
+              {indentGuides.map((g, i) => (
+                <div
+                  key={i}
+                  className='absolute w-[1px] bg-surface1/30 pointer-events-none'
+                  style={{ top: g.top, left: g.left, height: g.height }}
+                />
+              ))}
+
+              {/* Bracket Highlighting */}
+              {matchingBrackets.map((pos) => renderBracketHighlight(pos))}
 
               {/* Display Layer */}
               <pre
                 ref={codeDisplayRef}
                 data-testid='code-editor-display'
                 aria-hidden
-                className='text-text bg-transparent pointer-events-none'
-                style={layerStyle}
+                className='text-text bg-transparent pointer-events-none relative z-10'
+                style={{ ...sharedStyles, height: totalContentHeight }}
               >
                 {highlightedLines.map((html, index) => (
                   <div
                     key={`line-${index}`}
-                    style={{
-                      height: effectiveLineHeights[index] || lineHeight,
-                    }}
+                    style={{ height: lineHeight }}
                     dangerouslySetInnerHTML={{ __html: html }}
                   />
                 ))}
               </pre>
 
-              {/* Diagnostics Layer */}
-              {!disableDiagnostics && (
+              {/* Custom Cursor */}
+              {!readOnly && isFocused && selection.start === selection.end && (
                 <div
-                  aria-hidden
-                  className='text-transparent bg-transparent pointer-events-none z-10 absolute inset-0'
-                  style={layerStyle}
-                >
-                  {linesOfCode.map((lineText, index) => {
-                    const lineStartOffset =
-                      linesOfCode.slice(0, index).join('\n').length +
-                      (index > 0 ? 1 : 0)
-                    const lineEndOffset = lineStartOffset + lineText.length
-                    const lineDiagnostics = diagnostics.filter(
-                      (d) =>
-                        d.start >= lineStartOffset && d.start < lineEndOffset
-                    )
-                    const relativeDiagnostics = lineDiagnostics.map((d) => ({
-                      ...d,
-                      start: d.start - lineStartOffset,
-                    }))
-
-                    return (
-                      <div
-                        key={`diag-${index}`}
-                        style={{
-                          height: effectiveLineHeights[index] || lineHeight,
-                        }}
-                        dangerouslySetInnerHTML={{
-                          __html:
-                            buildSquiggles(lineText, relativeDiagnostics) +
-                            '\n',
-                        }}
-                      />
-                    )
-                  })}
-                </div>
+                  className='absolute w-[2px] bg-lavender animate-pulse z-30 pointer-events-none'
+                  style={{
+                    top: cursorCoords.top,
+                    left: cursorCoords.left,
+                    height: lineHeight,
+                  }}
+                />
               )}
 
-              {/* Input Layer */}
+              {/* Input Layer (Controller) */}
               <textarea
                 ref={textInputRef}
                 data-testid='code-editor-textarea'
@@ -602,26 +650,21 @@ export const CodeEditor = React.memo(
                 onSelect={handleCursorMovement}
                 onClick={handleCursorMovement}
                 onKeyUp={handleCursorMovement}
-                onTouchStart={preventTouchPropagation}
-                onBlur={handleEditorBlur}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
                 spellCheck={false}
                 autoCorrect='off'
                 autoCapitalize='off'
                 autoComplete='off'
-                wrap={lineWrap ? 'soft' : 'off'}
+                wrap='off'
                 data-gramm='false'
-                data-gramm_editor='false'
-                data-enable-grammarly='false'
-                className='bg-transparent border-none outline-none resize-none z-20 caret-lavender'
+                className='absolute inset-0 bg-transparent border-none outline-none resize-none z-20 caret-transparent selection:bg-transparent'
                 style={{
-                  ...layerStyle,
+                  ...sharedStyles,
                   height: totalContentHeight,
-                  width: lineWrap ? '100%' : 'max-content',
+                  width: '100%',
                   color: 'transparent',
                   WebkitTextFillColor: 'transparent',
-                  cursor: readOnly ? 'default' : 'text',
-                  touchAction: 'pan-y',
-                  caretShape: 'bar',
                 }}
               />
 
