@@ -1,4 +1,6 @@
-import React, {
+import os
+
+content = r"""import React, {
   useRef,
   useCallback,
   useEffect,
@@ -55,7 +57,7 @@ const getSharedStyles = (
 ): React.CSSProperties => ({
   fontSize: fontSize,
   lineHeight: `${lineHeight}px`,
-  fontFamily: 'inherit', // inherit from container's font-mono
+  fontFamily: 'inherit',
   letterSpacing: '0',
   fontKerning: 'none',
   fontVariantLigatures: 'none',
@@ -128,7 +130,11 @@ export const CodeEditor = React.memo(
 
     const { getTypeInfo } = useTypeInfo()
     const [typeInfo, setTypeInfo] = useState<TypeInfo | undefined>(undefined)
-    const [renderedLineHeights, setRenderedLineHeights] = useState<number[]>([])
+
+    const linesOfCode = useMemo(() => value.split('\n'), [value])
+    const totalLineCount = linesOfCode.length
+
+    const [renderedLineHeights, setRenderedLineHeights] = useState<number[]>(() => new Array(totalLineCount).fill(lineHeight))
 
     const diagnostics = useTSDiagnostics(value, !disableDiagnostics && language === 'typescript', extraLibs)
     const [activeDiagnostic, setActiveDiagnostic] = useState<TSDiagnostic | undefined>(undefined)
@@ -532,9 +538,13 @@ export const CodeEditor = React.memo(
       [linesOfCode, effectiveLineHeights]
     )
 
-    const extraBottomPadding = hideTypeInfo ? 0 : 80
+    const highlightedLines = useMemo(() => {
+      return linesOfCode.map(line => buildHtml(line) + '\n')
+    }, [linesOfCode])
 
+    const extraBottomPadding = hideTypeInfo ? 0 : 80
     const sharedStyles = useMemo(() => getSharedStyles(baseFontSize, lineHeight, horizontalPadding, lineWrap), [baseFontSize, lineHeight, horizontalPadding, lineWrap])
+    const layerStyle = useMemo(() => getLayerStyle(totalContentHeight, baseFontSize, lineHeight, horizontalPadding, lineWrap), [totalContentHeight, baseFontSize, lineHeight, horizontalPadding, lineWrap])
 
     return (
       <div data-testid="code-editor-container" className={cn('code-editor relative w-full h-full overflow-hidden font-mono flex flex-col', className)}>
@@ -590,27 +600,16 @@ export const CodeEditor = React.memo(
                 className='absolute inset-0 invisible pointer-events-none -z-10 box-border'
                 style={sharedStyles}
               >
-                {linesOfCode.map((lineText, index) => {
-                  const leadingSpaces = lineText.match(/^\s*/)?.[0] || ''
-                  const indentWidth = leadingSpaces.length * characterWidth
-                  const wrapIndent = indentWidth + (characterWidth * 2)
-
-                  return (
-                    <div
-                      key={`measure-${index}`}
-                      style={{
-                        minHeight: lineHeight,
-                        whiteSpace: lineWrap ? 'pre-wrap' : 'pre',
-                        wordBreak: lineWrap ? 'break-word' : 'normal',
-                        overflowWrap: lineWrap ? 'break-word' : 'normal',
-                        paddingLeft: lineWrap ? wrapIndent : 0,
-                        textIndent: lineWrap ? -wrapIndent + indentWidth : 0,
-                      }}
-                    >
-                      {lineText === '' ? ' ' : lineText.replaceAll('\t', '  ')}
-                    </div>
-                  )
-                })}
+                {linesOfCode.map((lineText, index) => (
+                  <div
+                    key={`measure-${index}`}
+                    style={{
+                      minHeight: lineHeight,
+                    }}
+                  >
+                    {lineText === '' ? ' ' : lineText.replaceAll('\t', '  ')}
+                  </div>
+                ))}
               </div>
 
               {/* Display Layer (Highlighted Code) */}
@@ -618,25 +617,15 @@ export const CodeEditor = React.memo(
                 ref={codeDisplayRef} data-testid="code-editor-display"
                 aria-hidden
                 className='text-text bg-transparent pointer-events-none'
-                style={getLayerStyle(totalContentHeight, baseFontSize, lineHeight, horizontalPadding, lineWrap)}
+                style={layerStyle}
               >
-                {linesOfCode.map((lineText, index) => {
-                   const leadingSpaces = lineText.match(/^\s*/)?.[0] || ''
-                   const indentWidth = leadingSpaces.length * characterWidth
-                   const wrapIndent = indentWidth + (characterWidth * 2)
-
-                   return (
-                     <div
-                       key={`line-${index}`}
-                       style={{
-                         paddingLeft: lineWrap ? wrapIndent : 0,
-                         textIndent: lineWrap ? -wrapIndent + indentWidth : 0,
-                         minHeight: lineHeight,
-                       }}
-                       dangerouslySetInnerHTML={{ __html: buildHtml(lineText) + '\n' }}
-                     />
-                   )
-                })}
+                {highlightedLines.map((html, index) => (
+                   <div
+                     key={`line-${index}`}
+                     style={{ minHeight: lineHeight }}
+                     dangerouslySetInnerHTML={{ __html: html }}
+                   />
+                ))}
               </pre>
 
               {/* Diagnostics Layer (Squiggles) */}
@@ -644,12 +633,9 @@ export const CodeEditor = React.memo(
                 <div
                   aria-hidden
                   className='text-transparent bg-transparent pointer-events-none z-10 absolute inset-0'
-                  style={getLayerStyle(totalContentHeight, baseFontSize, lineHeight, horizontalPadding, lineWrap)}
+                  style={layerStyle}
                 >
                    {linesOfCode.map((lineText, index) => {
-                      const leadingSpaces = lineText.match(/^\s*/)?.[0] || ''
-                      const indentWidth = leadingSpaces.length * characterWidth
-                      const wrapIndent = indentWidth + (characterWidth * 2)
                       const lineStartOffset = linesOfCode.slice(0, index).join('\n').length + (index > 0 ? 1 : 0)
                       const lineEndOffset = lineStartOffset + lineText.length
                       const lineDiagnostics = diagnostics.filter(d => d.start >= lineStartOffset && d.start < lineEndOffset)
@@ -658,11 +644,7 @@ export const CodeEditor = React.memo(
                       return (
                         <div
                           key={`diag-${index}`}
-                          style={{
-                            paddingLeft: lineWrap ? wrapIndent : 0,
-                            textIndent: lineWrap ? -wrapIndent + indentWidth : 0,
-                            minHeight: lineHeight
-                          }}
+                          style={{ minHeight: lineHeight }}
                           dangerouslySetInnerHTML={{ __html: buildSquiggles(lineText, relativeDiagnostics) + '\n' }}
                         />
                       )
@@ -690,11 +672,12 @@ export const CodeEditor = React.memo(
                 data-gramm='false'
                 data-gramm_editor='false'
                 data-enable-grammarly='false'
-                className='text-transparent bg-transparent border-none outline-none resize-none z-20 caret-lavender'
+                className='bg-transparent border-none outline-none resize-none z-20 caret-lavender'
                 style={{
-                  ...getLayerStyle(totalContentHeight, baseFontSize, lineHeight, horizontalPadding, lineWrap),
+                  ...layerStyle,
                   height: totalContentHeight,
                   width: lineWrap ? '100%' : 'max-content',
+                  color: 'transparent',
                   WebkitTextFillColor: 'transparent',
                   cursor: readOnly ? 'default' : 'text',
                   touchAction: 'pan-y',
@@ -747,3 +730,7 @@ export const CodeEditor = React.memo(
     )
   })
 )
+"""
+
+with open('src/components/CodeEditor.tsx', 'w') as f:
+    f.write(content)

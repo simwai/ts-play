@@ -5,6 +5,14 @@ import { syncNodeModulesToWorker } from '../lib/typings'
 import type { InstalledPackage } from '../components/PackageManager'
 import type { ConsoleMessage } from '../components/Console'
 
+const BUILTIN_MODULES = new Set([
+  'assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'console', 'constants',
+  'crypto', 'dgram', 'diagnostics_channel', 'dns', 'domain', 'events', 'fs', 'http',
+  'http2', 'https', 'inspector', 'module', 'net', 'os', 'path', 'perf_hooks', 'process',
+  'punycode', 'querystring', 'readline', 'repl', 'stream', 'string_decoder', 'sys',
+  'timers', 'tls', 'trace_events', 'tty', 'url', 'util', 'v8', 'vm', 'worker_threads', 'zlib'
+])
+
 export function usePackageManager(
   tsCode: string,
   addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void
@@ -38,7 +46,13 @@ export function usePackageManager(
 
       try {
         const detected = await workerClient.detectImports(tsCode)
-        const detectedSorted = [...detected].sort()
+        // Filter out built-ins from "detected" list
+        const filtered = [...detected].filter(pkg => {
+          if (pkg.startsWith('node:')) return false
+          if (BUILTIN_MODULES.has(pkg)) return false
+          return true
+        })
+        const detectedSorted = filtered.sort()
 
         setInstalledPackages((previous) => {
           const previousNamesSorted = previous

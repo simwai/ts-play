@@ -207,7 +207,7 @@ export function SettingsModal({
         <div className='flex items-center justify-end gap-3 px-6 py-4 border-t border-surface0 bg-base'>
           <Button
             onClick={() => setTemporaryTsConfig(DEFAULT_TSCONFIG)}
-            variant='ghost'
+            variant='danger'
             className='mr-auto text-red hover:bg-red/10'
           >
             Reset to Default
