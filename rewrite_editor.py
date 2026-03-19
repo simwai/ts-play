@@ -1,4 +1,6 @@
-import React, {
+import os
+
+content = r"""import React, {
   useRef,
   useCallback,
   useEffect,
@@ -128,11 +130,7 @@ export const CodeEditor = React.memo(
 
     const { getTypeInfo } = useTypeInfo()
     const [typeInfo, setTypeInfo] = useState<TypeInfo | undefined>(undefined)
-
-    const linesOfCode = useMemo(() => value.split('\n'), [value])
-    const totalLineCount = linesOfCode.length
-
-    const [renderedLineHeights, setRenderedLineHeights] = useState<number[]>(() => new Array(totalLineCount).fill(lineHeight))
+    const [renderedLineHeights, setRenderedLineHeights] = useState<number[]>([])
 
     const diagnostics = useTSDiagnostics(value, !disableDiagnostics && language === 'typescript', extraLibs)
     const [activeDiagnostic, setActiveDiagnostic] = useState<TSDiagnostic | undefined>(undefined)
@@ -203,28 +201,23 @@ export const CodeEditor = React.memo(
       [undoLastChange, redoLastUndo]
     )
 
+    const linesOfCode = useMemo(() => value.split('\n'), [value])
+    const totalLineCount = linesOfCode.length
     const effectiveLineHeights = useMemo(
       () => renderedLineHeights.length === totalLineCount ? renderedLineHeights : new Array(totalLineCount).fill(lineHeight),
       [renderedLineHeights, totalLineCount, lineHeight]
     )
-
     const totalContentHeight = useMemo(
       () => effectiveLineHeights.reduce((total, height) => total + height, 0) + EDITOR_PADDING_TOP * 2,
       [effectiveLineHeights]
     )
 
     const measureLineWrapHeights = useCallback(() => {
-      if (!lineWrap) {
-        setRenderedLineHeights(new Array(totalLineCount).fill(lineHeight))
-        return
-      }
-
       const measurementContainer = heightMeasurementRef.current
       if (!measurementContainer) return
 
-      const children = Array.from(measurementContainer.children) as HTMLElement[]
-      const nextLineHeights = children.map((lineElement) =>
-        Math.max(lineHeight, Math.ceil(lineElement.getBoundingClientRect().height))
+      const nextLineHeights = [...measurementContainer.children].map((lineElement) =>
+        Math.max(lineHeight, Math.ceil((lineElement as HTMLElement).getBoundingClientRect().height))
       )
 
       setRenderedLineHeights((previousHeights) => {
@@ -232,7 +225,7 @@ export const CodeEditor = React.memo(
                                 previousHeights.every((height, index) => height === nextLineHeights[index])
         return isHeightUniform ? previousHeights : nextLineHeights
       })
-    }, [lineHeight, lineWrap, totalLineCount])
+    }, [lineHeight])
 
     useLayoutEffect(() => {
       if (!editorWrapperRef.current) return
@@ -263,10 +256,6 @@ export const CodeEditor = React.memo(
         textInputRef.current.scrollLeft = scrollLeft
       }
     }, [])
-
-    useEffect(() => {
-      synchronizeScroll()
-    }, [totalContentHeight, synchronizeScroll])
 
     const ensureSelectionIsVisible = useCallback(() => {
       const textArea = textInputRef.current
@@ -536,10 +525,6 @@ export const CodeEditor = React.memo(
       [linesOfCode, effectiveLineHeights]
     )
 
-    const highlightedLines = useMemo(() => {
-      return linesOfCode.map(line => buildHtml(line) + '\n')
-    }, [linesOfCode])
-
     const extraBottomPadding = hideTypeInfo ? 0 : 80
     const sharedStyles = useMemo(() => getSharedStyles(baseFontSize, lineHeight, horizontalPadding, lineWrap), [baseFontSize, lineHeight, horizontalPadding, lineWrap])
     const layerStyle = useMemo(() => getLayerStyle(totalContentHeight, baseFontSize, lineHeight, horizontalPadding, lineWrap), [totalContentHeight, baseFontSize, lineHeight, horizontalPadding, lineWrap])
@@ -617,11 +602,11 @@ export const CodeEditor = React.memo(
                 className='text-text bg-transparent pointer-events-none'
                 style={layerStyle}
               >
-                {highlightedLines.map((html, index) => (
+                {linesOfCode.map((lineText, index) => (
                    <div
                      key={`line-${index}`}
                      style={{ minHeight: lineHeight }}
-                     dangerouslySetInnerHTML={{ __html: html }}
+                     dangerouslySetInnerHTML={{ __html: buildHtml(lineText) + '\n' }}
                    />
                 ))}
               </pre>
@@ -728,3 +713,7 @@ export const CodeEditor = React.memo(
     )
   })
 )
+"""
+
+with open('src/components/CodeEditor.tsx', 'w') as f:
+    f.write(content)

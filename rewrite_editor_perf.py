@@ -1,4 +1,6 @@
-import React, {
+import os
+
+content = r"""import React, {
   useRef,
   useCallback,
   useEffect,
@@ -128,11 +130,7 @@ export const CodeEditor = React.memo(
 
     const { getTypeInfo } = useTypeInfo()
     const [typeInfo, setTypeInfo] = useState<TypeInfo | undefined>(undefined)
-
-    const linesOfCode = useMemo(() => value.split('\n'), [value])
-    const totalLineCount = linesOfCode.length
-
-    const [renderedLineHeights, setRenderedLineHeights] = useState<number[]>(() => new Array(totalLineCount).fill(lineHeight))
+    const [renderedLineHeights, setRenderedLineHeights] = useState<number[]>([])
 
     const diagnostics = useTSDiagnostics(value, !disableDiagnostics && language === 'typescript', extraLibs)
     const [activeDiagnostic, setActiveDiagnostic] = useState<TSDiagnostic | undefined>(undefined)
@@ -203,6 +201,10 @@ export const CodeEditor = React.memo(
       [undoLastChange, redoLastUndo]
     )
 
+    const linesOfCode = useMemo(() => value.split('\n'), [value])
+    const totalLineCount = linesOfCode.length
+
+    // Performance: Don't measure unless lineWrap is enabled
     const effectiveLineHeights = useMemo(
       () => renderedLineHeights.length === totalLineCount ? renderedLineHeights : new Array(totalLineCount).fill(lineHeight),
       [renderedLineHeights, totalLineCount, lineHeight]
@@ -222,9 +224,8 @@ export const CodeEditor = React.memo(
       const measurementContainer = heightMeasurementRef.current
       if (!measurementContainer) return
 
-      const children = Array.from(measurementContainer.children) as HTMLElement[]
-      const nextLineHeights = children.map((lineElement) =>
-        Math.max(lineHeight, Math.ceil(lineElement.getBoundingClientRect().height))
+      const nextLineHeights = [...measurementContainer.children].map((lineElement) =>
+        Math.max(lineHeight, Math.ceil((lineElement as HTMLElement).getBoundingClientRect().height))
       )
 
       setRenderedLineHeights((previousHeights) => {
@@ -264,6 +265,7 @@ export const CodeEditor = React.memo(
       }
     }, [])
 
+    // Ensure scroll sync when content height changes (fixes gutter lag)
     useEffect(() => {
       synchronizeScroll()
     }, [totalContentHeight, synchronizeScroll])
@@ -536,6 +538,7 @@ export const CodeEditor = React.memo(
       [linesOfCode, effectiveLineHeights]
     )
 
+    // Performance: Memoize highlighted code per line
     const highlightedLines = useMemo(() => {
       return linesOfCode.map(line => buildHtml(line) + '\n')
     }, [linesOfCode])
@@ -728,3 +731,7 @@ export const CodeEditor = React.memo(
     )
   })
 )
+"""
+
+with open('src/components/CodeEditor.tsx', 'w') as f:
+    f.write(content)

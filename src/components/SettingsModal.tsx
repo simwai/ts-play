@@ -4,12 +4,17 @@ import { IconButton } from './ui/IconButton'
 import { workerClient } from '../lib/workerClient'
 import { formatJson } from '../lib/formatter'
 import { DEFAULT_TSCONFIG } from '../lib/constants'
+import { CodeEditor } from './CodeEditor'
 
 type SettingsModalProps = {
   isOpen: boolean
   onClose: () => void
   tsConfigString: string
   onSave: (newConfig: string) => void
+  trueColorEnabled: boolean
+  setTrueColorEnabled: (val: boolean) => void
+  lineWrap: boolean
+  setLineWrap: (val: boolean) => void
 }
 
 // Helper to automatically add double quotes to unquoted JSON keys
@@ -31,6 +36,10 @@ export function SettingsModal({
   onClose,
   tsConfigString,
   onSave,
+  trueColorEnabled,
+  setTrueColorEnabled,
+  lineWrap,
+  setLineWrap,
 }: SettingsModalProps) {
   const [temporaryTsConfig, setTemporaryTsConfig] = useState(tsConfigString)
   const [isValid, setIsValid] = useState(true)
@@ -77,23 +86,6 @@ export function SettingsModal({
     return () => clearTimeout(timer)
   }, [temporaryTsConfig, isOpen])
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Tab') {
-      e.preventDefault()
-      const ta = e.currentTarget
-      const start = ta.selectionStart
-      const end = ta.selectionEnd
-      const next =
-        temporaryTsConfig.slice(0, start) + '  ' + temporaryTsConfig.slice(end)
-      setTemporaryTsConfig(next)
-
-      // Synchronously restore cursor position after React updates the DOM
-      setTimeout(() => {
-        ta.selectionStart = ta.selectionEnd = start + 2
-      }, 0)
-    }
-  }
-
   const handleSave = async () => {
     if (!isValid) return
     setIsFormatting(true)
@@ -126,11 +118,11 @@ export function SettingsModal({
 
   return (
     <div className='fixed inset-0 z-50 flex items-center justify-center bg-crust/80 backdrop-blur-sm p-4'>
-      <div className='bg-mantle border border-surface1 rounded-xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden'>
+      <div className='bg-mantle border border-surface1 rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden' data-testid="settings-modal">
         <div className='flex items-center justify-between px-6 py-4 border-b border-surface0 bg-base'>
           <h2 className='text-base font-bold text-text'>Settings</h2>
           <IconButton
-            onClick={onClose}
+            onClick={onClose} data-testid="settings-cancel-button"
             size='sm'
             variant='ghost'
             className='-mr-2'
@@ -138,34 +130,71 @@ export function SettingsModal({
             <span className='text-xl leading-none'>&times;</span>
           </IconButton>
         </div>
-        <div className='p-6 flex flex-col gap-5'>
-          <div className='flex flex-col gap-2'>
-            <label className='text-sm font-bold text-subtext0'>
-              TypeScript Version
-            </label>
-            <select
-              disabled
-              className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none opacity-60 cursor-not-allowed'
-            >
-              <option>5.9.3 (Default)</option>
-            </select>
-            <span className='text-xs text-overlay0'>
-              Version switching is not yet supported.
-            </span>
+        <div className='p-6 flex flex-col gap-6'>
+          <div className='flex flex-col gap-4'>
+             <div className='flex flex-col gap-2'>
+              <label className='text-sm font-bold text-subtext0'>
+                TypeScript Version
+              </label>
+              <select
+                disabled
+                className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none opacity-60 cursor-not-allowed'
+              >
+                <option>5.9.3 (Default)</option>
+              </select>
+              <span className='text-xs text-overlay0'>
+                Version switching is not yet supported.
+              </span>
+            </div>
+
+            <div className='flex flex-col gap-4'>
+              <div className='flex items-center justify-between'>
+                <label className='text-sm font-bold text-subtext0'>
+                  Interpret ANSI Escapes
+                </label>
+                <div className='flex items-center'>
+                  <input
+                    type='checkbox'
+                    checked={trueColorEnabled}
+                    onChange={(e) => setTrueColorEnabled(e.target.checked)} data-testid="settings-ansi-toggle"
+                    className='w-5 h-5 accent-mauve cursor-pointer'
+                  />
+                </div>
+              </div>
+
+              <div className='flex items-center justify-between'>
+                <label className='text-sm font-bold text-subtext0'>
+                  Line Wrapping
+                </label>
+                <div className='flex items-center'>
+                  <input
+                    type='checkbox'
+                    checked={lineWrap}
+                    onChange={(e) => setLineWrap(e.target.checked)} data-testid="settings-wrap-toggle"
+                    className='w-5 h-5 accent-mauve cursor-pointer'
+                  />
+                </div>
+              </div>
+            </div>
           </div>
+
           <div className='flex flex-col gap-2'>
             <label className='text-sm font-bold text-subtext0'>
               tsconfig.json
             </label>
-            <textarea
-              className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none focus:border-mauve font-mono resize-y min-h-40'
-              value={temporaryTsConfig}
-              onChange={(e) => {
-                setTemporaryTsConfig(e.target.value)
-              }}
-              onKeyDown={handleKeyDown}
-              spellCheck={false}
-            />
+            <div className='border border-surface1 rounded-md overflow-hidden bg-base focus-within:border-mauve transition-colors h-64'>
+              <CodeEditor
+                language='typescript'
+                value={temporaryTsConfig}
+                onChange={setTemporaryTsConfig}
+                hideGutter={false}
+                hideTypeInfo={true}
+                fontSizeOverride={12}
+                disableAutocomplete={true}
+                disableDiagnostics={true}
+                lineWrap={lineWrap}
+              />
+            </div>
             {errorMsg && (
               <span
                 className={`text-xs whitespace-pre-wrap ${isValid ? 'text-yellow' : 'text-red'}`}
@@ -178,34 +207,35 @@ export function SettingsModal({
         <div className='flex items-center justify-end gap-3 px-6 py-4 border-t border-surface0 bg-base'>
           <Button
             onClick={() => setTemporaryTsConfig(DEFAULT_TSCONFIG)}
-            variant='ghost'
+            variant='danger'
             className='mr-auto text-red hover:bg-red/10'
           >
             Reset to Default
           </Button>
           <Button
-            onClick={onClose}
-            variant='ghost'
+            onClick={onClose} data-testid="settings-cancel-button"
+            variant='secondary'
           >
             Cancel
           </Button>
           <Button
             onClick={handleSave}
-            variant='primary'
+            variant='primary' data-testid="settings-save-button"
             disabled={!isValid || isFormatting}
           >
             {isFormatting ? 'Saving...' : 'Save Changes'}
           </Button>
         </div>
-        <div className="px-6 py-4 border-t border-surface0 bg-mantle flex flex-col items-center gap-2">
-          <p className="text-xs text-subtext0">
-            Made with 💜 by simwai feat. jules and aider
+        <div className="px-6 py-4 border-t border-surface0 bg-mantle flex flex-col items-center gap-2 relative overflow-hidden">
+          <div className="absolute inset-0 opacity-10 bg-gradient-to-r from-mauve via-pink to-mauve animate-gradient-x pointer-events-none" />
+          <p className="text-xs text-subtext0 relative z-10">
+            Made with 💜 by <span className="font-graffonti text-base bg-lit-gradient animate-lit-gradient ">simwai</span> feat. jules and aider
           </p>
           <a
             href="https://github.com/simwai/ts-play"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-mauve hover:underline"
+            className="text-xs text-mauve hover:underline relative z-10"
           >
             GitHub Repository
           </a>

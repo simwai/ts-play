@@ -5,6 +5,14 @@ import { syncNodeModulesToWorker } from '../lib/typings'
 import type { InstalledPackage } from '../components/PackageManager'
 import type { ConsoleMessage } from '../components/Console'
 
+const BUILTIN_MODULES = new Set([
+  'assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'console', 'constants',
+  'crypto', 'dgram', 'diagnostics_channel', 'dns', 'domain', 'events', 'fs', 'http',
+  'http2', 'https', 'inspector', 'module', 'net', 'os', 'path', 'perf_hooks', 'process',
+  'punycode', 'querystring', 'readline', 'repl', 'stream', 'string_decoder', 'sys',
+  'timers', 'tls', 'trace_events', 'tty', 'url', 'util', 'v8', 'vm', 'worker_threads', 'zlib'
+])
+
 export function usePackageManager(
   tsCode: string,
   addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void
@@ -32,15 +40,19 @@ export function usePackageManager(
         tsCode.slice(0, tsCursorPos.current).split('\n').length - 1
       const currentLine = lines[cursorLineIdx] || ''
 
-      // Delay detection if the user is actively editing an import line
-      // or if the line is incomplete (e.g., just 'import')
       if (/\bimport\b/.test(currentLine) && !currentLine.includes('from') && !currentLine.includes('import(')) {
         return
       }
 
       try {
         const detected = await workerClient.detectImports(tsCode)
-        const detectedSorted = [...detected].sort()
+        // Filter out built-ins from "detected" list
+        const filtered = [...detected].filter(pkg => {
+          if (pkg.startsWith('node:')) return false
+          if (BUILTIN_MODULES.has(pkg)) return false
+          return true
+        })
+        const detectedSorted = filtered.sort()
 
         setInstalledPackages((previous) => {
           const previousNamesSorted = previous
@@ -56,21 +68,20 @@ export function usePackageManager(
       } catch (error) {
         console.error('Failed to detect imports:', error)
       }
-    }, 1000) // Increased debounce to 1s for more stability
+    }, 1000)
   }, [tsCode])
 
   useEffect(() => {
     checkImports()
   }, [tsCode, checkImports])
 
-  // Trigger check when WebContainer is ready
   useEffect(() => {
     getWebContainer().then(() => {
       checkImports()
     })
   }, [checkImports])
 
-  // Background NPM Install/Uninstall Queue
+  // Automated Type Acquisition (ATA) and Install Queue
   useEffect(() => {
     const currentNames = new Set(installedPackages.map((p) => p.name))
     const previousNames = previousPkgsRef.current
@@ -82,13 +93,21 @@ export function usePackageManager(
 
     previousPkgsRef.current = currentNames
 
-    if (added.length > 0) {
-      installQueue.current = installQueue.current
-        .then(async () => {
-          addMessage('info', [`npm install ${added.join(' ')}...`])
+    const performInstalls = async () => {
+       const toInstall = [...added]
+
+       // Ensure @types/node is present if built-ins are used
+       // This is safe to install even if not explicitly detected by worker,
+       // because we want node typings in the LS host anyway.
+       if (!currentNames.has('@types/node')) {
+         toInstall.push('@types/node')
+       }
+
+       if (toInstall.length > 0) {
+          addMessage('info', ['npm install ' + toInstall.join(' ') + '...'])
           const code = await runCommand(
             'npm',
-            ['install', '--no-progress', ...added],
+            ['install', '--no-progress', ...toInstall],
             (out) => {
               const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
               if (clean && !/^[/\\|\-]$/.test(clean))
@@ -98,39 +117,11 @@ export function usePackageManager(
           if (code === 0) {
             const libs = await syncNodeModulesToWorker()
             setPackageTypings(libs)
-          } else {
-            addMessage('error', [`npm install failed with code ${code}`])
           }
-        })
-        .catch((error) => {
-          addMessage('error', [`npm install error: ${error.message}`])
-        })
+       }
     }
 
-    if (removed.length > 0) {
-      installQueue.current = installQueue.current
-        .then(async () => {
-          addMessage('info', [`npm uninstall ${removed.join(' ')}...`])
-          const code = await runCommand(
-            'npm',
-            ['uninstall', '--no-progress', ...removed],
-            (out) => {
-              const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
-              if (clean && !/^[/\\|\-]$/.test(clean))
-                addMessage('info', [clean])
-            }
-          )
-          if (code === 0) {
-            const libs = await syncNodeModulesToWorker()
-            setPackageTypings(libs)
-          } else {
-            addMessage('error', [`npm uninstall failed with code ${code}`])
-          }
-        })
-        .catch((error) => {
-          addMessage('error', [`npm uninstall error: ${error.message}`])
-        })
-    }
+    installQueue.current = installQueue.current.then(performInstalls)
   }, [installedPackages, addMessage])
 
   return {

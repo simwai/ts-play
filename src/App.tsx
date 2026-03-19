@@ -90,6 +90,14 @@ export function App() {
     'tsplay_tsconfig',
     DEFAULT_TSCONFIG
   )
+  const [trueColorEnabled, setTrueColorEnabled] = useLocalStorage(
+    'tsplay_truecolor',
+    true
+  )
+  const [lineWrap, setLineWrap] = useLocalStorage(
+    'tsplay_linewrap',
+    true
+  )
 
   const [activeTab, setActiveTab] = useState<TabType>('ts')
 
@@ -128,7 +136,7 @@ export function App() {
   // Custom Hooks
   const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } =
     useConsoleManager()
-  const { compilerStatus, isRunning, runCode } = useCompilerManager(
+  const { compilerStatus, isRunning, runCode, stopCode } = useCompilerManager(
     tsCode,
     addMessage
   )
@@ -402,6 +410,7 @@ export function App() {
         handleShare={handleShare}
         sharing={sharing}
         shareSuccess={shareSuccess}
+        stopCode={stopCode}
       />
 
       <StatusBar
@@ -414,6 +423,8 @@ export function App() {
           setShowSettings(true)
         }}
         compactForKeyboard={compactForKeyboard}
+        lineWrap={lineWrap}
+        setLineWrap={setLineWrap}
       />
 
       {/* ── Editors ── */}
@@ -451,6 +462,7 @@ export function App() {
               keyboardOpen={keyboardOpen}
               keyboardHeight={keyboardHeight}
               isMobileLike={isMobileLike}
+              lineWrap={lineWrap}
             />
           </div>
           {/* JS Editor */}
@@ -466,6 +478,7 @@ export function App() {
               keyboardOpen={keyboardOpen}
               keyboardHeight={keyboardHeight}
               isMobileLike={isMobileLike}
+              lineWrap={lineWrap}
             />
           </div>
           {/* DTS Editor */}
@@ -479,6 +492,7 @@ export function App() {
               keyboardOpen={keyboardOpen}
               keyboardHeight={keyboardHeight}
               isMobileLike={isMobileLike}
+              lineWrap={lineWrap}
             />
           </div>
         </div>
@@ -506,6 +520,7 @@ export function App() {
             isOpen={consoleOpen}
             onToggle={toggleConsole}
             contentHeight={panelHeight}
+            trueColorEnabled={trueColorEnabled}
           />
 
           {/* ── Package Manager ── */}
@@ -537,6 +552,10 @@ export function App() {
         }}
         tsConfigString={tsConfigString}
         onSave={setTsConfigString}
+        trueColorEnabled={trueColorEnabled}
+        setTrueColorEnabled={setTrueColorEnabled}
+        lineWrap={lineWrap}
+        setLineWrap={setLineWrap}
       />
     </div>
   )

@@ -1,4 +1,6 @@
-import React, {
+import os
+
+content = r"""import React, {
   useRef,
   useCallback,
   useEffect,
@@ -728,3 +730,7 @@ export const CodeEditor = React.memo(
     )
   })
 )
+"""
+
+with open('src/components/CodeEditor.tsx', 'w') as f:
+    f.write(content)
