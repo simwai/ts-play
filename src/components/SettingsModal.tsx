@@ -148,7 +148,7 @@ export function SettingsModal({
             </div>
 
             <div className='flex flex-col gap-4'>
-              <div className='flex flex-col gap-2'>
+              <div className='flex items-center justify-between'>
                 <label className='text-sm font-bold text-subtext0'>
                   Interpret ANSI Escapes
                 </label>
@@ -162,7 +162,7 @@ export function SettingsModal({
                 </div>
               </div>
 
-              <div className='flex flex-col gap-2'>
+              <div className='flex items-center justify-between'>
                 <label className='text-sm font-bold text-subtext0'>
                   Line Wrapping
                 </label>
@@ -187,7 +187,7 @@ export function SettingsModal({
                 language='typescript'
                 value={temporaryTsConfig}
                 onChange={setTemporaryTsConfig}
-                hideGutter={true}
+                hideGutter={false}
                 hideTypeInfo={true}
                 fontSizeOverride={12}
                 disableAutocomplete={true}
@@ -214,7 +214,7 @@ export function SettingsModal({
           </Button>
           <Button
             onClick={onClose} data-testid="settings-cancel-button"
-            variant='ghost'
+            variant='secondary'
           >
             Cancel
           </Button>
@@ -229,7 +229,7 @@ export function SettingsModal({
         <div className="px-6 py-4 border-t border-surface0 bg-mantle flex flex-col items-center gap-2 relative overflow-hidden">
           <div className="absolute inset-0 opacity-10 bg-gradient-to-r from-mauve via-pink to-mauve animate-gradient-x pointer-events-none" />
           <p className="text-xs text-subtext0 relative z-10">
-            Made with 💜 by <span className="font-graffonti text-base bg-lit-gradient animate-lit-gradient bg-clip-text text-transparent drop-shadow-sm">simwai</span> feat. jules and aider
+            Made with 💜 by <span className="font-graffonti text-base bg-lit-gradient animate-lit-gradient ">simwai</span> feat. jules and aider
           </p>
           <a
             href="https://github.com/simwai/ts-play"

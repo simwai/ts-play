@@ -1,6 +1,7 @@
 import { Undo2, Redo2, Settings, WrapText } from 'lucide-react'
 import { IconButton } from './ui/IconButton'
 import type { TabType } from '../lib/constants'
+import type { PackageManagerStatus } from '../hooks/usePackageManager'
 
 type StatusBarProps = {
   compilerStatus: 'loading' | 'ready' | 'error'
@@ -12,6 +13,7 @@ type StatusBarProps = {
   compactForKeyboard: boolean
   lineWrap: boolean
   setLineWrap: (val: boolean) => void
+  packageManagerStatus: PackageManagerStatus
 }
 
 export function StatusBar({
@@ -24,6 +26,7 @@ export function StatusBar({
   compactForKeyboard,
   lineWrap,
   setLineWrap,
+  packageManagerStatus
 }: StatusBarProps) {
   const statusLabel =
     compilerStatus === 'loading'
@@ -38,17 +41,28 @@ export function StatusBar({
         ? 'text-red'
         : 'text-yellow'
 
+  const pmLabel =
+    packageManagerStatus === 'installing' ? 'Installing...' :
+    packageManagerStatus === 'uninstalling' ? 'Uninstalling...' :
+    packageManagerStatus === 'syncing' ? 'Syncing...' :
+    packageManagerStatus === 'error' ? 'PM Error' : ''
+
   return (
     <div
       className='flex items-center justify-between px-2 md:px-4 bg-crust border-b border-surface0 shrink-0 relative z-30 gap-2 md:gap-4 h-8 md:h-9'
       style={compactForKeyboard ? { height: '1.5rem' } : undefined}
     >
-      <div className='flex items-center justify-start flex-1 min-w-0'>
+      <div className='flex items-center justify-start flex-1 min-w-0 gap-2 md:gap-4'>
         <span
           className={`text-3xs md:text-xs font-mono tracking-wide truncate ${statusColorClass}`} data-testid="status-bar-compiler-status"
         >
           {statusLabel}
         </span>
+        {pmLabel && (
+           <span className='text-3xs md:text-xs font-mono tracking-wide text-mauve animate-pulse truncate shrink-0'>
+             {pmLabel}
+           </span>
+        )}
       </div>
 
       <div className='flex items-center justify-center shrink-0 min-w-0'>

@@ -13,6 +13,8 @@ const BUILTIN_MODULES = new Set([
   'timers', 'tls', 'trace_events', 'tty', 'url', 'util', 'v8', 'vm', 'worker_threads', 'zlib'
 ])
 
+export type PackageManagerStatus = 'idle' | 'installing' | 'uninstalling' | 'syncing' | 'error'
+
 export function usePackageManager(
   tsCode: string,
   addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void
@@ -23,6 +25,7 @@ export function usePackageManager(
   const [packageTypings, setPackageTypings] = useState<Record<string, string>>(
     {}
   )
+  const [status, setStatus] = useState<PackageManagerStatus>('idle')
 
   const previousPkgsRef = useRef<Set<string>>(new Set())
   const installQueue = useRef<Promise<void>>(Promise.resolve())
@@ -40,13 +43,13 @@ export function usePackageManager(
         tsCode.slice(0, tsCursorPos.current).split('\n').length - 1
       const currentLine = lines[cursorLineIdx] || ''
 
+      // Skip detection if user is mid-import statement
       if (/\bimport\b/.test(currentLine) && !currentLine.includes('from') && !currentLine.includes('import(')) {
         return
       }
 
       try {
         const detected = await workerClient.detectImports(tsCode)
-        // Filter out built-ins from "detected" list
         const filtered = [...detected].filter(pkg => {
           if (pkg.startsWith('node:')) return false
           if (BUILTIN_MODULES.has(pkg)) return false
@@ -81,7 +84,7 @@ export function usePackageManager(
     })
   }, [checkImports])
 
-  // Automated Type Acquisition (ATA) and Install Queue
+  // Automated Type Acquisition (ATA) and Lifecycle management
   useEffect(() => {
     const currentNames = new Set(installedPackages.map((p) => p.name))
     const previousNames = previousPkgsRef.current
@@ -93,57 +96,65 @@ export function usePackageManager(
 
     previousPkgsRef.current = currentNames
 
-    const performInstalls = async () => {
-       const toInstall = [...added]
-
-       // Smart Type Acquisition: Automatically add @types/ packages if they look missing
-       // This is a heuristic - we'll refine it by checking package.json after the first pass if needed,
-       // but for commonly used libraries that don't ship types, this is a huge UX win.
-       for (const pkg of added) {
-          // Skip if it's already a @types/ package
-          if (pkg.startsWith('@types/')) continue
-
-          // Heuristic: Many common libraries need separate types
-          // We can also check if we're using node built-ins to auto-install @types/node
-          const typesPkg = pkg.startsWith('@')
-            ? `@types/${pkg.slice(1).replace('/', '__')}`
-            : `@types/${pkg}`
-
-          // We don't want to spam, so we'll only try installing @types/ for popular ones
-          // OR better: we can just try to install it and ignore failures.
-          // For now, let's always include @types/node if any builtin was detected or if no imports detected but code exists
-          if (!currentNames.has('@types/node')) {
-             toInstall.push('@types/node')
+    const performChanges = async () => {
+       try {
+          // Handle Removals
+          if (removed.length > 0) {
+            setStatus('uninstalling')
+            addMessage('info', ['npm uninstall ' + removed.join(' ') + '...'])
+            await runCommand('npm', ['uninstall', ...removed], (out) => {
+               const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
+               if (clean && !/^[/\\|\-]$/.test(clean)) addMessage('info', [clean])
+            })
           }
 
-          if (!currentNames.has(typesPkg)) {
-             // toInstall.push(typesPkg) // We'll do this more selectively or just let npm handle it
-          }
-       }
+          // Handle Additions (ATA)
+          if (added.length > 0) {
+            setStatus('installing')
+            const toInstall = [...added]
 
-       if (toInstall.length > 0) {
-          addMessage('info', ['npm install ' + toInstall.join(' ') + '...'])
-          const code = await runCommand(
-            'npm',
-            ['install', '--no-progress', ...toInstall],
-            (out) => {
-              const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
-              if (clean && !/^[/\\|\-]$/.test(clean))
-                addMessage('info', [clean])
+            // Heuristic for @types: also try to install types if they exist
+            // (e.g., lodash -> @types/lodash)
+            for (const pkg of added) {
+               if (!pkg.startsWith('@types/')) {
+                  toInstall.push(`@types/${pkg}`)
+               }
             }
-          )
-          if (code === 0) {
-            const libs = await syncNodeModulesToWorker()
-            setPackageTypings(libs)
-          }
-       }
 
-       if (removed.length > 0) {
-          // Cleanup logic...
+            // Ensure @types/node is present if not already
+            if (!currentNames.has('@types/node') && !previousNames.has('@types/node')) {
+               toInstall.push('@types/node')
+            }
+
+            addMessage('info', ['npm install ' + toInstall.join(' ') + '...'])
+            const code = await runCommand(
+              'npm',
+              ['install', '--no-progress', ...toInstall],
+              (out) => {
+                const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
+                if (clean && !/^[/\\|\-]$/.test(clean))
+                  addMessage('info', [clean])
+              }
+            )
+
+            if (code !== 0) {
+               addMessage('warn', ['Some packages failed to install. This is normal if they lack @types counterparts.'])
+            }
+          }
+
+          // Sync typings to worker host
+          setStatus('syncing')
+          const libs = await syncNodeModulesToWorker()
+          setPackageTypings(libs)
+          setStatus('idle')
+       } catch (error) {
+          console.error('Package management lifecycle failed:', error)
+          setStatus('error')
+          addMessage('error', ['Package manager error: ' + (error as Error).message])
        }
     }
 
-    installQueue.current = installQueue.current.then(performInstalls)
+    installQueue.current = installQueue.current.then(performChanges)
   }, [installedPackages, addMessage])
 
   return {
@@ -152,5 +163,6 @@ export function usePackageManager(
     tsCursorPos,
     checkImports,
     installQueue,
+    status
   }
 }

@@ -33,9 +33,9 @@ export async function syncNodeModulesToWorker(): Promise<Record<string, string>>
           if (isDirectoryEntry) {
             await recursivelyCollectTypeDefinitions(entryPath)
           } else if (isFileEntry) {
-            const hasTypeScriptExtension = entry.name.endsWith('.ts') ||
-                                          entry.name.endsWith('.mts') ||
-                                          entry.name.endsWith('.cts')
+            const hasTypeScriptExtension = entry.name.endsWith('.d.ts') ||
+                                          entry.name.endsWith('.d.mts') ||
+                                          entry.name.endsWith('.d.cts')
             const isPackageManifest = entry.name === 'package.json'
 
             if (hasTypeScriptExtension || isPackageManifest) {
