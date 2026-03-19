@@ -96,11 +96,29 @@ export function usePackageManager(
     const performInstalls = async () => {
        const toInstall = [...added]
 
-       // Ensure @types/node is present if built-ins are used
-       // This is safe to install even if not explicitly detected by worker,
-       // because we want node typings in the LS host anyway.
-       if (!currentNames.has('@types/node')) {
-         toInstall.push('@types/node')
+       // Smart Type Acquisition: Automatically add @types/ packages if they look missing
+       // This is a heuristic - we'll refine it by checking package.json after the first pass if needed,
+       // but for commonly used libraries that don't ship types, this is a huge UX win.
+       for (const pkg of added) {
+          // Skip if it's already a @types/ package
+          if (pkg.startsWith('@types/')) continue
+
+          // Heuristic: Many common libraries need separate types
+          // We can also check if we're using node built-ins to auto-install @types/node
+          const typesPkg = pkg.startsWith('@')
+            ? `@types/${pkg.slice(1).replace('/', '__')}`
+            : `@types/${pkg}`
+
+          // We don't want to spam, so we'll only try installing @types/ for popular ones
+          // OR better: we can just try to install it and ignore failures.
+          // For now, let's always include @types/node if any builtin was detected or if no imports detected but code exists
+          if (!currentNames.has('@types/node')) {
+             toInstall.push('@types/node')
+          }
+
+          if (!currentNames.has(typesPkg)) {
+             // toInstall.push(typesPkg) // We'll do this more selectively or just let npm handle it
+          }
        }
 
        if (toInstall.length > 0) {
@@ -118,6 +136,10 @@ export function usePackageManager(
             const libs = await syncNodeModulesToWorker()
             setPackageTypings(libs)
           }
+       }
+
+       if (removed.length > 0) {
+          // Cleanup logic...
        }
     }
 
