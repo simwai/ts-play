@@ -19,9 +19,10 @@ const defaultLibraryFiles: Record<string, string> = {
 }
 
 let compilerOptions: TS.CompilerOptions = {
-  target: TS.ScriptTarget.ES2020,
+  target: TS.ScriptTarget.ESNext,
   module: TS.ModuleKind.ESNext,
-  moduleResolution: TS.ModuleResolutionKind.NodeNext,
+  moduleResolution: TS.ModuleResolutionKind.Bundler,
+  lib: ['lib.esnext.d.ts', 'lib.dom.d.ts', 'lib.dom.iterable.d.ts'],
   resolveJsonModule: true,
   allowImportingTsExtensions: true,
   esModuleInterop: true,
@@ -37,7 +38,6 @@ let compilerOptions: TS.CompilerOptions = {
 let externalPackageDefinitions: Record<string, string> = {}
 let externalPackageVersion = 0
 
-// Helper to normalize paths for the LS host
 const normalizePath = (p: string) => (p.startsWith('/') ? p : '/' + p)
 
 async function initializeLanguageService() {
@@ -176,7 +176,6 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       case 'UPDATE_EXTRA_LIBS': {
         externalPackageDefinitions = payload.libs
         externalPackageVersion += 1
-        // Trigger re-validation of main file
         if (virtualFiles['main.ts']) virtualFiles['main.ts'].version += 1
         result = true
         break
@@ -198,12 +197,13 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
             host,
             '/'
           )
-          if (errors.length === 0) {
+          const realErrors = errors.filter((e) => e.code !== 18003)
+          if (realErrors.length === 0) {
             compilerOptions = { ...compilerOptions, ...options }
             if (virtualFiles['main.ts']) virtualFiles['main.ts'].version += 1
           } else {
             throw new Error(
-              'Invalid tsconfig options: ' + errors[0].messageText
+              'Invalid tsconfig options: ' + realErrors[0].messageText
             )
           }
         }
