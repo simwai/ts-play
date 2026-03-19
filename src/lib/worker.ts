@@ -21,7 +21,7 @@ const defaultLibraryFiles: Record<string, string> = {
 let compilerOptions: TS.CompilerOptions = {
   target: TS.ScriptTarget.ES2020,
   module: TS.ModuleKind.ESNext,
-  moduleResolution: TS.ModuleResolutionKind.Node10,
+  moduleResolution: TS.ModuleResolutionKind.NodeNext,
   resolveJsonModule: true,
   allowImportingTsExtensions: true,
   esModuleInterop: true,
@@ -30,12 +30,15 @@ let compilerOptions: TS.CompilerOptions = {
   noImplicitAny: false,
   baseUrl: '/',
   paths: {
-    "*": ["node_modules/*"]
-  }
+    '*': ['node_modules/*'],
+  },
 }
 
 let externalPackageDefinitions: Record<string, string> = {}
 let externalPackageVersion = 0
+
+// Helper to normalize paths for the LS host
+const normalizePath = (p: string) => (p.startsWith('/') ? p : '/' + p)
 
 async function initializeLanguageService() {
   if (languageService) return
@@ -44,33 +47,81 @@ async function initializeLanguageService() {
     getScriptFileNames: () => [
       '/main.ts',
       ...Object.keys(defaultLibraryFiles).map((f) => '/' + f),
-      ...Object.keys(externalPackageDefinitions),
+      ...Object.keys(externalPackageDefinitions).map(normalizePath),
     ],
     getScriptVersion: (fileName) => {
-      if (fileName === '/main.ts') return String(virtualFiles['main.ts']?.version ?? 0)
-      if (externalPackageDefinitions[fileName]) return String(externalPackageVersion)
+      const normalized = fileName.startsWith('/') ? fileName : '/' + fileName
+      if (normalized === '/main.ts')
+        return String(virtualFiles['main.ts']?.version ?? 0)
+      if (
+        externalPackageDefinitions[normalized] ||
+        externalPackageDefinitions[normalized.substring(1)]
+      )
+        return String(externalPackageVersion)
       return '0'
     },
     getScriptSnapshot: (fileName) => {
       let content: string | undefined
-      if (fileName === '/main.ts') content = virtualFiles['main.ts']?.content
-      else if (defaultLibraryFiles[fileName.replace(/^\//, '')]) content = defaultLibraryFiles[fileName.replace(/^\//, '')]
-      else content = externalPackageDefinitions[fileName]
+      const normalized = fileName.startsWith('/') ? fileName : '/' + fileName
 
-      return content !== undefined ? TS.ScriptSnapshot.fromString(content) : undefined
+      if (normalized === '/main.ts') {
+        content = virtualFiles['main.ts']?.content
+      } else if (defaultLibraryFiles[normalized.substring(1)]) {
+        content = defaultLibraryFiles[normalized.substring(1)]
+      } else {
+        content =
+          externalPackageDefinitions[normalized] ||
+          externalPackageDefinitions[normalized.substring(1)]
+      }
+
+      return content !== undefined
+        ? TS.ScriptSnapshot.fromString(content)
+        : undefined
     },
     getCurrentDirectory: () => '/',
     getCompilationSettings: () => compilerOptions,
     getDefaultLibFileName: () => '/lib.es2020.d.ts',
-    fileExists: (path) => externalPackageDefinitions[path] !== undefined || defaultLibraryFiles[path.replace(/^\//, '')] !== undefined || path === '/main.ts',
-    readFile: (path) => externalPackageDefinitions[path] || defaultLibraryFiles[path.replace(/^\//, '')] || (path === '/main.ts' ? virtualFiles['main.ts']?.content : undefined),
+    fileExists: (path) => {
+      const normalized = path.startsWith('/') ? path : '/' + path
+      return !!(
+        externalPackageDefinitions[normalized] ||
+        externalPackageDefinitions[normalized.substring(1)] ||
+        defaultLibraryFiles[normalized.substring(1)] ||
+        normalized === '/main.ts'
+      )
+    },
+    readFile: (path) => {
+      const normalized = path.startsWith('/') ? path : '/' + path
+      return (
+        externalPackageDefinitions[normalized] ||
+        externalPackageDefinitions[normalized.substring(1)] ||
+        defaultLibraryFiles[normalized.substring(1)] ||
+        (normalized === '/main.ts'
+          ? virtualFiles['main.ts']?.content
+          : undefined)
+      )
+    },
     readDirectory: (path, extensions) => {
-       const normalizedPath = path.endsWith('/') ? path : path + '/'
-       return Object.keys(externalPackageDefinitions).filter(f => f.startsWith(normalizedPath) && (!extensions || extensions.some(e => f.endsWith(e))))
+      const normalizedPath = path.endsWith('/') ? path : path + '/'
+      const searchPath = normalizedPath.startsWith('/')
+        ? normalizedPath.substring(1)
+        : normalizedPath
+      return Object.keys(externalPackageDefinitions)
+        .filter(
+          (f) =>
+            f.startsWith(searchPath) &&
+            (!extensions || extensions.some((e) => f.endsWith(e)))
+        )
+        .map(normalizePath)
     },
     directoryExists: (path) => {
-       const normalizedPath = path.endsWith('/') ? path : path + '/'
-       return Object.keys(externalPackageDefinitions).some(f => f.startsWith(normalizedPath))
+      const normalizedPath = path.endsWith('/') ? path : path + '/'
+      const searchPath = normalizedPath.startsWith('/')
+        ? normalizedPath.substring(1)
+        : normalizedPath
+      return Object.keys(externalPackageDefinitions).some((f) =>
+        f.startsWith(searchPath)
+      )
     },
   }
 
@@ -78,10 +129,17 @@ async function initializeLanguageService() {
 }
 
 function generateAmbientDeclarations(sourceCode: string): string {
-  return "// Declarations auto-generated from main.ts\n" + sourceCode.split('\n').filter(l => l.startsWith('export')).join('\n');
+  return (
+    '// Declarations auto-generated from main.ts\n' +
+    sourceCode
+      .split('\n')
+      .filter((l) => l.startsWith('export'))
+      .join('\n')
+  )
 }
 
-const getErrorMessage = (error: unknown) => error instanceof Error ? error.message : String(error)
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error)
 
 globalThis.onmessage = async (messageEvent: MessageEvent) => {
   const { id, type, payload } = messageEvent.data
@@ -106,7 +164,10 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
         const { content, filename = 'main.ts' } = payload
         const fileState = virtualFiles[filename]
         if (!fileState || fileState.content !== content) {
-          virtualFiles[filename] = { version: (fileState?.version || 0) + 1, content }
+          virtualFiles[filename] = {
+            version: (fileState?.version || 0) + 1,
+            content,
+          }
         }
         result = true
         break
@@ -131,7 +192,11 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
             readFile: () => tsconfig,
             getCurrentDirectory: () => '/',
           }
-          const { options } = TS.parseJsonConfigFileContent(parsed.config, host, '/')
+          const { options } = TS.parseJsonConfigFileContent(
+            parsed.config,
+            host,
+            '/'
+          )
           compilerOptions = { ...compilerOptions, ...options }
           if (virtualFiles['main.ts']) virtualFiles['main.ts'].version += 1
         }
@@ -143,7 +208,13 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
         const { tsconfig } = payload
         const parsed = TS.parseConfigFileTextToJson('tsconfig.json', tsconfig)
         if (parsed.error) {
-          result = { valid: false, error: TS.flattenDiagnosticMessageText(parsed.error.messageText, '\n') }
+          result = {
+            valid: false,
+            error: TS.flattenDiagnosticMessageText(
+              parsed.error.messageText,
+              '\n'
+            ),
+          }
         } else {
           result = { valid: true }
         }
@@ -151,43 +222,94 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       }
 
       case 'GET_DIAGNOSTICS': {
-        if (!languageService) { result = []; break }
-        const all = [...languageService.getSyntacticDiagnostics('main.ts'), ...languageService.getSemanticDiagnostics('main.ts')]
-        result = all.map(d => ({
-          start: d.start || 0,
-          length: d.length || 0,
-          message: typeof d.messageText === 'string' ? d.messageText : d.messageText.messageText,
-          category: d.category === TS.DiagnosticCategory.Warning ? 'warning' : 'error',
-          line: TS.getLineAndCharacterOfPosition(d.file!, d.start!).line,
-          character: TS.getLineAndCharacterOfPosition(d.file!, d.start!).character,
-        }))
+        if (!languageService) {
+          result = []
+          break
+        }
+        const all = [
+          ...languageService.getSyntacticDiagnostics('main.ts'),
+          ...languageService.getSemanticDiagnostics('main.ts'),
+        ]
+        result = all.map((d) => {
+          let message = ''
+          if (typeof d.messageText === 'string') {
+            message = d.messageText
+          } else {
+            message = TS.flattenDiagnosticMessageText(d.messageText, '\n')
+          }
+
+          let line = 0
+          let character = 0
+          if (d.file && d.start !== undefined) {
+            const pos = TS.getLineAndCharacterOfPosition(d.file, d.start)
+            line = pos.line
+            character = pos.character
+          }
+
+          return {
+            start: d.start || 0,
+            length: d.length || 0,
+            message,
+            category:
+              d.category === TS.DiagnosticCategory.Warning
+                ? 'warning'
+                : 'error',
+            line,
+            character,
+          }
+        })
         break
       }
 
       case 'GET_TYPE_INFO': {
-        if (!languageService) { result = undefined; break }
-        const info = languageService.getQuickInfoAtPosition('main.ts', payload.offset)
-        if (!info) { result = undefined; break }
+        if (!languageService) {
+          result = undefined
+          break
+        }
+        const info = languageService.getQuickInfoAtPosition(
+          'main.ts',
+          payload.offset
+        )
+        if (!info) {
+          result = undefined
+          break
+        }
 
-        // Extract symbol name using the specific kinds from memory
         const SYMBOL_KINDS = new Set([
-           'localName', 'variableName', 'parameterName', 'methodName', 'functionName',
-           'className', 'interfaceName', 'aliasName', 'propertyName', 'enumName',
-           'enumMemberName', 'moduleName', 'typeParameterName'
+          'localName',
+          'variableName',
+          'parameterName',
+          'methodName',
+          'functionName',
+          'className',
+          'interfaceName',
+          'aliasName',
+          'propertyName',
+          'enumName',
+          'enumMemberName',
+          'moduleName',
+          'typeParameterName',
         ])
-        const symbolPart = info.displayParts.find(p => SYMBOL_KINDS.has(p.kind))
-        const name = symbolPart ? symbolPart.text : TS.displayPartsToString(info.displayParts)
+        const symbolPart = info.displayParts.find((p) =>
+          SYMBOL_KINDS.has(p.kind)
+        )
+        const name = symbolPart
+          ? symbolPart.text
+          : TS.displayPartsToString(info.displayParts)
 
         const typeAnnotation = TS.displayPartsToString(info.displayParts)
-        let jsDoc = info.documentation ? TS.displayPartsToString(info.documentation) : ''
+        let jsDoc = info.documentation
+          ? TS.displayPartsToString(info.documentation)
+          : ''
 
-        // Combine with formatted tags as per memory
         if (info.tags) {
-           const tagsText = info.tags.map(tag => {
+          const tagsText = info.tags
+            .map((tag) => {
               const text = TS.displayPartsToString(tag.text)
               return `\n\n@${tag.name}${text ? ' ' + text : ''}`
-           }).join('')
-           jsDoc += tagsText
+            })
+            .join('')
+          jsDoc += tagsText
         }
 
         result = {
@@ -200,31 +322,64 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       }
 
       case 'GET_COMPLETIONS': {
-        if (!languageService) { result = []; break }
-        const completions = languageService.getCompletionsAtPosition('main.ts', payload.offset, undefined)
-        result = completions ? completions.entries.map(e => ({ name: e.name, kind: e.kind, insertText: e.insertText })) : []
+        if (!languageService) {
+          result = []
+          break
+        }
+        const completions = languageService.getCompletionsAtPosition(
+          'main.ts',
+          payload.offset,
+          undefined
+        )
+        result = completions
+          ? completions.entries.map((e) => ({
+              name: e.name,
+              kind: e.kind,
+              insertText: e.insertText,
+            }))
+          : []
         break
       }
 
       case 'COMPILE': {
         const compiled = await esbuild.build({
-          bundle: false, format: 'esm', target: 'es2020', write: false,
-          stdin: { contents: payload.code, loader: 'ts', sourcefile: 'main.ts' },
+          bundle: false,
+          format: 'esm',
+          target: 'es2020',
+          write: false,
+          stdin: {
+            contents: payload.code,
+            loader: 'ts',
+            sourcefile: 'main.ts',
+          },
         })
-        result = { js: compiled.outputFiles?.[0]?.text || '', dts: generateAmbientDeclarations(payload.code) }
+        result = {
+          js: compiled.outputFiles?.[0]?.text || '',
+          dts: generateAmbientDeclarations(payload.code),
+        }
         break
       }
 
       case 'DETECT_IMPORTS': {
-        const sourceFile = TS.createSourceFile('temp.ts', payload.code, TS.ScriptTarget.Latest, true)
+        const sourceFile = TS.createSourceFile(
+          'temp.ts',
+          payload.code,
+          TS.ScriptTarget.Latest,
+          true
+        )
         const imports = new Set<string>()
         const visit = (node: TS.Node) => {
-          if (TS.isImportDeclaration(node) && TS.isStringLiteral(node.moduleSpecifier)) {
-             const m = node.moduleSpecifier.text
-             if (!m.startsWith('.') && !m.startsWith('/')) {
-                const parts = m.split('/')
-                imports.add(m.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0])
-             }
+          if (
+            TS.isImportDeclaration(node) &&
+            TS.isStringLiteral(node.moduleSpecifier)
+          ) {
+            const m = node.moduleSpecifier.text
+            if (!m.startsWith('.') && !m.startsWith('/')) {
+              const parts = m.split('/')
+              imports.add(
+                m.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0]
+              )
+            }
           }
           TS.forEachChild(node, visit)
         }
@@ -233,7 +388,8 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
         break
       }
 
-      default: throw new Error(`Unknown worker message type: ${type}`)
+      default:
+        throw new Error(`Unknown worker message type: ${type}`)
     }
     self.postMessage({ id, success: true, payload: result })
   } catch (error) {

@@ -1,12 +1,17 @@
 import { getWebContainer } from './webcontainer'
 
-export async function syncNodeModulesToWorker(): Promise<Record<string, string>> {
+export async function syncNodeModulesToWorker(): Promise<
+  Record<string, string>
+> {
   const containerInstance = await getWebContainer()
   const libraryFiles: Record<string, string> = {}
 
   async function recursivelyCollectTypeDefinitions(directoryPath: string) {
     try {
-      const directoryEntries = await containerInstance.fs.readdir(directoryPath, { withFileTypes: true })
+      const directoryEntries = await containerInstance.fs.readdir(
+        directoryPath,
+        { withFileTypes: true }
+      )
 
       await Promise.all(
         directoryEntries.map(async (entry) => {
@@ -19,10 +24,15 @@ export async function syncNodeModulesToWorker(): Promise<Record<string, string>>
           let isDirectoryEntry = entry.isDirectory()
           let isFileEntry = entry.isFile()
 
-          const isPotentiallySymlink = (entry as any).isSymbolicLink?.() || (!isDirectoryEntry && !isFileEntry)
+          // WebContainer sometimes returns directory/file as false for symlinks
+          const isPotentiallySymlink =
+            (entry as any).isSymbolicLink?.() ||
+            (!isDirectoryEntry && !isFileEntry)
           if (isPotentiallySymlink) {
             try {
-              const entryStats = await (containerInstance.fs as any).stat(entryPath)
+              const entryStats = await (containerInstance.fs as any).stat(
+                entryPath
+              )
               isDirectoryEntry = entryStats.isDirectory()
               isFileEntry = entryStats.isFile()
             } catch {
@@ -33,24 +43,29 @@ export async function syncNodeModulesToWorker(): Promise<Record<string, string>>
           if (isDirectoryEntry) {
             await recursivelyCollectTypeDefinitions(entryPath)
           } else if (isFileEntry) {
-            const hasTypeScriptExtension = entry.name.endsWith('.d.ts') ||
-                                          entry.name.endsWith('.d.mts') ||
-                                          entry.name.endsWith('.d.cts')
-            const isPackageManifest = entry.name === 'package.json'
+            const name = entry.name
+            const isDts =
+              name.endsWith('.d.ts') ||
+              name.endsWith('.d.mts') ||
+              name.endsWith('.d.cts')
+            const isPackageJson = name === 'package.json'
 
-            if (hasTypeScriptExtension || isPackageManifest) {
+            if (isDts || isPackageJson) {
               try {
-                const fileContent = await containerInstance.fs.readFile(entryPath, 'utf8')
+                const fileContent = await containerInstance.fs.readFile(
+                  entryPath,
+                  'utf8'
+                )
                 libraryFiles[`/${entryPath}`] = fileContent
               } catch {
-                // Silently skip files that cannot be read
+                // Silently skip
               }
             }
           }
         })
       )
     } catch {
-      // Silently skip directories that cannot be accessed
+      // Silently skip
     }
   }
 

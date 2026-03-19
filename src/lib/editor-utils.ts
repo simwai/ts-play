@@ -47,7 +47,10 @@ export function buildHtml(code: string): string {
   return html
 }
 
-export function buildSquiggles(code: string, diagnostics: TSDiagnostic[]): string {
+export function buildSquiggles(
+  code: string,
+  diagnostics: TSDiagnostic[]
+): string {
   if (diagnostics.length === 0) return escapeHtml(code)
 
   const sortedDiagnostics = [...diagnostics].sort((a, b) => a.start - b.start)
@@ -58,10 +61,19 @@ export function buildSquiggles(code: string, diagnostics: TSDiagnostic[]): strin
     if (diagnostic.start < currentPosition) continue
 
     htmlResult += escapeHtml(code.slice(currentPosition, diagnostic.start))
-    const diagnosticText = code.slice(diagnostic.start, diagnostic.start + diagnostic.length)
+    const diagnosticText = code.slice(
+      diagnostic.start,
+      diagnostic.start + diagnostic.length
+    )
 
-    const severityClass = diagnostic.category === 'error' ? 'decoration-red' : 'decoration-yellow'
-    htmlResult += '<span class="underline underline-wavy ' + severityClass + ' decoration-2">' + escapeHtml(diagnosticText) + '</span>'
+    const severityClass =
+      diagnostic.category === 'error' ? 'decoration-red' : 'decoration-yellow'
+    htmlResult +=
+      '<span class="underline underline-wavy ' +
+      severityClass +
+      ' decoration-2">' +
+      escapeHtml(diagnosticText) +
+      '</span>'
 
     currentPosition = diagnostic.start + diagnostic.length
   }

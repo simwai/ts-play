@@ -4,12 +4,6 @@ let webcontainerInstance: WebContainer | undefined
 let bootPromise: Promise<WebContainer> | undefined
 
 export async function getWebContainer(): Promise<WebContainer> {
-  if (!globalThis.crossOriginIsolated) {
-    throw new Error(
-      'Browser is not cross-origin isolated. WebContainers require COOP/COEP headers and a secure context (HTTPS or localhost).'
-    )
-  }
-
   if (webcontainerInstance) {
     return webcontainerInstance
   }
@@ -25,16 +19,10 @@ export async function getWebContainer(): Promise<WebContainer> {
 export async function writeFiles(files: Record<string, string>) {
   const instance = await getWebContainer()
 
-  const fileSystemTree: Record<string, any> = {}
-  for (const [path, content] of Object.entries(files)) {
-    fileSystemTree[path] = {
-      file: {
-        contents: content,
-      },
-    }
+  for (const [path, contents] of Object.entries(files)) {
+    // Basic path normalization to avoid "directory doesn't exist" errors for root files
+    await instance.fs.writeFile(path, contents)
   }
-
-  await instance.mount(fileSystemTree)
 }
 
 export async function readFile(path: string): Promise<string> {

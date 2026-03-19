@@ -14,7 +14,7 @@ export function useCompilerManager(
   >('loading')
   const [isRunning, setIsRunning] = useState(false)
   const currentProcess = useRef<WebContainerProcess | null>(null)
-  const timeoutRef = useRef<number | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     workerClient
@@ -55,7 +55,9 @@ export function useCompilerManager(
       onSuccess: (js: string, dts: string) => void,
       onError: (error: Error) => void
     ) => {
+      if (isRunning) return
       setIsRunning(true)
+
       try {
         const compiled = await workerClient.compile(tsCode)
         onSuccess(compiled.js, compiled.dts)
@@ -64,18 +66,32 @@ export function useCompilerManager(
           'index.js': compiled.js,
         })
 
-        // Wait for any background npm installs/uninstalls to finish
-        await pendingInstalls
+        // Wait for background tasks if any
+        await Promise.race([
+          pendingInstalls,
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error('Background tasks timed out')),
+              10000
+            )
+          ),
+        ]).catch((e) => {
+          console.warn('Proceeding despite background task warning:', e.message)
+        })
 
         addMessage('info', ['Executing via Node.js...'])
-        const { exit, process } = await runCommand('node', ['index.js'], (out) => {
-          if (out.trim()) addMessage('log', [out.trim()])
-        })
+        const { exit, process } = await runCommand(
+          'node',
+          ['index.js'],
+          (out) => {
+            const clean = out.trim()
+            if (clean) addMessage('log', [clean])
+          }
+        )
 
         currentProcess.current = process
 
-        // Set 5 minute timeout
-        timeoutRef.current = window.setTimeout(() => {
+        timeoutRef.current = setTimeout(() => {
           if (currentProcess.current) {
             currentProcess.current.kill()
             currentProcess.current = null
@@ -93,7 +109,7 @@ export function useCompilerManager(
 
         currentProcess.current = null
 
-        if (exitCode !== 0 && isRunning) {
+        if (exitCode !== 0) {
           addMessage('error', [`Process exited with code ${exitCode}`])
         }
       } catch (error) {

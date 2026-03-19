@@ -169,7 +169,8 @@ export function Header({
         {/* Run / Stop */}
         {isRunning ? (
           <Button
-            onClick={() => stopCode?.()} data-testid="header-stop-button"
+            onClick={() => stopCode?.()}
+            data-testid='header-stop-button'
             variant='primary'
             size='sm'
             title='Stop execution'
@@ -180,13 +181,12 @@ export function Header({
               className='w-3 h-3 md:w-4 md:h-4'
               fill='currentColor'
             />
-            <span className='hidden sm:inline'>
-              Stop
-            </span>
+            <span className='hidden sm:inline'>Stop</span>
           </Button>
         ) : (
           <Button
-            onClick={async () => doRun(false)} data-testid="header-run-button"
+            onClick={async () => doRun(false)}
+            data-testid='header-run-button'
             disabled={compilerStatus !== 'ready'}
             variant='primary'
             size='sm'
@@ -198,9 +198,7 @@ export function Header({
               className='w-3 h-3 md:w-4 md:h-4'
               fill='currentColor'
             />
-            <span className='hidden sm:inline'>
-              Run
-            </span>
+            <span className='hidden sm:inline'>Run</span>
           </Button>
         )}
 
