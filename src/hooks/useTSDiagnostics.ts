@@ -19,7 +19,10 @@ export function useTSDiagnostics(
 ) {
   const [diagnostics, setDiagnostics] = useState<TSDiagnostic[]>([])
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const lastLibsRef = useRef<Record<string, string>>(EMPTY_LIBS)
+  const lastUpdateRef = useRef<{ code: string; libCount: number }>({
+    code: '',
+    libCount: 0,
+  })
 
   useEffect(() => {
     if (!isTypeScript) {
@@ -30,24 +33,32 @@ export function useTSDiagnostics(
     if (timerRef.current) globalThis.clearTimeout(timerRef.current)
 
     timerRef.current = globalThis.setTimeout(async () => {
-      if (code.length > 20_000) return
+      const libCount = Object.keys(extraLibs).length
+
+      // Basic change check
+      if (
+        lastUpdateRef.current.code === code &&
+        lastUpdateRef.current.libCount === libCount
+      ) {
+        return
+      }
+
+      if (code.length > 50_000) return
 
       try {
         await workerClient.updateFile('main.ts', code)
 
-        // Performance optimization: Only send the huge node_modules object
-        // to the worker if it actually changed (after an npm install)
-        if (lastLibsRef.current !== extraLibs) {
+        if (lastUpdateRef.current.libCount !== libCount) {
           await workerClient.updateExtraLibs(extraLibs)
-          lastLibsRef.current = extraLibs
         }
 
         const diags = await workerClient.getDiagnostics()
         setDiagnostics(diags)
+        lastUpdateRef.current = { code, libCount }
       } catch (error) {
-        console.error('Diagnostic pipeline error', error)
+        // Silent error handling for transient worker issues
       }
-    }, 250)
+    }, 400)
 
     return () => {
       if (timerRef.current) globalThis.clearTimeout(timerRef.current)

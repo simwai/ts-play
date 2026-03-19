@@ -16,12 +16,17 @@ export function useCompilerManager(
   const currentProcess = useRef<WebContainerProcess | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Use a ref for tsCode to avoid unnecessary re-creations of runCode
+  // while still having access to the latest code when it's eventually called.
+  const codeRef = useRef(tsCode)
+  useEffect(() => {
+    codeRef.current = tsCode
+  }, [tsCode])
+
   useEffect(() => {
     workerClient
       .init()
-      .then(() => {
-        setCompilerStatus('ready')
-      })
+      .then(() => setCompilerStatus('ready'))
       .catch((error) => {
         console.error('Worker init failed:', error)
         setCompilerStatus('error')
@@ -30,9 +35,7 @@ export function useCompilerManager(
 
   useEffect(() => {
     if (compilerStatus === 'ready') {
-      loadPrettier().catch(() => {
-        /* Silent */
-      })
+      loadPrettier().catch(() => {})
     }
   }, [compilerStatus])
 
@@ -55,28 +58,27 @@ export function useCompilerManager(
       onSuccess: (js: string, dts: string) => void,
       onError: (error: Error) => void
     ) => {
+      // Avoid concurrent runs
       if (isRunning) return
       setIsRunning(true)
 
       try {
-        const compiled = await workerClient.compile(tsCode)
+        const codeToCompile = codeRef.current
+        const compiled = await workerClient.compile(codeToCompile)
         onSuccess(compiled.js, compiled.dts)
 
-        await writeFiles({
-          'index.js': compiled.js,
-        })
+        await writeFiles({ 'index.js': compiled.js })
 
-        // Wait for background tasks if any
-        await Promise.race([
-          pendingInstalls,
-          new Promise((_, reject) =>
-            setTimeout(
-              () => reject(new Error('Background tasks timed out')),
-              10000
-            )
-          ),
-        ]).catch((e) => {
-          console.warn('Proceeding despite background task warning:', e.message)
+        // Wait for installations but don't block forever
+        const installTimeout = new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error('Package installation timed out')),
+            15000
+          )
+        )
+
+        await Promise.race([pendingInstalls, installTimeout]).catch((e) => {
+          console.warn('Proceeding with execution:', e.message)
         })
 
         addMessage('info', ['Executing via Node.js...'])
@@ -108,7 +110,6 @@ export function useCompilerManager(
         }
 
         currentProcess.current = null
-
         if (exitCode !== 0) {
           addMessage('error', [`Process exited with code ${exitCode}`])
         }
@@ -118,7 +119,7 @@ export function useCompilerManager(
         setIsRunning(false)
       }
     },
-    [tsCode, addMessage, isRunning]
+    [addMessage, isRunning]
   )
 
   return { compilerStatus, isRunning, runCode, stopCode }
