@@ -1,7 +1,7 @@
 import { useRef, useCallback } from 'react'
 
 function isEditorTarget(target: EventTarget | undefined | null) {
-  if (!(target instanceof HTMLElement)) return false
+  if (!(target instanceof Element)) return false
   return Boolean(target.closest('[data-testid="code-editor-container"]'))
 }
 
