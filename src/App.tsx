@@ -146,6 +146,7 @@ export function App() {
     tsCursorPos,
     checkImports,
     installQueue,
+    status,
   } = usePackageManager(tsCode, addMessage)
 
   // Global Keyboard Shortcuts (Tab Switching)
@@ -425,6 +426,7 @@ export function App() {
         compactForKeyboard={compactForKeyboard}
         lineWrap={lineWrap}
         setLineWrap={setLineWrap}
+        packageManagerStatus={status}
       />
 
       {/* ── Editors ── */}
@@ -556,6 +558,7 @@ export function App() {
         setTrueColorEnabled={setTrueColorEnabled}
         lineWrap={lineWrap}
         setLineWrap={setLineWrap}
+        packageManagerStatus={status}
       />
     </div>
   )
