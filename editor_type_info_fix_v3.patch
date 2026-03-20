@@ -1,0 +1,8 @@
+<<<<<<< SEARCH
+        console.log('Worker obtained for URI:', model.uri.toString())
+        const offset = model.getOffsetAt(position)
+=======
+        console.log('Worker obtained for URI:', model.uri.toString())
+        const offset = model.getOffsetAt(position)
+        console.log('Fetching QuickInfo at offset:', offset)
+>>>>>>> REPLACE

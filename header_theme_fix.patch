@@ -1,0 +1,45 @@
+<<<<<<< SEARCH
+        {/* Theme toggle */}
+        <IconButton
+          onClick={() => {
+            setThemeMode((m) => (m === 'mocha' ? 'latte' : 'mocha'))
+          }}
+          title={
+            themeMode === 'mocha'
+              ? 'Switch to Latte (light)'
+              : 'Switch to Mocha (dark)'
+          }
+          tooltipAlign='right'
+          variant='surface'
+          size='sm'
+        >
+          {themeMode === 'mocha' ? (
+            <Sun className='w-3 h-3 md:w-4 md:h-4' />
+          ) : (
+            <Moon className='w-3 h-3 md:w-4 md:h-4' />
+          )}
+        </IconButton>
+=======
+        {/* Theme toggle */}
+        <IconButton
+          onClick={() => {
+            setThemeMode((m) => {
+              if (m === 'mocha') return 'latte'
+              if (m === 'latte') return 'githubDark'
+              if (m === 'githubDark') return 'githubLight'
+              if (m === 'githubLight') return 'monokai'
+              return 'mocha'
+            })
+          }}
+          title='Cycle Editor Themes'
+          tooltipAlign='right'
+          variant='surface'
+          size='sm'
+        >
+          {themeMode === 'mocha' || themeMode === 'githubDark' || themeMode === 'monokai' ? (
+            <Moon className='w-3 h-3 md:w-4 md:h-4' />
+          ) : (
+            <Sun className='w-3 h-3 md:w-4 md:h-4' />
+          )}
+        </IconButton>
+>>>>>>> REPLACE

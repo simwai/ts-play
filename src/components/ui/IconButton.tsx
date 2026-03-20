@@ -32,7 +32,8 @@ export function IconButton({
   size = 'md',
   style,
   className,
-}: IconButtonProps) {
+  ...props
+}: IconButtonProps & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   const [pressed, setPressed] = useState(false)
   const [showTooltip, setShowTooltip] = useState(false)
   const touchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
@@ -72,6 +73,7 @@ export function IconButton({
 
   return (
     <button
+      {...props}
       onClick={handleClick}
       disabled={disabled}
       aria-label={title}

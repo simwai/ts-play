@@ -1,0 +1,34 @@
+<<<<<<< SEARCH
+  lineWrap: boolean
+  setLineWrap: (val: boolean) => void
+  packageManagerStatus: string
+}
+=======
+  lineWrap: boolean
+  setLineWrap: (val: boolean) => void
+  packageManagerStatus: string
+  themeMode: 'mocha' | 'latte'
+}
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+  lineWrap,
+  setLineWrap,
+  packageManagerStatus,
+}: SettingsModalProps) {
+=======
+  lineWrap,
+  setLineWrap,
+  packageManagerStatus,
+  themeMode,
+}: SettingsModalProps) {
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+                disableShortcuts={true}
+                lineWrap={lineWrap}
+              />
+=======
+                disableShortcuts={true}
+                lineWrap={lineWrap}
+                themeMode={themeMode}
+              />
+>>>>>>> REPLACE

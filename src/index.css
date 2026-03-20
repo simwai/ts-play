@@ -215,15 +215,4 @@
   animation: gradient-x 3s ease infinite;
 }
 
-.code-editor textarea {
-  -webkit-text-fill-color: transparent !important;
-  overflow-wrap: break-word !important;
-  word-break: break-word !important;
-}
 
-.code-editor pre,
-.code-editor textarea,
-.code-editor div {
-  font-variant-ligatures: none !important;
-  font-feature-settings: 'liga' 0 !important;
-}

@@ -1,0 +1,9 @@
+<<<<<<< SEARCH
+  const [themeMode, setThemeMode] = useState<ThemeMode>('mocha')
+
+  useEffect(() => {
+=======
+  const [themeMode, setThemeMode] = useLocalStorage<ThemeMode>('tsplay_theme', 'mocha')
+
+  useEffect(() => {
+>>>>>>> REPLACE

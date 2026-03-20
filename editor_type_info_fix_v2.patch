@@ -1,0 +1,8 @@
+<<<<<<< SEARCH
+        const workerGetter = await monaco.languages.typescript.getTypeScriptWorker()
+        const worker = await workerGetter(model.uri)
+=======
+        const workerGetter = await monaco.languages.typescript.getTypeScriptWorker()
+        const worker = await workerGetter(model.uri)
+        console.log('Worker obtained for URI:', model.uri.toString())
+>>>>>>> REPLACE

@@ -1,0 +1,12 @@
+<<<<<<< SEARCH
+        setLineWrap={setLineWrap}
+        packageManagerStatus={status}
+        themeMode={themeMode}
+      />
+=======
+        setLineWrap={setLineWrap}
+        packageManagerStatus={status}
+        themeMode={themeMode}
+        setThemeMode={setThemeMode}
+      />
+>>>>>>> REPLACE

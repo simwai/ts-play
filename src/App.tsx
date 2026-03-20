@@ -53,7 +53,7 @@ console.log("Mapped:", map([1, 2, 3], x => x * 2));
 `
 
 export function App() {
-  const [themeMode, setThemeMode] = useState<ThemeMode>('mocha')
+  const [themeMode, setThemeMode] = useLocalStorage<ThemeMode>('tsplay_theme', 'mocha')
 
   useEffect(() => {
     if (themeMode === 'mocha') document.documentElement.classList.add('dark')
@@ -93,6 +93,7 @@ export function App() {
   const [showSettings, setShowSettings] = useState(false)
 
   const [packageManagerOpen, setPackageManagerOpen] = useState(false)
+  const [typeInfo, setTypeInfo] = useState('')
   const { keyboardOpen, isMobileLike } = useVirtualKeyboard()
   const compactForKeyboard = keyboardOpen && isMobileLike
 
@@ -279,7 +280,13 @@ export function App() {
   }, [tsCode, jsCode, installedPackages, addMessage])
 
   return (
-    <div className='flex flex-col h-[100dvh] bg-base text-text font-sans overflow-hidden'>
+    <div
+      ref={swipeRef}
+      className='flex flex-col h-[100dvh] bg-base text-text font-sans overflow-hidden'
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -326,13 +333,7 @@ export function App() {
         packageManagerStatus={status}
       />
 
-      <div
-        ref={swipeRef}
-        className='flex-1 overflow-hidden relative min-h-0'
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-      >
+      <div className='flex-1 overflow-hidden relative min-h-0'>
         <div
           className='flex w-[300%] h-full transition-transform duration-300 ease-in-out will-change-transform'
           style={{
@@ -350,9 +351,12 @@ export function App() {
               value={tsCode}
               onChange={setTsCode}
               onCursorChange={onTsCursorChange}
+              onTypeInfoChange={setTypeInfo}
               language='typescript'
               extraLibs={packageTypings}
               isMobileLike={isMobileLike}
+              themeMode={themeMode}
+              lineWrap={lineWrap}
             />
           </div>
           <div className='w-[33.333%] h-full shrink-0'>
@@ -362,6 +366,8 @@ export function App() {
               onChange={handleJsChange}
               language='javascript'
               isMobileLike={isMobileLike}
+              themeMode={themeMode}
+              lineWrap={lineWrap}
             />
           </div>
           <div className='w-[33.333%] h-full shrink-0'>
@@ -372,10 +378,18 @@ export function App() {
               language='typescript'
               readOnly={true}
               isMobileLike={isMobileLike}
+              themeMode={themeMode}
+              lineWrap={lineWrap}
             />
           </div>
         </div>
       </div>
+
+      {activeTab === 'ts' && typeInfo && !compactForKeyboard && (
+        <div className='px-4 py-1 bg-mantle border-t border-surface0 text-xxs font-mono text-mauve truncate shrink-0'>
+          {typeInfo}
+        </div>
+      )}
 
       {!compactForKeyboard && (consoleOpen || packageManagerOpen) && (
         <div
@@ -423,6 +437,8 @@ export function App() {
         lineWrap={lineWrap}
         setLineWrap={setLineWrap}
         packageManagerStatus={status}
+        themeMode={themeMode}
+        setThemeMode={setThemeMode}
       />
     </div>
   )
