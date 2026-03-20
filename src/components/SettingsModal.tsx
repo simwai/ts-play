@@ -5,6 +5,7 @@ import { workerClient } from '../lib/workerClient'
 import { formatJson } from '../lib/formatter'
 import { DEFAULT_TSCONFIG } from '../lib/constants'
 import { CodeEditor } from './CodeEditor'
+import { DARK_THEMES, LIGHT_THEMES, isDarkMode } from '../lib/theme'
 
 type SettingsModalProps = {
   isOpen: boolean
@@ -128,10 +129,11 @@ export function SettingsModal({
         <div className='p-6 flex flex-col gap-6 overflow-y-auto min-h-0'>
           <div className='flex flex-col gap-4'>
             <div className='flex flex-col gap-2'>
-              <label className='text-sm font-bold text-subtext0'>
+              <label htmlFor='ts-version' className='text-sm font-bold text-subtext0'>
                 TypeScript Version
               </label>
               <select
+                id='ts-version'
                 disabled
                 className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none opacity-60 cursor-not-allowed'
               >
@@ -143,10 +145,11 @@ export function SettingsModal({
             </div>
 
             <div className='flex items-center justify-between'>
-              <label className='text-sm font-bold text-subtext0'>
+              <label htmlFor='ansi-toggle' className='text-sm font-bold text-subtext0'>
                 Interpret ANSI Escapes
               </label>
               <input
+                id='ansi-toggle'
                 type='checkbox'
                 checked={trueColorEnabled}
                 onChange={(e) => setTrueColorEnabled(e.target.checked)}
@@ -156,10 +159,11 @@ export function SettingsModal({
             </div>
 
             <div className='flex items-center justify-between'>
-              <label className='text-sm font-bold text-subtext0'>
+              <label htmlFor='wrap-toggle' className='text-sm font-bold text-subtext0'>
                 Line Wrapping
               </label>
               <input
+                id='wrap-toggle'
                 type='checkbox'
                 checked={lineWrap}
                 onChange={(e) => setLineWrap(e.target.checked)}
@@ -169,28 +173,36 @@ export function SettingsModal({
             </div>
 
             <div className='flex flex-col gap-2'>
-              <label className='text-sm font-bold text-subtext0'>
+              <label htmlFor='theme-select' className='text-sm font-bold text-subtext0'>
                 Editor Theme
               </label>
               <select
+                id='theme-select'
                 value={themeMode}
                 onChange={(e) => setThemeMode(e.target.value)}
                 className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none focus:border-mauve transition-colors'
               >
-                <option value='mocha'>Catppuccin Mocha</option>
-                <option value='latte'>Catppuccin Latte</option>
-                <option value='githubDark'>GitHub Dark</option>
-                <option value='githubLight'>GitHub Light</option>
-                <option value='monokai'>Monokai</option>
+                {isDarkMode(themeMode as any) ? (
+                  <>
+                    <option value='mocha'>Catppuccin Mocha</option>
+                    <option value='githubDark'>GitHub Dark</option>
+                    <option value='monokai'>Monokai</option>
+                  </>
+                ) : (
+                  <>
+                    <option value='latte'>Catppuccin Latte</option>
+                    <option value='githubLight'>GitHub Light</option>
+                  </>
+                )}
               </select>
             </div>
           </div>
 
           <div className='flex flex-col gap-2'>
-            <label className='text-sm font-bold text-subtext0'>
+            <label htmlFor='tsconfig-editor' className='text-sm font-bold text-subtext0'>
               tsconfig.json
             </label>
-            <div className='border border-surface1 rounded-md overflow-hidden bg-base focus-within:border-mauve transition-colors h-48 md:h-64 shrink-0'>
+            <div id='tsconfig-editor' className='border border-surface1 rounded-md overflow-hidden bg-base focus-within:border-mauve transition-colors h-48 md:h-64 shrink-0'>
               <CodeEditor
                 language='json'
                 value={temporaryTsConfig}
@@ -215,20 +227,24 @@ export function SettingsModal({
           </div>
         </div>
 
-        <div className='flex flex-col gap-3 px-6 py-4 border-t border-surface0 bg-base shrink-0 items-center'>
-          <div className='flex gap-3 w-full justify-center'>
+        <div className='flex flex-col gap-2.5 px-6 py-4 border-t border-surface0 bg-base shrink-0 items-center'>
+          <div className='flex gap-2.5 w-full justify-center'>
             <Button
               onClick={onClose}
               variant='secondary'
+              size='sm'
               data-testid='settings-cancel-button'
+              className='md:h-9 md:px-4'
             >
               Cancel
             </Button>
             <Button
               onClick={handleSave}
               variant='primary'
+              size='sm'
               disabled={!isValid || isFormatting}
               data-testid='settings-save-button'
+              className='md:h-9 md:px-4'
             >
               {isFormatting ? 'Saving...' : 'Save Changes'}
             </Button>
@@ -236,8 +252,8 @@ export function SettingsModal({
           <Button
             onClick={() => setTemporaryTsConfig(DEFAULT_TSCONFIG)}
             variant='danger'
-            size='sm'
-            className='text-red hover:bg-red/10'
+            size='xs'
+            className='text-red hover:bg-red/10 md:h-7 md:px-3'
           >
             Reset to Default tsconfig
           </Button>
