@@ -170,14 +170,17 @@
     @apply bg-crust text-text m-0 overflow-hidden;
   }
 
+
   /* Force JetBrains Mono for italics strictly */
   i,
   em,
   .italic,
+  .mtki,
   .mtk-italic {
     font-family: 'JetBrains Mono', monospace !important;
     font-style: italic;
   }
+
 
   /* Custom Scrollbar & Resizer */
   ::-webkit-scrollbar {

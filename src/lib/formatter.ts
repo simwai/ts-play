@@ -22,7 +22,7 @@ async function formatCode(
     useTabs: false,
     semi: true,
     singleQuote: true,
-    trailingComma: 'es5',
+    trailingComma: 'all',
     bracketSpacing: true,
     arrowParens: 'always',
   })

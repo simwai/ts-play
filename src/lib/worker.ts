@@ -80,9 +80,18 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
             sourcefile: 'main.ts',
           },
         })
+
+        const lines = payload.code.split('\n');
+        const dtsLines = lines.filter(l =>
+          l.trim().startsWith('export ') ||
+          l.trim().startsWith('interface ') ||
+          l.trim().startsWith('type ') ||
+          l.trim().startsWith('declare ')
+        );
+
         result = {
           js: compiled.outputFiles?.[0]?.text || '',
-          dts: generateAmbientDeclarations(payload.code),
+          dts: dtsLines.join('\n') || '// No declarations found',
         }
         break
       }
