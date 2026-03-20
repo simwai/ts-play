@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Save } from 'lucide-react'
 import { Button } from './ui/Button'
 import { IconButton } from './ui/IconButton'
 import { workerClient } from '../lib/workerClient'
@@ -228,7 +229,7 @@ export function SettingsModal({
         </div>
 
         <div className='flex flex-col gap-2.5 px-6 py-4 border-t border-surface0 bg-base shrink-0 items-center'>
-          <div className='flex gap-2.5 w-full justify-center'>
+          <div className='flex flex-wrap gap-2 justify-center w-full'>
             <Button
               onClick={onClose}
               variant='secondary'
@@ -243,20 +244,21 @@ export function SettingsModal({
               variant='primary'
               size='sm'
               disabled={!isValid || isFormatting}
+              aria-label='Save Changes'
               data-testid='settings-save-button'
               className='md:h-9 md:px-4'
             >
-              {isFormatting ? 'Saving...' : 'Save Changes'}
+              {isFormatting ? 'Saving...' : <Save size={18} />}
+            </Button>
+            <Button
+              onClick={() => setTemporaryTsConfig(DEFAULT_TSCONFIG)}
+              variant='danger'
+              size='sm'
+              className='text-red hover:bg-red/10 md:h-9 md:px-4'
+            >
+              Reset
             </Button>
           </div>
-          <Button
-            onClick={() => setTemporaryTsConfig(DEFAULT_TSCONFIG)}
-            variant='danger'
-            size='xs'
-            className='text-red hover:bg-red/10 md:h-7 md:px-3'
-          >
-            Reset to Default tsconfig
-          </Button>
         </div>
 
         <div className='px-6 py-4 border-t border-surface0 bg-mantle flex flex-col items-center gap-2 shrink-0'>
