@@ -1,5 +1,5 @@
 import { type CSSProperties, type ReactNode, useState, useRef } from 'react'
-import { cn } from '../../utils/cn'
+import { cn } from '../../lib/utils'
 
 type Size = 'xs' | 'sm' | 'md' | 'lg'
 
