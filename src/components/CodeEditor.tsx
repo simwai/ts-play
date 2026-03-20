@@ -52,6 +52,7 @@ export const CodeEditor = React.memo(
       lineWrap = false,
       hideTypeInfo = false,
       themeMode = 'mocha',
+      path,
     } = props
 
     const monaco = useMonaco()
