@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import { IconButton } from './ui/IconButton'
 import { Button } from './ui/Button'
-import type { ThemeMode } from '../lib/theme'
+import { type ThemeMode, DARK_THEMES, LIGHT_THEMES, isDarkMode } from '../lib/theme'
 import { TABS, type TabType } from '../lib/constants'
 
 type HeaderProps = {
@@ -88,22 +88,20 @@ export function Header({
         <IconButton
           onClick={() => {
             setThemeMode((m) => {
-              if (m === 'mocha') return 'latte'
-              if (m === 'latte') return 'githubDark'
-              if (m === 'githubDark') return 'githubLight'
-              if (m === 'githubLight') return 'monokai'
-              return 'mocha'
+              const currentIsDark = isDarkMode(m)
+              const oppositeThemes = currentIsDark ? LIGHT_THEMES : DARK_THEMES
+              return oppositeThemes[0]
             })
           }}
-          title='Cycle Editor Themes'
+          title={isDarkMode(themeMode) ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           tooltipAlign='right'
           variant='surface'
           size='sm'
         >
-          {themeMode === 'mocha' || themeMode === 'githubDark' || themeMode === 'monokai' ? (
-            <Moon className='w-3 h-3 md:w-4 md:h-4' />
-          ) : (
+          {isDarkMode(themeMode) ? (
             <Sun className='w-3 h-3 md:w-4 md:h-4' />
+          ) : (
+            <Moon className='w-3 h-3 md:w-4 md:h-4' />
           )}
         </IconButton>
 

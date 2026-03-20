@@ -1,0 +1,61 @@
+<<<<<<< SEARCH
+        <div className='flex flex-col gap-3 px-6 py-4 border-t border-surface0 bg-base shrink-0 items-center'>
+          <div className='flex gap-3 w-full justify-center'>
+            <Button
+              onClick={onClose}
+              variant='secondary'
+              data-testid='settings-cancel-button'
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              variant='primary'
+              disabled={!isValid || isFormatting}
+              data-testid='settings-save-button'
+            >
+              {isFormatting ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
+          <Button
+            onClick={() => setTemporaryTsConfig(DEFAULT_TSCONFIG)}
+            variant='danger'
+            size='sm'
+            className='text-red hover:bg-red/10'
+          >
+            Reset to Default tsconfig
+          </Button>
+        </div>
+=======
+        <div className='flex flex-col gap-2.5 px-6 py-4 border-t border-surface0 bg-base shrink-0 items-center'>
+          <div className='flex gap-2.5 w-full justify-center'>
+            <Button
+              onClick={onClose}
+              variant='secondary'
+              size='sm'
+              data-testid='settings-cancel-button'
+              className='md:h-9 md:px-4'
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              variant='primary'
+              size='sm'
+              disabled={!isValid || isFormatting}
+              data-testid='settings-save-button'
+              className='md:h-9 md:px-4'
+            >
+              {isFormatting ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
+          <Button
+            onClick={() => setTemporaryTsConfig(DEFAULT_TSCONFIG)}
+            variant='danger'
+            size='xs'
+            className='text-red hover:bg-red/10 md:h-7 md:px-3'
+          >
+            Reset to Default tsconfig
+          </Button>
+        </div>
+>>>>>>> REPLACE

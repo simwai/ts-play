@@ -55,6 +55,7 @@ export const CodeEditor = React.memo(
 
     const monaco = useMonaco()
     const editorRef = useRef<any>(null)
+    const fetchTypeInfoRef = useRef<any>(null)
 
     React.useImperativeHandle(ref, () => ({
       undo: () => editorRef.current?.trigger('keyboard', 'undo', null),
@@ -139,6 +140,10 @@ export const CodeEditor = React.memo(
       }
     }, [monaco, onTypeInfoChange, language])
 
+    useEffect(() => {
+      fetchTypeInfoRef.current = fetchTypeInfo
+    })
+
     const handleEditorDidMount: OnMount = (editor) => {
       editorRef.current = editor
       editor.onDidChangeCursorPosition((e: any) => {
@@ -147,7 +152,7 @@ export const CodeEditor = React.memo(
           const offset = model.getOffsetAt(e.position)
           onCursorChange?.(offset)
         }
-        fetchTypeInfo(editor, e.position)
+        fetchTypeInfoRef.current?.(editor, e.position)
       })
     }
 

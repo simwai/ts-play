@@ -1,0 +1,48 @@
+<<<<<<< SEARCH
+import { workerClient } from '../lib/workerClient'
+import { formatJson } from '../lib/formatter'
+import { DEFAULT_TSCONFIG } from '../lib/constants'
+import { CodeEditor } from './CodeEditor'
+
+type SettingsModalProps = {
+=======
+import { workerClient } from '../lib/workerClient'
+import { formatJson } from '../lib/formatter'
+import { DEFAULT_TSCONFIG } from '../lib/constants'
+import { CodeEditor } from './CodeEditor'
+import { DARK_THEMES, LIGHT_THEMES, isDarkMode } from '../lib/theme'
+
+type SettingsModalProps = {
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+              <select
+                value={themeMode}
+                onChange={(e) => setThemeMode(e.target.value)}
+                className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none focus:border-mauve transition-colors'
+              >
+                <option value='mocha'>Catppuccin Mocha</option>
+                <option value='latte'>Catppuccin Latte</option>
+                <option value='githubDark'>GitHub Dark</option>
+                <option value='githubLight'>GitHub Light</option>
+                <option value='monokai'>Monokai</option>
+              </select>
+=======
+              <select
+                value={themeMode}
+                onChange={(e) => setThemeMode(e.target.value)}
+                className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none focus:border-mauve transition-colors'
+              >
+                {isDarkMode(themeMode as any) ? (
+                  <>
+                    <option value='mocha'>Catppuccin Mocha</option>
+                    <option value='githubDark'>GitHub Dark</option>
+                    <option value='monokai'>Monokai</option>
+                  </>
+                ) : (
+                  <>
+                    <option value='latte'>Catppuccin Latte</option>
+                    <option value='githubLight'>GitHub Light</option>
+                  </>
+                )}
+              </select>
+>>>>>>> REPLACE
