@@ -353,6 +353,7 @@ export function App() {
               onCursorChange={onTsCursorChange}
               onTypeInfoChange={setTypeInfo}
               language='typescript'
+              path='index.ts'
               extraLibs={packageTypings}
               isMobileLike={isMobileLike}
               themeMode={themeMode}
@@ -365,6 +366,7 @@ export function App() {
               value={jsCode}
               onChange={handleJsChange}
               language='javascript'
+              path='index.js'
               isMobileLike={isMobileLike}
               themeMode={themeMode}
               lineWrap={lineWrap}
@@ -376,6 +378,7 @@ export function App() {
               value={dtsCode}
               onChange={setDtsCode}
               language='typescript'
+              path='index.d.ts'
               readOnly={true}
               isMobileLike={isMobileLike}
               themeMode={themeMode}

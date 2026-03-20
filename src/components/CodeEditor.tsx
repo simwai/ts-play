@@ -21,6 +21,7 @@ type CodeEditorProps = {
   hideTypeInfo?: boolean
   disableShortcuts?: boolean
   themeMode?: string
+  path?: string
 }
 
 export type CodeEditorHandle = {
@@ -253,6 +254,7 @@ export const CodeEditor = React.memo(
           value={value}
           onChange={(v) => onChange?.(v || '')}
           onMount={handleEditorDidMount}
+          path={path}
           options={editorOptions}
           theme={themeMode}
         />

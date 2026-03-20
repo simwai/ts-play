@@ -210,6 +210,7 @@ export function SettingsModal({
                 onChange={setTemporaryTsConfig}
                 hideGutter={false}
                 hideTypeInfo={true}
+                path='tsconfig.json'
                 fontSizeOverride={12}
                 disableAutocomplete={true}
                 disableDiagnostics={true}
