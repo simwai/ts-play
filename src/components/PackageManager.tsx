@@ -35,7 +35,7 @@ export const PackageManager = React.memo(function PackageManager({
 
       {isOpen && (
         <div
-          className='overflow-y-auto overflow-x-hidden border-t border-surface0 p-4 flex flex-col gap-4 box-border overscroll-contain touch-pan-y'
+          className='overflow-y-auto overflow-x-hidden border-t border-surface0 p-4 flex flex-col gap-4 box-border overscroll-none touch-pan-y'
           style={{ height: `${contentHeight}rem` }}
         >
           {packages.length > 0 ? (

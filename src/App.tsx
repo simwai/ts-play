@@ -384,7 +384,7 @@ export function App() {
   }, [activeTab])
 
   return (
-    <div className='flex flex-col h-[100dvh] bg-base text-text font-sans overflow-hidden'>
+    <div className='flex flex-col h-full bg-base text-text font-sans overflow-hidden overscroll-none'>
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -419,7 +419,7 @@ export function App() {
       {/* ── Editors ── */}
       <div
         ref={swipeRef}
-        className='flex-1 overflow-hidden relative min-h-0'
+        className='flex-1 overflow-hidden relative min-h-0 overscroll-none touch-pan-y'
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}

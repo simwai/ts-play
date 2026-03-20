@@ -492,7 +492,7 @@ export const CodeEditor = React.memo(
         <div
           ref={scrollContainerRef}
           onScroll={synchronizeScroll}
-          className='flex-1 overflow-y-auto overflow-x-hidden flex min-h-0 bg-base overscroll-contain touch-pan-y'
+          className='flex-1 overflow-y-auto overflow-x-hidden flex min-h-0 bg-base overscroll-none touch-pan-y'
         >
           <div
             ref={lineGutterRef}

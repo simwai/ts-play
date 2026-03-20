@@ -1,7 +1,7 @@
 import React from 'react'
 import { type TypeInfo } from '../../hooks/useTypeInfo'
 import { type TSDiagnostic } from '../../hooks/useTSDiagnostics'
-import { buildHtml, escapeHtml } from '../../lib/editor-utils'
+import { buildHtml } from '../../lib/editor-utils'
 
 type TypeInfoBarProps = {
   typeInfo: TypeInfo | undefined
@@ -10,12 +10,21 @@ type TypeInfoBarProps = {
   gutterW: number
 }
 
-function renderWithLinksAndHighlight(text: string) {
-  // Regex to match markdown links, raw URLs, or inline code snippets in backticks
-  const regex = /(\[[^\]]+]\(https?:\/\/[^\s)]+\)|https?:\/\/[^\s)]+|`[^`]+`)/g
+function highlightJsDocTags(text: string) {
+  // Regex to match @tag, [markdown links](urls), raw URLs, or inline code snippets in backticks
+  const regex = /(@\w+|\[[^\]]+]\(https?:\/\/[^\s)]+\)|https?:\/\/[^\s)]+|`[^`]+`)/g
   const parts = text.split(regex)
 
   return parts.map((part, i) => {
+    // JSDoc Tag: @param, @returns, etc.
+    if (part.startsWith('@')) {
+      return (
+        <span key={i} className='text-mauve font-bold'>
+          {part}
+        </span>
+      )
+    }
+
     // Markdown link: [text](url)
     const mdMatch = /^\[([^\]]+)]\((https?:\/\/[^\s)]+)\)$/.exec(part)
     if (mdMatch) {
@@ -82,7 +91,7 @@ export function TypeInfoBar({
 
   return (
     <div
-      className='shrink-0 bg-mantle border-t border-surface0 py-2 pr-4 overflow-y-auto max-h-32 min-h-8 box-border pointer-events-auto text-xxs md:text-xs font-mono'
+      className='shrink-0 bg-mantle border-t border-surface0 py-2 pr-4 overflow-y-auto max-h-32 min-h-8 box-border pointer-events-auto text-xxs md:text-xs font-mono overscroll-none touch-pan-y'
       style={{ paddingLeft: gutterW + 16 }}
     >
       {hasDiag && activeDiag && <DiagRow diag={activeDiag} />}
@@ -141,7 +150,7 @@ function TypeRow({ info }: { info: TypeInfo }) {
 
       {info.jsDoc && (
         <div className='text-overlay1 text-xxs md:text-xs italic whitespace-pre-wrap wrap-break-word leading-relaxed pl-2 border-l-2 border-surface1'>
-          {renderWithLinksAndHighlight(info.jsDoc)}
+          {highlightJsDocTags(info.jsDoc)}
         </div>
       )}
 

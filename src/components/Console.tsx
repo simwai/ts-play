@@ -104,7 +104,7 @@ export const Console = React.memo(function Console({
 
       {isOpen && (
         <div
-          className='overflow-y-auto overflow-x-hidden border-t border-surface0 overscroll-contain touch-pan-y'
+          className='overflow-y-auto overflow-x-hidden border-t border-surface0 overscroll-none touch-pan-y'
           style={{ height: `${contentHeight}rem` }}
         >
           {messages.length === 0 ? (
