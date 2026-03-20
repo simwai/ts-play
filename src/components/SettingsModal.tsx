@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Save } from 'lucide-react'
 import { Button } from './ui/Button'
 import { IconButton } from './ui/IconButton'
 import { workerClient } from '../lib/workerClient'
@@ -243,10 +244,11 @@ export function SettingsModal({
               variant='primary'
               size='sm'
               disabled={!isValid || isFormatting}
+              aria-label='Save Changes'
               data-testid='settings-save-button'
               className='md:h-9 md:px-4'
             >
-              {isFormatting ? 'Saving...' : 'Save Changes'}
+              {isFormatting ? 'Saving...' : <Save size={18} />}
             </Button>
             <Button
               onClick={() => setTemporaryTsConfig(DEFAULT_TSCONFIG)}
