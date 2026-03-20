@@ -1,0 +1,20 @@
+<<<<<<< SEARCH
+      editor.onDidChangeCursorPosition((e: any) => {
+        const model = editor.getModel()
+        if (model) {
+          const offset = model.getOffsetAt(e.position)
+          onCursorChange?.(offset)
+        }
+        fetchTypeInfo(editor, e.position)
+      })
+=======
+      editor.onDidChangeCursorPosition((e: any) => {
+        console.log('Cursor position changed:', e.position.lineNumber, e.position.column)
+        const model = editor.getModel()
+        if (model) {
+          const offset = model.getOffsetAt(e.position)
+          onCursorChange?.(offset)
+        }
+        fetchTypeInfo(editor, e.position)
+      })
+>>>>>>> REPLACE

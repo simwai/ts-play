@@ -1,0 +1,10 @@
+<<<<<<< SEARCH
+        contextmenu: false,
+        theme: themeMode,
+        suggest: {
+=======
+        contextmenu: false,
+        domReadOnly: isMobileLike,
+        theme: themeMode,
+        suggest: {
+>>>>>>> REPLACE

@@ -1,0 +1,27 @@
+<<<<<<< SEARCH
+        console.log('Worker obtained for URI:', model.uri.toString())
+        const offset = model.getOffsetAt(position)
+        console.log('Fetching QuickInfo at offset:', offset)
+        const info = await worker.getQuickInfoAtPosition(model.uri.toString(), offset)
+
+        if (info && info.displayParts) {
+          const text = info.displayParts.map((p: any) => p.text).join('')
+          onTypeInfoChange(text)
+        } else {
+          onTypeInfoChange('')
+        }
+=======
+        console.log('Worker obtained for URI:', model.uri.toString())
+        const offset = model.getOffsetAt(position)
+        console.log('Fetching QuickInfo at offset:', offset)
+        const info = await worker.getQuickInfoAtPosition(model.uri.toString(), offset)
+        console.log('QuickInfo result:', info)
+
+        if (info && info.displayParts) {
+          const text = info.displayParts.map((p: any) => p.text).join('')
+          console.log('Calculated type info text:', text)
+          onTypeInfoChange(text)
+        } else {
+          onTypeInfoChange('')
+        }
+>>>>>>> REPLACE

@@ -23,6 +23,7 @@
     "esbuild-wasm": "^0.23.1",
     "husky": "^9.1.7",
     "lucide-react": "^0.577.0",
+    "monaco-editor": "^0.55.1",
     "prettier": "^3.8.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",

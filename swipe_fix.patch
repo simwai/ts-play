@@ -1,0 +1,28 @@
+<<<<<<< SEARCH
+  return (
+    <div className='flex flex-col h-[100dvh] bg-base text-text font-sans overflow-hidden'>
+      <Header
+        activeTab={activeTab}
+=======
+  return (
+    <div
+      ref={swipeRef}
+      className='flex flex-col h-[100dvh] bg-base text-text font-sans overflow-hidden'
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
+      <Header
+        activeTab={activeTab}
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+      <div
+        ref={swipeRef}
+        className='flex-1 overflow-hidden relative min-h-0'
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+=======
+      <div className='flex-1 overflow-hidden relative min-h-0'>
+>>>>>>> REPLACE

@@ -1,0 +1,92 @@
+<<<<<<< SEARCH
+  const [packageManagerOpen, setPackageManagerOpen] = useState(false)
+  const { keyboardOpen, isMobileLike } = useVirtualKeyboard()
+=======
+  const [packageManagerOpen, setPackageManagerOpen] = useState(false)
+  const [typeInfo, setTypeInfo] = useState('')
+  const { keyboardOpen, isMobileLike } = useVirtualKeyboard()
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+          <div className='w-[33.333%] h-full shrink-0'>
+            <CodeEditor
+              ref={tsEditorRef}
+              value={tsCode}
+              onChange={setTsCode}
+              onCursorChange={onTsCursorChange}
+              language='typescript'
+              extraLibs={packageTypings}
+              isMobileLike={isMobileLike}
+            />
+          </div>
+          <div className='w-[33.333%] h-full shrink-0'>
+            <CodeEditor
+              ref={jsEditorRef}
+              value={jsCode}
+              onChange={handleJsChange}
+              language='javascript'
+              isMobileLike={isMobileLike}
+            />
+          </div>
+          <div className='w-[33.333%] h-full shrink-0'>
+            <CodeEditor
+              ref={dtsEditorRef}
+              value={dtsCode}
+              onChange={setDtsCode}
+              language='typescript'
+              readOnly={true}
+              isMobileLike={isMobileLike}
+            />
+          </div>
+        </div>
+      </div>
+
+      {!compactForKeyboard && (consoleOpen || packageManagerOpen) && (
+=======
+          <div className='w-[33.333%] h-full shrink-0'>
+            <CodeEditor
+              ref={tsEditorRef}
+              value={tsCode}
+              onChange={setTsCode}
+              onCursorChange={onTsCursorChange}
+              onTypeInfoChange={setTypeInfo}
+              language='typescript'
+              extraLibs={packageTypings}
+              isMobileLike={isMobileLike}
+              themeMode={themeMode}
+              lineWrap={lineWrap}
+            />
+          </div>
+          <div className='w-[33.333%] h-full shrink-0'>
+            <CodeEditor
+              ref={jsEditorRef}
+              value={jsCode}
+              onChange={handleJsChange}
+              language='javascript'
+              isMobileLike={isMobileLike}
+              themeMode={themeMode}
+              lineWrap={lineWrap}
+            />
+          </div>
+          <div className='w-[33.333%] h-full shrink-0'>
+            <CodeEditor
+              ref={dtsEditorRef}
+              value={dtsCode}
+              onChange={setDtsCode}
+              language='typescript'
+              readOnly={true}
+              isMobileLike={isMobileLike}
+              themeMode={themeMode}
+              lineWrap={lineWrap}
+            />
+          </div>
+        </div>
+      </div>
+
+      {activeTab === 'ts' && typeInfo && !compactForKeyboard && (
+        <div className='px-4 py-1 bg-mantle border-t border-surface0 text-xxs font-mono text-mauve truncate shrink-0'>
+          {typeInfo}
+        </div>
+      )}
+
+      {!compactForKeyboard && (consoleOpen || packageManagerOpen) && (
+>>>>>>> REPLACE

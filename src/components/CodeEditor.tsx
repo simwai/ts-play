@@ -1,11 +1,13 @@
-import React, { useEffect, useRef, useMemo } from 'react'
+import React, { useEffect, useRef, useMemo, useCallback } from 'react'
 import Editor, { useMonaco, type OnMount } from '@monaco-editor/react'
 import { cn } from '../lib/utils'
+import { mocha, latte, githubDark, githubLight, monokai } from '../lib/monaco-themes'
 
 type CodeEditorProps = {
   value: string
   onChange?: (value: string) => void
   onCursorChange?: (offset: number) => void
+  onTypeInfoChange?: (info: string) => void
   language?: 'typescript' | 'javascript' | 'json'
   readOnly?: boolean
   extraLibs?: Record<string, string>
@@ -18,6 +20,7 @@ type CodeEditorProps = {
   lineWrap?: boolean
   hideTypeInfo?: boolean
   disableShortcuts?: boolean
+  themeMode?: string
 }
 
 export type CodeEditorHandle = {
@@ -35,6 +38,7 @@ export const CodeEditor = React.memo(
       value,
       onChange,
       onCursorChange,
+      onTypeInfoChange,
       language = 'typescript',
       readOnly = false,
       extraLibs,
@@ -46,6 +50,7 @@ export const CodeEditor = React.memo(
       disableDiagnostics = false,
       lineWrap = false,
       hideTypeInfo = false,
+      themeMode = 'mocha',
     } = props
 
     const monaco = useMonaco()
@@ -59,6 +64,12 @@ export const CodeEditor = React.memo(
 
     useEffect(() => {
       if (!monaco) return
+
+      monaco.editor.defineTheme('mocha', mocha)
+      monaco.editor.defineTheme('latte', latte)
+      monaco.editor.defineTheme('githubDark', githubDark)
+      monaco.editor.defineTheme('githubLight', githubLight)
+      monaco.editor.defineTheme('monokai', monokai)
 
       const tsDefaults = monaco.languages.typescript.typescriptDefaults
       const jsDefaults = monaco.languages.typescript.javascriptDefaults
@@ -101,6 +112,33 @@ export const CodeEditor = React.memo(
       jsDefaults.setCompilerOptions(options as any)
     }, [monaco, extraLibs, disableDiagnostics])
 
+    const fetchTypeInfo = useCallback(async (editor: any, position: any) => {
+      if (!monaco || !onTypeInfoChange || language !== 'typescript') return
+
+      try {
+        const model = editor.getModel()
+        if (!model) return
+
+        const workerGetter = await monaco.languages.typescript.getTypeScriptWorker()
+        const worker = await workerGetter(model.uri)
+        const offset = model.getOffsetAt(position)
+        const info = await worker.getQuickInfoAtPosition(model.uri.toString(), offset)
+
+        if (info && info.displayParts) {
+          const text = info.displayParts.map((p: any) => p.text).join('')
+          onTypeInfoChange(text)
+        } else {
+          onTypeInfoChange('')
+        }
+      } catch (err) {
+        // Only log error if not 'worker not found' which can happen during re-mounts
+        if (!String(err).includes('worker')) {
+          console.error('Failed to fetch type info:', err)
+        }
+        onTypeInfoChange('')
+      }
+    }, [monaco, onTypeInfoChange, language])
+
     const handleEditorDidMount: OnMount = (editor) => {
       editorRef.current = editor
       editor.onDidChangeCursorPosition((e: any) => {
@@ -109,6 +147,7 @@ export const CodeEditor = React.memo(
           const offset = model.getOffsetAt(e.position)
           onCursorChange?.(offset)
         }
+        fetchTypeInfo(editor, e.position)
       })
     }
 
@@ -130,15 +169,17 @@ export const CodeEditor = React.memo(
         lineNumbersMinChars: hideGutter ? 0 : 3,
         padding: { top: 8, bottom: 8 },
         fixedOverflowWidgets: true,
-        theme: 'vs-dark',
+        contextmenu: false,
+        theme: themeMode,
         suggest: {
           showWords: false,
-          enabled: !disableAutocomplete && !isMobileLike,
+          enabled: !disableAutocomplete,
         },
         hover: {
           enabled: !hideTypeInfo,
         },
         renderLineHighlight: 'all' as const,
+        renderLineHighlightOnlyWhenFocus: false,
         bracketPairColorization: { enabled: true },
         guides: { indentation: true },
         overviewRulerLanes: 0,
@@ -159,6 +200,7 @@ export const CodeEditor = React.memo(
         disableAutocomplete,
         isMobileLike,
         hideTypeInfo,
+        themeMode,
       ]
     )
 
@@ -183,7 +225,7 @@ export const CodeEditor = React.memo(
           onChange={(v) => onChange?.(v || '')}
           onMount={handleEditorDidMount}
           options={editorOptions}
-          theme='vs-dark'
+          theme={themeMode}
         />
       </div>
     )

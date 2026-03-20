@@ -1,0 +1,31 @@
+<<<<<<< SEARCH
+      editor.onDidChangeCursorPosition((e: any) => {
+        console.log('Cursor position changed:', e.position.lineNumber, e.position.column)
+        const model = editor.getModel()
+=======
+      editor.onDidChangeCursorPosition((e: any) => {
+        const model = editor.getModel()
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+        const workerGetter = await monaco.languages.typescript.getTypeScriptWorker()
+        const worker = await workerGetter(model.uri)
+        console.log('Worker obtained for URI:', model.uri.toString())
+        const offset = model.getOffsetAt(position)
+        console.log('Fetching QuickInfo at offset:', offset)
+        const info = await worker.getQuickInfoAtPosition(model.uri.toString(), offset)
+        console.log('QuickInfo result:', info)
+
+        if (info && info.displayParts) {
+          const text = info.displayParts.map((p: any) => p.text).join('')
+          console.log('Calculated type info text:', text)
+          onTypeInfoChange(text)
+=======
+        const workerGetter = await monaco.languages.typescript.getTypeScriptWorker()
+        const worker = await workerGetter(model.uri)
+        const offset = model.getOffsetAt(position)
+        const info = await worker.getQuickInfoAtPosition(model.uri.toString(), offset)
+
+        if (info && info.displayParts) {
+          const text = info.displayParts.map((p: any) => p.text).join('')
+          onTypeInfoChange(text)
+>>>>>>> REPLACE

@@ -35,7 +35,8 @@ export function Button({
   style,
   type = 'button',
   className,
-}: ButtonProps) {
+  ...props
+}: ButtonProps & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   const [pressed, setPressed] = useState(false)
   const [showTooltip, setShowTooltip] = useState(false)
   const touchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
@@ -75,6 +76,7 @@ export function Button({
 
   return (
     <button
+      {...props}
       type={type}
       onClick={handleClick}
       disabled={disabled}

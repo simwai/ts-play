@@ -87,21 +87,23 @@ export function Header({
         {/* Theme toggle */}
         <IconButton
           onClick={() => {
-            setThemeMode((m) => (m === 'mocha' ? 'latte' : 'mocha'))
+            setThemeMode((m) => {
+              if (m === 'mocha') return 'latte'
+              if (m === 'latte') return 'githubDark'
+              if (m === 'githubDark') return 'githubLight'
+              if (m === 'githubLight') return 'monokai'
+              return 'mocha'
+            })
           }}
-          title={
-            themeMode === 'mocha'
-              ? 'Switch to Latte (light)'
-              : 'Switch to Mocha (dark)'
-          }
+          title='Cycle Editor Themes'
           tooltipAlign='right'
           variant='surface'
           size='sm'
         >
-          {themeMode === 'mocha' ? (
-            <Sun className='w-3 h-3 md:w-4 md:h-4' />
-          ) : (
+          {themeMode === 'mocha' || themeMode === 'githubDark' || themeMode === 'monokai' ? (
             <Moon className='w-3 h-3 md:w-4 md:h-4' />
+          ) : (
+            <Sun className='w-3 h-3 md:w-4 md:h-4' />
           )}
         </IconButton>
 

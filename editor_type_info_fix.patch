@@ -1,0 +1,52 @@
+<<<<<<< SEARCH
+    const fetchTypeInfo = useCallback(async (editor: any, position: any) => {
+      if (!monaco || !onTypeInfoChange || language !== 'typescript') return
+
+      try {
+        const model = editor.getModel()
+        if (!model) return
+
+        const worker = await monaco.languages.typescript.getTypeScriptWorker()
+        const client = await worker(model.uri)
+        const offset = model.getOffsetAt(position)
+        const info = await client.getQuickInfoAtPosition(model.uri.toString(), offset)
+
+        if (info && info.displayParts) {
+          const text = info.displayParts.map((p: any) => p.text).join('')
+          onTypeInfoChange(text)
+        } else {
+          onTypeInfoChange('')
+        }
+      } catch (err) {
+        console.error('Failed to fetch type info:', err)
+        onTypeInfoChange('')
+      }
+    }, [monaco, onTypeInfoChange, language])
+=======
+    const fetchTypeInfo = useCallback(async (editor: any, position: any) => {
+      if (!monaco || !onTypeInfoChange || language !== 'typescript') return
+
+      try {
+        const model = editor.getModel()
+        if (!model) return
+
+        const workerGetter = await monaco.languages.typescript.getTypeScriptWorker()
+        const worker = await workerGetter(model.uri)
+        const offset = model.getOffsetAt(position)
+        const info = await worker.getQuickInfoAtPosition(model.uri.toString(), offset)
+
+        if (info && info.displayParts) {
+          const text = info.displayParts.map((p: any) => p.text).join('')
+          onTypeInfoChange(text)
+        } else {
+          onTypeInfoChange('')
+        }
+      } catch (err) {
+        // Only log error if not 'worker not found' which can happen during re-mounts
+        if (!String(err).includes('worker')) {
+          console.error('Failed to fetch type info:', err)
+        }
+        onTypeInfoChange('')
+      }
+    }, [monaco, onTypeInfoChange, language])
+>>>>>>> REPLACE

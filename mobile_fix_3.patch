@@ -1,0 +1,13 @@
+<<<<<<< SEARCH
+        theme: themeMode,
+        suggest: {
+          showWords: false,
+          enabled: !disableAutocomplete && !isMobileLike,
+        },
+=======
+        theme: themeMode,
+        suggest: {
+          showWords: false,
+          enabled: !disableAutocomplete,
+        },
+>>>>>>> REPLACE

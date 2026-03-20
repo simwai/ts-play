@@ -16,6 +16,8 @@ type SettingsModalProps = {
   lineWrap: boolean
   setLineWrap: (val: boolean) => void
   packageManagerStatus: string
+  themeMode: string
+  setThemeMode: (mode: any) => void
 }
 
 function fixLooseJson(code: string): string {
@@ -37,6 +39,8 @@ export function SettingsModal({
   lineWrap,
   setLineWrap,
   packageManagerStatus,
+  themeMode,
+  setThemeMode,
 }: SettingsModalProps) {
   const [temporaryTsConfig, setTemporaryTsConfig] = useState(tsConfigString)
   const [isValid, setIsValid] = useState(true)
@@ -163,6 +167,23 @@ export function SettingsModal({
                 data-testid='settings-wrap-toggle'
               />
             </div>
+
+            <div className='flex flex-col gap-2'>
+              <label className='text-sm font-bold text-subtext0'>
+                Editor Theme
+              </label>
+              <select
+                value={themeMode}
+                onChange={(e) => setThemeMode(e.target.value)}
+                className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none focus:border-mauve transition-colors'
+              >
+                <option value='mocha'>Catppuccin Mocha</option>
+                <option value='latte'>Catppuccin Latte</option>
+                <option value='githubDark'>GitHub Dark</option>
+                <option value='githubLight'>GitHub Light</option>
+                <option value='monokai'>Monokai</option>
+              </select>
+            </div>
           </div>
 
           <div className='flex flex-col gap-2'>
@@ -181,6 +202,7 @@ export function SettingsModal({
                 disableDiagnostics={true}
                 disableShortcuts={true}
                 lineWrap={lineWrap}
+                themeMode={themeMode}
               />
             </div>
             {errorMsg && (
@@ -193,15 +215,8 @@ export function SettingsModal({
           </div>
         </div>
 
-        <div className='flex items-center justify-between gap-3 px-6 py-4 border-t border-surface0 bg-base shrink-0'>
-          <Button
-            onClick={() => setTemporaryTsConfig(DEFAULT_TSCONFIG)}
-            variant='danger'
-            className='text-red hover:bg-red/10'
-          >
-            Reset to Default
-          </Button>
-          <div className='flex gap-3'>
+        <div className='flex flex-col gap-3 px-6 py-4 border-t border-surface0 bg-base shrink-0 items-center'>
+          <div className='flex gap-3 w-full justify-center'>
             <Button
               onClick={onClose}
               variant='secondary'
@@ -218,6 +233,14 @@ export function SettingsModal({
               {isFormatting ? 'Saving...' : 'Save Changes'}
             </Button>
           </div>
+          <Button
+            onClick={() => setTemporaryTsConfig(DEFAULT_TSCONFIG)}
+            variant='danger'
+            size='sm'
+            className='text-red hover:bg-red/10'
+          >
+            Reset to Default tsconfig
+          </Button>
         </div>
 
         <div className='px-6 py-4 border-t border-surface0 bg-mantle flex flex-col items-center gap-2 shrink-0'>
