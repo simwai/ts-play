@@ -8,13 +8,18 @@ let workerInitializationPromise: Promise<void> | undefined
 const virtualFiles: Record<string, { version: number; content: string }> = {}
 
 function generateAmbientDeclarations(sourceCode: string): string {
-  return (
-    '// Declarations auto-generated from main.ts\n' +
-    sourceCode
-      .split('\n')
-      .filter((l) => l.startsWith('export'))
-      .join('\n')
-  )
+  try {
+    return (
+      '// Declarations auto-generated from main.ts\n' +
+      sourceCode
+        .split('\n')
+        .filter((l) => l.startsWith('export'))
+        .join('\n')
+    )
+  } catch (err) {
+    console.error('generateAmbientDeclarations error:', err)
+    return '// Error generating declarations'
+  }
 }
 
 const getErrorMessage = (error: unknown) =>
@@ -82,12 +87,13 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
         })
 
         const lines = payload.code.split('\n');
-        const dtsLines = lines.filter(l =>
-          l.trim().startsWith('export ') ||
-          l.trim().startsWith('interface ') ||
-          l.trim().startsWith('type ') ||
-          l.trim().startsWith('declare ')
-        );
+        const dtsLines = lines.filter(l => {
+          const t = l.trim();
+          return t.startsWith('export ') ||
+                 t.startsWith('interface ') ||
+                 t.startsWith('type ') ||
+                 t.startsWith('declare ');
+        });
 
         result = {
           js: compiled.outputFiles?.[0]?.text || '',
@@ -135,6 +141,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
     }
     self.postMessage({ id, success: true, payload: result })
   } catch (error) {
+    console.error(`Worker error [${type}]:`, error);
     self.postMessage({ id, success: false, error: getErrorMessage(error) })
   }
 }

@@ -152,7 +152,8 @@ export const CodeEditor = React.memo(
     })
 
     const handleEditorDidMount: OnMount = (editor) => {
-      editorRef.current = editor
+      try {
+        editorRef.current = editor
       editor.onDidChangeCursorPosition((e: any) => {
         const model = editor.getModel()
         if (model) {
@@ -161,6 +162,9 @@ export const CodeEditor = React.memo(
         }
         fetchTypeInfoRef.current?.(editor, e.position)
       })
+      } catch (err) {
+        console.error("CodeEditor mount error:", err);
+      }
     }
 
     const editorOptions = useMemo(
