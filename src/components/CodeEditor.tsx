@@ -21,6 +21,7 @@ type CodeEditorProps = {
   hideTypeInfo?: boolean
   disableShortcuts?: boolean
   themeMode?: string
+  path?: string
 }
 
 export type CodeEditorHandle = {
@@ -74,6 +75,7 @@ export const CodeEditor = React.memo(
 
       const tsDefaults = monaco.languages.typescript.typescriptDefaults
       const jsDefaults = monaco.languages.typescript.javascriptDefaults
+      const jsonDefaults = monaco.languages.json.jsonDefaults
 
       tsDefaults.setDiagnosticsOptions({
         noSemanticValidation: disableDiagnostics,
@@ -82,6 +84,10 @@ export const CodeEditor = React.memo(
       jsDefaults.setDiagnosticsOptions({
         noSemanticValidation: disableDiagnostics,
         noSyntaxValidation: disableDiagnostics,
+      })
+      jsonDefaults.setDiagnosticsOptions({
+        validate: !disableDiagnostics,
+        allowComments: true,
       })
 
       if (!extraLibs) return
@@ -175,9 +181,11 @@ export const CodeEditor = React.memo(
         lineNumbersMinChars: hideGutter ? 0 : 3,
         padding: { top: 8, bottom: 8 },
         fixedOverflowWidgets: true,
-        contextmenu: isMobileLike ? true : false,
+        links: false,
+        contextmenu: false,
         theme: themeMode,
-        quickSuggestions: true,
+        quickSuggestions: !isMobileLike,
+        suggestOnTriggerCharacters: !isMobileLike,
         wordBasedSuggestions: "currentDocument",
         tabCompletion: "on",
         acceptSuggestionOnEnter: "on",
@@ -191,19 +199,22 @@ export const CodeEditor = React.memo(
         renderLineHighlight: 'all' as const,
         renderLineHighlightOnlyWhenFocus: false,
         multiCursorModifier: "alt",
-        selectionHighlight: true,
+        selectionHighlight: !isMobileLike,
+        occurrencesHighlight: !isMobileLike,
         unicodeHighlight: { ambiguousCharacters: false, nonBasicASCII: false },
         colorDecorators: true,
         smoothScrolling: true,
         cursorSmoothCaretAnimation: "on",
-        mouseWheelZoom: true,
-        dragAndDrop: true,
+        mouseWheelZoom: !isMobileLike,
+        dragAndDrop: !isMobileLike,
         dropIntoEditor: { enabled: true },
         accessibilitySupport: "on",
         accessibilityPageSize: 10,
         selectOnLineNumbers: true,
+        columnSelection: false,
+        selectionClipboard: false,
         emptySelectionClipboard: false,
-        matchBrackets: "always",
+        matchBrackets: isMobileLike ? "never" : "always",
         autoClosingBrackets: "always",
         autoClosingQuotes: "always",
         autoSurround: "languageDefined",
@@ -219,6 +230,7 @@ export const CodeEditor = React.memo(
           useShadows: false,
           verticalHasArrows: false,
           horizontalHasArrows: false,
+          alwaysConsumeMouseWheel: false,
         },
       }),
       [
@@ -237,7 +249,7 @@ export const CodeEditor = React.memo(
       <div
         data-testid='code-editor-container'
         className={cn(
-          'code-editor relative w-full h-full flex flex-col flex-1 overflow-hidden',
+          'code-editor relative w-full h-full flex flex-col flex-1 overflow-hidden [touch-action:auto] [-webkit-user-select:text] [user-select:text] [-webkit-tap-highlight-color:transparent]',
           className
         )}
       >
@@ -253,6 +265,7 @@ export const CodeEditor = React.memo(
           value={value}
           onChange={(v) => onChange?.(v || '')}
           onMount={handleEditorDidMount}
+          path={path}
           options={editorOptions}
           theme={themeMode}
         />

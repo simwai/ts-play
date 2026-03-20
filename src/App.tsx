@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { type ThemeMode } from './lib/theme'
+import { type ThemeMode, isDarkMode } from './lib/theme'
 import { CodeEditor, type CodeEditorHandle } from './components/CodeEditor'
 import { Console } from './components/Console'
 import { OverrideModal } from './components/Modal'
@@ -56,7 +56,7 @@ export function App() {
   const [themeMode, setThemeMode] = useLocalStorage<ThemeMode>('tsplay_theme', 'mocha')
 
   useEffect(() => {
-    if (themeMode === 'mocha') document.documentElement.classList.add('dark')
+    if (isDarkMode(themeMode)) document.documentElement.classList.add('dark')
     else document.documentElement.classList.remove('dark')
   }, [themeMode])
 
@@ -353,6 +353,7 @@ export function App() {
               onCursorChange={onTsCursorChange}
               onTypeInfoChange={setTypeInfo}
               language='typescript'
+              path='index.ts'
               extraLibs={packageTypings}
               isMobileLike={isMobileLike}
               themeMode={themeMode}
@@ -365,6 +366,7 @@ export function App() {
               value={jsCode}
               onChange={handleJsChange}
               language='javascript'
+              path='index.js'
               isMobileLike={isMobileLike}
               themeMode={themeMode}
               lineWrap={lineWrap}
@@ -376,6 +378,7 @@ export function App() {
               value={dtsCode}
               onChange={setDtsCode}
               language='typescript'
+              path='index.d.ts'
               readOnly={true}
               isMobileLike={isMobileLike}
               themeMode={themeMode}

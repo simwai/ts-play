@@ -1,8 +1,0 @@
-<<<<<<< SEARCH
-        renderLineHighlight: 'all' as const,
-        bracketPairColorization: { enabled: true },
-=======
-        renderLineHighlight: 'all' as const,
-        renderLineHighlightOnlyWhenFocus: false,
-        bracketPairColorization: { enabled: true },
->>>>>>> REPLACE
