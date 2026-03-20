@@ -75,6 +75,7 @@ export const CodeEditor = React.memo(
 
       const tsDefaults = monaco.languages.typescript.typescriptDefaults
       const jsDefaults = monaco.languages.typescript.javascriptDefaults
+      const jsonDefaults = monaco.languages.json.jsonDefaults
 
       tsDefaults.setDiagnosticsOptions({
         noSemanticValidation: disableDiagnostics,
@@ -83,6 +84,10 @@ export const CodeEditor = React.memo(
       jsDefaults.setDiagnosticsOptions({
         noSemanticValidation: disableDiagnostics,
         noSyntaxValidation: disableDiagnostics,
+      })
+      jsonDefaults.setDiagnosticsOptions({
+        validate: !disableDiagnostics,
+        allowComments: true,
       })
 
       if (!extraLibs) return

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Save } from 'lucide-react'
+import { Save, Github } from 'lucide-react'
 import { Button } from './ui/Button'
 import { IconButton } from './ui/IconButton'
 import { workerClient } from '../lib/workerClient'
@@ -262,21 +262,24 @@ export function SettingsModal({
           </div>
         </div>
 
-        <div className='px-6 py-4 border-t border-surface0 bg-mantle flex flex-col items-center gap-2 shrink-0'>
-          <p className='text-xs text-subtext0 text-center'>
-            Made with 💜 by
-            <br />
-            <span className='font-graffonti text-2xl bg-lit-gradient animate-lit-gradient leading-relaxed'>
-              simwai
-            </span>
-          </p>
+        <div className='px-6 py-4 border-t border-surface0 bg-mantle flex items-center justify-center gap-4 shrink-0'>
+          <div className='flex flex-col items-center'>
+            <p className='text-xs text-subtext0 text-center'>
+              Made with <span className='bg-lit-gradient animate-lit-gradient inline-block'>💜</span> by
+              <br />
+              <span className='font-graffonti text-2xl bg-lit-gradient animate-lit-gradient leading-relaxed'>
+                simwai
+              </span>
+            </p>
+          </div>
           <a
             href='https://github.com/simwai/ts-play'
             target='_blank'
             rel='noopener noreferrer'
-            className='text-xs text-mauve hover:underline'
+            className='text-text/70 hover:text-mauve transition-colors p-1'
+            aria-label='GitHub Repository'
           >
-            GitHub Repository
+            <Github size={24} />
           </a>
         </div>
       </div>
