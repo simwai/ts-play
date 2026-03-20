@@ -175,7 +175,7 @@ export const CodeEditor = React.memo(
         lineNumbersMinChars: hideGutter ? 0 : 3,
         padding: { top: 8, bottom: 8 },
         fixedOverflowWidgets: true,
-        contextmenu: true,
+        contextmenu: isMobileLike ? true : false,
         theme: themeMode,
         quickSuggestions: true,
         wordBasedSuggestions: "currentDocument",
