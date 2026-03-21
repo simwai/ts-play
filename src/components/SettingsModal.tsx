@@ -6,7 +6,7 @@ import { workerClient } from '../lib/workerClient'
 import { formatJson } from '../lib/formatter'
 import { DEFAULT_TSCONFIG } from '../lib/constants'
 import { CodeEditor } from './CodeEditor'
-import { DARK_THEMES, LIGHT_THEMES, isDarkMode } from '../lib/theme'
+import { type ThemeMode, isDarkMode } from '../lib/theme'
 
 type SettingsModalProps = {
   isOpen: boolean
@@ -23,12 +23,19 @@ type SettingsModalProps = {
 }
 
 function fixLooseJson(code: string): string {
-  return code.replace(/([a-zA-Z_$][\w$]*)\s*:/g, (match, key, offset, str) => {
-    let i = offset - 1
-    while (i >= 0 && /\s/.test(str[i])) i--
-    if (str[i] === '"' || str[i] === "'") return match
-    return `"${key}":`
-  })
+  if (!code) return code
+  try {
+    return code.replace(/([a-zA-Z_$][\w$]*)\s*:/g, (match, key, offset, str) => {
+      if (typeof str !== 'string') return match
+      let i = offset - 1
+      while (i >= 0 && /\s/.test(str[i])) i--
+      if (i >= 0 && (str[i] === '"' || str[i] === "'")) return match
+      return `"${key}":`
+    })
+  } catch (err) {
+    console.error('fixLooseJson error:', err)
+    return code
+  }
 }
 
 export function SettingsModal({
@@ -182,7 +189,7 @@ export function SettingsModal({
               <select
                 id='theme-select'
                 value={themeMode}
-                onChange={(e) => setThemeMode(e.target.value)}
+                onChange={(e) => setThemeMode(e.target.value as ThemeMode)}
                 className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none focus:border-mauve transition-colors'
               >
                 {isDarkMode(themeMode as ThemeMode) ? (

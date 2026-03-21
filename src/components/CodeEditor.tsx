@@ -30,6 +30,8 @@ export type CodeEditorHandle = {
   focus: () => void
 }
 
+let themesRegistered = false;
+
 const FONT_STACK =
   "'JetBrains Mono', 'Victor Mono', 'Fira Code', 'Cascadia Code', monospace"
 
@@ -66,13 +68,17 @@ export const CodeEditor = React.memo(
     }))
 
     useEffect(() => {
-      if (!monaco) return
+      if (!monaco) return;
+      try {
 
-      monaco.editor.defineTheme('mocha', mocha)
-      monaco.editor.defineTheme('latte', latte)
-      monaco.editor.defineTheme('githubDark', githubDark)
-      monaco.editor.defineTheme('githubLight', githubLight)
-      monaco.editor.defineTheme('monokai', monokai)
+      if (!themesRegistered) {
+        monaco.editor.defineTheme('mocha', mocha)
+        monaco.editor.defineTheme('latte', latte)
+        monaco.editor.defineTheme('githubDark', githubDark)
+        monaco.editor.defineTheme('githubLight', githubLight)
+        monaco.editor.defineTheme('monokai', monokai)
+        themesRegistered = true
+      }
 
       const tsDefaults = monaco.languages.typescript.typescriptDefaults
       const jsDefaults = monaco.languages.typescript.javascriptDefaults
@@ -118,6 +124,9 @@ export const CodeEditor = React.memo(
       }
       tsDefaults.setCompilerOptions(options)
       jsDefaults.setCompilerOptions(options as any)
+      } catch (err) {
+        console.error("CodeEditor setup error:", err);
+      }
     }, [monaco, extraLibs, disableDiagnostics])
 
     const fetchTypeInfo = useCallback(async (editor: any, position: any) => {
