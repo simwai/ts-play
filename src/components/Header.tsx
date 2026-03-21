@@ -60,7 +60,7 @@ export function Header({
   stopCode,
 }: HeaderProps) {
   return (
-    <header className="flex items-center justify-between px-1.5 md:px-3 h-9 md:h-12 bg-mantle border-b border-surface0 shrink-0 gap-1.5 md:gap-3 relative z-40">
+    <header className="flex items-center justify-between px-1.5 md:px-3 h-10 md:h-14 bg-mantle border-b border-surface0 shrink-0 gap-1.5 md:gap-3 relative z-40">
       {/* Brand */}
       <div className="flex items-center gap-1.5 md:gap-2 px-1">
         <span className="text-lg md:text-xl font-black tracking-tighter font-mono bg-gradient-to-r from-mauve to-peach bg-clip-text text-transparent drop-shadow-sm select-none">
@@ -78,7 +78,7 @@ export function Header({
             }}
             className={`px-1.5 py-0.5 md:px-3 md:py-1.5 rounded border-none text-4xs md:text-xs font-semibold font-mono cursor-pointer tracking-wide uppercase transition-all duration-150 ${
               activeTab === tab
-                ? 'bg-mauve/20 text-mauve shadow-sm'
+                ? 'bg-mauve/15 text-mauve shadow-sm ring-1 ring-mauve/30'
                 : 'bg-transparent text-overlay1 hover:text-text'
             }`}
           >

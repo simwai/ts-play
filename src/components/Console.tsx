@@ -139,7 +139,7 @@ export const Console = React.memo(function Console({
                 <div
                   key={`${m.ts}-${idx}`}
                   data-testid="console-message"
-                  className={`flex items-start gap-3 px-4 py-2 border-b border-surface0/30 ${
+                  className={`flex items-start gap-3 px-4 py-1.5 border-b border-surface0/20 ${
                     m.type === 'error'
                       ? 'bg-red/5'
                       : m.type === 'warn'
