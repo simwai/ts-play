@@ -1,85 +1,33 @@
-import * as prettier from 'prettier/standalone';
-import * as prettierPluginBabel from 'prettier/plugins/babel';
-import * as prettierPluginEstree from 'prettier/plugins/estree';
-import * as prettierPluginTypescript from 'prettier/plugins/typescript';
+import { runCommand, getWebContainer } from './webcontainer';
 
-export async function loadPrettier(): Promise<void> {}
+export async function formatAllFiles(tsCode: string, jsCode: string, dtsCode: string) {
+  const instance = await getWebContainer();
 
-async function formatCode(
-  code: string,
-  language: 'typescript' | 'javascript' | 'dts',
-): Promise<string> {
-  const parser = language === 'javascript' ? 'babel' : 'typescript';
-  return await prettier.format(code, {
-    parser,
-    plugins: [
-      prettierPluginBabel,
-      prettierPluginEstree,
-      prettierPluginTypescript,
-    ],
-    printWidth: 80,
-    tabWidth: 2,
-    useTabs: false,
-    semi: true,
-    singleQuote: true,
-    trailingComma: 'all',
-    bracketSpacing: true,
-    arrowParens: 'always',
-  });
+  // Write to temporary files for Prettier to process
+  await instance.fs.writeFile('temp.ts', tsCode);
+
+  // Run Prettier inside WebContainer
+  const { exit } = await runCommand('npx', ['prettier', '--write', 'temp.ts'], () => {});
+  const exitCode = await exit;
+
+  if (exitCode === 0) {
+    const formattedTs = await instance.fs.readFile('temp.ts', 'utf8');
+    return { tsCode: formattedTs, jsCode, dtsCode };
+  }
+
+  return { tsCode, jsCode, dtsCode };
 }
 
-export async function formatJson(code: string): Promise<string> {
+// Keep formatJson as is or refactor later if needed
+export async function formatJson(json: string) {
   try {
-    return await prettier.format(code, {
-      parser: 'json5',
-      plugins: [prettierPluginBabel, prettierPluginEstree],
-      printWidth: 80,
-      tabWidth: 2,
-      useTabs: false,
-      quoteProps: 'preserve',
-    });
+    return JSON.stringify(JSON.parse(json), null, 2);
   } catch {
-    return code;
+    return json;
   }
 }
 
-export async function formatAllFiles(
-  tsCode: string,
-  jsCode: string,
-  dtsCode: string,
-): Promise<{
-  tsCode: string;
-  jsCode: string;
-  dtsCode: string;
-  errors: string[];
-}> {
-  const errors: string[] = [];
-  let formattedTs = tsCode;
-  let formattedJs = jsCode;
-  let formattedDts = dtsCode;
-
-  await Promise.all([
-    formatCode(tsCode, 'typescript')
-      .then((r) => {
-        formattedTs = r;
-      })
-      .catch((error) => errors.push(`TS: ${error.message}`)),
-    formatCode(jsCode, 'javascript')
-      .then((r) => {
-        formattedJs = r;
-      })
-      .catch((error) => errors.push(`JS: ${error.message}`)),
-    formatCode(dtsCode, 'dts')
-      .then((r) => {
-        formattedDts = r;
-      })
-      .catch((error) => errors.push(`DTS: ${error.message}`)),
-  ]);
-
-  return {
-    tsCode: formattedTs,
-    jsCode: formattedJs,
-    dtsCode: formattedDts,
-    errors,
-  };
+export async function loadPrettier() {
+  // Prettier is now loaded within the WebContainer
+  return Promise.resolve();
 }
