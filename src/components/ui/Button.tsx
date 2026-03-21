@@ -1,28 +1,28 @@
-import { type CSSProperties, type ReactNode, useState, useRef } from 'react'
-import { cn } from '../../lib/utils'
+import { type CSSProperties, type ReactNode, useState, useRef } from 'react';
+import { cn } from '../../lib/utils';
 
-type Variant = 'primary' | 'secondary' | 'danger' | 'ghost'
-type Size = 'xs' | 'sm' | 'md' | 'lg'
+type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
+type Size = 'xs' | 'sm' | 'md' | 'lg';
 
 type ButtonProps = {
-  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
-  disabled?: boolean
-  children: ReactNode
-  variant?: Variant
-  size?: Size
-  title?: string
-  tooltipAlign?: 'center' | 'right' | 'left'
-  style?: CSSProperties
-  type?: 'button' | 'submit' | 'reset'
-  className?: string
-}
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  disabled?: boolean;
+  children: ReactNode;
+  variant?: Variant;
+  size?: Size;
+  title?: string;
+  tooltipAlign?: 'center' | 'right' | 'left';
+  style?: CSSProperties;
+  type?: 'button' | 'submit' | 'reset';
+  className?: string;
+};
 
 const sizeClasses: Record<Size, string> = {
   xs: 'h-5 md:h-7 px-1.5 md:px-2.5 text-4xs md:text-xs',
   sm: 'h-6 md:h-8 px-2 md:px-3 text-3xs md:text-sm',
   md: 'h-8 md:h-10 px-3 md:px-4 text-xs md:text-base',
   lg: 'h-10 md:h-12 px-4 md:px-5 text-sm md:text-lg',
-}
+};
 
 export function Button({
   onClick,
@@ -37,42 +37,42 @@ export function Button({
   className,
   ...props
 }: ButtonProps & React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  const [pressed, setPressed] = useState(false)
-  const [showTooltip, setShowTooltip] = useState(false)
+  const [pressed, setPressed] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
   const touchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined
-  )
-  const isLongPress = useRef(false)
+    undefined,
+  );
+  const isLongPress = useRef(false);
 
   const handleTouchStart = () => {
-    isLongPress.current = false
-    if (touchTimer.current) clearTimeout(touchTimer.current)
+    isLongPress.current = false;
+    if (touchTimer.current) clearTimeout(touchTimer.current);
     touchTimer.current = setTimeout(() => {
-      isLongPress.current = true
-      setShowTooltip(true)
-    }, 400)
-  }
+      isLongPress.current = true;
+      setShowTooltip(true);
+    }, 400);
+  };
 
   const handleTouchEnd = () => {
-    if (touchTimer.current) clearTimeout(touchTimer.current)
+    if (touchTimer.current) clearTimeout(touchTimer.current);
     setTimeout(() => {
-      setShowTooltip(false)
-    }, 2000)
-  }
+      setShowTooltip(false);
+    }, 2000);
+  };
 
   const handleTouchMove = () => {
-    if (touchTimer.current) clearTimeout(touchTimer.current)
-    setShowTooltip(false)
-  }
+    if (touchTimer.current) clearTimeout(touchTimer.current);
+    setShowTooltip(false);
+  };
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (isLongPress.current) {
-      e.preventDefault()
-      isLongPress.current = false
-      return
+      e.preventDefault();
+      isLongPress.current = false;
+      return;
     }
-    onClick?.(e)
-  }
+    onClick?.(e);
+  };
 
   return (
     <button
@@ -105,7 +105,7 @@ export function Button({
           'bg-transparent text-text hover:bg-surface0 border-none':
             variant === 'ghost',
         },
-        className
+        className,
       )}
       style={style}
     >
@@ -120,12 +120,12 @@ export function Button({
             tooltipAlign === 'right' && 'right-0 text-right',
             tooltipAlign === 'left' && 'left-0 text-left',
             showTooltip ? 'opacity-100' : 'opacity-0',
-            'group-hover:opacity-100'
+            'group-hover:opacity-100',
           )}
         >
           {title}
         </div>
       )}
     </button>
-  )
+  );
 }

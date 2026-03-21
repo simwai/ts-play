@@ -1,49 +1,49 @@
-import React, { useRef, useEffect, useMemo } from 'react'
-import { Eraser } from 'lucide-react'
-import { Badge } from './ui/Badge'
-import { Button } from './ui/Button'
-import { PanelHeader } from './ui/PanelHeader'
-import Ansi from 'ansi-to-html'
+import React, { useRef, useEffect, useMemo } from 'react';
+import { Eraser } from 'lucide-react';
+import { Badge } from './ui/Badge';
+import { Button } from './ui/Button';
+import { PanelHeader } from './ui/PanelHeader';
+import Ansi from 'ansi-to-html';
 
 export type ConsoleMessage = {
-  type: 'log' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'dir'
-  args: string[]
-  ts: number
-}
+  type: 'log' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'dir';
+  args: string[];
+  ts: number;
+};
 
 type Props = {
-  messages: ConsoleMessage[]
-  onClear: () => void
-  isOpen: boolean
-  onToggle: () => void
-  contentHeight: number // Now in rem
-  trueColorEnabled?: boolean
-}
+  messages: ConsoleMessage[];
+  onClear: () => void;
+  isOpen: boolean;
+  onToggle: () => void;
+  contentHeight: number; // Now in rem
+  trueColorEnabled?: boolean;
+};
 
 function typeVariant(
-  type: ConsoleMessage['type']
+  type: ConsoleMessage['type'],
 ): 'error' | 'warn' | 'info' | 'default' {
-  if (type === 'error') return 'error'
-  if (type === 'warn' || type === 'trace') return 'warn'
-  if (type === 'info' || type === 'debug' || type === 'dir') return 'info'
-  return 'default'
+  if (type === 'error') return 'error';
+  if (type === 'warn' || type === 'trace') return 'warn';
+  if (type === 'info' || type === 'debug' || type === 'dir') return 'info';
+  return 'default';
 }
 
 function typeLabel(type: ConsoleMessage['type']): string {
-  if (type === 'error') return 'ERR'
-  if (type === 'warn') return 'WRN'
-  if (type === 'info') return 'INF'
-  if (type === 'debug') return 'DBG'
-  if (type === 'trace') return 'TRC'
-  if (type === 'dir') return 'DIR'
-  return 'LOG'
+  if (type === 'error') return 'ERR';
+  if (type === 'warn') return 'WRN';
+  if (type === 'info') return 'INF';
+  if (type === 'debug') return 'DBG';
+  if (type === 'trace') return 'TRC';
+  if (type === 'dir') return 'DIR';
+  return 'LOG';
 }
 
 function typeColorClass(type: ConsoleMessage['type']): string {
-  if (type === 'error') return 'text-red'
-  if (type === 'warn' || type === 'trace') return 'text-yellow'
-  if (type === 'info' || type === 'debug' || type === 'dir') return 'text-blue'
-  return 'text-text'
+  if (type === 'error') return 'text-red';
+  if (type === 'warn' || type === 'trace') return 'text-yellow';
+  if (type === 'info' || type === 'debug' || type === 'dir') return 'text-blue';
+  return 'text-text';
 }
 
 export const Console = React.memo(function Console({
@@ -54,7 +54,7 @@ export const Console = React.memo(function Console({
   contentHeight,
   trueColorEnabled = true,
 }: Props) {
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   // Create Ansi converter with truecolor support if enabled
   const ansiConvert = useMemo(
@@ -69,54 +69,46 @@ export const Console = React.memo(function Console({
               // Standard 16 colors fallback if needed
             },
       }),
-    [trueColorEnabled]
-  )
+    [trueColorEnabled],
+  );
 
   useEffect(() => {
-    if (isOpen) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, isOpen])
+    if (isOpen) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isOpen]);
 
-  const errors = messages.filter((m) => m.type === 'error').length
-  const warns = messages.filter((m) => m.type === 'warn').length
+  const errors = (messages || []).filter((m) => m && m.type === 'error').length;
+  const warns = (messages || []).filter((m) => m && m.type === 'warn').length;
 
   return (
     <div
-      className='flex flex-col border-t border-surface0 bg-mantle shrink-0'
-      data-testid='console-container'
+      className="flex flex-col border-t border-surface0 bg-mantle shrink-0"
+      data-testid="console-container"
     >
       <PanelHeader
-        label='Console'
+        label="Console"
         isOpen={isOpen}
         onToggle={onToggle}
         left={
           <>
-            {messages.length > 0 && <Badge label={String(messages.length)} />}
-            {errors > 0 && (
-              <Badge
-                label={`${errors} err`}
-                variant='error'
-              />
+            {(messages || []).length > 0 && (
+              <Badge label={String((messages || []).length)} />
             )}
-            {warns > 0 && (
-              <Badge
-                label={`${warns} warn`}
-                variant='warn'
-              />
-            )}
+            {errors > 0 && <Badge label={`${errors} err`} variant="error" />}
+            {warns > 0 && <Badge label={`${warns} warn`} variant="warn" />}
           </>
         }
         right={
-          messages.length > 0 ? (
+          (messages || []).length > 0 ? (
             <Button
               onClick={(e) => {
-                e.stopPropagation()
-                onClear()
+                e.stopPropagation();
+                onClear();
               }}
-              variant='secondary'
-              size='xs'
-              title='Clear console'
-              data-testid='console-clear-button'
-              tooltipAlign='right'
+              variant="secondary"
+              size="xs"
+              title="Clear console"
+              data-testid="console-clear-button"
+              tooltipAlign="right"
             >
               <Eraser size={12} />
               Clear
@@ -127,23 +119,26 @@ export const Console = React.memo(function Console({
 
       {isOpen && (
         <div
-          className='overflow-y-auto overflow-x-hidden border-t border-surface0'
+          className="overflow-y-auto overflow-x-hidden border-t border-surface0"
           style={{ height: `${contentHeight}rem` }}
         >
           {messages.length === 0 ? (
-            <div className='flex items-center justify-center h-full text-overlay0 text-xxs md:text-xs italic font-mono'>
+            <div className="flex items-center justify-center h-full text-overlay0 text-xxs md:text-xs italic font-mono">
               No output yet — press Run to execute
             </div>
           ) : (
-            messages.map((m, idx) => {
-              const fullText = m.args.join(' ')
+            (messages || []).map((m, idx) => {
+              if (!m || !m.args) return null;
+              const fullText = Array.isArray(m.args)
+                ? m.args.join(' ')
+                : String(m.args);
               const hasAnsi =
-                trueColorEnabled && /[\u001b\u009b]/.test(fullText)
+                trueColorEnabled && /[\u001b\u009b]/.test(fullText);
 
               return (
                 <div
                   key={`${m.ts}-${idx}`}
-                  data-testid='console-message'
+                  data-testid="console-message"
                   className={`flex items-start gap-2.5 px-3 py-1.5 border-b border-surface0/40 ${
                     m.type === 'error'
                       ? 'bg-red/5'
@@ -155,13 +150,13 @@ export const Console = React.memo(function Console({
                   <Badge
                     label={typeLabel(m.type)}
                     variant={typeVariant(m.type)}
-                    className='mt-0.5'
+                    className="mt-0.5"
                   />
-                  {hasAnsi ? (
+                  {hasAnsi && fullText ? (
                     <div
                       className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono`}
                       dangerouslySetInnerHTML={{
-                        __html: ansiConvert.toHtml(fullText),
+                        __html: fullText ? ansiConvert.toHtml(fullText) : '',
                       }}
                     />
                   ) : (
@@ -172,12 +167,12 @@ export const Console = React.memo(function Console({
                     </pre>
                   )}
                 </div>
-              )
+              );
             })
           )}
           <div ref={bottomRef} />
         </div>
       )}
     </div>
-  )
-})
+  );
+});

@@ -1,4 +1,4 @@
-import type { editor } from 'monaco-editor'
+import type { editor } from 'monaco-editor';
 
 export const mocha: editor.IStandaloneThemeData = {
   base: 'vs-dark',
@@ -37,7 +37,7 @@ export const mocha: editor.IStandaloneThemeData = {
     'editorLineNumber.foreground': '#6c7086',
     'editorLineNumber.activeForeground': '#cba6f7',
   },
-}
+};
 
 export const latte: editor.IStandaloneThemeData = {
   base: 'vs',
@@ -76,7 +76,7 @@ export const latte: editor.IStandaloneThemeData = {
     'editorLineNumber.foreground': '#9ca0b0',
     'editorLineNumber.activeForeground': '#8839ef',
   },
-}
+};
 
 export const githubDark: editor.IStandaloneThemeData = {
   base: 'vs-dark',
@@ -101,7 +101,7 @@ export const githubDark: editor.IStandaloneThemeData = {
     'editorLineNumber.foreground': '#484f58',
     'editorLineNumber.activeForeground': '#c9d1d9',
   },
-}
+};
 
 export const githubLight: editor.IStandaloneThemeData = {
   base: 'vs',
@@ -126,7 +126,7 @@ export const githubLight: editor.IStandaloneThemeData = {
     'editorLineNumber.foreground': '#8c959f',
     'editorLineNumber.activeForeground': '#24292f',
   },
-}
+};
 
 export const monokai: editor.IStandaloneThemeData = {
   base: 'vs-dark',
@@ -151,4 +151,4 @@ export const monokai: editor.IStandaloneThemeData = {
     'editorLineNumber.foreground': '#90908a',
     'editorLineNumber.activeForeground': '#f8f8f2',
   },
-}
+};

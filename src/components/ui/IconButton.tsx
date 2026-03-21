@@ -1,26 +1,26 @@
-import { type CSSProperties, type ReactNode, useState, useRef } from 'react'
-import { cn } from '../../lib/utils'
+import { type CSSProperties, type ReactNode, useState, useRef } from 'react';
+import { cn } from '../../lib/utils';
 
-type Size = 'xs' | 'sm' | 'md' | 'lg'
+type Size = 'xs' | 'sm' | 'md' | 'lg';
 
 type IconButtonProps = {
-  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
-  title?: string
-  tooltipAlign?: 'center' | 'right' | 'left'
-  disabled?: boolean
-  children: ReactNode
-  variant?: 'ghost' | 'surface' | 'danger'
-  size?: Size
-  style?: CSSProperties
-  className?: string
-}
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  title?: string;
+  tooltipAlign?: 'center' | 'right' | 'left';
+  disabled?: boolean;
+  children: ReactNode;
+  variant?: 'ghost' | 'surface' | 'danger';
+  size?: Size;
+  style?: CSSProperties;
+  className?: string;
+};
 
 const sizeClasses: Record<Size, string> = {
   xs: 'w-5 h-5 md:w-7 md:h-7 text-xs',
   sm: 'w-6 h-6 md:w-8 md:h-8 text-sm',
   md: 'w-8 h-8 md:w-10 md:h-10 text-base',
   lg: 'w-10 h-10 md:w-12 md:h-12 text-lg',
-}
+};
 
 export function IconButton({
   onClick,
@@ -34,42 +34,42 @@ export function IconButton({
   className,
   ...props
 }: IconButtonProps & React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  const [pressed, setPressed] = useState(false)
-  const [showTooltip, setShowTooltip] = useState(false)
+  const [pressed, setPressed] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
   const touchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined
-  )
-  const isLongPress = useRef(false)
+    undefined,
+  );
+  const isLongPress = useRef(false);
 
   const handleTouchStart = () => {
-    isLongPress.current = false
-    if (touchTimer.current) clearTimeout(touchTimer.current)
+    isLongPress.current = false;
+    if (touchTimer.current) clearTimeout(touchTimer.current);
     touchTimer.current = setTimeout(() => {
-      isLongPress.current = true
-      setShowTooltip(true)
-    }, 400)
-  }
+      isLongPress.current = true;
+      setShowTooltip(true);
+    }, 400);
+  };
 
   const handleTouchEnd = () => {
-    if (touchTimer.current) clearTimeout(touchTimer.current)
+    if (touchTimer.current) clearTimeout(touchTimer.current);
     setTimeout(() => {
-      setShowTooltip(false)
-    }, 2000)
-  }
+      setShowTooltip(false);
+    }, 2000);
+  };
 
   const handleTouchMove = () => {
-    if (touchTimer.current) clearTimeout(touchTimer.current)
-    setShowTooltip(false)
-  }
+    if (touchTimer.current) clearTimeout(touchTimer.current);
+    setShowTooltip(false);
+  };
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (isLongPress.current) {
-      e.preventDefault()
-      isLongPress.current = false
-      return
+      e.preventDefault();
+      isLongPress.current = false;
+      return;
     }
-    onClick?.(e)
-  }
+    onClick?.(e);
+  };
 
   return (
     <button
@@ -98,7 +98,7 @@ export function IconButton({
           'bg-surface0 hover:bg-surface1 text-text border border-surface1':
             variant === 'surface',
         },
-        className
+        className,
       )}
       style={style}
     >
@@ -113,12 +113,12 @@ export function IconButton({
             tooltipAlign === 'right' && 'right-0 text-right',
             tooltipAlign === 'left' && 'left-0 text-left',
             showTooltip ? 'opacity-100' : 'opacity-0',
-            'group-hover:opacity-100'
+            'group-hover:opacity-100',
           )}
         >
           {title}
         </div>
       )}
     </button>
-  )
+  );
 }

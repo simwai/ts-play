@@ -21,12 +21,14 @@ TSPlay is a high-performance, mobile-responsive TypeScript playground that bring
 To run TSPlay locally:
 
 1. **Clone the repository:**
+
    ```bash
    git clone https://github.com/simwai/ts-play.git
    cd ts-play
    ```
 
 2. **Install dependencies:**
+
    ```bash
    npm install
    ```
@@ -36,7 +38,7 @@ To run TSPlay locally:
    npm run d\ev
    ```
 
-*Note: The development server includes pre-configured COOP/COEP headers required for WebContainers.*
+_Note: The development server includes pre-configured COOP/COEP headers required for WebContainers._
 
 ## Production Deployment
 
@@ -46,9 +48,11 @@ For production environments (e.g., Apache or Plesk), ensure the following securi
 - `Cross-Origin-Opener-Policy: same-origin`
 
 ### Plesk Configuration
+
 Add the above headers under **Hosting Settings -> Additional headers**.
 
 ### Apache (.htaccess)
+
 ```apache
 <IfModule mod_headers.c>
   Header set Cross-Origin-Embedder-Policy "require-corp"
