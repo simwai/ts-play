@@ -1,47 +1,46 @@
 import * as esbuild from 'esbuild-wasm';
-import esbuildWasmUrl from 'esbuild-wasm/esbuild.wasm?url';
 import * as TS from 'typescript';
+
+// Use CDN URL for WASM to ensure it's always accessible and avoids build inlining issues
+const ESBUILD_WASM_URL = 'https://unpkg.com/esbuild-wasm@0.23.1/esbuild.wasm';
 
 let isEsbuildInitialized = false;
 let workerInitializationPromise: Promise<void> | undefined;
 
-const virtualFiles: Record<string, { version: number; content: string }> = {};
+const ensureEsbuildInitialized = async () => {
+  if (isEsbuildInitialized) return;
 
-function generateAmbientDeclarations(sourceCode: string): string {
-  try {
-    return (
-      '// Declarations auto-generated from main.ts\n' +
-      sourceCode
-        .split('\n')
-        .filter((l) => l.startsWith('export'))
-        .join('\n')
-    );
-  } catch (err) {
-    console.error('generateAmbientDeclarations error:', err);
-    return '// Error generating declarations';
-  }
-}
+  workerInitializationPromise ||= (async () => {
+    try {
+      await esbuild.initialize({
+        wasmURL: ESBUILD_WASM_URL,
+        worker: false,
+      });
+      isEsbuildInitialized = true;
+    } catch (err) {
+      console.error('Failed to initialize esbuild:', err);
+      workerInitializationPromise = undefined; // Allow retry
+      throw err;
+    }
+  })();
+
+  return workerInitializationPromise;
+};
+
+const virtualFiles: Record<string, { version: number; content: string }> = {};
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
 globalThis.onmessage = async (messageEvent: MessageEvent) => {
   const { id, type, payload } = messageEvent.data;
+
   try {
     let result: any;
 
     switch (type) {
       case 'INIT': {
-        workerInitializationPromise ||= (async () => {
-          if (!isEsbuildInitialized) {
-            await esbuild.initialize({
-              wasmURL: esbuildWasmUrl,
-              worker: false,
-            });
-            isEsbuildInitialized = true;
-          }
-        })();
-        await workerInitializationPromise;
+        await ensureEsbuildInitialized();
         result = true;
         break;
       }
@@ -77,6 +76,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       }
 
       case 'COMPILE': {
+        await ensureEsbuildInitialized();
         const compiled = await esbuild.build({
           bundle: false,
           format: 'esm',

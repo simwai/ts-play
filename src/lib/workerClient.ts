@@ -13,26 +13,32 @@ class WorkerClient {
 
   private getWorker() {
     if (!this.worker) {
-      this.worker = new Worker(new URL('worker.ts', import.meta.url), {
-        type: 'module',
-      });
-      this.worker.onmessage = (e) => {
-        const { id, success, payload, error } = e.data;
-        const p = this.resolves.get(id);
-        if (p) {
-          clearTimeout(p.timeoutId);
-          this.resolves.delete(id);
-          if (success) p.resolve(payload);
-          else p.reject(new Error(error));
-        }
-      };
+      try {
+        this.worker = new Worker(new URL('worker.ts', import.meta.url), {
+          type: 'module',
+        });
+        this.worker.onmessage = (e) => {
+          const { id, success, payload, error } = e.data;
+          const p = this.resolves.get(id);
+          if (p) {
+            clearTimeout(p.timeoutId);
+            this.resolves.delete(id);
+            if (success) p.resolve(payload);
+            else p.reject(new Error(error));
+          }
+        };
 
-      this.worker.onerror = (e) => {
-        console.error(
-          'Worker execution error:',
-          e.message || 'Unknown worker error',
-        );
-      };
+        this.worker.onerror = (e: ErrorEvent) => {
+          console.error(
+            'Worker execution error:',
+            e.message || 'Unknown worker error',
+            e
+          );
+        };
+      } catch (error) {
+        console.error('WorkerClient: Failed to create worker instance:', error);
+        throw error;
+      }
     }
     return this.worker;
   }
@@ -40,12 +46,22 @@ class WorkerClient {
   private async send<T>(type: string, payload?: any): Promise<T> {
     return new Promise((resolve, reject) => {
       const id = ++this.msgId;
+
       const timeoutId = setTimeout(() => {
         this.resolves.delete(id);
-        reject(new Error(`Worker request '${type}' timed out after 15s`));
+        const errorMsg = `Worker request '${type}' [${id}] timed out after 15s`;
+        reject(new Error(errorMsg));
       }, 15_000);
+
       this.resolves.set(id, { resolve, reject, timeoutId });
-      this.getWorker().postMessage({ id, type, payload });
+
+      try {
+        this.getWorker().postMessage({ id, type, payload });
+      } catch (error) {
+        clearTimeout(timeoutId);
+        this.resolves.delete(id);
+        reject(error);
+      }
     });
   }
 

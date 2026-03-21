@@ -3,7 +3,6 @@ import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
-import { viteSingleFile } from 'vite-plugin-singlefile';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,7 +35,7 @@ const crossOriginIsolation = () => ({
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss(), viteSingleFile(), crossOriginIsolation()],
+  plugins: [react(), tailwindcss(), crossOriginIsolation()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
@@ -57,5 +56,14 @@ export default defineConfig({
   build: {
     minify: isMinified,
     sourcemap: isSourceMapped,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'monaco-editor': ['monaco-editor'],
+          'typescript': ['typescript'],
+          'esbuild': ['esbuild-wasm'],
+        },
+      },
+    },
   },
 });

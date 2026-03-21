@@ -11,7 +11,7 @@ import { decodeSharePayload } from './lib/shareCodec';
 import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
 import { formatAllFiles } from './lib/formatter';
 import { workerClient } from './lib/workerClient';
-import { getWebContainer } from './lib/webcontainer';
+import { getWebContainer, runCommand } from './lib/webcontainer';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useResizePanel } from './hooks/useResizePanel';
 import { useSwipeTabs } from './hooks/useSwipeTabs';
