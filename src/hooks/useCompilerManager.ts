@@ -87,10 +87,10 @@ export function useCompilerManager(
         });
 
         addMessage('info', ['Compiling via esbuild in WebContainer...']);
-        // Use node_modules/.bin/esbuild directly if possible, or npx as fallback
         const compileResult = await runCommand(
-          './node_modules/.bin/esbuild',
+          'npx',
           [
+            'esbuild',
             'index.ts',
             '--bundle',
             '--platform=node',
@@ -102,24 +102,7 @@ export function useCompilerManager(
           (out) => {
             if (out.trim()) addMessage('error', [out.trim()]);
           },
-        ).catch(async () => {
-          return await runCommand(
-            'npx',
-            [
-              'esbuild',
-              'index.ts',
-              '--bundle',
-              '--platform=node',
-              '--format=esm',
-              '--outfile=index.js',
-              '--packages=external',
-              '--log-level=error',
-            ],
-            (out) => {
-              if (out.trim()) addMessage('error', [out.trim()]);
-            },
-          );
-        });
+        );
 
         const compileExitCode = await compileResult.exit;
         if (compileExitCode !== 0) {
