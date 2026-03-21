@@ -26,9 +26,14 @@ export function useConsoleManager() {
           return String(a)
         }
       })
-      setMessages((previous) =>
-        [...previous, { type, args: formatted, ts: Date.now() }].slice(-500)
-      )
+      try {
+        setMessages((previous) =>
+          [...previous, { type, args: formatted, ts: Date.now() }].slice(-500)
+        )
+      } catch (err) {
+        // Fallback for extreme cases
+        origLog('Failed to update messages:', err)
+      }
     },
     []
   )
@@ -54,38 +59,68 @@ export function useConsoleManager() {
     const origTrace = console.trace
     const origDir = console.dir
 
+    let isInternalProcessing = false
+
     console.log = (...a) => {
-      addMessage('log', a)
+      if (!isInternalProcessing) {
+        isInternalProcessing = true
+        addMessage('log', a)
+        isInternalProcessing = false
+      }
       origLog(...a)
     }
 
     console.error = (...a) => {
-      addMessage('error', a)
+      if (!isInternalProcessing) {
+        isInternalProcessing = true
+        addMessage('error', a)
+        isInternalProcessing = false
+      }
       origError(...a)
     }
 
     console.warn = (...a) => {
-      addMessage('warn', a)
+      if (!isInternalProcessing) {
+        isInternalProcessing = true
+        addMessage('warn', a)
+        isInternalProcessing = false
+      }
       origWarn(...a)
     }
 
     console.info = (...a) => {
-      addMessage('info', a)
+      if (!isInternalProcessing) {
+        isInternalProcessing = true
+        addMessage('info', a)
+        isInternalProcessing = false
+      }
       origInfo(...a)
     }
 
     console.debug = (...a) => {
-      addMessage('debug', a)
+      if (!isInternalProcessing) {
+        isInternalProcessing = true
+        addMessage('debug', a)
+        isInternalProcessing = false
+      }
       origDebug(...a)
     }
 
     console.trace = (...a) => {
-      addMessage('trace', a)
+      if (!isInternalProcessing) {
+        isInternalProcessing = true
+        addMessage('trace', a)
+        isInternalProcessing = false
+      }
       origTrace(...a)
     }
 
     console.dir = (...a) => {
-      addMessage('dir', a)
+      if (!isInternalProcessing) {
+        isInternalProcessing = true
+        addMessage('dir', a)
+        isInternalProcessing = false
+      }
       origDir(...a)
     }
 

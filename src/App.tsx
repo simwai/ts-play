@@ -145,15 +145,23 @@ export function App() {
   useEffect(() => {
     getWebContainer().then(async (instance) => {
       try {
-        await instance.fs.readFile('package.json', 'utf8')
-      } catch {
+        const pkgJson = {
+          name: 'playground',
+          type: 'module',
+          dependencies: {
+            esbuild: '^0.23.1',
+          },
+        }
         await instance.fs.writeFile(
           'package.json',
-          JSON.stringify({ name: 'playground', type: 'module' }, null, 2)
+          JSON.stringify(pkgJson, null, 2)
         )
+        await instance.fs.writeFile('tsconfig.json', tsConfigString)
+      } catch (error) {
+        console.error('Failed to sync config files to WebContainer:', error)
       }
     })
-  }, [])
+  }, [tsConfigString])
 
   const handleCopyAll = useCallback(() => {
     const code =

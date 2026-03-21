@@ -76,8 +76,8 @@ export const Console = React.memo(function Console({
     if (isOpen) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isOpen])
 
-  const errors = messages.filter((m) => m.type === 'error').length
-  const warns = messages.filter((m) => m.type === 'warn').length
+  const errors = (messages || []).filter((m) => m && m.type === 'error').length
+  const warns = (messages || []).filter((m) => m && m.type === 'warn').length
 
   return (
     <div
@@ -90,7 +90,7 @@ export const Console = React.memo(function Console({
         onToggle={onToggle}
         left={
           <>
-            {messages.length > 0 && <Badge label={String(messages.length)} />}
+            {(messages || []).length > 0 && <Badge label={String((messages || []).length)} />}
             {errors > 0 && (
               <Badge
                 label={`${errors} err`}
@@ -106,7 +106,7 @@ export const Console = React.memo(function Console({
           </>
         }
         right={
-          messages.length > 0 ? (
+          (messages || []).length > 0 ? (
             <Button
               onClick={(e) => {
                 e.stopPropagation()
@@ -135,8 +135,9 @@ export const Console = React.memo(function Console({
               No output yet — press Run to execute
             </div>
           ) : (
-            messages.map((m, idx) => {
-              const fullText = m.args.join(' ')
+            (messages || []).map((m, idx) => {
+              if (!m || !m.args) return null;
+              const fullText = Array.isArray(m.args) ? m.args.join(' ') : String(m.args)
               const hasAnsi =
                 trueColorEnabled && /[\u001b\u009b]/.test(fullText)
 
@@ -157,11 +158,11 @@ export const Console = React.memo(function Console({
                     variant={typeVariant(m.type)}
                     className='mt-0.5'
                   />
-                  {hasAnsi ? (
+                  {hasAnsi && fullText ? (
                     <div
                       className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono`}
                       dangerouslySetInnerHTML={{
-                        __html: ansiConvert.toHtml(fullText),
+                        __html: fullText ? ansiConvert.toHtml(fullText) : '',
                       }}
                     />
                   ) : (

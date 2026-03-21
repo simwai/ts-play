@@ -188,14 +188,16 @@ export function usePackageManager(
       try {
         if (removed.length > 0) {
           addMessage('info', ['npm uninstall ' + removed.join(' ') + '...'])
-          await runCommand('npm', ['uninstall', ...removed], (out) => {
+          const { exit } = await runCommand('npm', ['uninstall', ...removed], (out) => {
             const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
             if (clean && !/^[/\\|\-]$/.test(clean)) addMessage('info', [clean])
           })
+          const exitCode = await exit
+          if (exitCode !== 0) throw new Error(`npm uninstall failed with code ${exitCode}`)
         }
         if (added.length > 0) {
           addMessage('info', ['npm install ' + added.join(' ') + '...'])
-          await runCommand(
+          const { exit } = await runCommand(
             'npm',
             ['install', '--no-progress', ...added],
             (out) => {
@@ -204,6 +206,8 @@ export function usePackageManager(
                 addMessage('info', [clean])
             }
           )
+          const exitCode = await exit
+          if (exitCode !== 0) throw new Error(`npm install failed with code ${exitCode}`)
         }
       } catch (error) {
         console.error('Package management failed:', error)
