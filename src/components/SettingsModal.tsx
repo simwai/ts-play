@@ -19,7 +19,7 @@ type SettingsModalProps = {
   setLineWrap: (val: boolean) => void
   packageManagerStatus: string
   themeMode: string
-  setThemeMode: (mode: any) => void
+  setThemeMode: (mode: ThemeMode) => void
 }
 
 function fixLooseJson(code: string): string {
@@ -89,6 +89,7 @@ export function SettingsModal({
     if (!isValid) return
     setIsFormatting(true)
     try {
+      console.log("Saving Settings...");
       let toSave = temporaryTsConfig
       const res = await workerClient.validateConfig(toSave)
       if (!res.valid) {
@@ -98,7 +99,8 @@ export function SettingsModal({
       }
       const formatted = await formatJson(toSave)
       onSave(fixLooseJson(formatted))
-    } catch {
+    } catch (err) {
+      console.error("Settings save error:", err);
       onSave(fixLooseJson(temporaryTsConfig))
     } finally {
       setIsFormatting(false)
@@ -183,7 +185,7 @@ export function SettingsModal({
                 onChange={(e) => setThemeMode(e.target.value)}
                 className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none focus:border-mauve transition-colors'
               >
-                {isDarkMode(themeMode as any) ? (
+                {isDarkMode(themeMode as ThemeMode) ? (
                   <>
                     <option value='mocha'>Catppuccin Mocha</option>
                     <option value='githubDark'>GitHub Dark</option>
