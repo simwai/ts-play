@@ -30,7 +30,7 @@ export function StatusBar({
 }: StatusBarProps) {
   const statusLabel =
     compilerStatus === 'loading'
-      ? '⏳ Loading…'
+      ? 'Loading…'
       : compilerStatus === 'error'
         ? '✗ No compiler'
         : '✓ TS ready';

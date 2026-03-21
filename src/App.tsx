@@ -145,6 +145,7 @@ export function App() {
     return () => globalThis.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const isInitialSync = useRef(true);
   useEffect(() => {
     getWebContainer().then(async (instance) => {
       try {
@@ -160,11 +161,19 @@ export function App() {
           JSON.stringify(pkgJson, null, 2),
         );
         await instance.fs.writeFile('tsconfig.json', tsConfigString);
+
+        if (isInitialSync.current) {
+          isInitialSync.current = false;
+          addMessage('info', ['Preparing environment...']);
+          const { exit } = await runCommand('npm', ['install'], () => {});
+          await exit;
+          addMessage('info', ['Environment ready.']);
+        }
       } catch (error) {
         console.error('Failed to sync config files to WebContainer:', error);
       }
     });
-  }, [tsConfigString]);
+  }, [tsConfigString, addMessage]);
 
   const handleCopyAll = useCallback(() => {
     const code =
