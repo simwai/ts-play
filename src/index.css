@@ -170,7 +170,6 @@
     @apply bg-crust text-text m-0 overflow-hidden;
   }
 
-
   /* Force JetBrains Mono for italics strictly */
   i,
   em,
@@ -180,7 +179,6 @@
     font-family: 'JetBrains Mono', monospace !important;
     font-style: italic;
   }
-
 
   /* Custom Scrollbar & Resizer */
   ::-webkit-scrollbar {
@@ -217,5 +215,3 @@
   background-size: 200% 200%;
   animation: gradient-x 3s ease infinite;
 }
-
-

@@ -1,15 +1,15 @@
-import * as prettier from 'prettier/standalone'
-import * as prettierPluginBabel from 'prettier/plugins/babel'
-import * as prettierPluginEstree from 'prettier/plugins/estree'
-import * as prettierPluginTypescript from 'prettier/plugins/typescript'
+import * as prettier from 'prettier/standalone';
+import * as prettierPluginBabel from 'prettier/plugins/babel';
+import * as prettierPluginEstree from 'prettier/plugins/estree';
+import * as prettierPluginTypescript from 'prettier/plugins/typescript';
 
 export async function loadPrettier(): Promise<void> {}
 
 async function formatCode(
   code: string,
-  language: 'typescript' | 'javascript' | 'dts'
+  language: 'typescript' | 'javascript' | 'dts',
 ): Promise<string> {
-  const parser = language === 'javascript' ? 'babel' : 'typescript'
+  const parser = language === 'javascript' ? 'babel' : 'typescript';
   return await prettier.format(code, {
     parser,
     plugins: [
@@ -25,7 +25,7 @@ async function formatCode(
     trailingComma: 'all',
     bracketSpacing: true,
     arrowParens: 'always',
-  })
+  });
 }
 
 export async function formatJson(code: string): Promise<string> {
@@ -37,49 +37,49 @@ export async function formatJson(code: string): Promise<string> {
       tabWidth: 2,
       useTabs: false,
       quoteProps: 'preserve',
-    })
+    });
   } catch {
-    return code
+    return code;
   }
 }
 
 export async function formatAllFiles(
   tsCode: string,
   jsCode: string,
-  dtsCode: string
+  dtsCode: string,
 ): Promise<{
-  tsCode: string
-  jsCode: string
-  dtsCode: string
-  errors: string[]
+  tsCode: string;
+  jsCode: string;
+  dtsCode: string;
+  errors: string[];
 }> {
-  const errors: string[] = []
-  let formattedTs = tsCode
-  let formattedJs = jsCode
-  let formattedDts = dtsCode
+  const errors: string[] = [];
+  let formattedTs = tsCode;
+  let formattedJs = jsCode;
+  let formattedDts = dtsCode;
 
   await Promise.all([
     formatCode(tsCode, 'typescript')
       .then((r) => {
-        formattedTs = r
+        formattedTs = r;
       })
       .catch((error) => errors.push(`TS: ${error.message}`)),
     formatCode(jsCode, 'javascript')
       .then((r) => {
-        formattedJs = r
+        formattedJs = r;
       })
       .catch((error) => errors.push(`JS: ${error.message}`)),
     formatCode(dtsCode, 'dts')
       .then((r) => {
-        formattedDts = r
+        formattedDts = r;
       })
       .catch((error) => errors.push(`DTS: ${error.message}`)),
-  ])
+  ]);
 
   return {
     tsCode: formattedTs,
     jsCode: formattedJs,
     dtsCode: formattedDts,
     errors,
-  }
+  };
 }
