@@ -19,7 +19,7 @@ The `WebContainerService` provides an `enqueue<T>(operation)` method:
 ### Usage in Hooks
 - `useWebContainer.ts`: Enqueues the initial boot and setup.
 - `usePackageManager.ts`: Enqueues npm operations based on detected import changes.
-- `useCompilerManager.ts`: Enqueues `vite-node` execution, ensuring it runs *after* any pending installations.
+- `useCompilerManager.ts`: Enqueues code execution using `tsx`, ensuring it runs *after* any pending installations.
 
 ## Layout & Interaction
 - **Header**: Main navigation and primary actions (Run, Share, Format).

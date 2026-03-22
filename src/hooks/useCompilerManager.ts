@@ -61,7 +61,7 @@ export function useCompilerManager(
   }, [addMessage]);
 
   /**
-   * Executes the code using vite-node inside the WebContainer.
+   * Executes the code using tsx (formerly vite-node) inside the WebContainer.
    * Leverages the centralized queue to ensure it waits for installs and ready state.
    */
   const runCode = useCallback(async (
@@ -83,9 +83,10 @@ export function useCompilerManager(
         // Wait for any pending user package installations (which are also queued)
         await pendingInstalls;
 
-        addMessage('info', ['Executing via vite-node...']);
+        addMessage('info', ['Executing via tsx...']);
 
-        const process = await instance.spawn('npx', ['vite-node', 'index.ts']);
+        // Replacing vite-node with tsx
+        const process = await instance.spawn('npx', ['tsx', 'index.ts']);
         currentProcess.current = process;
 
         process.output.pipeTo(
