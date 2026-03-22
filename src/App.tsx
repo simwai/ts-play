@@ -40,14 +40,23 @@ console.log("Mapped:", map([1, 2, 3], x => x * 2));
  * Manages the layout, global state, and coordinates specialized hooks.
  */
 export function App() {
-  const [themeMode, setThemeMode] = useLocalStorage<ThemeMode>('tsplay_theme', 'mocha');
+  const [themeMode, setThemeMode] = useLocalStorage<ThemeMode>(
+    'tsplay_theme',
+    'mocha',
+  );
   const [tsCode, setTsCode] = useState(DEFAULT_TS);
   const [jsCode, setJsCode] = useState('');
   const [dtsCode, setDtsCode] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('ts');
-  const [tsConfigString, setTsConfigString] = useLocalStorage('tsplay_tsconfig', DEFAULT_TSCONFIG);
+  const [tsConfigString, setTsConfigString] = useLocalStorage(
+    'tsplay_tsconfig',
+    DEFAULT_TSCONFIG,
+  );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [trueColorEnabled, setTrueColorEnabled] = useLocalStorage('tsplay_truecolor', true);
+  const [trueColorEnabled, setTrueColorEnabled] = useLocalStorage(
+    'tsplay_truecolor',
+    true,
+  );
   const [lineWrap, setLineWrap] = useLocalStorage('tsplay_linewrap', false);
   const [isSharing, setIsSharing] = useState(false);
   const [isFormatting, setFormatting] = useState(false);
@@ -55,16 +64,31 @@ export function App() {
   const [jsDirty, setJsDirty] = useState(false);
 
   // Specialized Hooks
-  const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } = useConsoleManager();
-  const { compilerStatus, isRunning, runCode, stopCode } = useCompilerManager(tsCode, addMessage);
-  const { installedPackages, tsCursorPos, checkImports, installQueue, status: packageManagerStatus } = usePackageManager(tsCode, addMessage);
-  const { externalTypings } = useWebContainer(tsConfigString, tsCode, addMessage);
+  const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } =
+    useConsoleManager();
+  const { compilerStatus, isRunning, runCode, stopCode } = useCompilerManager(
+    tsCode,
+    addMessage,
+  );
+  const {
+    installedPackages,
+    tsCursorPos,
+    checkImports,
+    installQueue,
+    status: packageManagerStatus,
+  } = usePackageManager(tsCode, addMessage);
+  const { externalTypings } = useWebContainer(
+    tsConfigString,
+    tsCode,
+    addMessage,
+  );
 
   /**
    * Clipboard actions
    */
   const handleCopyAll = useCallback(() => {
-    const code = activeTab === 'ts' ? tsCode : activeTab === 'js' ? jsCode : dtsCode;
+    const code =
+      activeTab === 'ts' ? tsCode : activeTab === 'js' ? jsCode : dtsCode;
     navigator.clipboard.writeText(code).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
@@ -76,8 +100,10 @@ export function App() {
    */
   const handleDeleteAll = useCallback(() => {
     if (activeTab === 'ts') setTsCode('');
-    else if (activeTab === 'js') { setJsCode(''); setJsDirty(false); }
-    else setDtsCode('');
+    else if (activeTab === 'js') {
+      setJsCode('');
+      setJsDirty(false);
+    } else setDtsCode('');
   }, [activeTab]);
 
   /**
@@ -99,13 +125,17 @@ export function App() {
    * Execution via Vite-Node
    */
   const handleRun = useCallback(() => {
-    runCode(installQueue.current, (js, dts) => {
-      setJsCode(js);
-      setDtsCode(dts);
-      setJsDirty(false);
-    }, (err) => {
-      addMessage('error', [err.message]);
-    });
+    runCode(
+      installQueue.current,
+      (js, dts) => {
+        setJsCode(js);
+        setDtsCode(dts);
+        setJsDirty(false);
+      },
+      (err) => {
+        addMessage('error', [err.message]);
+      },
+    );
   }, [runCode, installQueue, addMessage]);
 
   /**
@@ -118,7 +148,9 @@ export function App() {
       await navigator.clipboard.writeText(url);
       addMessage('info', ['Share URL copied to clipboard!']);
     } catch (err) {
-      addMessage('error', ['Failed to share snippet: ' + (err as Error).message]);
+      addMessage('error', [
+        'Failed to share snippet: ' + (err as Error).message,
+      ]);
     } finally {
       setIsSharing(false);
     }
@@ -130,7 +162,9 @@ export function App() {
   const { height, isResizing, startResizing } = useResizePanel(300);
 
   return (
-    <div className={`h-[100dvh] flex flex-col bg-crust text-text transition-colors duration-300 ${isDarkMode(themeMode) ? 'dark' : ''}`}>
+    <div
+      className={`h-[100dvh] flex flex-col bg-crust text-text transition-colors duration-300 ${isDarkMode(themeMode) ? 'dark' : ''}`}
+    >
       <Header
         onShare={handleShare}
         onFormat={handleFormat}
@@ -155,15 +189,37 @@ export function App() {
       <main className="flex-1 flex flex-col overflow-hidden relative border-t border-surface0/50">
         <div className="flex-1 overflow-hidden">
           <CodeEditor
-            language={activeTab === 'ts' ? 'typescript' : activeTab === 'js' ? 'javascript' : 'typescript'}
-            value={activeTab === 'ts' ? tsCode : activeTab === 'js' ? jsCode : dtsCode}
+            language={
+              activeTab === 'ts'
+                ? 'typescript'
+                : activeTab === 'js'
+                  ? 'javascript'
+                  : 'typescript'
+            }
+            value={
+              activeTab === 'ts'
+                ? tsCode
+                : activeTab === 'js'
+                  ? jsCode
+                  : dtsCode
+            }
             onChange={(val) => {
               if (activeTab === 'ts') setTsCode(val);
-              else if (activeTab === 'js') { setJsCode(val); setJsDirty(true); }
-              else setDtsCode(val);
+              else if (activeTab === 'js') {
+                setJsCode(val);
+                setJsDirty(true);
+              } else setDtsCode(val);
             }}
-            onCursorChange={(pos) => { if (activeTab === 'ts') tsCursorPos.current = pos; }}
-            path={activeTab === 'ts' ? 'index.ts' : activeTab === 'js' ? 'index.js' : 'index.d.ts'}
+            onCursorChange={(pos) => {
+              if (activeTab === 'ts') tsCursorPos.current = pos;
+            }}
+            path={
+              activeTab === 'ts'
+                ? 'index.ts'
+                : activeTab === 'js'
+                  ? 'index.js'
+                  : 'index.d.ts'
+            }
             lineWrap={lineWrap}
             themeMode={themeMode}
             readOnly={activeTab === 'dts'}

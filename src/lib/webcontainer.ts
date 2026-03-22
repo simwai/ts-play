@@ -1,8 +1,20 @@
 import { WebContainer, type WebContainerProcess } from '@webcontainer/api';
 
 /**
- * WebContainerService provides a robust, singleton-based interface for interacting
- * with the browser-based Node.js runtime.
+ * Core system dependencies that are required for the playground to function.
+ * These are managed by the system and protected from user-level uninstalls.
+ */
+export const SYSTEM_DEPS = [
+  'vite-node',
+  'esbuild',
+  'prettier',
+  'typescript',
+];
+
+/**
+ * WebContainerService encapsulates the WebContainer runtime.
+ * It provides a singleton interface for filesystem and process management,
+ * ensuring that the environment is correctly initialized and protected.
  */
 class WebContainerService {
   private instance: WebContainer | null = null;
@@ -11,17 +23,8 @@ class WebContainerService {
   private envReadyResolve: (() => void) | null = null;
 
   /**
-   * Core system dependencies that should never be uninstalled by the user.
-   */
-  public static readonly SYSTEM_DEPS = [
-    'vite-node',
-    'esbuild',
-    'prettier',
-    'typescript',
-  ];
-
-  /**
-   * Initializes or returns the existing WebContainer instance.
+   * Boots the WebContainer if not already initialized.
+   * Uses a singleton promise to avoid multiple boot attempts.
    */
   public async getInstance(): Promise<WebContainer> {
     if (this.instance) return this.instance;
@@ -36,7 +39,8 @@ class WebContainerService {
   }
 
   /**
-   * Returns a promise that resolves when the environment is ready (e.g., initial install done).
+   * A promise-based lock that resolves when the initial system environment
+   * (e.g., npm install of system tools) is complete.
    */
   public getEnvReady(): Promise<void> {
     if (!this.envReadyPromise) {
@@ -47,9 +51,6 @@ class WebContainerService {
     return this.envReadyPromise;
   }
 
-  /**
-   * Marks the environment as ready for execution.
-   */
   public markEnvReady(): void {
     if (this.envReadyResolve) {
       this.envReadyResolve();
@@ -58,16 +59,19 @@ class WebContainerService {
     }
   }
 
-  /**
-   * Writes a file to the container.
-   */
   public async writeFile(path: string, content: string): Promise<void> {
     const wc = await this.getInstance();
     await wc.fs.writeFile(path, content);
   }
 
+  public async readFile(path: string): Promise<string> {
+    const wc = await this.getInstance();
+    return await wc.fs.readFile(path, 'utf8');
+  }
+
   /**
-   * Spawns a process in the container.
+   * Spawns a process and pipes output to the provided callback.
+   * Returns a handle to the process and its exit promise.
    */
   public async spawn(
     command: string,
@@ -91,7 +95,7 @@ class WebContainerService {
   }
 
   /**
-   * Recursively reads a directory and returns all files matching a filter.
+   * Recursively reads a directory. Used for type extraction and workspace analysis.
    */
   public async readDirRecursive(
     dir: string,
@@ -125,7 +129,7 @@ class WebContainerService {
 
 export const webContainerService = new WebContainerService();
 
-// Re-export old names for compatibility during refactor, but they should be phased out
+// Re-export old names for legacy support during transition
 export const getWebContainer = () => webContainerService.getInstance();
 export const runCommand = (cmd: string, args: string[], onOutput: (d: string) => void) =>
   webContainerService.spawn(cmd, args, onOutput);
