@@ -6,8 +6,9 @@ import type { ConsoleMessage } from '../components/Console';
 import type { WebContainerProcess } from '@webcontainer/api';
 
 /**
- * Hook to manage the compilation and execution of code within the WebContainer.
- * Handles the 'Run' lifecycle and manages execution timeout.
+ * useCompilerManager manages the compilation and execution UI state.
+ * It coordinates with the WebContainerService to run the user's code
+ * and provides status information to the UI.
  */
 export function useCompilerManager(
   tsCode: string,
@@ -24,21 +25,27 @@ export function useCompilerManager(
     codeRef.current = tsCode;
   }, [tsCode]);
 
+  /**
+   * Initialize the local worker for background tasks like syntax highlighting
+   * and quick JS/DTS previews.
+   */
   useEffect(() => {
     workerClient.init()
       .then(() => setCompilerStatus('ready'))
       .catch((error) => {
-        console.error('Worker init failed:', error);
+        console.error('Compiler worker initialization failed:', error);
         setCompilerStatus('error');
       });
   }, []);
 
   useEffect(() => {
-    if (compilerStatus === 'ready') loadPrettier().catch(() => {});
+    if (compilerStatus === 'ready') {
+      loadPrettier().catch(() => {});
+    }
   }, [compilerStatus]);
 
   /**
-   * Gracefully stops the current execution process.
+   * Stops any currently running process in the WebContainer.
    */
   const stopCode = useCallback(() => {
     if (currentProcess.current) {
@@ -54,8 +61,8 @@ export function useCompilerManager(
   }, [addMessage]);
 
   /**
-   * Executes the code within the WebContainer environment using vite-node.
-   * Ensures the environment is ready and waits for any pending installations.
+   * Executes the code using vite-node inside the WebContainer.
+   * Ensures that both the system environment and any pending user packages are ready.
    */
   const runCode = useCallback(async (
     pendingInstalls: Promise<void>,
@@ -68,30 +75,32 @@ export function useCompilerManager(
     try {
       const codeToCompile = codeRef.current;
 
-      // Ensure file is synced to container
+      // Ensure the latest code is written to the virtual filesystem
       await webContainerService.writeFile('index.ts', codeToCompile);
 
-      // Wait for boot and dependencies
+      // Wait for the core environment to be ready (boot + system npm install)
       await webContainerService.getEnvReady();
+      // Wait for any on-demand user package installations
       await pendingInstalls;
 
       addMessage('info', ['Executing via vite-node...']);
 
       const { exit, process } = await webContainerService.spawn('npx', ['vite-node', 'index.ts'], (out) => {
         if (out && typeof out === 'string') {
+          // Stream output to the application console
           out.split('\\n').filter(Boolean).forEach(line => addMessage('log', [line.trim()]));
         }
       });
 
       currentProcess.current = process;
 
-      // Concurrently generate JS/DTS for the UI
+      // Generate immediate previews for the JS and DTS tabs using the local worker
       workerClient.compile(codeToCompile).then(res => {
         setOutputFiles(res);
         onSuccess(res.js, res.dts);
       });
 
-      // Implement execution timeout (5 minutes)
+      // Safety timeout: Execution is capped at 5 minutes
       timeoutRef.current = setTimeout(() => {
         if (currentProcess.current) {
           currentProcess.current.kill();
@@ -108,7 +117,9 @@ export function useCompilerManager(
       }
 
       currentProcess.current = null;
-      if (exitCode !== 0) addMessage('error', [`Process exited with code ${exitCode}`]);
+      if (exitCode !== 0) {
+        addMessage('error', [`Process exited with code ${exitCode}`]);
+      }
     } catch (error) {
       onError(error as Error);
     } finally {

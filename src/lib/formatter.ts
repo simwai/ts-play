@@ -1,24 +1,33 @@
-import { runCommand, getWebContainer } from './webcontainer';
+import { webContainerService } from './webcontainer';
 
+/**
+ * Orchestrates the formatting of all playground files using Prettier
+ * running within the WebContainer environment.
+ */
 export async function formatAllFiles(tsCode: string, jsCode: string, dtsCode: string) {
-  const instance = await getWebContainer();
+  // Write the current TS code to a temporary file in the container
+  await webContainerService.writeFile('temp.ts', tsCode);
 
-  // Write to temporary files for Prettier to process
-  await instance.fs.writeFile('temp.ts', tsCode);
+  // Wait for the environment to be ready (Prettier must be installed)
+  await webContainerService.getEnvReady();
 
-  // Run Prettier inside WebContainer
-  const { exit } = await runCommand('npx', ['prettier', '--write', 'temp.ts'], () => {});
+  // Execute Prettier within the container
+  const { exit } = await webContainerService.spawn('npx', ['prettier', '--write', 'temp.ts']);
   const exitCode = await exit;
 
   if (exitCode === 0) {
-    const formattedTs = await instance.fs.readFile('temp.ts', 'utf8');
+    // Read the formatted content back
+    const formattedTs = await webContainerService.readFile('temp.ts');
     return { tsCode: formattedTs, jsCode, dtsCode };
   }
 
+  // Return original code if formatting fails
   return { tsCode, jsCode, dtsCode };
 }
 
-// Keep formatJson as is or refactor later if needed
+/**
+ * Standard JSON formatter for configuration files.
+ */
 export async function formatJson(json: string) {
   try {
     return JSON.stringify(JSON.parse(json), null, 2);
@@ -27,7 +36,9 @@ export async function formatJson(json: string) {
   }
 }
 
+/**
+ * Prettier is managed within the WebContainer, so this is a no-op on the main thread.
+ */
 export async function loadPrettier() {
-  // Prettier is now loaded within the WebContainer
   return Promise.resolve();
 }

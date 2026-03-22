@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { workerClient } from '../lib/workerClient';
-import { webContainerService } from '../lib/webcontainer';
+import { webContainerService, SYSTEM_DEPS } from '../lib/webcontainer';
 import type { InstalledPackage } from '../components/PackageManager';
 import type { ConsoleMessage } from '../components/Console';
 
 /**
- * Built-in Node.js modules that should not be attempted for installation.
+ * Standard Node.js built-ins that should never be installed as dependencies.
  */
 const BUILTIN_MODULES = new Set([
   'assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'console',
@@ -19,8 +19,9 @@ const BUILTIN_MODULES = new Set([
 export type PackageManagerStatus = 'idle' | 'installing' | 'uninstalling' | 'syncing' | 'error';
 
 /**
- * Hook to manage user-imported packages in the WebContainer.
- * Handles automatic import detection and protects core system dependencies.
+ * usePackageManager manages the lifecycle of dependencies in the WebContainer.
+ * It automatically detects imports in the code and synchronizes with the filesystem,
+ * while ensuring that system-critical dependencies are protected.
  */
 export function usePackageManager(
   tsCode: string,
@@ -29,9 +30,7 @@ export function usePackageManager(
   const [installedPackages, setInstalledPackages] = useState<InstalledPackage[]>([]);
   const [status, setStatus] = useState<PackageManagerStatus>('idle');
   const tasksInProgress = useRef(0);
-
-  // Track previous packages to detect changes
-  const previousPkgsRef = useRef<Set<string>>(new Set());
+  const previousPkgsRef = useRef<Set<string>>(new Set(SYSTEM_DEPS));
   const installQueue = useRef<Promise<void>>(Promise.resolve());
 
   const updateBusyState = useCallback((busy: boolean, type: PackageManagerStatus = 'idle') => {
@@ -48,7 +47,8 @@ export function usePackageManager(
   const checkImportsTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   /**
-   * Detects imports in the source code and filters out system/built-in modules.
+   * Scans the source code for new imports.
+   * Throttled to avoid excessive processing on every keystroke.
    */
   const checkImports = useCallback(() => {
     if (checkImportsTimeout.current) clearTimeout(checkImportsTimeout.current);
@@ -59,7 +59,7 @@ export function usePackageManager(
           (pkg) =>
             !pkg.startsWith('node:') &&
             !BUILTIN_MODULES.has(pkg) &&
-            !WebContainerService.SYSTEM_DEPS.includes(pkg)
+            !SYSTEM_DEPS.includes(pkg)
         );
         const detectedSorted = filtered.sort();
 
@@ -79,25 +79,27 @@ export function usePackageManager(
   }, [tsCode, checkImports]);
 
   /**
-   * Syncs detected packages with the WebContainer's node_modules.
-   * Protects core system dependencies from being uninstalled.
+   * Synchronizes the WebContainer filesystem with the detected packages.
+   * Uses a sequential queue to avoid concurrent npm operations.
    */
   useEffect(() => {
     const currentNames = new Set(installedPackages.map((p) => p.name));
     const previousNames = previousPkgsRef.current;
 
-    // Calculate changes, ensuring system deps are never removed
+    // Identify packages to add and packages to remove (protecting system deps)
     const added = [...currentNames].filter((x) => !previousNames.has(x));
     const removed = [...previousNames].filter(
-      (x) => !currentNames.has(x) && !WebContainerService.SYSTEM_DEPS.includes(x)
+      (x) => !currentNames.has(x) && !SYSTEM_DEPS.includes(x)
     );
 
     if (added.length === 0 && removed.length === 0) return;
     previousPkgsRef.current = currentNames;
 
     const performChanges = async () => {
+      // Wait for the environment to be ready before running npm
       await webContainerService.getEnvReady();
       updateBusyState(true, added.length > 0 ? 'installing' : 'uninstalling');
+
       try {
         if (removed.length > 0) {
           addMessage('info', [`npm uninstall ${removed.join(' ')}...`]);
@@ -135,7 +137,3 @@ export function usePackageManager(
     packageTypings: {} as Record<string, string>,
   };
 }
-
-// Helper to access static constant in hook context
-import { webContainerService as wcs } from '../lib/webcontainer';
-const WebContainerService = (wcs as any).constructor;
