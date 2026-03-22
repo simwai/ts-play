@@ -62,7 +62,7 @@ export function useCompilerManager(
 
   /**
    * Executes the code using vite-node inside the WebContainer.
-   * Ensures that both the system environment and any pending user packages are ready.
+   * Leverages the centralized queue to ensure it waits for installs and ready state.
    */
   const runCode = useCallback(async (
     pendingInstalls: Promise<void>,
@@ -75,51 +75,58 @@ export function useCompilerManager(
     try {
       const codeToCompile = codeRef.current;
 
-      // Ensure the latest code is written to the virtual filesystem
-      await webContainerService.writeFile('index.ts', codeToCompile);
+      // Use the centralized queue
+      await webContainerService.enqueue(async (instance) => {
+        // Ensure the latest code is written to the virtual filesystem
+        await instance.fs.writeFile('index.ts', codeToCompile);
 
-      // Wait for the core environment to be ready (boot + system npm install)
-      await webContainerService.getEnvReady();
-      // Wait for any on-demand user package installations
-      await pendingInstalls;
+        // Wait for any pending user package installations (which are also queued)
+        await pendingInstalls;
 
-      addMessage('info', ['Executing via vite-node...']);
+        addMessage('info', ['Executing via vite-node...']);
 
-      const { exit, process } = await webContainerService.spawn('npx', ['vite-node', 'index.ts'], (out) => {
-        if (out && typeof out === 'string') {
-          // Stream output to the application console
-          out.split('\\n').filter(Boolean).forEach(line => addMessage('log', [line.trim()]));
+        const process = await instance.spawn('npx', ['vite-node', 'index.ts']);
+        currentProcess.current = process;
+
+        process.output.pipeTo(
+          new WritableStream({
+            write(out) {
+              if (out && typeof out === 'string') {
+                // Stream output to the application console, filter out excessive whitespace
+                const lines = out.split('\n').map(l => l.trim()).filter(Boolean);
+                lines.forEach(line => addMessage('log', [line]));
+              }
+            },
+          })
+        );
+
+        // Generate immediate previews for the JS and DTS tabs using the local worker
+        workerClient.compile(codeToCompile).then(res => {
+          setOutputFiles(res);
+          onSuccess(res.js, res.dts);
+        });
+
+        // Safety timeout: Execution is capped at 5 minutes
+        timeoutRef.current = setTimeout(() => {
+          if (currentProcess.current) {
+            currentProcess.current.kill();
+            currentProcess.current = null;
+          }
+          addMessage('error', ['Execution timed out after 5 minutes.']);
+          setIsRunning(false);
+        }, 300000);
+
+        const exitCode = await process.exit;
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+
+        currentProcess.current = null;
+        if (exitCode !== 0) {
+          addMessage('error', [`Process exited with code ${exitCode}`]);
         }
       });
-
-      currentProcess.current = process;
-
-      // Generate immediate previews for the JS and DTS tabs using the local worker
-      workerClient.compile(codeToCompile).then(res => {
-        setOutputFiles(res);
-        onSuccess(res.js, res.dts);
-      });
-
-      // Safety timeout: Execution is capped at 5 minutes
-      timeoutRef.current = setTimeout(() => {
-        if (currentProcess.current) {
-          currentProcess.current.kill();
-          currentProcess.current = null;
-        }
-        addMessage('error', ['Execution timed out after 5 minutes.']);
-        setIsRunning(false);
-      }, 300000);
-
-      const exitCode = await exit;
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-
-      currentProcess.current = null;
-      if (exitCode !== 0) {
-        addMessage('error', [`Process exited with code ${exitCode}`]);
-      }
     } catch (error) {
       onError(error as Error);
     } finally {

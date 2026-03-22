@@ -14,6 +14,7 @@ type CodeEditorProps = {
   onChange?: (value: string) => void;
   onCursorChange?: (offset: number) => void;
   onTypeInfoChange?: (info: string) => void;
+  onCursorPosChange?: (pos: { line: number; col: number }) => void;
   language?: 'typescript' | 'javascript' | 'json';
   readOnly?: boolean;
   extraLibs?: Record<string, string>;
@@ -48,6 +49,7 @@ export const CodeEditor = React.memo(
       onChange,
       onCursorChange,
       onTypeInfoChange,
+      onCursorPosChange,
       language = 'typescript',
       readOnly = false,
       extraLibs,
@@ -180,6 +182,7 @@ export const CodeEditor = React.memo(
           if (model) {
             const offset = model.getOffsetAt(e.position);
             onCursorChange?.(offset);
+            onCursorPosChange?.({ line: e.position.lineNumber, col: e.position.column });
           }
           fetchTypeInfoRef.current?.(editor, e.position);
         });

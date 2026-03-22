@@ -30,47 +30,56 @@ export function useWebContainer(
 
   /**
    * The core initialization loop.
-   * Only runs once upon the first mount of the application.
+   * Enqueued in the system queue to ensure order.
    */
   useEffect(() => {
-    webContainerService.getInstance().then(async (instance) => {
+    if (!isInitialSync.current) return;
+    isInitialSync.current = false;
+
+    webContainerService.enqueueSystem(async (instance) => {
       try {
-        if (isInitialSync.current) {
-          isInitialSync.current = false;
+        // Prepare a standard Node.js project structure
+        const pkgJson = {
+          name: 'playground',
+          type: 'module',
+          private: true,
+          dependencies: Object.fromEntries(SYSTEM_DEPS.map(d => [d, 'latest']))
+        };
 
-          // Prepare a standard Node.js project structure
-          const pkgJson = {
-            name: 'playground',
-            type: 'module',
-            private: true,
-            dependencies: Object.fromEntries(SYSTEM_DEPS.map(d => [d, 'latest']))
-          };
+        await instance.fs.writeFile('package.json', JSON.stringify(pkgJson, null, 2));
+        await instance.fs.writeFile('tsconfig.json', tsConfigString);
+        await instance.fs.writeFile('index.ts', tsCode);
 
-          await instance.fs.writeFile('package.json', JSON.stringify(pkgJson, null, 2));
-          await instance.fs.writeFile('tsconfig.json', tsConfigString);
-          await instance.fs.writeFile('index.ts', tsCode);
+        addMessage('info', ['Preparing environment...']);
 
-          addMessage('info', ['Preparing environment...']);
+        // Use the service's spawn method to run the first install
+        const process = await instance.spawn('npm', ['install', '--no-progress']);
 
-          // Use the service's spawn method to run the first install
-          const { exit } = await webContainerService.spawn('npm', ['install', '--no-progress'], (out) => {
-             const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim();
-             if (clean && !/^[/\\|\-]$/.test(clean)) addMessage('info', [clean]);
-          });
+        process.output.pipeTo(
+          new WritableStream({
+            write(out) {
+               const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim();
+               if (clean && !/^[/\\|\-]$/.test(clean)) addMessage('info', [clean]);
+            },
+          })
+        );
 
-          const exitCode = await exit;
-          if (exitCode === 0) {
-            // After successful install, perform an initial type sync
-            await syncTypes();
-            // Signal to other hooks (e.g., compiler manager) that the environment is ready
-            webContainerService.markEnvReady();
-            addMessage('info', ['Environment ready.']);
-          } else {
-             addMessage('error', ['npm install failed. Please check the console output.']);
-          }
+        const exitCode = await process.exit;
+        if (exitCode === 0) {
+          // After successful install, perform an initial type sync
+          await syncTypes();
+          // Signal to other hooks (e.g., compiler manager) that the environment is ready
+          webContainerService.markEnvReady();
+          addMessage('info', ['Environment ready.']);
+        } else {
+           addMessage('error', ['npm install failed. Please check the console output.']);
+           // Still mark as ready so the queue can proceed or retry
+           webContainerService.markEnvReady();
         }
       } catch (error) {
         console.error('Failed to synchronize environment:', error);
+        addMessage('error', ['Failed to synchronize environment: ' + (error as Error).message]);
+        webContainerService.markEnvReady();
       }
     });
   }, []);

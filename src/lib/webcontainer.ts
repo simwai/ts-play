@@ -15,12 +15,16 @@ export const SYSTEM_DEPS = [
  * WebContainerService encapsulates the WebContainer runtime.
  * It provides a singleton interface for filesystem and process management,
  * ensuring that the environment is correctly initialized and protected.
+ *
+ * Added a centralized queue for all operations to ensure they run in order
+ * and wait for environment readiness.
  */
 class WebContainerService {
   private instance: WebContainer | null = null;
   private bootPromise: Promise<WebContainer> | null = null;
   private envReadyPromise: Promise<void> | null = null;
   private envReadyResolve: (() => void) | null = null;
+  private operationQueue: Promise<any> = Promise.resolve();
 
   /**
    * Boots the WebContainer if not already initialized.
@@ -57,6 +61,36 @@ class WebContainerService {
     } else {
       this.envReadyPromise = Promise.resolve();
     }
+  }
+
+  /**
+   * Enqueues an operation to be executed sequentially.
+   * Ensures the environment is ready before running the operation.
+   */
+  public async enqueue<T>(operation: (instance: WebContainer) => Promise<T>): Promise<T> {
+    const task = async () => {
+      await this.getEnvReady();
+      const instance = await this.getInstance();
+      return await operation(instance);
+    };
+
+    const nextOp = this.operationQueue.then(task, task); // Always continue the queue even on failure
+    this.operationQueue = nextOp;
+    return nextOp;
+  }
+
+  /**
+   * Special enqueue for system initialization tasks that don't wait for envReady.
+   */
+  public async enqueueSystem<T>(operation: (instance: WebContainer) => Promise<T>): Promise<T> {
+    const task = async () => {
+      const instance = await this.getInstance();
+      return await operation(instance);
+    };
+
+    const nextOp = this.operationQueue.then(task, task);
+    this.operationQueue = nextOp;
+    return nextOp;
   }
 
   public async writeFile(path: string, content: string): Promise<void> {
