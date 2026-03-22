@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { workerClient } from '../lib/workerClient';
 import { loadPrettier } from '../lib/formatter';
-import { writeFiles, runCommand, getWebContainer } from '../lib/webcontainer';
+import { runCommand, getWebContainer, getEnvReady } from '../lib/webcontainer';
 import type { ConsoleMessage } from '../components/Console';
 import type { WebContainerProcess } from '@webcontainer/api';
 
@@ -9,23 +9,19 @@ export function useCompilerManager(
   tsCode: string,
   addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void,
 ) {
-  const [compilerStatus, setCompilerStatus] = useState<
-    'loading' | 'ready' | 'error'
-  >('loading');
+  const [compilerStatus, setCompilerStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [isRunning, setIsRunning] = useState(false);
   const currentProcess = useRef<WebContainerProcess | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Use a ref for tsCode to avoid unnecessary re-creations of runCode
-  // while still having access to the latest code when it's eventually called.
   const codeRef = useRef(tsCode);
+  const [outputFiles, setOutputFiles] = useState<{ js: string; dts: string }>({ js: '', dts: '' });
+
   useEffect(() => {
     codeRef.current = tsCode;
   }, [tsCode]);
 
   useEffect(() => {
-    workerClient
-      .init()
+    workerClient.init()
       .then(() => setCompilerStatus('ready'))
       .catch((error) => {
         console.error('Worker init failed:', error);
@@ -34,9 +30,7 @@ export function useCompilerManager(
   }, []);
 
   useEffect(() => {
-    if (compilerStatus === 'ready') {
-      loadPrettier().catch(() => {});
-    }
+    if (compilerStatus === 'ready') loadPrettier().catch(() => {});
   }, [compilerStatus]);
 
   const stopCode = useCallback(() => {
@@ -52,119 +46,63 @@ export function useCompilerManager(
     setIsRunning(false);
   }, [addMessage]);
 
-  const runCode = useCallback(
-    async (
-      pendingInstalls: Promise<void>,
-      onSuccess: (js: string, dts: string) => void,
-      onError: (error: Error) => void,
-    ) => {
-      // Avoid concurrent runs
-      if (isRunning) return;
-      setIsRunning(true);
+  const runCode = useCallback(async (
+    pendingInstalls: Promise<void>,
+    onSuccess: (js: string, dts: string) => void,
+    onError: (error: Error) => void,
+  ) => {
+    if (isRunning) return;
+    setIsRunning(true);
 
-      try {
-        const codeToCompile = codeRef.current;
+    try {
+      const codeToCompile = codeRef.current;
+      const wc = await getWebContainer();
 
-        // Wait for potential installations (like esbuild) before starting
-        const installTimeout = new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error('Initial package installation timed out')),
-            30000,
-          ),
-        );
+      // Write code and wait for environment
+      await wc.fs.writeFile('index.ts', codeToCompile);
+      await getEnvReady();
+      await pendingInstalls;
 
-        addMessage('info', ['Syncing files and preparing for compilation...']);
-        const wc = await getWebContainer();
-        await wc.fs.writeFile('index.ts', codeToCompile);
-        try {
-          await wc.fs.rm('index.js');
-        } catch {}
-        await Promise.race([pendingInstalls, installTimeout]).catch((e) => {
-          console.warn(
-            'Proceeding with potentially missing packages:',
-            e.message,
-          );
-        });
+      addMessage('info', ['Executing via vite-node...']);
 
-        addMessage('info', ['Compiling via esbuild in WebContainer...']);
-        const compileResult = await runCommand(
-          'npx',
-          [
-            'esbuild',
-            'index.ts',
-            '--bundle',
-            '--platform=node',
-            '--format=esm',
-            '--outfile=index.js',
-            '--packages=external',
-            '--log-level=error',
-          ],
-          (out) => {
-            if (out.trim()) addMessage('error', [out.trim()]);
-          },
-        );
-
-        const compileExitCode = await compileResult.exit;
-        if (compileExitCode !== 0) {
-          throw new Error(
-            `Compilation failed with exit code ${compileExitCode}`,
-          );
+      const { exit, process } = await runCommand('npx', ['vite-node', 'index.ts'], (out) => {
+        if (out && typeof out === 'string') {
+          out.split('\\n').filter(Boolean).forEach(line => addMessage('log', [line.trim()]));
         }
+      });
 
-        // Read compiled JS back for the UI
-        const compiledJs = await wc.fs
-          .readFile('index.js', 'utf8')
-          .catch(() => '// Error reading compiled file');
+      currentProcess.current = process;
 
-        // Use worker for d.ts generation as esbuild-wasm doesn't do it easily
-        const { dts } = await workerClient.compile(codeToCompile);
-        onSuccess(compiledJs, dts);
+      // Separate process to extract output files using esbuild-wasm (or similar via worker)
+      // Since we want JS/DTS for the UI tabs, we still use the worker but rely on vite-node for real execution
+      workerClient.compile(codeToCompile).then(res => {
+        setOutputFiles(res);
+        onSuccess(res.js, res.dts);
+      });
 
-        addMessage('info', ['Executing via Node.js...']);
-        const { exit, process } = await runCommand(
-          'node',
-          ['index.js'],
-          (out) => {
-            if (out && typeof out === 'string') {
-              const lines = out.split('\n');
-              lines.forEach((line) => {
-                const trimmed = line.trim();
-                if (trimmed) addMessage('log', [trimmed]);
-              });
-            }
-          },
-        );
-
-        currentProcess.current = process;
-
-        timeoutRef.current = setTimeout(() => {
-          if (currentProcess.current) {
-            currentProcess.current.kill();
-            currentProcess.current = null;
-          }
-          addMessage('error', ['Execution timed out after 5 minutes.']);
-          setIsRunning(false);
-        }, 300000);
-
-        const exitCode = await exit;
-
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-          timeoutRef.current = null;
+      timeoutRef.current = setTimeout(() => {
+        if (currentProcess.current) {
+          currentProcess.current.kill();
+          currentProcess.current = null;
         }
-
-        currentProcess.current = null;
-        if (exitCode !== 0) {
-          addMessage('error', [`Process exited with code ${exitCode}`]);
-        }
-      } catch (error) {
-        onError(error as Error);
-      } finally {
+        addMessage('error', ['Execution timed out after 5 minutes.']);
         setIsRunning(false);
-      }
-    },
-    [addMessage, isRunning],
-  );
+      }, 300000);
 
-  return { compilerStatus, isRunning, runCode, stopCode };
+      const exitCode = await exit;
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+
+      currentProcess.current = null;
+      if (exitCode !== 0) addMessage('error', [`Process exited with code ${exitCode}`]);
+    } catch (error) {
+      onError(error as Error);
+    } finally {
+      setIsRunning(false);
+    }
+  }, [addMessage, isRunning]);
+
+  return { compilerStatus, isRunning, runCode, stopCode, outputFiles };
 }

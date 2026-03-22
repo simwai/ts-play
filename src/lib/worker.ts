@@ -1,29 +1,4 @@
-import * as esbuild from 'esbuild-wasm';
-import esbuildWasmUrl from 'esbuild-wasm/esbuild.wasm?url';
 import * as TS from 'typescript';
-
-let isEsbuildInitialized = false;
-let workerInitializationPromise: Promise<void> | undefined;
-
-const virtualFiles: Record<string, { version: number; content: string }> = {};
-
-function generateAmbientDeclarations(sourceCode: string): string {
-  try {
-    return (
-      '// Declarations auto-generated from main.ts\n' +
-      sourceCode
-        .split('\n')
-        .filter((l) => l.startsWith('export'))
-        .join('\n')
-    );
-  } catch (err) {
-    console.error('generateAmbientDeclarations error:', err);
-    return '// Error generating declarations';
-  }
-}
-
-const getErrorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : String(error);
 
 globalThis.onmessage = async (messageEvent: MessageEvent) => {
   const { id, type, payload } = messageEvent.data;
@@ -32,29 +7,6 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
 
     switch (type) {
       case 'INIT': {
-        workerInitializationPromise ||= (async () => {
-          if (!isEsbuildInitialized) {
-            await esbuild.initialize({
-              wasmURL: esbuildWasmUrl,
-              worker: false,
-            });
-            isEsbuildInitialized = true;
-          }
-        })();
-        await workerInitializationPromise;
-        result = true;
-        break;
-      }
-
-      case 'UPDATE_FILE': {
-        const { content, filename = 'main.ts' } = payload;
-        const fileState = virtualFiles[filename];
-        if (!fileState || fileState.content !== content) {
-          virtualFiles[filename] = {
-            version: (fileState?.version || 0) + 1,
-            content,
-          };
-        }
         result = true;
         break;
       }
@@ -73,37 +25,6 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
         } else {
           result = { valid: true };
         }
-        break;
-      }
-
-      case 'COMPILE': {
-        const compiled = await esbuild.build({
-          bundle: false,
-          format: 'esm',
-          target: 'es2020',
-          write: false,
-          stdin: {
-            contents: payload.code,
-            loader: 'ts',
-            sourcefile: 'main.ts',
-          },
-        });
-
-        const lines = payload.code.split('\n');
-        const dtsLines = lines.filter((l) => {
-          const t = l.trim();
-          return (
-            t.startsWith('export ') ||
-            t.startsWith('interface ') ||
-            t.startsWith('type ') ||
-            t.startsWith('declare ')
-          );
-        });
-
-        result = {
-          js: compiled.outputFiles?.[0]?.text || '',
-          dts: dtsLines.join('\n') || '// No declarations found',
-        };
         break;
       }
 
@@ -135,9 +56,11 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
         break;
       }
 
+      case 'COMPILE':
+      case 'UPDATE_FILE':
       case 'UPDATE_CONFIG':
       case 'UPDATE_EXTRA_LIBS':
-        // No-op in custom worker, handled by Monaco now
+        // No-op or handled elsewhere now
         result = true;
         break;
 
@@ -147,6 +70,6 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
     self.postMessage({ id, success: true, payload: result });
   } catch (error) {
     console.error(`Worker error [${type}]:`, error);
-    self.postMessage({ id, success: false, error: getErrorMessage(error) });
+    self.postMessage({ id, success: false, error: error instanceof Error ? error.message : String(error) });
   }
 };

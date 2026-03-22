@@ -16,11 +16,9 @@
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
-    "@typescript/ata": "^0.9.8",
     "@webcontainer/api": "^1.6.1",
     "ansi-to-html": "^0.7.2",
     "clsx": "2.1.1",
-    "esbuild-wasm": "^0.23.1",
     "husky": "^9.1.7",
     "lucide-react": "^0.577.0",
     "monaco-editor": "^0.55.1",
