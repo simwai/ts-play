@@ -1,113 +1,135 @@
 import { WebContainer, type WebContainerProcess } from '@webcontainer/api';
 
-let webcontainerInstance: WebContainer | undefined;
-let bootPromise: Promise<WebContainer> | undefined;
-
-// Use a promise to track if the initial environment (e.g. npm install) is ready
-let envReadyPromise: Promise<void> | undefined;
-let envReadyResolve: (() => void) | undefined;
-
 /**
- * Boots the WebContainer instance if not already booted.
+ * WebContainerService provides a robust, singleton-based interface for interacting
+ * with the browser-based Node.js runtime.
  */
-export async function getWebContainer(): Promise<WebContainer> {
-  if (webcontainerInstance) {
-    return webcontainerInstance;
-  }
+class WebContainerService {
+  private instance: WebContainer | null = null;
+  private bootPromise: Promise<WebContainer> | null = null;
+  private envReadyPromise: Promise<void> | null = null;
+  private envReadyResolve: (() => void) | null = null;
 
-  bootPromise ||= WebContainer.boot().then((instance) => {
-    webcontainerInstance = instance;
-    return instance;
-  });
+  /**
+   * Core system dependencies that should never be uninstalled by the user.
+   */
+  public static readonly SYSTEM_DEPS = [
+    'vite-node',
+    'esbuild',
+    'prettier',
+    'typescript',
+  ];
 
-  return bootPromise;
-}
+  /**
+   * Initializes or returns the existing WebContainer instance.
+   */
+  public async getInstance(): Promise<WebContainer> {
+    if (this.instance) return this.instance;
+    if (this.bootPromise) return this.bootPromise;
 
-/**
- * Returns a promise that resolves when the initial environment is ready.
- */
-export function getEnvReady(): Promise<void> {
-  if (!envReadyPromise) {
-    envReadyPromise = new Promise((resolve) => {
-      envReadyResolve = resolve;
+    this.bootPromise = WebContainer.boot().then((instance) => {
+      this.instance = instance;
+      return instance;
     });
+
+    return this.bootPromise;
   }
-  return envReadyPromise;
-}
 
-/**
- * Marks the environment as ready.
- */
-export function markEnvReady() {
-  if (envReadyResolve) {
-    envReadyResolve();
-  } else {
-    // If someone calls getEnvReady after this, it should resolve immediately
-    envReadyPromise = Promise.resolve();
+  /**
+   * Returns a promise that resolves when the environment is ready (e.g., initial install done).
+   */
+  public getEnvReady(): Promise<void> {
+    if (!this.envReadyPromise) {
+      this.envReadyPromise = new Promise((resolve) => {
+        this.envReadyResolve = resolve;
+      });
+    }
+    return this.envReadyPromise;
   }
-}
 
-/**
- * Writes multiple files to the WebContainer filesystem.
- */
-export async function writeFiles(files: Record<string, string>) {
-  const instance = await getWebContainer();
-
-  for (const [path, contents] of Object.entries(files)) {
-    await instance.fs.writeFile(path, contents);
-  }
-}
-
-/**
- * Runs a command in the WebContainer and returns its process and an exit promise.
- */
-export async function runCommand(
-  cmd: string,
-  args: string[],
-  onOutput: (data: string) => void,
-): Promise<{ exit: Promise<number>; process: WebContainerProcess }> {
-  const instance = await getWebContainer();
-  const process = await instance.spawn(cmd, args);
-
-  process.output.pipeTo(
-    new WritableStream({
-      write(data) {
-        onOutput(data);
-      },
-    }),
-  );
-
-  return { exit: process.exit, process };
-}
-
-/**
- * Recursively reads a directory in the WebContainer and returns a map of file paths to their contents.
- * Useful for extracting types from node_modules.
- */
-export async function readDirRecursive(
-  dir: string,
-  filter: (path: string) => boolean = () => true,
-  basePath: string = dir,
-): Promise<Record<string, string>> {
-  const instance = await getWebContainer();
-  const entries = await instance.fs.readdir(dir, { withFileTypes: true });
-  const results: Record<string, string> = {};
-
-  for (const entry of entries) {
-    const fullPath = `${dir}/${entry.name}`;
-    const relativePath = fullPath.replace(new RegExp(`^${basePath}/?`), '');
-
-    if (entry.isDirectory()) {
-      Object.assign(results, await readDirRecursive(fullPath, filter, basePath));
-    } else if (filter(fullPath)) {
-      try {
-        const content = await instance.fs.readFile(fullPath, 'utf8');
-        results[relativePath] = content;
-      } catch (err) {
-        console.warn(`Failed to read file: ${fullPath}`, err);
-      }
+  /**
+   * Marks the environment as ready for execution.
+   */
+  public markEnvReady(): void {
+    if (this.envReadyResolve) {
+      this.envReadyResolve();
+    } else {
+      this.envReadyPromise = Promise.resolve();
     }
   }
 
-  return results;
+  /**
+   * Writes a file to the container.
+   */
+  public async writeFile(path: string, content: string): Promise<void> {
+    const wc = await this.getInstance();
+    await wc.fs.writeFile(path, content);
+  }
+
+  /**
+   * Spawns a process in the container.
+   */
+  public async spawn(
+    command: string,
+    args: string[],
+    onOutput?: (data: string) => void
+  ): Promise<{ exit: Promise<number>; process: WebContainerProcess }> {
+    const wc = await this.getInstance();
+    const process = await wc.spawn(command, args);
+
+    if (onOutput) {
+      process.output.pipeTo(
+        new WritableStream({
+          write(data) {
+            onOutput(data);
+          },
+        })
+      );
+    }
+
+    return { exit: process.exit, process };
+  }
+
+  /**
+   * Recursively reads a directory and returns all files matching a filter.
+   */
+  public async readDirRecursive(
+    dir: string,
+    filter: (path: string) => boolean = () => true,
+    basePath: string = dir
+  ): Promise<Record<string, string>> {
+    const wc = await this.getInstance();
+    let entries;
+    try {
+      entries = await wc.fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return {};
+    }
+
+    const results: Record<string, string> = {};
+    for (const entry of entries) {
+      const fullPath = `${dir}/${entry.name}`;
+      const relativePath = fullPath.replace(new RegExp(`^${basePath}/?`), '');
+
+      if (entry.isDirectory()) {
+        Object.assign(results, await this.readDirRecursive(fullPath, filter, basePath));
+      } else if (filter(fullPath)) {
+        try {
+          results[relativePath] = await wc.fs.readFile(fullPath, 'utf8');
+        } catch {}
+      }
+    }
+    return results;
+  }
 }
+
+export const webContainerService = new WebContainerService();
+
+// Re-export old names for compatibility during refactor, but they should be phased out
+export const getWebContainer = () => webContainerService.getInstance();
+export const runCommand = (cmd: string, args: string[], onOutput: (d: string) => void) =>
+  webContainerService.spawn(cmd, args, onOutput);
+export const markEnvReady = () => webContainerService.markEnvReady();
+export const getEnvReady = () => webContainerService.getEnvReady();
+export const readDirRecursive = (dir: string, filter?: (p: string) => boolean) =>
+  webContainerService.readDirRecursive(dir, filter);

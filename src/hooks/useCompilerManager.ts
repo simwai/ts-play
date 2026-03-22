@@ -1,10 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { workerClient } from '../lib/workerClient';
 import { loadPrettier } from '../lib/formatter';
-import { runCommand, getWebContainer, getEnvReady } from '../lib/webcontainer';
+import { webContainerService } from '../lib/webcontainer';
 import type { ConsoleMessage } from '../components/Console';
 import type { WebContainerProcess } from '@webcontainer/api';
 
+/**
+ * Hook to manage the compilation and execution of code within the WebContainer.
+ * Handles the 'Run' lifecycle and manages execution timeout.
+ */
 export function useCompilerManager(
   tsCode: string,
   addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void,
@@ -33,6 +37,9 @@ export function useCompilerManager(
     if (compilerStatus === 'ready') loadPrettier().catch(() => {});
   }, [compilerStatus]);
 
+  /**
+   * Gracefully stops the current execution process.
+   */
   const stopCode = useCallback(() => {
     if (currentProcess.current) {
       currentProcess.current.kill();
@@ -46,6 +53,10 @@ export function useCompilerManager(
     setIsRunning(false);
   }, [addMessage]);
 
+  /**
+   * Executes the code within the WebContainer environment using vite-node.
+   * Ensures the environment is ready and waits for any pending installations.
+   */
   const runCode = useCallback(async (
     pendingInstalls: Promise<void>,
     onSuccess: (js: string, dts: string) => void,
@@ -56,16 +67,17 @@ export function useCompilerManager(
 
     try {
       const codeToCompile = codeRef.current;
-      const wc = await getWebContainer();
 
-      // Write code and wait for environment
-      await wc.fs.writeFile('index.ts', codeToCompile);
-      await getEnvReady();
+      // Ensure file is synced to container
+      await webContainerService.writeFile('index.ts', codeToCompile);
+
+      // Wait for boot and dependencies
+      await webContainerService.getEnvReady();
       await pendingInstalls;
 
       addMessage('info', ['Executing via vite-node...']);
 
-      const { exit, process } = await runCommand('npx', ['vite-node', 'index.ts'], (out) => {
+      const { exit, process } = await webContainerService.spawn('npx', ['vite-node', 'index.ts'], (out) => {
         if (out && typeof out === 'string') {
           out.split('\\n').filter(Boolean).forEach(line => addMessage('log', [line.trim()]));
         }
@@ -73,13 +85,13 @@ export function useCompilerManager(
 
       currentProcess.current = process;
 
-      // Separate process to extract output files using esbuild-wasm (or similar via worker)
-      // Since we want JS/DTS for the UI tabs, we still use the worker but rely on vite-node for real execution
+      // Concurrently generate JS/DTS for the UI
       workerClient.compile(codeToCompile).then(res => {
         setOutputFiles(res);
         onSuccess(res.js, res.dts);
       });
 
+      // Implement execution timeout (5 minutes)
       timeoutRef.current = setTimeout(() => {
         if (currentProcess.current) {
           currentProcess.current.kill();
