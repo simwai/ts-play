@@ -2,9 +2,11 @@ import { WebContainer, type WebContainerProcess } from '@webcontainer/api';
 
 /**
  * Core system dependencies that are required for the playground to function.
- * We need typescript for 'tsc --watch'.
+ * These are managed by the system and protected from user-level uninstalls.
+ * Replacing vite-node with tsx for better stability in the WebContainer.
  */
 export const SYSTEM_DEPS = [
+  'tsx',
   'esbuild',
   'prettier',
   'typescript',
@@ -14,6 +16,9 @@ export const SYSTEM_DEPS = [
  * WebContainerService encapsulates the WebContainer runtime.
  * It provides a singleton interface for filesystem and process management,
  * ensuring that the environment is correctly initialized and protected.
+ *
+ * Added a centralized queue for all operations to ensure they run in order
+ * and wait for environment readiness.
  */
 class WebContainerService {
   private instance: WebContainer | null = null;
@@ -60,6 +65,7 @@ class WebContainerService {
 
   /**
    * Enqueues an operation to be executed sequentially.
+   * Ensures the environment is ready before running the operation.
    */
   public async enqueue<T>(operation: (instance: WebContainer) => Promise<T>): Promise<T> {
     const task = async () => {
@@ -68,7 +74,7 @@ class WebContainerService {
       return await operation(instance);
     };
 
-    const nextOp = this.operationQueue.then(task, task);
+    const nextOp = this.operationQueue.then(task, task); // Always continue the queue even on failure
     this.operationQueue = nextOp;
     return nextOp;
   }

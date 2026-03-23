@@ -144,14 +144,11 @@ export const Console = React.memo(function Console({
               let content: React.ReactNode;
               try {
                 if (hasAnsi) {
-                  // Ensure we don't have broken/unfinished escapes at the very end
-                  // Even with line-buffering, it's safe to sanitize or handle errors.
-                  const converted = ansiConvert.toHtml(fullText);
                   content = (
                     <div
                       className="m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono"
                       dangerouslySetInnerHTML={{
-                        __html: converted || '',
+                        __html: ansiConvert.toHtml(fullText),
                       }}
                     />
                   );
@@ -168,7 +165,7 @@ export const Console = React.memo(function Console({
                 // Fallback for malformed ANSI or conversion errors
                 content = (
                   <pre className="m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono text-red">
-                    {fullText}
+                    [Error rendering message]
                   </pre>
                 );
               }

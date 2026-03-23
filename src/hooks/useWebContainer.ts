@@ -53,6 +53,7 @@ export function useWebContainer(
 
   /**
    * The core initialization loop.
+   * Enqueued in the system queue to ensure order.
    */
   useEffect(() => {
     if (!isInitialSync.current) return;
@@ -60,6 +61,7 @@ export function useWebContainer(
 
     webContainerService.enqueueSystem(async (instance) => {
       try {
+        // Prepare a standard Node.js project structure
         const pkgJson = {
           name: 'playground',
           type: 'module',
@@ -70,83 +72,36 @@ export function useWebContainer(
         await instance.fs.writeFile('package.json', JSON.stringify(pkgJson, null, 2));
         await instance.fs.writeFile('tsconfig.json', tsConfigString);
         await instance.fs.writeFile('index.ts', tsCode);
-        await instance.fs.mkdir('dist', { recursive: true });
 
         addMessage('info', ['Preparing environment...']);
 
-        const installProcess = await instance.spawn('npm', ['install', '--no-progress']);
+        // Use the service's spawn method to run the first install
+        const process = await instance.spawn('npm', ['install', '--no-progress']);
 
-        let installBuffer = '';
-        installProcess.output.pipeTo(new WritableStream({
-          write(out) {
-             installBuffer += out;
-             const lines = installBuffer.split('\n');
-             installBuffer = lines.pop() || '';
-             for (const line of lines) {
-               const clean = line.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim();
+        process.output.pipeTo(
+          new WritableStream({
+            write(out) {
+               const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim();
                if (clean && !/^[/\\|\-]$/.test(clean)) addMessage('info', [clean]);
-             }
-          }
-        }));
+            },
+          })
+        );
 
-        const exitCode = await installProcess.exit;
+        const exitCode = await process.exit;
         if (exitCode === 0) {
+          // After successful install, perform an initial type sync
           await syncTypes();
-
-          addMessage('info', ['Starting reactive compiler (tsc --watch)...']);
-
-          // Execute tsc --watch directly
-          const tscProcess = await instance.spawn('./node_modules/.bin/tsc', ['--watch', '--incremental']);
-
-          // Log compiler progress/errors
-          let tscBuffer = '';
-          tscProcess.output.pipeTo(new WritableStream({
-            write(chunk) {
-               tscBuffer += chunk;
-               const lines = tscBuffer.split('\n');
-               tscBuffer = lines.pop() || '';
-               for (const line of lines) {
-                 const clean = line.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim();
-                 if (clean.includes('error TS') || clean.includes('Found 0 errors')) {
-                    addMessage(clean.includes('error TS') ? 'error' : 'info', [clean]);
-                 }
-               }
-            }
-          }));
-
-          // Watch the output directory for reactive state updates
-          watchDist();
-
-          // Robust check for first emit
-          let retries = 0;
-          const checkEmit = async () => {
-            try {
-              const content = await instance.fs.readFile('dist/index.js', 'utf8');
-              if (content.trim()) {
-                webContainerService.markEnvReady();
-                addMessage('info', ['Environment ready.']);
-              } else {
-                 throw new Error('Empty artifact');
-              }
-            } catch (e) {
-              if (retries < 60) {
-                retries++;
-                setTimeout(checkEmit, 1000);
-              } else {
-                webContainerService.markEnvReady();
-                addMessage('info', ['Environment ready (compiler slow).']);
-              }
-            }
-          };
-          checkEmit();
+          // Signal to other hooks (e.g., compiler manager) that the environment is ready
+          webContainerService.markEnvReady();
+          addMessage('info', ['Environment ready.']);
         } else {
-           addMessage('error', [`npm install failed with code ${exitCode}.`]);
+           addMessage('error', ['npm install failed. Please check the console output.']);
+           // Still mark as ready so the queue can proceed or retry
            webContainerService.markEnvReady();
         }
       } catch (error) {
-        const msg = (error as Error).message || String(error);
-        console.error('Failed to boot environment:', error);
-        addMessage('error', [`Environment boot failed: ${msg}`]);
+        console.error('Failed to synchronize environment:', error);
+        addMessage('error', ['Failed to synchronize environment: ' + (error as Error).message]);
         webContainerService.markEnvReady();
       }
     });

@@ -69,6 +69,10 @@ export function useCompilerManager(
     setIsRunning(false);
   }, [addMessage]);
 
+  /**
+   * Executes the code using tsx (formerly vite-node) inside the WebContainer.
+   * Leverages the centralized queue to ensure it waits for installs and ready state.
+   */
   const runCode = useCallback(async (
     pendingInstalls: Promise<void>,
     onSuccess: (js: string, dts: string) => void,
@@ -80,65 +84,47 @@ export function useCompilerManager(
     try {
       const codeToCompile = codeRef.current;
 
+      // Use the centralized queue
       await webContainerService.enqueue(async (instance) => {
-        // Write latest code and wait for installs
+        // Ensure the latest code is written to the virtual filesystem
         await instance.fs.writeFile('index.ts', codeToCompile);
+
+        // Wait for any pending user package installations (which are also queued)
         await pendingInstalls;
 
-        addMessage('info', ['Executing pre-compiled index.js...']);
+        addMessage('info', ['Executing via tsx...']);
 
-        try {
-          const content = await instance.fs.readFile('dist/index.js', 'utf8');
-          if (!content.trim()) throw new Error('Artifact is empty.');
-        } catch (e) {
-          throw new Error('Build artifact dist/index.js not found or empty. Please wait for the compiler to finish.');
-        }
-
-        const process = await instance.spawn('node', ['dist/index.js']);
+        // Replacing vite-node with tsx
+        const process = await instance.spawn('npx', ['tsx', 'index.ts']);
         currentProcess.current = process;
 
-        let buffer = '';
         process.output.pipeTo(
           new WritableStream({
-            write(chunk) {
-              if (chunk && typeof chunk === 'string') {
-                buffer += chunk;
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-
-                for (const line of lines) {
-                  const sanitized = cleanANSI(line);
-                  if (sanitized.trim().length > 0) {
-                    addMessage('log', [sanitized]);
-                  }
-                }
+            write(out) {
+              if (out && typeof out === 'string') {
+                // Stream output to the application console, filter out excessive whitespace
+                const lines = out.split('\n').map(l => l.trim()).filter(Boolean);
+                lines.forEach(line => addMessage('log', [line]));
               }
             },
-            close() {
-              if (buffer.trim()) {
-                const sanitized = cleanANSI(buffer);
-                if (sanitized.trim().length > 0) {
-                  addMessage('log', [sanitized]);
-                }
-              }
-            }
           })
         );
 
-        // Update previews via worker for UI responsiveness
+        // Generate immediate previews for the JS and DTS tabs using the local worker
         workerClient.compile(codeToCompile).then(res => {
           setOutputFiles(res);
           onSuccess(res.js, res.dts);
         });
 
+        // Safety timeout: Execution is capped at 5 minutes
         timeoutRef.current = setTimeout(() => {
           if (currentProcess.current) {
             currentProcess.current.kill();
             currentProcess.current = null;
           }
-          addMessage('error', ['Execution timed out after 60s.']);
+          addMessage('error', ['Execution timed out after 5 minutes.']);
           setIsRunning(false);
-        }, 60000);
+        }, 300000);
 
         const exitCode = await process.exit;
         if (timeoutRef.current) {

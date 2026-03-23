@@ -105,55 +105,19 @@ export function usePackageManager(
         try {
           if (removed.length > 0) {
             addMessage('info', [`npm uninstall ${removed.join(' ')}...`]);
-            const process = await instance.spawn('npm', ['uninstall', ...removed]);
-
-            let buffer = '';
-            process.output.pipeTo(new WritableStream({
-              write(chunk) {
-                if (chunk && typeof chunk === 'string') {
-                  buffer += chunk;
-                  const lines = buffer.split('\n');
-                  buffer = lines.pop() || '';
-                  for (const line of lines) {
-                    const clean = line.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim();
-                    if (clean && !/^[/\\|\-]$/.test(clean)) addMessage('info', [clean]);
-                  }
-                }
-              },
-              close() {
-                if (buffer.trim()) {
-                  const clean = buffer.trim().replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim();
-                  if (clean) addMessage('info', [clean]);
-                }
-              }
-            }));
-            await process.exit;
+            const { exit } = await webContainerService.spawn('npm', ['uninstall', ...removed], (out) => {
+              const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim();
+              if (clean && !/^[/\\|\-]$/.test(clean)) addMessage('info', [clean]);
+            });
+            await exit;
           }
           if (added.length > 0) {
             addMessage('info', [`npm install ${added.join(' ')}...`]);
-            const process = await instance.spawn('npm', ['install', '--no-progress', ...added]);
-
-            let buffer = '';
-            process.output.pipeTo(new WritableStream({
-              write(chunk) {
-                if (chunk && typeof chunk === 'string') {
-                  buffer += chunk;
-                  const lines = buffer.split('\n');
-                  buffer = lines.pop() || '';
-                  for (const line of lines) {
-                    const clean = line.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim();
-                    if (clean && !/^[/\\|\-]$/.test(clean)) addMessage('info', [clean]);
-                  }
-                }
-              },
-              close() {
-                if (buffer.trim()) {
-                  const clean = buffer.trim().replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim();
-                  if (clean) addMessage('info', [clean]);
-                }
-              }
-            }));
-            await process.exit;
+            const { exit } = await webContainerService.spawn('npm', ['install', '--no-progress', ...added], (out) => {
+              const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim();
+              if (clean && !/^[/\\|\-]$/.test(clean)) addMessage('info', [clean]);
+            });
+            await exit;
           }
         } catch (error) {
           console.error('Package management failed:', error);
