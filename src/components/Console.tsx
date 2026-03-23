@@ -73,15 +73,20 @@ export const Console = React.memo(function Console({
   );
 
   useEffect(() => {
-    if (isOpen) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isOpen]);
+    if (isOpen) {
+       // Using requestAnimationFrame to ensure DOM is ready and avoid scroll thrashing
+       requestAnimationFrame(() => {
+         bottomRef.current?.scrollIntoView({ behavior: 'auto' });
+       });
+    }
+  }, [messages.length, isOpen]);
 
-  const errors = (messages || []).filter((m) => m && m.type === 'error').length;
-  const warns = (messages || []).filter((m) => m && m.type === 'warn').length;
+  const errors = useMemo(() => (messages || []).filter((m) => m && m.type === 'error').length, [messages]);
+  const warns = useMemo(() => (messages || []).filter((m) => m && m.type === 'warn').length, [messages]);
 
   return (
     <div
-      className="flex flex-col border-t border-surface0 bg-mantle shrink-0"
+      className="flex flex-col h-full bg-mantle shrink-0"
       data-testid="console-container"
     >
       <PanelHeader
@@ -119,7 +124,7 @@ export const Console = React.memo(function Console({
 
       {isOpen && (
         <div
-          className="overflow-y-auto overflow-x-hidden border-t border-surface0"
+          className="overflow-y-auto overflow-x-hidden border-t border-surface0 flex-1"
           style={{ height: `${contentHeight}rem` }}
         >
           {messages.length === 0 ? (
@@ -132,8 +137,41 @@ export const Console = React.memo(function Console({
               const fullText = Array.isArray(m.args)
                 ? m.args.join(' ')
                 : String(m.args);
-              const hasAnsi =
-                trueColorEnabled && /[\u001b\u009b]/.test(fullText);
+
+              // Basic sanitization and ANSI detection
+              const hasAnsi = trueColorEnabled && /[\u001b\u009b]/.test(fullText);
+
+              let content: React.ReactNode;
+              try {
+                if (hasAnsi) {
+                  // Ensure we don't have broken/unfinished escapes at the very end
+                  // Even with line-buffering, it's safe to sanitize or handle errors.
+                  const converted = ansiConvert.toHtml(fullText);
+                  content = (
+                    <div
+                      className="m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono"
+                      dangerouslySetInnerHTML={{
+                        __html: converted || '',
+                      }}
+                    />
+                  );
+                } else {
+                  content = (
+                    <pre
+                      className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}
+                    >
+                      {fullText}
+                    </pre>
+                  );
+                }
+              } catch (err) {
+                // Fallback for malformed ANSI or conversion errors
+                content = (
+                  <pre className="m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono text-red">
+                    {fullText}
+                  </pre>
+                );
+              }
 
               return (
                 <div
@@ -152,25 +190,12 @@ export const Console = React.memo(function Console({
                     variant={typeVariant(m.type)}
                     className="mt-0.5"
                   />
-                  {hasAnsi && fullText ? (
-                    <div
-                      className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono`}
-                      dangerouslySetInnerHTML={{
-                        __html: fullText ? ansiConvert.toHtml(fullText) : '',
-                      }}
-                    />
-                  ) : (
-                    <pre
-                      className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}
-                    >
-                      {fullText}
-                    </pre>
-                  )}
+                  {content}
                 </div>
               );
             })
           )}
-          <div ref={bottomRef} />
+          <div ref={bottomRef} className="h-4 w-full" />
         </div>
       )}
     </div>

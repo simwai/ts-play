@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { type ThemeMode, isDarkMode } from './lib/theme';
 import { CodeEditor, type CodeEditorHandle } from './components/CodeEditor';
 import { Console } from './components/Console';
@@ -35,10 +35,6 @@ console.log(greet({ name: "Alice", age: 30 }));
 console.log("Mapped:", map([1, 2, 3], x => x * 2));
 `;
 
-/**
- * Main Application component for the TypeScript Playground.
- * Manages the layout, global state, and coordinates specialized hooks.
- */
 export function App() {
   const [themeMode, setThemeMode] = useLocalStorage<ThemeMode>(
     'tsplay_theme',
@@ -62,11 +58,14 @@ export function App() {
   const [isFormatting, setFormatting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [jsDirty, setJsDirty] = useState(false);
+  const [typeInfo, setTypeInfo] = useState('');
+  const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
 
-  // Specialized Hooks
+  const editorRef = useRef<CodeEditorHandle>(null);
+
   const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } =
     useConsoleManager();
-  const { compilerStatus, isRunning, runCode, stopCode } = useCompilerManager(
+  const { compilerStatus, isRunning, runCode, stopCode, setOutputFiles } = useCompilerManager(
     tsCode,
     addMessage,
   );
@@ -77,15 +76,22 @@ export function App() {
     installQueue,
     status: packageManagerStatus,
   } = usePackageManager(tsCode, addMessage);
+
+  // Callback for when the background compiler emits artifacts
+  const handleArtifactsChange = useCallback((js: string, dts: string) => {
+    setJsCode(js);
+    setDtsCode(dts);
+    setOutputFiles({ js, dts });
+    setJsDirty(false);
+  }, [setOutputFiles]);
+
   const { externalTypings } = useWebContainer(
     tsConfigString,
     tsCode,
     addMessage,
+    handleArtifactsChange
   );
 
-  /**
-   * Clipboard actions
-   */
   const handleCopyAll = useCallback(() => {
     const code =
       activeTab === 'ts' ? tsCode : activeTab === 'js' ? jsCode : dtsCode;
@@ -95,9 +101,6 @@ export function App() {
     });
   }, [activeTab, tsCode, jsCode, dtsCode]);
 
-  /**
-   * Reset actions
-   */
   const handleDeleteAll = useCallback(() => {
     if (activeTab === 'ts') setTsCode('');
     else if (activeTab === 'js') {
@@ -106,9 +109,6 @@ export function App() {
     } else setDtsCode('');
   }, [activeTab]);
 
-  /**
-   * Formatting via WebContainer Prettier
-   */
   const handleFormat = useCallback(async () => {
     setFormatting(true);
     try {
@@ -121,12 +121,9 @@ export function App() {
     }
   }, [tsCode]);
 
-  /**
-   * Execution via Vite-Node
-   */
   const handleRun = useCallback(() => {
     runCode(
-      installQueue.current,
+      installQueue,
       (js, dts) => {
         setJsCode(js);
         setDtsCode(dts);
@@ -138,9 +135,6 @@ export function App() {
     );
   }, [runCode, installQueue, addMessage]);
 
-  /**
-   * Share functionality
-   */
   const handleShare = useCallback(async () => {
     setIsSharing(true);
     try {
@@ -156,10 +150,9 @@ export function App() {
     }
   }, [tsCode, tsConfigString, addMessage]);
 
-  // Layout and UX Hooks
   useSwipeTabs(TABS, activeTab, (tab) => setActiveTab(tab as TabType));
-  useVirtualKeyboard();
-  const { height, isResizing, startResizing } = useResizePanel(300);
+  const { compactForKeyboard, isMobileLike } = useVirtualKeyboard();
+  const { panelHeight, isResizing, handleResizeStart } = useResizePanel(11.25);
 
   return (
     <div
@@ -186,9 +179,23 @@ export function App() {
         shareSuccess={false}
       />
 
+      <StatusBar
+        compilerStatus={compilerStatus}
+        activeTab={activeTab}
+        jsDirty={jsDirty}
+        handleUndo={() => editorRef.current?.undo()}
+        handleRedo={() => editorRef.current?.redo()}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        compactForKeyboard={compactForKeyboard}
+        lineWrap={lineWrap}
+        setLineWrap={setLineWrap}
+        packageManagerStatus={packageManagerStatus}
+      />
+
       <main className="flex-1 flex flex-col overflow-hidden relative border-t border-surface0/50">
         <div className="flex-1 overflow-hidden">
           <CodeEditor
+            ref={editorRef}
             language={
               activeTab === 'ts'
                 ? 'typescript'
@@ -210,9 +217,11 @@ export function App() {
                 setJsDirty(true);
               } else setDtsCode(val);
             }}
-            onCursorChange={(pos) => {
-              if (activeTab === 'ts') tsCursorPos.current = pos;
+            onCursorChange={(offset) => {
+              if (activeTab === 'ts') tsCursorPos.current = offset;
             }}
+            onTypeInfoChange={setTypeInfo}
+            onCursorPosChange={setCursorPos}
             path={
               activeTab === 'ts'
                 ? 'index.ts'
@@ -224,24 +233,39 @@ export function App() {
             themeMode={themeMode}
             readOnly={activeTab === 'dts'}
             extraLibs={externalTypings}
+            isMobileLike={isMobileLike}
           />
         </div>
 
-        <StatusBar
-          compilerStatus={compilerStatus}
-          packageManagerStatus={packageManagerStatus}
-          isResizing={isResizing}
-          onResizeStart={startResizing}
-        />
+        {/* Type Info Bar with Cursor Position */}
+        <div className="flex items-center justify-between px-4 py-1.5 bg-mantle border-t border-surface0/50 text-xxs font-mono text-overlay1 shrink-0">
+          <div className="truncate flex-1">
+             {typeInfo && <span className="text-mauve">{typeInfo}</span>}
+          </div>
+          <div className="ml-4 shrink-0 opacity-70">
+            Ln {cursorPos.line}, Col {cursorPos.col}
+          </div>
+        </div>
 
-        <Console
-          messages={messages}
-          onClear={clearMessages}
-          isOpen={consoleOpen}
-          onToggle={toggleConsole}
-          contentHeight={height / 16}
-          trueColorEnabled={trueColorEnabled}
-        />
+        {/* Draggable Resizer */}
+        <div
+          onMouseDown={handleResizeStart}
+          onTouchStart={handleResizeStart}
+          className="h-1.5 w-full bg-surface0/30 hover:bg-mauve/40 cursor-ns-resize transition-colors duration-200 z-50 flex items-center justify-center relative"
+        >
+           <div className="w-8 h-0.5 bg-overlay0/20 rounded-full" />
+        </div>
+
+        <div style={{ height: `${panelHeight}rem` }} className="flex flex-col bg-mantle overflow-hidden">
+            <Console
+              messages={messages}
+              onClear={clearMessages}
+              isOpen={consoleOpen}
+              onToggle={toggleConsole}
+              contentHeight={panelHeight}
+              trueColorEnabled={trueColorEnabled}
+            />
+        </div>
       </main>
 
       <SettingsModal
