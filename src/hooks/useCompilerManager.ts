@@ -6,10 +6,26 @@ import type { ConsoleMessage } from '../components/Console';
 import type { WebContainerProcess } from '@webcontainer/api';
 
 /**
- * useCompilerManager manages the compilation and execution UI state.
- * It coordinates with the WebContainerService to run the user's code
- * and provides status information to the UI.
+ * Clean ANSI codes and control characters.
+ * Very conservative.
  */
+function cleanANSI(text: string): string {
+  if (!text) return '';
+  const parts = text.split('\r');
+  let result = parts[parts.length - 1];
+
+  // Only strip the most common CSI sequences that interfere with display
+  // ESC [ ... m (color), ESC [ ... K (clear line), etc.
+  result = result.replace(/\u001B\[[\d;]*[a-zA-Z]/g, '');
+
+  // Keep printable characters, tabs, and newlines
+  // Range \x20-\x7E (ASCII printables)
+  // Plus \x09 (tab), \x0A (newline), \x0D (carriage return)
+  result = result.replace(/[^\x20-\x7E\x09\x0A\x0D]/g, '');
+
+  return result;
+}
+
 export function useCompilerManager(
   tsCode: string,
   addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void,
@@ -25,10 +41,6 @@ export function useCompilerManager(
     codeRef.current = tsCode;
   }, [tsCode]);
 
-  /**
-   * Initialize the local worker for background tasks like syntax highlighting
-   * and quick JS/DTS previews.
-   */
   useEffect(() => {
     workerClient.init()
       .then(() => setCompilerStatus('ready'))
@@ -44,9 +56,6 @@ export function useCompilerManager(
     }
   }, [compilerStatus]);
 
-  /**
-   * Stops any currently running process in the WebContainer.
-   */
   const stopCode = useCallback(() => {
     if (currentProcess.current) {
       currentProcess.current.kill();
@@ -129,11 +138,13 @@ export function useCompilerManager(
         }
       });
     } catch (error) {
+      const msg = (error as Error).message || String(error);
+      addMessage('error', [msg]);
       onError(error as Error);
     } finally {
       setIsRunning(false);
     }
   }, [addMessage, isRunning]);
 
-  return { compilerStatus, isRunning, runCode, stopCode, outputFiles };
+  return { compilerStatus, isRunning, runCode, stopCode, outputFiles, setOutputFiles };
 }

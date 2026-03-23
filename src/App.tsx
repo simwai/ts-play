@@ -65,7 +65,7 @@ export function App() {
 
   const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } =
     useConsoleManager();
-  const { compilerStatus, isRunning, runCode, stopCode } = useCompilerManager(
+  const { compilerStatus, isRunning, runCode, stopCode, setOutputFiles } = useCompilerManager(
     tsCode,
     addMessage,
   );
@@ -76,10 +76,20 @@ export function App() {
     installQueue,
     status: packageManagerStatus,
   } = usePackageManager(tsCode, addMessage);
+
+  // Callback for when the background compiler emits artifacts
+  const handleArtifactsChange = useCallback((js: string, dts: string) => {
+    setJsCode(js);
+    setDtsCode(dts);
+    setOutputFiles({ js, dts });
+    setJsDirty(false);
+  }, [setOutputFiles]);
+
   const { externalTypings } = useWebContainer(
     tsConfigString,
     tsCode,
     addMessage,
+    handleArtifactsChange
   );
 
   const handleCopyAll = useCallback(() => {

@@ -29,7 +29,6 @@ class WebContainerService {
 
   /**
    * Boots the WebContainer if not already initialized.
-   * Uses a singleton promise to avoid multiple boot attempts.
    */
   public async getInstance(): Promise<WebContainer> {
     if (this.instance) return this.instance;
@@ -106,7 +105,6 @@ class WebContainerService {
 
   /**
    * Spawns a process and pipes output to the provided callback.
-   * Returns a handle to the process and its exit promise.
    */
   public async spawn(
     command: string,
@@ -130,7 +128,7 @@ class WebContainerService {
   }
 
   /**
-   * Recursively reads a directory. Used for type extraction and workspace analysis.
+   * Recursively reads a directory.
    */
   public async readDirRecursive(
     dir: string,
@@ -164,7 +162,7 @@ class WebContainerService {
 
 export const webContainerService = new WebContainerService();
 
-// Re-export old names for legacy support during transition
+// Re-export old names for legacy support
 export const getWebContainer = () => webContainerService.getInstance();
 export const runCommand = (cmd: string, args: string[], onOutput: (d: string) => void) =>
   webContainerService.spawn(cmd, args, onOutput);

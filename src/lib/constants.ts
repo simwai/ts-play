@@ -7,18 +7,20 @@ export const DEFAULT_TSCONFIG = `{
     "module": "ESNext",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "moduleResolution": "bundler",
-    "noEmit": true,
+    "outDir": "dist",
+    "declaration": true,
+    "emitDeclarationOnly": false,
     "strict": true,
     "skipLibCheck": true,
     "isolatedModules": true,
     "resolveJsonModule": true,
     "moduleDetection": "force",
-    "allowImportingTsExtensions": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "useUnknownInCatchVariables": true,
     "noImplicitOverride": true
-  }
+  },
+  "include": ["index.ts"]
 }`;

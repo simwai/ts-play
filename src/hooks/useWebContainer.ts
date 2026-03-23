@@ -6,18 +6,19 @@ import type { ConsoleMessage } from '../components/Console';
  * useWebContainer manages the entire lifecycle of the browser-based environment.
  * It is responsible for the initial boot, writing system configuration files,
  * performing the first npm install, and keeping the environment in sync with the UI.
+ * Now it also manages a background 'tsc --watch' process to reactively emit JS/DTS.
  */
 export function useWebContainer(
   tsConfigString: string,
   tsCode: string,
-  addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void
+  addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void,
+  onArtifactsChange: (js: string, dts: string) => void
 ) {
   const isInitialSync = useRef(true);
   const [externalTypings, setExternalTypings] = useState<Record<string, string>>({});
 
   /**
    * Scans node_modules for .d.ts files and synchronizes them to Monaco.
-   * This provides full IntelliSense for all installed packages.
    */
   const syncTypes = useCallback(async () => {
     try {
@@ -27,6 +28,28 @@ export function useWebContainer(
       console.error('Failed to sync types:', err);
     }
   }, []);
+
+  /**
+   * Watch the 'dist' directory for changes to automatically sync emitted JS and DTS.
+   */
+  const watchDist = useCallback(async () => {
+    const wc = await webContainerService.getInstance();
+
+    // Initial sync
+    const sync = async () => {
+      try {
+        const js = await wc.fs.readFile('dist/index.js', 'utf8').catch(() => '');
+        const dts = await wc.fs.readFile('dist/index.d.ts', 'utf8').catch(() => '');
+        if (js || dts) onArtifactsChange(js, dts);
+      } catch {}
+    };
+
+    wc.fs.watch('dist', { recursive: true }, () => {
+      sync();
+    });
+
+    sync(); // Initial
+  }, [onArtifactsChange]);
 
   /**
    * The core initialization loop.
@@ -84,15 +107,16 @@ export function useWebContainer(
     });
   }, []);
 
-  /**
-   * Keep the WebContainer's virtual filesystem in sync with the React state.
-   */
   useEffect(() => {
-    webContainerService.writeFile('index.ts', tsCode);
+    webContainerService.enqueue(async (instance) => {
+        await instance.fs.writeFile('index.ts', tsCode);
+    });
   }, [tsCode]);
 
   useEffect(() => {
-    webContainerService.writeFile('tsconfig.json', tsConfigString);
+    webContainerService.enqueue(async (instance) => {
+        await instance.fs.writeFile('tsconfig.json', tsConfigString);
+    });
   }, [tsConfigString]);
 
   return { externalTypings, syncTypes };
