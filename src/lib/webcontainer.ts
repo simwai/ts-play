@@ -3,9 +3,10 @@ import { WebContainer, type WebContainerProcess } from '@webcontainer/api';
 /**
  * Core system dependencies that are required for the playground to function.
  * These are managed by the system and protected from user-level uninstalls.
+ * Replacing vite-node with tsx for better stability in the WebContainer.
  */
 export const SYSTEM_DEPS = [
-  'vite-node',
+  'tsx',
   'esbuild',
   'prettier',
   'typescript',
