@@ -1,29 +1,37 @@
 import { WebContainer, type WebContainerProcess } from '@webcontainer/api';
 
-export type EnvironmentStatus = 'booting' | 'preparing' | 'ready' | 'error';
+export type EnvironmentStatus = 'idle' | 'booting' | 'preparing' | 'ready' | 'error';
 export type CompilerStatus = 'Idle' | 'Preparing' | 'Running' | 'Compiling' | 'Ready' | 'Error';
 
 export const SYSTEM_DEPS = ['typescript', 'esbuild', 'prettier', 'lodash-es', '@types/lodash-es'];
 
 export class WebContainerService {
   private instance: WebContainer | null = null;
-  private status: EnvironmentStatus = 'booting';
+  private status: EnvironmentStatus = 'idle';
   private queue: Promise<any> = Promise.resolve();
   private buildPromise: Promise<void> | null = null;
   private buildResolver: (() => void) | null = null;
 
-  private logCallbacks: Set<(log: { type: string; message: string }) => void> = new Set();
+  private logCallbacks: Set<(log: { type: string; message: string; timestamp: number }) => void> = new Set();
   private statusCallbacks: Set<(status: EnvironmentStatus) => void> = new Set();
 
   public tscStatus: CompilerStatus = 'Idle';
   public parcelStatus: CompilerStatus = 'Idle';
   private compilerCallbacks: Set<() => void> = new Set();
 
+  public serverUrl: string | null = null;
+
   async getInstance(): Promise<WebContainer> {
     if (!this.instance) {
-      console.log("[Service] Booting WebContainer...");
+      this.setStatus('booting');
+      this.emitLog('info', 'Booting WebContainer...');
       this.instance = await WebContainer.boot();
-      console.log("[Service] WebContainer Booted.");
+      this.emitLog('info', 'WebContainer booted.');
+
+      this.instance.on('server-ready', (port, url) => {
+        this.serverUrl = url;
+        this.emitLog('info', `Server ready: ${url} (port ${port})`);
+      });
     }
     return this.instance;
   }
@@ -44,13 +52,20 @@ export class WebContainerService {
     return () => this.compilerCallbacks.delete(cb);
   }
 
-  onLog(cb: (log: { type: string; message: string }) => void) {
+  getStatus() { return this.status; }
+
+  onStatusChange(cb: (status: EnvironmentStatus) => void) {
+    this.statusCallbacks.add(cb);
+    return () => this.statusCallbacks.delete(cb);
+  }
+
+  onLog(cb: (log: { type: string; message: string; timestamp: number }) => void) {
     this.logCallbacks.add(cb);
     return () => this.logCallbacks.delete(cb);
   }
 
   emitLog(type: string, message: string) {
-    this.logCallbacks.forEach(cb => cb({ type, message }));
+    this.logCallbacks.forEach(cb => cb({ type, message, timestamp: Date.now() }));
   }
 
   async enqueue<T>(task: (instance: WebContainer) => Promise<T>): Promise<T> {
@@ -66,6 +81,16 @@ export class WebContainerService {
     await instance.mount(files);
   }
 
+  async mountSnapshot(url: string) {
+     this.emitLog('info', `Fetching snapshot from ${url}...`);
+     const res = await fetch(url);
+     if (!res.ok) throw new Error(`Snapshot fetch failed: ${res.status}`);
+     const buffer = await res.arrayBuffer();
+     const instance = await this.getInstance();
+     await instance.mount(buffer);
+     this.emitLog('info', 'Snapshot mounted successfully.');
+  }
+
   async writeFile(path: string, content: string) {
     const instance = await this.getInstance();
     await instance.fs.writeFile(path, content);
@@ -75,12 +100,30 @@ export class WebContainerService {
     const instance = await this.getInstance();
     const proc = await instance.spawn(cmd, args);
 
-    proc.output.pipeTo(new WritableStream({
-      write: (data) => {
-        if (!options.silent) this.emitLog('info', data);
-        options.onLog?.(data);
+    // Use getReader() as recommended for robust streaming
+    const reader = proc.output.getReader();
+    const decoder = new TextDecoder();
+
+    (async () => {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          let text = value;
+          if (value instanceof ArrayBuffer || value instanceof Uint8Array) {
+             text = decoder.decode(value);
+          }
+
+          if (!options.silent) this.emitLog('info', text);
+          options.onLog?.(text);
+        }
+      } catch (err: any) {
+        console.warn('[WC Service] Stream read error:', err.message);
+      } finally {
+        reader.releaseLock();
       }
-    }));
+    })();
 
     return proc;
   }
