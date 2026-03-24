@@ -34,12 +34,13 @@
     "not dead"
   ],
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/vite": "4.1.17",
     "@types/node": "^22.0.0",
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.1.1",
-    "knip": "^5.45.0",
+    "knip": "^5.88.1",
     "madge": "^8.0.0",
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3",

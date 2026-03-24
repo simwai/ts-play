@@ -4,6 +4,7 @@ type VKState = {
   keyboardOpen: boolean;
   keyboardHeight: number;
   isMobileLike: boolean;
+  compactForKeyboard: boolean;
 };
 
 function activeTextTarget() {
@@ -11,15 +12,25 @@ function activeTextTarget() {
   if (!element) return false;
   if (element instanceof HTMLTextAreaElement) return true;
   if (element instanceof HTMLInputElement) return true;
-  return Boolean(element.closest('[contenteditable="true"]'));
+  // Monaco uses a hidden textarea or div
+  return Boolean(element.closest('[data-testid="code-editor-container"]')) ||
+         Boolean(element.closest('[contenteditable="true"]'));
 }
 
 export function useVirtualKeyboard(): VKState {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const baselineHeight = useRef(0);
 
+  const isMobileLike = useMemo(() => {
+    return (
+      globalThis.matchMedia?.('(max-width: 820px)').matches ??
+      window.innerWidth <= 820
+    );
+  }, []);
+
   useEffect(() => {
     const vv = window.visualViewport;
+
     const handleOrientation = () => {
       setKeyboardHeight(0);
       baselineHeight.current = vv?.height ?? window.innerHeight;
@@ -64,16 +75,10 @@ export function useVirtualKeyboard(): VKState {
     };
   }, []);
 
-  const isMobileLike = useMemo(() => {
-    return (
-      globalThis.matchMedia?.('(max-width: 820px)').matches ??
-      window.innerWidth <= 820
-    );
-  }, []);
-
   return {
     keyboardOpen: keyboardHeight > 0,
     keyboardHeight,
     isMobileLike,
+    compactForKeyboard: keyboardHeight > 0,
   };
 }

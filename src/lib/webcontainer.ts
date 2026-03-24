@@ -2,10 +2,9 @@ import { WebContainer, type WebContainerProcess } from '@webcontainer/api';
 
 /**
  * Core system dependencies that are required for the playground to function.
- * These are managed by the system and protected from user-level uninstalls.
+ * We need typescript for 'tsc --watch'.
  */
 export const SYSTEM_DEPS = [
-  'vite-node',
   'esbuild',
   'prettier',
   'typescript',
@@ -21,10 +20,10 @@ class WebContainerService {
   private bootPromise: Promise<WebContainer> | null = null;
   private envReadyPromise: Promise<void> | null = null;
   private envReadyResolve: (() => void) | null = null;
+  private operationQueue: Promise<any> = Promise.resolve();
 
   /**
    * Boots the WebContainer if not already initialized.
-   * Uses a singleton promise to avoid multiple boot attempts.
    */
   public async getInstance(): Promise<WebContainer> {
     if (this.instance) return this.instance;
@@ -59,6 +58,35 @@ class WebContainerService {
     }
   }
 
+  /**
+   * Enqueues an operation to be executed sequentially.
+   */
+  public async enqueue<T>(operation: (instance: WebContainer) => Promise<T>): Promise<T> {
+    const task = async () => {
+      await this.getEnvReady();
+      const instance = await this.getInstance();
+      return await operation(instance);
+    };
+
+    const nextOp = this.operationQueue.then(task, task);
+    this.operationQueue = nextOp;
+    return nextOp;
+  }
+
+  /**
+   * Special enqueue for system initialization tasks that don't wait for envReady.
+   */
+  public async enqueueSystem<T>(operation: (instance: WebContainer) => Promise<T>): Promise<T> {
+    const task = async () => {
+      const instance = await this.getInstance();
+      return await operation(instance);
+    };
+
+    const nextOp = this.operationQueue.then(task, task);
+    this.operationQueue = nextOp;
+    return nextOp;
+  }
+
   public async writeFile(path: string, content: string): Promise<void> {
     const wc = await this.getInstance();
     await wc.fs.writeFile(path, content);
@@ -71,7 +99,6 @@ class WebContainerService {
 
   /**
    * Spawns a process and pipes output to the provided callback.
-   * Returns a handle to the process and its exit promise.
    */
   public async spawn(
     command: string,
@@ -95,7 +122,7 @@ class WebContainerService {
   }
 
   /**
-   * Recursively reads a directory. Used for type extraction and workspace analysis.
+   * Recursively reads a directory.
    */
   public async readDirRecursive(
     dir: string,
@@ -129,7 +156,7 @@ class WebContainerService {
 
 export const webContainerService = new WebContainerService();
 
-// Re-export old names for legacy support during transition
+// Re-export old names for legacy support
 export const getWebContainer = () => webContainerService.getInstance();
 export const runCommand = (cmd: string, args: string[], onOutput: (d: string) => void) =>
   webContainerService.spawn(cmd, args, onOutput);

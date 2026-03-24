@@ -16,7 +16,7 @@ type Props = {
   onClear: () => void;
   isOpen: boolean;
   onToggle: () => void;
-  contentHeight: number; // Now in rem
+  contentHeight: number; // In rem
   trueColorEnabled?: boolean;
 };
 
@@ -56,7 +56,6 @@ export const Console = React.memo(function Console({
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Create Ansi converter with truecolor support if enabled
   const ansiConvert = useMemo(
     () =>
       new Ansi({
@@ -64,24 +63,24 @@ export const Console = React.memo(function Console({
         escapeHtml: true,
         stream: false,
         colors: trueColorEnabled
-          ? undefined
-          : {
-              // Standard 16 colors fallback if needed
-            },
       }),
     [trueColorEnabled],
   );
 
   useEffect(() => {
-    if (isOpen) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isOpen]);
+    if (isOpen) {
+       requestAnimationFrame(() => {
+         bottomRef.current?.scrollIntoView({ behavior: 'auto' });
+       });
+    }
+  }, [messages.length, isOpen]);
 
-  const errors = (messages || []).filter((m) => m && m.type === 'error').length;
-  const warns = (messages || []).filter((m) => m && m.type === 'warn').length;
+  const errors = useMemo(() => (messages || []).filter((m) => m && m.type === 'error').length, [messages]);
+  const warns = useMemo(() => (messages || []).filter((m) => m && m.type === 'warn').length, [messages]);
 
   return (
     <div
-      className="flex flex-col border-t border-surface0 bg-mantle shrink-0"
+      className="flex flex-col h-full bg-mantle shrink-0"
       data-testid="console-container"
     >
       <PanelHeader
@@ -119,7 +118,7 @@ export const Console = React.memo(function Console({
 
       {isOpen && (
         <div
-          className="overflow-y-auto overflow-x-hidden border-t border-surface0"
+          className="overflow-y-auto overflow-x-hidden border-t border-surface0 flex-1"
           style={{ height: `${contentHeight}rem` }}
         >
           {messages.length === 0 ? (
@@ -132,8 +131,39 @@ export const Console = React.memo(function Console({
               const fullText = Array.isArray(m.args)
                 ? m.args.join(' ')
                 : String(m.args);
-              const hasAnsi =
-                trueColorEnabled && /[\u001b\u009b]/.test(fullText);
+
+              // Only treat it as ANSI if it contains ESC [ or other escape sequences
+              const hasAnsi = trueColorEnabled && /[\u001b\u009b]/.test(fullText);
+
+              let content: React.ReactNode;
+              if (hasAnsi) {
+                try {
+                  const converted = ansiConvert.toHtml(fullText);
+                  content = (
+                    <div
+                      className="m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono"
+                      dangerouslySetInnerHTML={{
+                        __html: converted || '',
+                      }}
+                    />
+                  );
+                } catch (err) {
+                  // Fallback for malformed ANSI
+                  content = (
+                    <pre className="m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono text-red opacity-80 italic">
+                      [Error rendering ANSI] {fullText}
+                    </pre>
+                  );
+                }
+              } else {
+                content = (
+                  <pre
+                    className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}
+                  >
+                    {fullText}
+                  </pre>
+                );
+              }
 
               return (
                 <div
@@ -152,25 +182,12 @@ export const Console = React.memo(function Console({
                     variant={typeVariant(m.type)}
                     className="mt-0.5"
                   />
-                  {hasAnsi && fullText ? (
-                    <div
-                      className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono`}
-                      dangerouslySetInnerHTML={{
-                        __html: fullText ? ansiConvert.toHtml(fullText) : '',
-                      }}
-                    />
-                  ) : (
-                    <pre
-                      className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}
-                    >
-                      {fullText}
-                    </pre>
-                  )}
+                  {content}
                 </div>
               );
             })
           )}
-          <div ref={bottomRef} />
+          <div ref={bottomRef} className="h-4 w-full" />
         </div>
       )}
     </div>
