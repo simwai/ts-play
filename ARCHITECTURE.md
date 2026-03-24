@@ -1,25 +1,45 @@
-# Architecture Documentation
+# 🏗️ TSPlay Architecture
 
-## Reactive Compilation Workflow
+TSPlay is built on a "WebContainer-as-Source-of-Truth" architecture, refined with Clean Code principles and a centralized State Management system.
 
-The TypeScript Playground implements a "WebContainer-as-Source-of-Truth" architecture for compilation and execution.
+## 核心 (Core) - PlaygroundStateManager
 
-### Reactive Cycle
-1. **Source Update**: When the user edits code in Monaco, the `useWebContainer` hook automatically writes the `index.ts` to the WebContainer filesystem.
-2. **Background Compilation**: A persistent `tsc --watch` process running inside the WebContainer detects the filesystem change and emits `dist/index.js` and `dist/index.d.ts`.
-3. **Filesystem Watcher**: The `useWebContainer` hook uses `instance.fs.watch` to monitor the `dist` directory. When artifacts are emitted, it synchronizes them back to the React state (`jsCode`, `dtsCode`).
-4. **Execution**: When "Run" is clicked, `useCompilerManager` executes the pre-compiled `dist/index.js` directly using the standard `node` binary inside the container.
+The `PlaygroundStateManager` (`src/lib/state-manager.ts`) is the Single Source of Truth (SSOT). It manages:
 
-### Benefits
-- **Stability**: Avoids complex runtime wrappers like `vite-node` or `tsx` during execution.
-- **Accuracy**: Emitted JS and DTS always match what the official TypeScript compiler produces for the given `tsconfig.json`.
-- **Performance**: Execution is near-instant because compilation has already happened in the background.
+- **Environment Lifecycle**: `IDLE -> BOOTING -> MOUNTING -> INSTALLING -> COMPILING -> READY`.
+- **Compiler Status**: Real-time status of `tsc` and `esbuild` background processes.
+- **User Preferences**: Theme, Line Wrap, and TrueColor settings (persisted to LocalStorage).
+- **Operation Queue**: A promise-based queue that ensures all environment mutations are sequential and race-condition free.
 
-## WebContainer Queue System
+## 📦 Services - WebContainerService
 
-A centralized operation queue in `WebContainerService` ensures that all asynchronous operations (initial setup, `npm install`, `node` execution) happen in the correct order and wait for environment readiness.
+The `WebContainerService` (`src/lib/webcontainer.ts`) is a thin wrapper around the @webcontainer/api. It provides:
 
-## Layout & Interaction
-- **StatusBar**: Positioned at the top for quick access to Undo/Redo/Settings.
-- **TypeInfoBar**: Real-time display of cursor position and TypeScript types above the draggable resizer.
-- **Console**: Robust output streaming with line-buffering and ANSI sequence sanitization.
+- **Managed Process Spawning**: `spawnManaged` handles output decoding, line-buffering, and ANSI sequence sanitization.
+- **File Orchestration**: High-level methods for mounting snapshots and reading/writing files.
+- **Task Enqueueing**: All actions are funneled through the `PlaygroundStateManager` queue.
+
+## 🪝 Hooks - The Orchestration Layer
+
+- **useWebContainer**: Coordinates the boot sequence, environment preparation, and background compiler startup.
+- **useCompilerManager**: Manages the "Run" flow, ensuring execution only proceeds when the SSOT reports the environment is `READY`.
+- **usePackageManager**: Monitors imports in the editor and automatically synchronizes `node_modules` in the container.
+
+## 🎨 Components - React View Layer
+
+Components are "dumb" consumers of the SSOT via `usePlaygroundStore`.
+
+- **App**: The root layout, reacting to theme changes and managing top-level state.
+- **CodeEditor**: A Monaco-based editor that treats the WebContainer filesystem as its remote source.
+- **Console**: Renders ANSI TrueColor sequences with robust line-buffering.
+- **SettingsModal**: A direct interface for modifying the SSOT preferences.
+
+## 🧪 Testing Strategy
+
+- **Unit Tests**: Vitest for critical logic like ANSI-to-HTML conversion (`src/lib/ansi.test.ts`).
+- **E2E Tests**: Playwright for "Happy Path" verification (Load -> Wait -> Run -> Output).
+- **Visual Regression**: Screenshot testing to prevent layout/theme breaks.
+
+---
+
+*Refactored with ❤️ by Jules, following the wisdom of Uncle Bob, Martin Fowler, and Kent C. Dodds.*

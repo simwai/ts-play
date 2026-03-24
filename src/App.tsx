@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { type ThemeMode, isDarkMode } from './lib/theme';
+import { useState, useCallback, useRef, useMemo } from 'react';
+import { isDarkMode } from './lib/theme';
 import { CodeEditor, type CodeEditorHandle } from './components/CodeEditor';
 import { Console } from './components/Console';
 import { Header } from './components/Header';
@@ -7,7 +7,6 @@ import { StatusBar } from './components/StatusBar';
 import { SettingsModal } from './components/SettingsModal';
 import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
 import { formatAllFiles } from './lib/formatter';
-import { useLocalStorage } from './hooks/useLocalStorage';
 import { useResizePanel } from './hooks/useResizePanel';
 import { useSwipeTabs } from './hooks/useSwipeTabs';
 import { shareSnippet } from './lib/api';
@@ -15,6 +14,8 @@ import { useConsoleManager } from './hooks/useConsoleManager';
 import { useCompilerManager } from './hooks/useCompilerManager';
 import { usePackageManager } from './hooks/usePackageManager';
 import { useWebContainer } from './hooks/useWebContainer';
+import { playgroundStore } from './lib/state-manager';
+import { usePlaygroundStore } from './hooks/usePlaygroundStore';
 import { TABS, type TabType, DEFAULT_TSCONFIG } from './lib/constants';
 
 const DEFAULT_TS = `// TypeScript Playground
@@ -36,24 +37,17 @@ console.log("Mapped:", map([1, 2, 3], x => x * 2));
 `;
 
 export function App() {
-  const [themeMode, setThemeMode] = useLocalStorage<ThemeMode>(
-    'tsplay_theme',
-    'mocha',
-  );
+  const { theme, lineWrap, trueColor, isReady, tscStatus, parcelStatus, lifecycle, packageManagerStatus } = usePlaygroundStore();
+
   const [tsCode, setTsCode] = useState(DEFAULT_TS);
   const [jsCode, setJsCode] = useState('');
   const [dtsCode, setDtsCode] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('ts');
-  const [tsConfigString, setTsConfigString] = useLocalStorage(
-    'tsplay_tsconfig',
-    DEFAULT_TSCONFIG,
+  const [tsConfigString, setTsConfigString] = useState(
+    () => localStorage.getItem('tsplay_tsconfig') || DEFAULT_TSCONFIG
   );
+
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [trueColorEnabled, setTrueColorEnabled] = useLocalStorage(
-    'tsplay_truecolor',
-    true,
-  );
-  const [lineWrap, setLineWrap] = useLocalStorage('tsplay_linewrap', false);
   const [isSharing, setIsSharing] = useState(false);
   const [isFormatting, setFormatting] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -72,16 +66,16 @@ export function App() {
     setJsDirty(false);
   }, []);
 
-  const { externalTypings, tscStatus, parcelStatus } = useWebContainer(
+  const { externalTypings } = useWebContainer(
     tsConfigString,
     tsCode,
     addMessage,
     handleArtifactsChange
   );
 
-  const { status: packageManagerStatus, tsCursorPos } = usePackageManager(tsCode, addMessage);
+  const { tsCursorPos } = usePackageManager(tsCode, addMessage);
 
-  const statusText = (() => {
+  const statusText = useMemo(() => {
     const parts = [];
     if (tscStatus === 'Running' || tscStatus === 'Compiling') parts.push('TS...');
     else if (tscStatus === 'Ready') parts.push('TS Ready');
@@ -94,7 +88,7 @@ export function App() {
     else if (parcelStatus === 'Error') parts.push('JS Error');
 
     return parts.join(' | ') || 'Idle';
-  })();
+  }, [tscStatus, parcelStatus]);
 
   const { runCode, isRunning } = useCompilerManager();
 
@@ -142,13 +136,18 @@ export function App() {
     }
   }, [tsCode, tsConfigString, addMessage]);
 
+  const handleSaveTsConfig = (val: string) => {
+     setTsConfigString(val);
+     localStorage.setItem('tsplay_tsconfig', val);
+  };
+
   useSwipeTabs(TABS, activeTab, (tab) => setActiveTab(tab as TabType));
   const { compactForKeyboard, isMobileLike } = useVirtualKeyboard();
   const { panelHeight, isResizing, handleResizeStart } = useResizePanel(11.25);
 
   return (
     <div
-      className={`h-[100dvh] flex flex-col bg-crust text-text transition-colors duration-300 ${isDarkMode(themeMode) ? 'dark' : ''}`}
+      className={`h-[100dvh] flex flex-col bg-crust text-text transition-colors duration-300 ${isDarkMode(theme) ? 'dark' : ''}`}
     >
       <Header
         onShare={handleShare}
@@ -164,9 +163,9 @@ export function App() {
         isRunning={isRunning}
         activeTab={activeTab}
         setActiveTab={(t) => setActiveTab(t as TabType)}
-        themeMode={themeMode}
-        setThemeMode={setThemeMode}
-        compilerStatus={statusText.includes('Error') ? 'error' : 'ready'}
+        themeMode={theme}
+        setThemeMode={(t) => playgroundStore.setState({ theme: typeof t === 'function' ? t(theme) : t })}
+        compilerStatus={isReady ? 'ready' : (lifecycle === 'error' || tscStatus === 'Error' || parcelStatus === 'Error' ? 'error' : 'loading')}
         formatSuccess={false}
         shareSuccess={false}
       />
@@ -220,7 +219,7 @@ export function App() {
                   : 'index.d.ts'
             }
             lineWrap={lineWrap}
-            themeMode={themeMode}
+            themeMode={theme}
             readOnly={activeTab === 'dts'}
             extraLibs={externalTypings}
             isMobileLike={isMobileLike}
@@ -253,7 +252,7 @@ export function App() {
               isOpen={consoleOpen}
               onToggle={toggleConsole}
               contentHeight={panelHeight}
-              trueColorEnabled={trueColorEnabled}
+              trueColorEnabled={trueColor}
             />
         </div>
       </main>
@@ -262,14 +261,7 @@ export function App() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         tsConfigString={tsConfigString}
-        onSave={setTsConfigString}
-        trueColorEnabled={trueColorEnabled}
-        setTrueColorEnabled={setTrueColorEnabled}
-        lineWrap={lineWrap}
-        setLineWrap={setLineWrap}
-        packageManagerStatus={packageManagerStatus}
-        themeMode={themeMode}
-        setThemeMode={setThemeMode}
+        onSave={handleSaveTsConfig}
       />
     </div>
   );

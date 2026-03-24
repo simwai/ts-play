@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { webContainerService, SYSTEM_DEPS } from '../lib/webcontainer';
+import { playgroundStore } from '../lib/state-manager';
 import type { ConsoleMessage } from '../components/Console';
 
 const BUILTIN_MODULES = new Set([
@@ -18,7 +19,6 @@ export function usePackageManager(
   addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void,
 ) {
   const [installedPackages, setInstalledPackages] = useState<{name: string, version: string}[]>([]);
-  const [status, setStatus] = useState<PackageManagerStatus>('idle');
   const tasksInProgress = useRef(0);
   const previousPkgsRef = useRef<Set<string>>(new Set(SYSTEM_DEPS));
   const installQueue = useRef<Promise<void>>(Promise.resolve());
@@ -26,10 +26,10 @@ export function usePackageManager(
   const updateBusyState = useCallback((busy: boolean, type: PackageManagerStatus = 'idle') => {
     if (busy) {
       tasksInProgress.current++;
-      setStatus(type);
+      playgroundStore.setState({ packageManagerStatus: type });
     } else {
       tasksInProgress.current = Math.max(0, tasksInProgress.current - 1);
-      if (tasksInProgress.current === 0) setStatus('idle');
+      if (tasksInProgress.current === 0) playgroundStore.setState({ packageManagerStatus: 'idle' });
     }
   }, []);
 
@@ -120,7 +120,6 @@ export function usePackageManager(
     tsCursorPos: { current: 0 },
     checkImports,
     installQueue: installQueue.current,
-    status,
     packageTypings: {} as Record<string, string>,
   };
 }

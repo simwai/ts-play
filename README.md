@@ -16,6 +16,10 @@ TSPlay is a high-performance, mobile-responsive TypeScript playground that bring
 - **Live tsconfig.json Control**: Modify compiler options on the fly with instant validation.
 - **One-Click Sharing**: Generate compressed, shareable URLs to distribute your code snippets instantly.
 
+## Architecture
+
+Refactored with a "WebContainer-as-Source-of-Truth" (SSOT) architecture following Clean Code (Uncle Bob) and React/Testing best practices (Kent C. Dodds). See [ARCHITECTURE.md](ARCHITECTURE.md) for more details.
+
 ## Getting Started
 
 To run TSPlay locally:
@@ -39,6 +43,13 @@ To run TSPlay locally:
    ```
 
 _Note: The development server includes pre-configured COOP/COEP headers required for WebContainers._
+
+## Testing
+
+TSPlay includes a robust testing suite:
+
+- **Unit Tests**: `npx vitest`
+- **E2E Tests**: `npx playwright test`
 
 ## Production Deployment
 

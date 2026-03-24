@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { X, Save, RotateCcw, Box, Cpu, FileJson, Layers, Monitor, Type, WrapText, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Save, RotateCcw, Box, Cpu, FileJson, Layers, Monitor, AlertCircle } from 'lucide-react';
 import { Button } from './ui/Button';
 import { IconButton } from './ui/IconButton';
 import { Badge } from './ui/Badge';
 import { CodeEditor } from './CodeEditor';
 import { webContainerService } from '../lib/webcontainer';
-import type { PackageManagerStatus } from '../hooks/usePackageManager';
+import { playgroundStore } from '../lib/state-manager';
+import { usePlaygroundStore } from '../hooks/usePlaygroundStore';
 import type { ThemeMode } from '../lib/theme';
 import { DEFAULT_TSCONFIG } from '../lib/constants';
 
@@ -14,13 +15,6 @@ type SettingsModalProps = {
   onClose: () => void;
   tsConfigString: string;
   onSave: (val: string) => void;
-  trueColorEnabled: boolean;
-  setTrueColorEnabled: (val: boolean) => void;
-  lineWrap: boolean;
-  setLineWrap: (val: boolean) => void;
-  packageManagerStatus: PackageManagerStatus;
-  themeMode: ThemeMode;
-  setThemeMode: (theme: ThemeMode) => void;
 };
 
 export function SettingsModal({
@@ -28,14 +22,8 @@ export function SettingsModal({
   onClose,
   tsConfigString,
   onSave,
-  trueColorEnabled,
-  setTrueColorEnabled,
-  lineWrap,
-  setLineWrap,
-  packageManagerStatus,
-  themeMode,
-  setThemeMode,
 }: SettingsModalProps) {
+  const { theme, trueColor, lineWrap, packageManagerStatus } = usePlaygroundStore();
   const [temporaryTsConfig, setTemporaryTsConfig] = useState(tsConfigString);
   const [isSaving, setIsSaving] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
@@ -49,11 +37,20 @@ export function SettingsModal({
 
   const validateConfig = async (config: string) => {
     try {
-      const result = await webContainerService.enqueue(async (instance) => {
-         const { process, exit } = await webContainerService.spawnManaged('node', ['__validate_config.cjs', config], { silent: true });
+      const result = await webContainerService.enqueue(async () => {
+         const proc = await webContainerService.spawnManaged('node', ['__validate_config.cjs', config], { silent: true });
          let output = '';
-         process.output.pipeTo(new WritableStream({ write(d) { output += d; } }));
-         await exit;
+         const reader = proc.output.getReader();
+         try {
+           while (true) {
+             const { done, value } = await reader.read();
+             if (done) break;
+             output += value;
+           }
+         } finally {
+           reader.releaseLock();
+         }
+         await proc.exit;
          return JSON.parse(output.trim()) as { valid: boolean; error?: string };
       });
       return result;
@@ -110,8 +107,8 @@ export function SettingsModal({
                 <label htmlFor="theme-select" className="text-xs font-mono text-overlay1 uppercase tracking-wider">Editor Theme</label>
                 <select
                   id="theme-select"
-                  value={themeMode}
-                  onChange={(e) => setThemeMode(e.target.value as ThemeMode)}
+                  value={theme}
+                  onChange={(e) => playgroundStore.setState({ theme: e.target.value as ThemeMode })}
                   className="w-full bg-crust border border-surface0 text-text rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-mauve transition-all"
                 >
                   <option value="mocha">Catppuccin Mocha</option>
@@ -126,8 +123,8 @@ export function SettingsModal({
                   <div className="relative flex items-center">
                     <input
                       type="checkbox"
-                      checked={trueColorEnabled}
-                      onChange={(e) => setTrueColorEnabled(e.target.checked)}
+                      checked={trueColor}
+                      onChange={(e) => playgroundStore.setState({ trueColor: e.target.checked })}
                       className="sr-only peer"
                     />
                     <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors"></div>
@@ -140,7 +137,7 @@ export function SettingsModal({
                     <input
                       type="checkbox"
                       checked={lineWrap}
-                      onChange={(e) => setLineWrap(e.target.checked)}
+                      onChange={(e) => playgroundStore.setState({ lineWrap: e.target.checked })}
                       className="sr-only peer"
                     />
                     <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors"></div>
@@ -169,6 +166,8 @@ export function SettingsModal({
                 fontSizeOverride={12}
                 hideGutter={false}
                 disableAutocomplete
+                themeMode={theme}
+                path="file:///tsconfig.json"
               />
               {configError && (
                 <div className="absolute bottom-0 inset-x-0 bg-red/10 border-t border-red/20 p-2 flex items-center gap-2 text-xxs text-red animate-in slide-in-from-bottom-2">
