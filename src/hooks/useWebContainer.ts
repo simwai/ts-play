@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { webContainerService, SYSTEM_DEPS } from '../lib/webcontainer';
 import { playgroundStore } from '../lib/state-manager';
+import { usePlaygroundStore } from './usePlaygroundStore';
 import type { ConsoleMessage } from '../components/Console';
 
 const DETECT_IMPORTS_SCRIPT = `
@@ -27,6 +28,8 @@ export function useWebContainer(
   onArtifactsChange: (js: string, dts: string) => void
 ) {
   const isInitialSync = useRef(true);
+  const { inlineDeps } = usePlaygroundStore();
+  const esbuildProcRef = useRef<any>(null);
   const [externalTypings, setExternalTypings] = useState<Record<string, string>>({});
 
   const syncTypes = useCallback(async () => {
@@ -45,7 +48,7 @@ export function useWebContainer(
       try {
         const js = await wc.fs.readFile('dist/index.js', 'utf8').catch(() => '');
         const dts = await wc.fs.readFile('dist/index.d.ts', 'utf8').catch(() => '');
-        if (js || dts) onArtifactsChange(js, dts);
+        onArtifactsChange(js, dts);
         syncTypes();
       } catch {}
     };
@@ -92,7 +95,11 @@ export function useWebContainer(
     await webContainerService.writeFile('__detect_imports.cjs', DETECT_IMPORTS_SCRIPT);
   };
 
-  const startCompilers = async () => {
+  const startEsbuild = async () => {
+    if (esbuildProcRef.current) {
+      esbuildProcRef.current.kill();
+    }
+
     const buildScript = `
       const { build } = require('esbuild');
       const fs = require('fs');
@@ -100,9 +107,17 @@ export function useWebContainer(
       async function doBuild() {
          console.log('Building...');
          try {
+           const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+           const deps = Object.keys(pkg.dependencies || {});
            await build({
-             entryPoints: ['index.ts'], bundle: true, platform: 'node',
-             format: 'esm', outfile: 'dist/index.js', sourcemap: false,
+             entryPoints: ['index.ts'],
+             bundle: true,
+             platform: 'node',
+             format: 'esm',
+             outfile: 'dist/index.js',
+             sourcemap: false,
+             treeShaking: true,
+             external: ${inlineDeps ? '[]' : 'deps'},
            });
            console.log('Build finished.');
          } catch (e) { console.log('Build failed.'); console.log(e.message); }
@@ -114,22 +129,24 @@ export function useWebContainer(
     `;
     await webContainerService.writeFile('__build.cjs', buildScript);
 
-    await webContainerService.spawnManaged('node', ['__build.cjs'], {
+    esbuildProcRef.current = await webContainerService.spawnManaged('node', ['__build.cjs'], {
       silent: false,
       onLog: (line) => {
         if (line.includes('Building')) {
-          playgroundStore.setState({ parcelStatus: 'Compiling' });
+          playgroundStore.setState({ esbuildStatus: 'Compiling' });
         }
         if (line.includes('Build finished')) {
-          playgroundStore.setState({ parcelStatus: 'Ready' });
+          playgroundStore.setState({ esbuildStatus: 'Ready' });
         }
         if (line.includes('Build failed')) {
-          playgroundStore.setState({ parcelStatus: 'Error' });
+          playgroundStore.setState({ esbuildStatus: 'Error' });
         }
       }
     });
+  };
 
-    await webContainerService.spawnManaged('./node_modules/.bin/tsc', ['--watch', '--emitDeclarationOnly', '--incremental', '--outDir', 'dist'], {
+  const startTsc = async () => {
+    await webContainerService.spawnManaged('./node_modules/.bin/tsc', ['--watch', '--emitDeclarationOnly', '--incremental', '--outDir', 'dist', '--rootDir', '.'], {
       silent: true,
       onLog: (line) => {
          if (line.includes('Starting incremental compilation') || line.includes('File change detected')) {
@@ -155,14 +172,15 @@ export function useWebContainer(
         playgroundStore.setState({
             lifecycle: 'preparing',
             tscStatus: 'Preparing',
-            parcelStatus: 'Preparing'
+            esbuildStatus: 'Preparing'
         });
 
         await prepareEnvironment();
         await syncTypes();
 
         webContainerService.emitLog('info', 'Starting reactive compilers...');
-        await startCompilers();
+        await startEsbuild();
+        await startTsc();
 
         watchDist();
 
@@ -189,6 +207,15 @@ export function useWebContainer(
       }
     });
   }, []);
+
+  // Restart esbuild when inlineDeps changes
+  useEffect(() => {
+    if (playgroundStore.getState().lifecycle === 'ready') {
+       webContainerService.enqueue(async () => {
+         await startEsbuild();
+       });
+    }
+  }, [inlineDeps]);
 
   useEffect(() => {
     webContainerService.enqueue(async () => {

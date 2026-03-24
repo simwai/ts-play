@@ -5,11 +5,12 @@ import type { PackageManagerStatus } from '../hooks/usePackageManager';
 export interface PlaygroundState {
   lifecycle: EnvironmentStatus;
   tscStatus: CompilerStatus;
-  parcelStatus: CompilerStatus;
+  esbuildStatus: CompilerStatus;
   packageManagerStatus: PackageManagerStatus;
   theme: ThemeMode;
   lineWrap: boolean;
   stripAnsi: boolean;
+  inlineDeps: boolean;
   isReady: boolean;
 }
 
@@ -19,11 +20,12 @@ class PlaygroundStore {
   private state: PlaygroundState = {
     lifecycle: 'idle',
     tscStatus: 'Idle',
-    parcelStatus: 'Idle',
+    esbuildStatus: 'Idle',
     packageManagerStatus: 'idle',
     theme: (localStorage.getItem('tsplay_theme') as ThemeMode) || 'mocha',
     lineWrap: localStorage.getItem('tsplay_linewrap') === 'true',
     stripAnsi: localStorage.getItem('tsplay_stripansi') === 'true',
+    inlineDeps: localStorage.getItem('tsplay_inlinedeps') === 'true',
     isReady: false,
   };
 
@@ -42,12 +44,13 @@ class PlaygroundStore {
     if (patch.theme) localStorage.setItem('tsplay_theme', patch.theme);
     if (patch.lineWrap !== undefined) localStorage.setItem('tsplay_linewrap', String(patch.lineWrap));
     if (patch.stripAnsi !== undefined) localStorage.setItem('tsplay_stripansi', String(patch.stripAnsi));
+    if (patch.inlineDeps !== undefined) localStorage.setItem('tsplay_inlinedeps', String(patch.inlineDeps));
 
     // Derive readiness
     this.state.isReady =
       this.state.lifecycle === 'ready' &&
       this.state.tscStatus === 'Ready' &&
-      this.state.parcelStatus === 'Ready';
+      this.state.esbuildStatus === 'Ready';
 
     if (this.state.isReady !== oldReady || Object.keys(patch).length > 0) {
       this.notify();

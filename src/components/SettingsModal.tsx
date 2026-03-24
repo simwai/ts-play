@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { X, Save, RotateCcw, Box, Cpu, FileJson, Layers, Monitor, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Save, RotateCcw, Box, Cpu, FileJson, Layers, Monitor, AlertCircle, PackageCheck } from 'lucide-react';
 import { Button } from './ui/Button';
 import { IconButton } from './ui/IconButton';
 import { Badge } from './ui/Badge';
@@ -23,7 +23,7 @@ export function SettingsModal({
   tsConfigString,
   onSave,
 }: SettingsModalProps) {
-  const { theme, stripAnsi, lineWrap, packageManagerStatus } = usePlaygroundStore();
+  const { theme, stripAnsi, lineWrap, inlineDeps, packageManagerStatus } = usePlaygroundStore();
   const [temporaryTsConfig, setTemporaryTsConfig] = useState(tsConfigString);
   const [isSaving, setIsSaving] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
@@ -92,11 +92,11 @@ export function SettingsModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
-          {/* Editor Theme & Display */}
+          {/* Appearance */}
           <section className="space-y-4">
             <div className="flex items-center gap-2 text-mauve font-semibold">
               <Monitor size={18} />
-              <h3>Appearance & Display</h3>
+              <h3>Appearance</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
@@ -144,6 +144,32 @@ export function SettingsModal({
                 </label>
               </div>
             </div>
+          </section>
+
+          {/* Compilation & Dependencies */}
+          <section className="space-y-4">
+             <div className="flex items-center gap-2 text-mauve font-semibold">
+                <PackageCheck size={18} />
+                <h3>Compilation & Bundling</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <label className="flex items-center gap-3 cursor-pointer group">
+                    <div className="relative flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={inlineDeps}
+                        onChange={(e) => playgroundStore.setState({ inlineDeps: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors"></div>
+                      <div className="absolute left-1 w-3 h-3 bg-text rounded-full transition-transform peer-checked:translate-x-5"></div>
+                    </div>
+                    <div>
+                      <span className="text-sm text-overlay1 group-hover:text-text transition-colors block">Inline Dependencies</span>
+                      <span className="text-4xs text-overlay0 uppercase font-mono tracking-tighter">BUNDLE node_modules into output</span>
+                    </div>
+                </label>
+              </div>
           </section>
 
           {/* TSConfig Editor */}

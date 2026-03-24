@@ -19,7 +19,7 @@ import { usePlaygroundStore } from './hooks/usePlaygroundStore';
 import { TABS, type TabType, DEFAULT_TSCONFIG } from './lib/constants';
 
 const DEFAULT_TS = `// TypeScript Playground
-// Powered by Vite-Node, Prettier and WebContainers! ✨
+// Powered by Node.js, Prettier and WebContainers! ✨
 
 import { map } from 'lodash-es';
 
@@ -37,7 +37,7 @@ console.log("Mapped:", map([1, 2, 3], x => x * 2));
 `;
 
 export function App() {
-  const { theme, lineWrap, stripAnsi, isReady, tscStatus, parcelStatus, lifecycle, packageManagerStatus } = usePlaygroundStore();
+  const { theme, lineWrap, stripAnsi, isReady, tscStatus, esbuildStatus, lifecycle, packageManagerStatus } = usePlaygroundStore();
 
   const [tsCode, setTsCode] = useState(DEFAULT_TS);
   const [jsCode, setJsCode] = useState('');
@@ -61,9 +61,11 @@ export function App() {
     useConsoleManager();
 
   const handleArtifactsChange = useCallback((js: string, dts: string) => {
-    setJsCode(js);
-    setDtsCode(dts);
-    setJsDirty(false);
+    if (js) {
+        setJsCode(js);
+        setJsDirty(false);
+    }
+    if (dts) setDtsCode(dts);
   }, []);
 
   const { externalTypings } = useWebContainer(
@@ -82,13 +84,13 @@ export function App() {
     else if (tscStatus === 'Preparing') parts.push('TS Prep');
     else if (tscStatus === 'Error') parts.push('TS Error');
 
-    if (parcelStatus === 'Running' || parcelStatus === 'Compiling') parts.push('JS...');
-    else if (parcelStatus === 'Ready') parts.push('JS Ready');
-    else if (parcelStatus === 'Preparing') parts.push('JS Prep');
-    else if (parcelStatus === 'Error') parts.push('JS Error');
+    if (esbuildStatus === 'Running' || esbuildStatus === 'Compiling') parts.push('JS...');
+    else if (esbuildStatus === 'Ready') parts.push('JS Ready');
+    else if (esbuildStatus === 'Preparing') parts.push('JS Prep');
+    else if (esbuildStatus === 'Error') parts.push('JS Error');
 
     return parts.join(' | ') || 'Idle';
-  }, [tscStatus, parcelStatus]);
+  }, [tscStatus, esbuildStatus]);
 
   const { runCode, isRunning } = useCompilerManager();
 
@@ -165,7 +167,7 @@ export function App() {
         setActiveTab={(t) => setActiveTab(t as TabType)}
         themeMode={theme}
         setThemeMode={(t) => playgroundStore.setState({ theme: typeof t === 'function' ? t(theme) : t })}
-        compilerStatus={isReady ? 'ready' : (lifecycle === 'error' || tscStatus === 'Error' || parcelStatus === 'Error' ? 'error' : 'loading')}
+        compilerStatus={isReady ? 'ready' : (lifecycle === 'error' || tscStatus === 'Error' || esbuildStatus === 'Error' ? 'error' : 'loading')}
         formatSuccess={false}
         shareSuccess={false}
       />
