@@ -9,7 +9,7 @@ export interface PlaygroundState {
   packageManagerStatus: PackageManagerStatus;
   theme: ThemeMode;
   lineWrap: boolean;
-  trueColor: boolean;
+  stripAnsi: boolean;
   isReady: boolean;
 }
 
@@ -23,7 +23,7 @@ class PlaygroundStore {
     packageManagerStatus: 'idle',
     theme: (localStorage.getItem('tsplay_theme') as ThemeMode) || 'mocha',
     lineWrap: localStorage.getItem('tsplay_linewrap') === 'true',
-    trueColor: localStorage.getItem('tsplay_truecolor') !== 'false',
+    stripAnsi: localStorage.getItem('tsplay_stripansi') === 'true',
     isReady: false,
   };
 
@@ -41,7 +41,7 @@ class PlaygroundStore {
     // Persistence
     if (patch.theme) localStorage.setItem('tsplay_theme', patch.theme);
     if (patch.lineWrap !== undefined) localStorage.setItem('tsplay_linewrap', String(patch.lineWrap));
-    if (patch.trueColor !== undefined) localStorage.setItem('tsplay_truecolor', String(patch.trueColor));
+    if (patch.stripAnsi !== undefined) localStorage.setItem('tsplay_stripansi', String(patch.stripAnsi));
 
     // Derive readiness
     this.state.isReady =

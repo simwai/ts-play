@@ -37,7 +37,7 @@ console.log("Mapped:", map([1, 2, 3], x => x * 2));
 `;
 
 export function App() {
-  const { theme, lineWrap, trueColor, isReady, tscStatus, parcelStatus, lifecycle, packageManagerStatus } = usePlaygroundStore();
+  const { theme, lineWrap, stripAnsi, isReady, tscStatus, parcelStatus, lifecycle, packageManagerStatus } = usePlaygroundStore();
 
   const [tsCode, setTsCode] = useState(DEFAULT_TS);
   const [jsCode, setJsCode] = useState('');
@@ -252,7 +252,7 @@ export function App() {
               isOpen={consoleOpen}
               onToggle={toggleConsole}
               contentHeight={panelHeight}
-              trueColorEnabled={trueColor}
+              stripAnsiEnabled={stripAnsi}
             />
         </div>
       </main>

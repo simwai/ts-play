@@ -23,7 +23,7 @@ export function SettingsModal({
   tsConfigString,
   onSave,
 }: SettingsModalProps) {
-  const { theme, trueColor, lineWrap, packageManagerStatus } = usePlaygroundStore();
+  const { theme, stripAnsi, lineWrap, packageManagerStatus } = usePlaygroundStore();
   const [temporaryTsConfig, setTemporaryTsConfig] = useState(tsConfigString);
   const [isSaving, setIsSaving] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
@@ -123,14 +123,14 @@ export function SettingsModal({
                   <div className="relative flex items-center">
                     <input
                       type="checkbox"
-                      checked={trueColor}
-                      onChange={(e) => playgroundStore.setState({ trueColor: e.target.checked })}
+                      checked={stripAnsi}
+                      onChange={(e) => playgroundStore.setState({ stripAnsi: e.target.checked })}
                       className="sr-only peer"
                     />
                     <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors"></div>
                     <div className="absolute left-1 w-3 h-3 bg-text rounded-full transition-transform peer-checked:translate-x-5"></div>
                   </div>
-                  <span className="text-sm text-overlay1 group-hover:text-text transition-colors">Enable TrueColor ANSI</span>
+                  <span className="text-sm text-overlay1 group-hover:text-text transition-colors">Strip ANSI Escapes</span>
                 </label>
                 <label className="flex items-center gap-3 cursor-pointer group">
                   <div className="relative flex items-center">
