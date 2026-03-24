@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Save, RotateCcw, Box, Cpu, FileJson, Layers, Monitor, AlertCircle } from 'lucide-react';
+import { X, Save, RotateCcw, Box, Cpu, FileJson, Layers, Monitor, AlertCircle, PackageCheck } from 'lucide-react';
 import { Button } from './ui/Button';
 import { IconButton } from './ui/IconButton';
 import { Badge } from './ui/Badge';
@@ -7,7 +7,7 @@ import { CodeEditor } from './CodeEditor';
 import { webContainerService } from '../lib/webcontainer';
 import { playgroundStore } from '../lib/state-manager';
 import { usePlaygroundStore } from '../hooks/usePlaygroundStore';
-import type { ThemeMode } from '../lib/theme';
+import { type ThemeMode, DARK_THEMES, LIGHT_THEMES, isDarkMode } from '../lib/theme';
 import { DEFAULT_TSCONFIG } from '../lib/constants';
 
 type SettingsModalProps = {
@@ -23,7 +23,7 @@ export function SettingsModal({
   tsConfigString,
   onSave,
 }: SettingsModalProps) {
-  const { theme, stripAnsi, lineWrap, packageManagerStatus } = usePlaygroundStore();
+  const { theme, stripAnsi, lineWrap, inlineDeps, packageManagerStatus } = usePlaygroundStore();
   const [temporaryTsConfig, setTemporaryTsConfig] = useState(tsConfigString);
   const [isSaving, setIsSaving] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
@@ -38,18 +38,11 @@ export function SettingsModal({
   const validateConfig = async (config: string) => {
     try {
       const result = await webContainerService.enqueue(async () => {
-         const proc = await webContainerService.spawnManaged('node', ['__validate_config.cjs', config], { silent: true });
          let output = '';
-         const reader = proc.output.getReader();
-         try {
-           while (true) {
-             const { done, value } = await reader.read();
-             if (done) break;
-             output += value;
-           }
-         } finally {
-           reader.releaseLock();
-         }
+         const proc = await webContainerService.spawnManaged('node', ['__validate_config.cjs', config], {
+           silent: true,
+           onLog: (line) => { output += line; }
+         });
          await proc.exit;
          return JSON.parse(output.trim()) as { valid: boolean; error?: string };
       });
@@ -78,6 +71,9 @@ export function SettingsModal({
     }
   };
 
+  const currentIsDark = isDarkMode(theme);
+  const themeOptions = currentIsDark ? DARK_THEMES : LIGHT_THEMES;
+
   if (!isOpen) return null;
 
   return (
@@ -96,11 +92,11 @@ export function SettingsModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
-          {/* Editor Theme & Display */}
+          {/* Appearance */}
           <section className="space-y-4">
             <div className="flex items-center gap-2 text-mauve font-semibold">
               <Monitor size={18} />
-              <h3>Appearance & Display</h3>
+              <h3>Appearance</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
@@ -111,12 +107,13 @@ export function SettingsModal({
                   onChange={(e) => playgroundStore.setState({ theme: e.target.value as ThemeMode })}
                   className="w-full bg-crust border border-surface0 text-text rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-mauve transition-all"
                 >
-                  <option value="mocha">Catppuccin Mocha</option>
-                  <option value="latte">Catppuccin Latte</option>
-                  <option value="githubDark">GitHub Dark</option>
-                  <option value="githubLight">GitHub Light</option>
-                  <option value="monokai">Monokai</option>
+                  {themeOptions.map(t => (
+                    <option key={t} value={t}>
+                      {t.charAt(0).toUpperCase() + t.slice(1).replace(/([A-Z])/g, ' ')}
+                    </option>
+                  ))}
                 </select>
+                <p className="text-xxs text-overlay0 italic">Only showing {currentIsDark ? 'dark' : 'light'} themes.</p>
               </div>
               <div className="flex flex-col justify-end space-y-3">
                 <label className="flex items-center gap-3 cursor-pointer group">
@@ -149,6 +146,32 @@ export function SettingsModal({
             </div>
           </section>
 
+          {/* Compilation & Dependencies */}
+          <section className="space-y-4">
+             <div className="flex items-center gap-2 text-mauve font-semibold">
+                <PackageCheck size={18} />
+                <h3>Compilation & Bundling</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <label className="flex items-center gap-3 cursor-pointer group">
+                    <div className="relative flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={inlineDeps}
+                        onChange={(e) => playgroundStore.setState({ inlineDeps: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors"></div>
+                      <div className="absolute left-1 w-3 h-3 bg-text rounded-full transition-transform peer-checked:translate-x-5"></div>
+                    </div>
+                    <div>
+                      <span className="text-sm text-overlay1 group-hover:text-text transition-colors block">Inline Dependencies</span>
+                      <span className="text-4xs text-overlay0 uppercase font-mono tracking-tighter">BUNDLE node_modules into output</span>
+                    </div>
+                </label>
+              </div>
+          </section>
+
           {/* TSConfig Editor */}
           <section className="space-y-4">
             <div className="flex items-center justify-between">
@@ -167,7 +190,7 @@ export function SettingsModal({
                 hideGutter={false}
                 disableAutocomplete
                 themeMode={theme}
-                path="file:///tsconfig.json"
+                path="tsconfig.json"
               />
               {configError && (
                 <div className="absolute bottom-0 inset-x-0 bg-red/10 border-t border-red/20 p-2 flex items-center gap-2 text-xxs text-red animate-in slide-in-from-bottom-2">
