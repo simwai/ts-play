@@ -16,7 +16,7 @@ type Props = {
   onClear: () => void;
   isOpen: boolean;
   onToggle: () => void;
-  contentHeight: number; // Now in rem
+  contentHeight: number; // In rem
   trueColorEnabled?: boolean;
 };
 
@@ -56,7 +56,6 @@ export const Console = React.memo(function Console({
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Create Ansi converter with truecolor support if enabled
   const ansiConvert = useMemo(
     () =>
       new Ansi({
@@ -64,10 +63,6 @@ export const Console = React.memo(function Console({
         escapeHtml: true,
         stream: false,
         colors: trueColorEnabled
-          ? undefined
-          : {
-              // Standard 16 colors fallback if needed
-            },
       }),
     [trueColorEnabled],
   );

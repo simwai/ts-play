@@ -1,5 +1,16 @@
 import { WebContainer, type WebContainerProcess } from '@webcontainer/api';
 
+export const SYSTEM_DEPS = ['esbuild', 'prettier', 'typescript'];
+
+export type EnvironmentStatus =
+  | 'uninitialized' | 'booting' | 'preparing' | 'starting_compiler' | 'ready' | 'error';
+
+export interface SystemLog {
+  type: 'info' | 'error' | 'log';
+  message: string;
+  ts: number;
+}
+
 /**
  * Core system dependencies that are required for the playground to function.
  * These are managed by the system and protected from user-level uninstalls.
@@ -22,6 +33,7 @@ export const SYSTEM_DEPS = [
  */
 class WebContainerService {
   private instance: WebContainer | null = null;
+  private status: EnvironmentStatus = 'uninitialized';
   private bootPromise: Promise<WebContainer> | null = null;
   private envReadyPromise: Promise<void> | null = null;
   private envReadyResolve: (() => void) | null = null;
@@ -34,32 +46,47 @@ class WebContainerService {
     if (this.instance) return this.instance;
     if (this.bootPromise) return this.bootPromise;
 
-    this.bootPromise = WebContainer.boot().then((instance) => {
-      this.instance = instance;
-      return instance;
-    });
+  private fsVersion = 0;
+  private builtVersion = -1;
+  private buildPromise: Promise<void> | null = null;
+  private buildResolve: (() => void) | null = null;
 
-    return this.bootPromise;
+  private envReadyResolve: (() => void) | null = null;
+  private envReadyPromise: Promise<void> = new Promise((resolve) => {
+    this.envReadyResolve = resolve;
+  });
+
+  public getStatus() { return this.status; }
+  public setStatus(status: EnvironmentStatus) {
+    this.status = status;
+    this.statusListeners.forEach(l => l(status));
+  }
+  public onStatusChange(l: (s: EnvironmentStatus) => void) {
+    this.statusListeners.add(l);
+    return () => this.statusListeners.delete(l);
+  }
+  public onLog(l: (log: SystemLog) => void) {
+    this.logListeners.add(l);
+    return () => this.logListeners.delete(l);
+  }
+  public emitLog(type: SystemLog['type'], message: string) {
+    this.logListeners.forEach(l => l({ type, message, ts: Date.now() }));
   }
 
-  /**
-   * A promise-based lock that resolves when the initial system environment
-   * (e.g., npm install of system tools) is complete.
-   */
-  public getEnvReady(): Promise<void> {
-    if (!this.envReadyPromise) {
-      this.envReadyPromise = new Promise((resolve) => {
-        this.envReadyResolve = resolve;
+  public notifyBuildStart() {
+    if (!this.buildPromise) {
+      this.buildPromise = new Promise((resolve) => {
+        this.buildResolve = resolve;
       });
     }
-    return this.envReadyPromise;
   }
 
-  public markEnvReady(): void {
-    if (this.envReadyResolve) {
-      this.envReadyResolve();
-    } else {
-      this.envReadyPromise = Promise.resolve();
+  public notifyBuildComplete() {
+    this.builtVersion = this.fsVersion;
+    if (this.buildResolve) {
+      this.buildResolve();
+      this.buildResolve = null;
+      this.buildPromise = null;
     }
   }
 
@@ -98,33 +125,74 @@ class WebContainerService {
     await wc.fs.writeFile(path, content);
   }
 
-  public async readFile(path: string): Promise<string> {
-    const wc = await this.getInstance();
-    return await wc.fs.readFile(path, 'utf8');
+  public async enqueue<T>(op: (i: WebContainer) => Promise<T>, wait = true): Promise<T> {
+    const task = async () => {
+      if (wait) await this.envReadyPromise;
+      return op(await this.getInstance());
+    };
+    const next = this.operationQueue.then(task, task);
+    this.operationQueue = next;
+    return next;
+  }
+
+  public async getInstance() {
+    if (this.instance) return this.instance;
+    if (this.bootPromise) return this.bootPromise;
+    this.setStatus('booting');
+    this.emitLog('info', 'Initialising WebContainer...');
+    return this.bootPromise = WebContainer.boot().then(i => {
+      this.instance = i;
+      return i;
+    }).catch(e => {
+      this.setStatus('error');
+      this.emitLog('error', `VM Boot failed: ${e.message}`);
+      throw e;
+    });
+  }
+
+  public markEnvReady() {
+    this.setStatus('ready');
+    if (this.envReadyResolve) { this.envReadyResolve(); this.envReadyResolve = null; }
   }
 
   /**
    * Spawns a process and pipes output to the provided callback.
    */
-  public async spawn(
-    command: string,
-    args: string[],
-    onOutput?: (data: string) => void
-  ): Promise<{ exit: Promise<number>; process: WebContainerProcess }> {
+  public async spawnManaged(cmd: string, args: string[], opts: { onLog?: (l: string) => void; silent?: boolean } = {}) {
     const wc = await this.getInstance();
-    const process = await wc.spawn(command, args);
+    const proc = await wc.spawn(cmd, args);
+    let buffer = '';
 
-    if (onOutput) {
-      process.output.pipeTo(
-        new WritableStream({
-          write(data) {
-            onOutput(data);
-          },
-        })
-      );
-    }
+    const flush = (isClosing = false) => {
+      // Incomplete escape sequence check
+      if (!isClosing && (buffer.endsWith('\x1b') || buffer.match(/\x1b\[[0-9;]*$/))) {
+        return;
+      }
 
-    return { exit: process.exit, process };
+      const lines = buffer.split('\n');
+      if (!isClosing) {
+        buffer = lines.pop() || '';
+      } else {
+        buffer = '';
+      }
+      for (const line of lines) {
+        const clean = cleanANSI(line).trim();
+        // Ignore solitary junk characters or spinners
+        if (clean && !/^[/\\|\-.]$/.test(clean)) {
+          if (opts.onLog) opts.onLog(clean);
+          if (!opts.silent) this.emitLog('log', clean);
+        }
+      }
+    };
+
+    proc.output.pipeTo(new WritableStream({
+      write(d) {
+        buffer += d;
+        flush(false);
+      },
+      close() { flush(true); }
+    }));
+    return { exit: proc.exit, process: proc };
   }
 
   /**
@@ -137,24 +205,13 @@ class WebContainerService {
   ): Promise<Record<string, string>> {
     const wc = await this.getInstance();
     let entries;
-    try {
-      entries = await wc.fs.readdir(dir, { withFileTypes: true });
-    } catch {
-      return {};
-    }
-
+    try { entries = await wc.fs.readdir(dir, { withFileTypes: true }); } catch { return {}; }
     const results: Record<string, string> = {};
-    for (const entry of entries) {
-      const fullPath = `${dir}/${entry.name}`;
-      const relativePath = fullPath.replace(new RegExp(`^${basePath}/?`), '');
-
-      if (entry.isDirectory()) {
-        Object.assign(results, await this.readDirRecursive(fullPath, filter, basePath));
-      } else if (filter(fullPath)) {
-        try {
-          results[relativePath] = await wc.fs.readFile(fullPath, 'utf8');
-        } catch {}
-      }
+    for (const e of entries) {
+      const full = `${dir}/${e.name}`;
+      const rel = full.replace(new RegExp(`^${base}/?`), '');
+      if (e.isDirectory()) Object.assign(results, await this.readDirRecursive(full, filter, base));
+      else if (filter(full)) { try { results[rel] = await wc.fs.readFile(full, 'utf8'); } catch {} }
     }
     return results;
   }
@@ -164,9 +221,3 @@ export const webContainerService = new WebContainerService();
 
 // Re-export old names for legacy support
 export const getWebContainer = () => webContainerService.getInstance();
-export const runCommand = (cmd: string, args: string[], onOutput: (d: string) => void) =>
-  webContainerService.spawn(cmd, args, onOutput);
-export const markEnvReady = () => webContainerService.markEnvReady();
-export const getEnvReady = () => webContainerService.getEnvReady();
-export const readDirRecursive = (dir: string, filter?: (p: string) => boolean) =>
-  webContainerService.readDirRecursive(dir, filter);

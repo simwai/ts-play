@@ -4,9 +4,6 @@ import { webContainerService, SYSTEM_DEPS } from '../lib/webcontainer';
 import type { InstalledPackage } from '../components/PackageManager';
 import type { ConsoleMessage } from '../components/Console';
 
-/**
- * Standard Node.js built-ins that should never be installed as dependencies.
- */
 const BUILTIN_MODULES = new Set([
   'assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'console',
   'constants', 'crypto', 'dgram', 'diagnostics_channel', 'dns', 'domain',
@@ -19,9 +16,8 @@ const BUILTIN_MODULES = new Set([
 export type PackageManagerStatus = 'idle' | 'installing' | 'uninstalling' | 'syncing' | 'error';
 
 /**
- * usePackageManager manages the lifecycle of dependencies in the WebContainer.
- * It automatically detects imports in the code and synchronizes with the filesystem,
- * while ensuring that system-critical dependencies are protected.
+ * usePackageManager coordinates dependency detection and synchronization.
+ * It uses the high-level WebContainerService for atomic operations.
  */
 export function usePackageManager(
   tsCode: string,
@@ -45,16 +41,8 @@ export function usePackageManager(
     }
   }, []);
 
-  const tsCursorPos = useRef(0);
-  const checkImportsTimeout = useRef<ReturnType<typeof setTimeout>>();
-
-  /**
-   * Scans the source code for new imports.
-   * Throttled to avoid excessive processing on every keystroke.
-   */
   const checkImports = useCallback(() => {
-    if (checkImportsTimeout.current) clearTimeout(checkImportsTimeout.current);
-    checkImportsTimeout.current = setTimeout(async () => {
+    const timeout = setTimeout(async () => {
       try {
         const detected = await workerClient.detectImports(tsCode);
         const filtered = [...detected].filter(
@@ -74,10 +62,11 @@ export function usePackageManager(
         console.error('Failed to detect imports:', error);
       }
     }, 1000);
+    return () => clearTimeout(timeout);
   }, [tsCode]);
 
   useEffect(() => {
-    checkImports();
+    return checkImports();
   }, [tsCode, checkImports]);
 
   /**
@@ -88,7 +77,6 @@ export function usePackageManager(
     const currentNames = new Set(installedPackages.map((p) => p.name));
     const previousNames = previousPkgsRef.current;
 
-    // Identify packages to add and packages to remove (protecting system deps)
     const added = [...currentNames].filter((x) => !previousNames.has(x));
     const removed = [...previousNames].filter(
       (x) => !currentNames.has(x) && !SYSTEM_DEPS.includes(x)
@@ -133,7 +121,7 @@ export function usePackageManager(
 
   return {
     installedPackages,
-    tsCursorPos,
+    tsCursorPos: { current: 0 },
     checkImports,
     installQueue: installQueue.current,
     status,

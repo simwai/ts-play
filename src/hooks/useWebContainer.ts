@@ -104,7 +104,7 @@ export function useWebContainer(
         addMessage('error', ['Failed to synchronize environment: ' + (error as Error).message]);
         webContainerService.markEnvReady();
       }
-    });
+    }, false); // Do not wait for ready when initializing the ready state
   }, []);
 
   useEffect(() => {
