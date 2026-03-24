@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { X, Save, RotateCcw, Box, Cpu, FileJson, Layers, Monitor, AlertCircle } from 'lucide-react';
 import { Button } from './ui/Button';
 import { IconButton } from './ui/IconButton';
@@ -7,7 +7,7 @@ import { CodeEditor } from './CodeEditor';
 import { webContainerService } from '../lib/webcontainer';
 import { playgroundStore } from '../lib/state-manager';
 import { usePlaygroundStore } from '../hooks/usePlaygroundStore';
-import type { ThemeMode } from '../lib/theme';
+import { type ThemeMode, DARK_THEMES, LIGHT_THEMES, isDarkMode } from '../lib/theme';
 import { DEFAULT_TSCONFIG } from '../lib/constants';
 
 type SettingsModalProps = {
@@ -38,18 +38,11 @@ export function SettingsModal({
   const validateConfig = async (config: string) => {
     try {
       const result = await webContainerService.enqueue(async () => {
-         const proc = await webContainerService.spawnManaged('node', ['__validate_config.cjs', config], { silent: true });
          let output = '';
-         const reader = proc.output.getReader();
-         try {
-           while (true) {
-             const { done, value } = await reader.read();
-             if (done) break;
-             output += value;
-           }
-         } finally {
-           reader.releaseLock();
-         }
+         const proc = await webContainerService.spawnManaged('node', ['__validate_config.cjs', config], {
+           silent: true,
+           onLog: (line) => { output += line; }
+         });
          await proc.exit;
          return JSON.parse(output.trim()) as { valid: boolean; error?: string };
       });
@@ -77,6 +70,9 @@ export function SettingsModal({
       setConfigError(null);
     }
   };
+
+  const currentIsDark = isDarkMode(theme);
+  const themeOptions = currentIsDark ? DARK_THEMES : LIGHT_THEMES;
 
   if (!isOpen) return null;
 
@@ -111,12 +107,13 @@ export function SettingsModal({
                   onChange={(e) => playgroundStore.setState({ theme: e.target.value as ThemeMode })}
                   className="w-full bg-crust border border-surface0 text-text rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-mauve transition-all"
                 >
-                  <option value="mocha">Catppuccin Mocha</option>
-                  <option value="latte">Catppuccin Latte</option>
-                  <option value="githubDark">GitHub Dark</option>
-                  <option value="githubLight">GitHub Light</option>
-                  <option value="monokai">Monokai</option>
+                  {themeOptions.map(t => (
+                    <option key={t} value={t}>
+                      {t.charAt(0).toUpperCase() + t.slice(1).replace(/([A-Z])/g, ' ')}
+                    </option>
+                  ))}
                 </select>
+                <p className="text-xxs text-overlay0 italic">Only showing {currentIsDark ? 'dark' : 'light'} themes.</p>
               </div>
               <div className="flex flex-col justify-end space-y-3">
                 <label className="flex items-center gap-3 cursor-pointer group">
@@ -167,7 +164,7 @@ export function SettingsModal({
                 hideGutter={false}
                 disableAutocomplete
                 themeMode={theme}
-                path="file:///tsconfig.json"
+                path="tsconfig.json"
               />
               {configError && (
                 <div className="absolute bottom-0 inset-x-0 bg-red/10 border-t border-red/20 p-2 flex items-center gap-2 text-xxs text-red animate-in slide-in-from-bottom-2">
