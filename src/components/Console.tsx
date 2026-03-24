@@ -132,7 +132,6 @@ export const Console = React.memo(function Console({
                 ? m.args.join(' ')
                 : String(m.args);
 
-              // Only treat it as ANSI if it contains ESC [ or other escape sequences
               const hasAnsi = trueColorEnabled && /[\u001b\u009b]/.test(fullText);
 
               let content: React.ReactNode;
@@ -148,10 +147,10 @@ export const Console = React.memo(function Console({
                     />
                   );
                 } catch (err) {
-                  // Fallback for malformed ANSI
+                  // Fallback for malformed ANSI - render raw but in red
                   content = (
-                    <pre className="m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono text-red opacity-80 italic">
-                      [Error rendering ANSI] {fullText}
+                    <pre className="m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono text-red opacity-80">
+                      {fullText}
                     </pre>
                   );
                 }

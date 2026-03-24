@@ -4,9 +4,6 @@ import { webContainerService, SYSTEM_DEPS } from '../lib/webcontainer';
 import type { InstalledPackage } from '../components/PackageManager';
 import type { ConsoleMessage } from '../components/Console';
 
-/**
- * Standard Node.js built-ins that should never be installed as dependencies.
- */
 const BUILTIN_MODULES = new Set([
   'assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'console',
   'constants', 'crypto', 'dgram', 'diagnostics_channel', 'dns', 'domain',
@@ -19,9 +16,8 @@ const BUILTIN_MODULES = new Set([
 export type PackageManagerStatus = 'idle' | 'installing' | 'uninstalling' | 'syncing' | 'error';
 
 /**
- * usePackageManager manages the lifecycle of dependencies in the WebContainer.
- * It automatically detects imports in the code and synchronizes with the filesystem,
- * while ensuring that system-critical dependencies are protected.
+ * usePackageManager coordinates dependency detection and synchronization.
+ * It uses the high-level WebContainerService for atomic operations.
  */
 export function usePackageManager(
   tsCode: string,
@@ -31,8 +27,6 @@ export function usePackageManager(
   const [status, setStatus] = useState<PackageManagerStatus>('idle');
   const tasksInProgress = useRef(0);
   const previousPkgsRef = useRef<Set<string>>(new Set(SYSTEM_DEPS));
-
-  // Use the centralized service queue instead of a local one
   const installQueue = useRef<Promise<void>>(Promise.resolve());
 
   const updateBusyState = useCallback((busy: boolean, type: PackageManagerStatus = 'idle') => {
@@ -45,16 +39,8 @@ export function usePackageManager(
     }
   }, []);
 
-  const tsCursorPos = useRef(0);
-  const checkImportsTimeout = useRef<ReturnType<typeof setTimeout>>();
-
-  /**
-   * Scans the source code for new imports.
-   * Throttled to avoid excessive processing on every keystroke.
-   */
   const checkImports = useCallback(() => {
-    if (checkImportsTimeout.current) clearTimeout(checkImportsTimeout.current);
-    checkImportsTimeout.current = setTimeout(async () => {
+    const timeout = setTimeout(async () => {
       try {
         const detected = await workerClient.detectImports(tsCode);
         const filtered = [...detected].filter(
@@ -74,21 +60,17 @@ export function usePackageManager(
         console.error('Failed to detect imports:', error);
       }
     }, 1000);
+    return () => clearTimeout(timeout);
   }, [tsCode]);
 
   useEffect(() => {
-    checkImports();
+    return checkImports();
   }, [tsCode, checkImports]);
 
-  /**
-   * Synchronizes the WebContainer filesystem with the detected packages.
-   * Uses the centralized queue to avoid concurrent npm operations.
-   */
   useEffect(() => {
     const currentNames = new Set(installedPackages.map((p) => p.name));
     const previousNames = previousPkgsRef.current;
 
-    // Identify packages to add and packages to remove (protecting system deps)
     const added = [...currentNames].filter((x) => !previousNames.has(x));
     const removed = [...previousNames].filter(
       (x) => !currentNames.has(x) && !SYSTEM_DEPS.includes(x)
@@ -98,66 +80,23 @@ export function usePackageManager(
     previousPkgsRef.current = currentNames;
 
     const performChanges = async () => {
-      // Use the centralized queue
       await webContainerService.enqueue(async (instance) => {
         updateBusyState(true, added.length > 0 ? 'installing' : 'uninstalling');
 
         try {
           if (removed.length > 0) {
-            addMessage('info', [`npm uninstall ${removed.join(' ')}...`]);
-            const process = await instance.spawn('npm', ['uninstall', ...removed]);
-
-            let buffer = '';
-            process.output.pipeTo(new WritableStream({
-              write(chunk) {
-                if (chunk && typeof chunk === 'string') {
-                  buffer += chunk;
-                  const lines = buffer.split('\n');
-                  buffer = lines.pop() || '';
-                  for (const line of lines) {
-                    const clean = line.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim();
-                    if (clean && !/^[/\\|\-]$/.test(clean)) addMessage('info', [clean]);
-                  }
-                }
-              },
-              close() {
-                if (buffer.trim()) {
-                  const clean = buffer.trim().replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim();
-                  if (clean) addMessage('info', [clean]);
-                }
-              }
-            }));
-            await process.exit;
+            webContainerService.emitLog('info', `npm uninstall ${removed.join(' ')}...`);
+            const { exit } = await webContainerService.spawnManaged('npm', ['uninstall', ...removed]);
+            await exit;
           }
           if (added.length > 0) {
-            addMessage('info', [`npm install ${added.join(' ')}...`]);
-            const process = await instance.spawn('npm', ['install', '--no-progress', ...added]);
-
-            let buffer = '';
-            process.output.pipeTo(new WritableStream({
-              write(chunk) {
-                if (chunk && typeof chunk === 'string') {
-                  buffer += chunk;
-                  const lines = buffer.split('\n');
-                  buffer = lines.pop() || '';
-                  for (const line of lines) {
-                    const clean = line.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim();
-                    if (clean && !/^[/\\|\-]$/.test(clean)) addMessage('info', [clean]);
-                  }
-                }
-              },
-              close() {
-                if (buffer.trim()) {
-                  const clean = buffer.trim().replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim();
-                  if (clean) addMessage('info', [clean]);
-                }
-              }
-            }));
-            await process.exit;
+            webContainerService.emitLog('info', `npm install ${added.join(' ')}...`);
+            const { exit } = await webContainerService.spawnManaged('npm', ['install', '--no-progress', ...added]);
+            await exit;
           }
         } catch (error) {
           console.error('Package management failed:', error);
-          addMessage('error', ['Package manager error: ' + (error as Error).message]);
+          webContainerService.emitLog('error', `Package manager error: ${(error as Error).message}`);
         } finally {
           updateBusyState(false);
         }
@@ -165,11 +104,11 @@ export function usePackageManager(
     };
 
     installQueue.current = performChanges();
-  }, [installedPackages, addMessage, updateBusyState]);
+  }, [installedPackages, updateBusyState]);
 
   return {
     installedPackages,
-    tsCursorPos,
+    tsCursorPos: { current: 0 },
     checkImports,
     installQueue: installQueue.current,
     status,

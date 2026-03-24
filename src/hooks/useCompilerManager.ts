@@ -6,27 +6,9 @@ import type { ConsoleMessage } from '../components/Console';
 import type { WebContainerProcess } from '@webcontainer/api';
 
 /**
- * Robustly clean ANSI escape codes and terminal control sequences.
- * This regex covers CSI (Control Sequence Introducer) and other ESC sequences
- * that commonly appear in modern terminal outputs.
+ * useCompilerManager coordinates with WebContainerService to execute code.
+ * It leverages the high-level Service APIs to ensure build integrity and clean output.
  */
-function cleanANSI(text: string): string {
-  if (!text) return '';
-  // Split by \r and take the last part (handles progress bars/overwrites)
-  const parts = text.split('\r');
-  let result = parts[parts.length - 1];
-
-  // Remove ANSI escape codes (CSI, OSC, etc.)
-  // Covers: \u001b followed by [, ], (, ), etc., and various command characters
-  result = result.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
-
-  // Remove other control characters but preserve common white-space (\t, \n, \r)
-  // \x00-\x08 (NULL to BS), \x0B-\x0C (VT, FF), \x0E-\x1F (SO to US), \x7F (DEL)
-  result = result.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
-
-  return result;
-}
-
 export function useCompilerManager(
   tsCode: string,
   addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void,
@@ -82,50 +64,28 @@ export function useCompilerManager(
       const codeToCompile = codeRef.current;
 
       await webContainerService.enqueue(async (instance) => {
-        await instance.fs.writeFile('index.ts', codeToCompile);
+        // Step 1: Ensure latest code is on disk
+        await webContainerService.writeFile('index.ts', codeToCompile);
+
+        // Step 2: Wait for any pending user installs (lodash-es etc)
         await pendingInstalls;
+
+        // Step 3: BUILD INTEGRITY GATE
+        // Wait until the background compiler has processed the current version
+        addMessage('info', ['Waiting for background compilation...']);
+        await webContainerService.waitForBuild();
 
         addMessage('info', ['Executing pre-compiled index.js...']);
 
-        try {
-          const content = await instance.fs.readFile('dist/index.js', 'utf8');
-          if (!content.trim()) throw new Error('Artifact is empty.');
-        } catch (e) {
-          throw new Error('Build artifact dist/index.js not found. Please wait for the compiler to finish.');
-        }
+        // Step 4: Managed execution with clean output buffering
+        const { process, exit } = await webContainerService.spawnManaged('node', ['dist/index.js'], {
+          onLog: (line) => addMessage('log', [line]),
+          silent: true // Code logs are routed through the callback
+        });
 
-        const process = await instance.spawn('node', ['dist/index.js']);
         currentProcess.current = process;
 
-        let buffer = '';
-        process.output.pipeTo(
-          new WritableStream({
-            write(chunk) {
-              if (chunk && typeof chunk === 'string') {
-                buffer += chunk;
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-
-                for (const line of lines) {
-                  const sanitized = cleanANSI(line);
-                  if (sanitized.trim().length > 0) {
-                    addMessage('log', [sanitized]);
-                  }
-                }
-              }
-            },
-            close() {
-              if (buffer.trim()) {
-                const sanitized = cleanANSI(buffer);
-                if (sanitized.trim().length > 0) {
-                  addMessage('log', [sanitized]);
-                }
-              }
-            }
-          })
-        );
-
-        // Update previews via worker for UI responsiveness
+        // Sync previews via worker for UI responsiveness
         workerClient.compile(codeToCompile).then(res => {
           setOutputFiles(res);
           onSuccess(res.js, res.dts);
@@ -140,7 +100,7 @@ export function useCompilerManager(
           setIsRunning(false);
         }, 60000);
 
-        const exitCode = await process.exit;
+        const exitCode = await exit;
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current);
           timeoutRef.current = null;
