@@ -1,45 +1,27 @@
 import { useState, useEffect } from 'react';
-import { Save, Github } from 'lucide-react';
+import { X, Save, RotateCcw, Box, Cpu, FileJson, Layers, Monitor, Type, WrapText, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Button } from './ui/Button';
 import { IconButton } from './ui/IconButton';
-import { workerClient } from '../lib/workerClient';
-import { formatJson } from '../lib/formatter';
-import { DEFAULT_TSCONFIG } from '../lib/constants';
+import { Badge } from './ui/Badge';
 import { CodeEditor } from './CodeEditor';
-import { type ThemeMode, isDarkMode } from '../lib/theme';
+import { webContainerService } from '../lib/webcontainer';
+import type { PackageManagerStatus } from '../hooks/usePackageManager';
+import type { ThemeMode } from '../lib/theme';
+import { DEFAULT_TSCONFIG } from '../lib/constants';
 
 type SettingsModalProps = {
   isOpen: boolean;
   onClose: () => void;
   tsConfigString: string;
-  onSave: (newConfig: string) => void;
+  onSave: (val: string) => void;
   trueColorEnabled: boolean;
   setTrueColorEnabled: (val: boolean) => void;
   lineWrap: boolean;
   setLineWrap: (val: boolean) => void;
-  packageManagerStatus: string;
-  themeMode: string;
-  setThemeMode: (mode: ThemeMode) => void;
+  packageManagerStatus: PackageManagerStatus;
+  themeMode: ThemeMode;
+  setThemeMode: (theme: ThemeMode) => void;
 };
-
-function fixLooseJson(code: string): string {
-  if (!code) return code;
-  try {
-    return code.replace(
-      /([a-zA-Z_$][\w$]*)\s*:/g,
-      (match, key, offset, str) => {
-        if (typeof str !== 'string') return match;
-        let i = offset - 1;
-        while (i >= 0 && /\s/.test(str[i])) i--;
-        if (i >= 0 && (str[i] === '"' || str[i] === "'")) return match;
-        return `"${key}":`;
-      },
-    );
-  } catch (err) {
-    console.error('fixLooseJson error:', err);
-    return code;
-  }
-}
 
 export function SettingsModal({
   isOpen,
@@ -55,266 +37,197 @@ export function SettingsModal({
   setThemeMode,
 }: SettingsModalProps) {
   const [temporaryTsConfig, setTemporaryTsConfig] = useState(tsConfigString);
-  const [isValid, setIsValid] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [isFormatting, setIsFormatting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [configError, setConfigError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setTemporaryTsConfig(tsConfigString);
-      setIsValid(true);
-      setErrorMsg(null);
+      setConfigError(null);
     }
   }, [isOpen, tsConfigString]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const timer = setTimeout(async () => {
-      try {
-        const res = await workerClient.validateConfig(temporaryTsConfig);
-        if (!res.valid) {
-          const fixed = fixLooseJson(temporaryTsConfig);
-          if (fixed !== temporaryTsConfig) {
-            const fixedRes = await workerClient.validateConfig(fixed);
-            if (fixedRes.valid) {
-              setIsValid(true);
-              setErrorMsg(
-                'Syntax will be auto-formatted on save (e.g., adding missing quotes).',
-              );
-              return;
-            }
-          }
-        }
-        setIsValid(res.valid);
-        setErrorMsg(res.error || null);
-      } catch {
-        setIsValid(false);
-        setErrorMsg('Validation failed');
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [temporaryTsConfig, isOpen]);
+  const validateConfig = async (config: string) => {
+    try {
+      const result = await webContainerService.enqueue(async (instance) => {
+         const { process, exit } = await webContainerService.spawnManaged('node', ['__validate_config.cjs', config], { silent: true });
+         let output = '';
+         process.output.pipeTo(new WritableStream({ write(d) { output += d; } }));
+         await exit;
+         return JSON.parse(output.trim()) as { valid: boolean; error?: string };
+      });
+      return result;
+    } catch (e) {
+      return { valid: false, error: (e as Error).message };
+    }
+  };
 
   const handleSave = async () => {
-    if (!isValid) return;
-    setIsFormatting(true);
-    try {
-      console.log('Saving Settings...');
-      let toSave = temporaryTsConfig;
-      const res = await workerClient.validateConfig(toSave);
-      if (!res.valid) {
-        const fixed = fixLooseJson(toSave);
-        const fixedRes = await workerClient.validateConfig(fixed);
-        if (fixedRes.valid) toSave = fixed;
-      }
-      const formatted = await formatJson(toSave);
-      onSave(fixLooseJson(formatted));
-    } catch (err) {
-      console.error('Settings save error:', err);
-      onSave(fixLooseJson(temporaryTsConfig));
-    } finally {
-      setIsFormatting(false);
+    setIsSaving(true);
+    const result = await validateConfig(temporaryTsConfig);
+    if (result.valid) {
+      onSave(temporaryTsConfig);
       onClose();
+    } else {
+      setConfigError(result.error || 'Invalid tsconfig.json');
+    }
+    setIsSaving(false);
+  };
+
+  const handleReset = () => {
+    if (confirm('Reset tsconfig.json to defaults?')) {
+      setTemporaryTsConfig(DEFAULT_TSCONFIG);
+      setConfigError(null);
     }
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-crust/80 backdrop-blur-sm p-4">
-      <div
-        className="bg-mantle border border-surface1 rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[90dvh]"
-        data-testid="settings-modal"
-      >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface0 bg-base shrink-0">
-          <h2 className="text-base font-bold text-text">Settings</h2>
-          <IconButton
-            onClick={onClose}
-            size="sm"
-            variant="ghost"
-            className="-mr-2"
-            data-testid="settings-cancel-button"
-          >
-            <span className="text-xl leading-none">&times;</span>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-crust/80 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-mantle border border-surface0 w-full max-w-2xl rounded-xl shadow-2xl flex flex-col max-h-[90dvh] overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-surface0 bg-mantle/50">
+          <div className="flex items-center gap-3">
+            <Cpu className="text-mauve" size={20} />
+            <h2 className="text-lg font-bold tracking-tight text-text">System Settings</h2>
+          </div>
+          <IconButton onClick={onClose} title="Close" size="sm" variant="ghost">
+            <X size={20} />
           </IconButton>
         </div>
 
-        <div className="p-6 flex flex-col gap-6 overflow-y-auto min-h-0">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <label
-                htmlFor="ts-version"
-                className="text-sm font-bold text-subtext0"
-              >
-                TypeScript Version
-              </label>
-              <select
-                id="ts-version"
-                disabled
-                className="bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none opacity-60 cursor-not-allowed"
-              >
-                <option>5.9.3 (Default)</option>
-              </select>
-              <span className="text-xs text-overlay0">
-                Version switching is not yet supported.
-              </span>
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-8">
+          {/* Editor Theme & Display */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 text-mauve font-semibold">
+              <Monitor size={18} />
+              <h3>Appearance & Display</h3>
             </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label htmlFor="theme-select" className="text-xs font-mono text-overlay1 uppercase tracking-wider">Editor Theme</label>
+                <select
+                  id="theme-select"
+                  value={themeMode}
+                  onChange={(e) => setThemeMode(e.target.value as ThemeMode)}
+                  className="w-full bg-crust border border-surface0 text-text rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-mauve transition-all"
+                >
+                  <option value="mocha">Catppuccin Mocha</option>
+                  <option value="latte">Catppuccin Latte</option>
+                  <option value="githubDark">GitHub Dark</option>
+                  <option value="githubLight">GitHub Light</option>
+                  <option value="monokai">Monokai</option>
+                </select>
+              </div>
+              <div className="flex flex-col justify-end space-y-3">
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <div className="relative flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={trueColorEnabled}
+                      onChange={(e) => setTrueColorEnabled(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors"></div>
+                    <div className="absolute left-1 w-3 h-3 bg-text rounded-full transition-transform peer-checked:translate-x-5"></div>
+                  </div>
+                  <span className="text-sm text-overlay1 group-hover:text-text transition-colors">Enable TrueColor ANSI</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <div className="relative flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={lineWrap}
+                      onChange={(e) => setLineWrap(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors"></div>
+                    <div className="absolute left-1 w-3 h-3 bg-text rounded-full transition-transform peer-checked:translate-x-5"></div>
+                  </div>
+                  <span className="text-sm text-overlay1 group-hover:text-text transition-colors">Soft Line Wrap</span>
+                </label>
+              </div>
+            </div>
+          </section>
 
+          {/* TSConfig Editor */}
+          <section className="space-y-4">
             <div className="flex items-center justify-between">
-              <label
-                htmlFor="ansi-toggle"
-                className="text-sm font-bold text-subtext0"
-              >
-                Interpret ANSI Escapes
-              </label>
-              <input
-                id="ansi-toggle"
-                type="checkbox"
-                checked={trueColorEnabled}
-                onChange={(e) => setTrueColorEnabled(e.target.checked)}
-                className="w-5 h-5 accent-mauve cursor-pointer"
-                data-testid="settings-ansi-toggle"
-              />
+              <div className="flex items-center gap-2 text-mauve font-semibold">
+                <FileJson size={18} />
+                <h3>Compiler Configuration</h3>
+              </div>
+              <Badge label="tsconfig.json" />
             </div>
-
-            <div className="flex items-center justify-between">
-              <label
-                htmlFor="wrap-toggle"
-                className="text-sm font-bold text-subtext0"
-              >
-                Line Wrapping
-              </label>
-              <input
-                id="wrap-toggle"
-                type="checkbox"
-                checked={lineWrap}
-                onChange={(e) => setLineWrap(e.target.checked)}
-                className="w-5 h-5 accent-mauve cursor-pointer"
-                data-testid="settings-wrap-toggle"
-              />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <label
-                htmlFor="theme-select"
-                className="text-sm font-bold text-subtext0"
-              >
-                Editor Theme
-              </label>
-              <select
-                id="theme-select"
-                value={themeMode}
-                onChange={(e) => setThemeMode(e.target.value as ThemeMode)}
-                className="bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none focus:border-mauve transition-colors"
-              >
-                {isDarkMode(themeMode as ThemeMode) ? (
-                  <>
-                    <option value="mocha">Catppuccin Mocha</option>
-                    <option value="githubDark">GitHub Dark</option>
-                    <option value="monokai">Monokai</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="latte">Catppuccin Latte</option>
-                    <option value="githubLight">GitHub Light</option>
-                  </>
-                )}
-              </select>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <label
-              htmlFor="tsconfig-editor"
-              className="text-sm font-bold text-subtext0"
-            >
-              tsconfig.json
-            </label>
-            <div
-              id="tsconfig-editor"
-              className="border border-surface1 rounded-md overflow-hidden bg-base focus-within:border-mauve transition-colors h-48 md:h-64 shrink-0"
-            >
+            <div className="h-64 border border-surface0 rounded-lg overflow-hidden bg-crust relative">
               <CodeEditor
                 language="json"
                 value={temporaryTsConfig}
                 onChange={setTemporaryTsConfig}
-                hideGutter={false}
-                hideTypeInfo={true}
-                path="tsconfig.json"
                 fontSizeOverride={12}
-                disableAutocomplete={true}
-                disableDiagnostics={true}
-                disableShortcuts={true}
-                lineWrap={lineWrap}
-                themeMode={themeMode}
+                hideGutter={false}
+                disableAutocomplete
               />
+              {configError && (
+                <div className="absolute bottom-0 inset-x-0 bg-red/10 border-t border-red/20 p-2 flex items-center gap-2 text-xxs text-red animate-in slide-in-from-bottom-2">
+                  <AlertCircle size={12} className="shrink-0" />
+                  <span className="truncate">{configError}</span>
+                </div>
+              )}
             </div>
-            {errorMsg && (
-              <span
-                className={`text-xs whitespace-pre-wrap ${isValid ? 'text-yellow' : 'text-red'}`}
-              >
-                {errorMsg}
-              </span>
-            )}
-          </div>
+          </section>
+
+          {/* Environment Info */}
+          <section className="space-y-4">
+             <div className="flex items-center gap-2 text-mauve font-semibold">
+                <Layers size={18} />
+                <h3>Environment</h3>
+              </div>
+              <div className="p-4 bg-crust border border-surface0 rounded-lg space-y-3">
+                 <div className="flex items-center justify-between text-xs font-mono">
+                    <span className="text-overlay1">Runtime</span>
+                    <span className="text-mauve flex items-center gap-1.5"><Box size={12}/> WebContainer</span>
+                 </div>
+                 <div className="flex items-center justify-between text-xs font-mono">
+                    <span className="text-overlay1">PM Status</span>
+                    <span className={packageManagerStatus === 'idle' ? 'text-green' : 'text-yellow'}>
+                      {packageManagerStatus.toUpperCase()}
+                    </span>
+                 </div>
+              </div>
+          </section>
         </div>
 
-        <div className="flex flex-col gap-2.5 px-6 py-4 border-t border-surface0 bg-base shrink-0 items-center">
-          <div className="flex flex-wrap gap-2 justify-center w-full">
-            <Button
-              onClick={onClose}
-              variant="secondary"
-              size="sm"
-              data-testid="settings-cancel-button"
-              className="md:h-9 md:px-4"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSave}
-              variant="primary"
-              size="sm"
-              disabled={!isValid || isFormatting}
-              aria-label="Save Changes"
-              data-testid="settings-save-button"
-              className="md:h-9 md:px-4"
-            >
-              {isFormatting ? 'Saving...' : <Save size={18} />}
-            </Button>
-            <Button
-              onClick={() => setTemporaryTsConfig(DEFAULT_TSCONFIG)}
-              variant="danger"
-              size="sm"
-              className="text-red hover:bg-red/10 md:h-9 md:px-4"
-            >
-              Reset
-            </Button>
-          </div>
-        </div>
-
-        <div className="px-6 py-4 border-t border-surface0 bg-mantle flex items-center justify-center gap-4 shrink-0">
-          <div className="flex flex-col items-center">
-            <p className="text-xs text-subtext0 text-center">
-              Made with{' '}
-              <span className="bg-lit-gradient animate-lit-gradient inline-block">
-                💜
-              </span>{' '}
-              by
-              <br />
-              <span className="font-graffonti text-2xl bg-lit-gradient animate-lit-gradient leading-relaxed">
-                simwai
-              </span>
-            </p>
-          </div>
-          <a
-            href="https://github.com/simwai/ts-play"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-text/70 hover:text-mauve transition-colors p-1"
-            aria-label="GitHub Repository"
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-surface0 bg-mantle flex items-center justify-between shrink-0">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleReset}
+            className="text-overlay1 hover:text-red hover:bg-red/5"
           >
-            <Github size={24} />
-          </a>
+            <RotateCcw size={16} />
+            Reset Defaults
+          </Button>
+          <div className="flex items-center gap-3">
+             <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+             <Button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="bg-mauve hover:bg-mauve/90 text-crust font-bold min-w-[100px]"
+              >
+               {isSaving ? (
+                 <div className="w-4 h-4 border-2 border-crust border-t-transparent rounded-full animate-spin" />
+               ) : (
+                 <>
+                   <Save size={16} />
+                   Save Changes
+                 </>
+               )}
+             </Button>
+          </div>
         </div>
       </div>
     </div>

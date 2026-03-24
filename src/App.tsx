@@ -65,32 +65,38 @@ export function App() {
 
   const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } =
     useConsoleManager();
-  const { compilerStatus, isRunning, runCode, stopCode, setOutputFiles } = useCompilerManager(
-    tsCode,
-    addMessage,
-  );
-  const {
-    installedPackages,
-    tsCursorPos,
-    checkImports,
-    installQueue,
-    status: packageManagerStatus,
-  } = usePackageManager(tsCode, addMessage);
 
-  // Callback for when the background compiler emits artifacts
   const handleArtifactsChange = useCallback((js: string, dts: string) => {
     setJsCode(js);
     setDtsCode(dts);
-    setOutputFiles({ js, dts });
     setJsDirty(false);
-  }, [setOutputFiles]);
+  }, []);
 
-  const { externalTypings } = useWebContainer(
+  const { externalTypings, tscStatus, parcelStatus } = useWebContainer(
     tsConfigString,
     tsCode,
     addMessage,
     handleArtifactsChange
   );
+
+  const { status: packageManagerStatus, tsCursorPos } = usePackageManager(tsCode, addMessage);
+
+  const statusText = (() => {
+    const parts = [];
+    if (tscStatus === 'Running' || tscStatus === 'Compiling') parts.push('TS...');
+    else if (tscStatus === 'Ready') parts.push('TS Ready');
+    else if (tscStatus === 'Preparing') parts.push('TS Prep');
+    else if (tscStatus === 'Error') parts.push('TS Error');
+
+    if (parcelStatus === 'Running' || parcelStatus === 'Compiling') parts.push('JS...');
+    else if (parcelStatus === 'Ready') parts.push('JS Ready');
+    else if (parcelStatus === 'Preparing') parts.push('JS Prep');
+    else if (parcelStatus === 'Error') parts.push('JS Error');
+
+    return parts.join(' | ') || 'Idle';
+  })();
+
+  const { runCode, isRunning } = useCompilerManager();
 
   const handleCopyAll = useCallback(() => {
     const code =
@@ -120,20 +126,6 @@ export function App() {
       setFormatting(false);
     }
   }, [tsCode]);
-
-  const handleRun = useCallback(() => {
-    runCode(
-      installQueue,
-      (js, dts) => {
-        setJsCode(js);
-        setDtsCode(dts);
-        setJsDirty(false);
-      },
-      (err) => {
-        addMessage('error', [err.message]);
-      },
-    );
-  }, [runCode, installQueue, addMessage]);
 
   const handleShare = useCallback(async () => {
     setIsSharing(true);
@@ -165,8 +157,8 @@ export function App() {
         copied={copied}
         handleDeleteAll={handleDeleteAll}
         onSettings={() => setIsSettingsOpen(true)}
-        doRun={handleRun}
-        stopCode={stopCode}
+        doRun={runCode}
+        stopCode={() => {}}
         sharing={isSharing}
         formatting={isFormatting}
         isRunning={isRunning}
@@ -174,21 +166,19 @@ export function App() {
         setActiveTab={(t) => setActiveTab(t as TabType)}
         themeMode={themeMode}
         setThemeMode={setThemeMode}
-        compilerStatus={compilerStatus}
+        compilerStatus={statusText.includes('Error') ? 'error' : 'ready'}
         formatSuccess={false}
         shareSuccess={false}
       />
 
       <StatusBar
-        compilerStatus={compilerStatus}
+        statusText={statusText}
         activeTab={activeTab}
         jsDirty={jsDirty}
         handleUndo={() => editorRef.current?.undo()}
         handleRedo={() => editorRef.current?.redo()}
         onOpenSettings={() => setIsSettingsOpen(true)}
         compactForKeyboard={compactForKeyboard}
-        lineWrap={lineWrap}
-        setLineWrap={setLineWrap}
         packageManagerStatus={packageManagerStatus}
       />
 
@@ -237,7 +227,7 @@ export function App() {
           />
         </div>
 
-        {/* Type Info Bar with Cursor Position */}
+        {/* Type Info Bar */}
         <div className="flex items-center justify-between px-4 py-1.5 bg-mantle border-t border-surface0/50 text-xxs font-mono text-overlay1 shrink-0">
           <div className="truncate flex-1">
              {typeInfo && <span className="text-mauve">{typeInfo}</span>}
@@ -247,7 +237,7 @@ export function App() {
           </div>
         </div>
 
-        {/* Draggable Resizer */}
+        {/* Resizer */}
         <div
           onMouseDown={handleResizeStart}
           onTouchStart={handleResizeStart}
