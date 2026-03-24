@@ -1,45 +1,29 @@
-import { Undo2, Redo2, Settings, WrapText } from 'lucide-react';
+import { Undo2, Redo2, Settings } from 'lucide-react';
 import { IconButton } from './ui/IconButton';
 import type { TabType } from '../lib/constants';
 import type { PackageManagerStatus } from '../hooks/usePackageManager';
 
 type StatusBarProps = {
-  compilerStatus: 'loading' | 'ready' | 'error';
+  statusText: string;
   activeTab: TabType;
   jsDirty: boolean;
   handleUndo: () => void;
   handleRedo: () => void;
   onOpenSettings: () => void;
   compactForKeyboard: boolean;
-  lineWrap: boolean;
-  setLineWrap: (val: boolean) => void;
   packageManagerStatus: PackageManagerStatus;
 };
 
 export function StatusBar({
-  compilerStatus,
+  statusText,
   activeTab,
   jsDirty,
   handleUndo,
   handleRedo,
   onOpenSettings,
   compactForKeyboard,
-  lineWrap,
-  setLineWrap,
   packageManagerStatus,
 }: StatusBarProps) {
-  const statusLabel =
-    compilerStatus === 'loading'
-      ? 'Loading…'
-      : compilerStatus === 'error'
-        ? '✗ No compiler'
-        : '✓ TS ready';
-  const statusColorClass =
-    compilerStatus === 'ready'
-      ? 'text-green'
-      : compilerStatus === 'error'
-        ? 'text-red'
-        : 'text-yellow';
 
   const pmLabel =
     packageManagerStatus === 'installing'
@@ -52,6 +36,12 @@ export function StatusBar({
             ? 'PM Error'
             : '';
 
+  const statusColorClass = statusText.includes('Error')
+    ? 'text-red'
+    : statusText.includes('...') || statusText.includes('Prep')
+    ? 'text-yellow'
+    : 'text-green';
+
   return (
     <div
       className="flex items-center justify-between px-2 md:px-4 bg-crust border-b border-surface0 shrink-0 relative z-30 gap-2 md:gap-4 h-8 md:h-9"
@@ -62,7 +52,7 @@ export function StatusBar({
           className={`text-3xs md:text-xs font-mono tracking-wide truncate ${statusColorClass}`}
           data-testid="status-bar-compiler-status"
         >
-          {statusLabel}
+          {statusText}
         </span>
         {pmLabel && (
           <span className="text-3xs md:text-xs font-mono tracking-wide text-mauve animate-pulse truncate shrink-0">

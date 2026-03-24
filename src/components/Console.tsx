@@ -69,7 +69,6 @@ export const Console = React.memo(function Console({
 
   useEffect(() => {
     if (isOpen) {
-       // Using requestAnimationFrame to ensure DOM is ready and avoid scroll thrashing
        requestAnimationFrame(() => {
          bottomRef.current?.scrollIntoView({ behavior: 'auto' });
        });
@@ -133,34 +132,34 @@ export const Console = React.memo(function Console({
                 ? m.args.join(' ')
                 : String(m.args);
 
-              // Basic sanitization and ANSI detection
               const hasAnsi = trueColorEnabled && /[\u001b\u009b]/.test(fullText);
 
               let content: React.ReactNode;
-              try {
-                if (hasAnsi) {
+              if (hasAnsi) {
+                try {
+                  const converted = ansiConvert.toHtml(fullText);
                   content = (
                     <div
                       className="m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono"
                       dangerouslySetInnerHTML={{
-                        __html: ansiConvert.toHtml(fullText),
+                        __html: converted || '',
                       }}
                     />
                   );
-                } else {
+                } catch (err) {
+                  // Fallback for malformed ANSI - render raw but in red
                   content = (
-                    <pre
-                      className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}
-                    >
+                    <pre className="m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono text-red opacity-80">
                       {fullText}
                     </pre>
                   );
                 }
-              } catch (err) {
-                // Fallback for malformed ANSI or conversion errors
+              } else {
                 content = (
-                  <pre className="m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono text-red">
-                    [Error rendering message]
+                  <pre
+                    className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}
+                  >
+                    {fullText}
                   </pre>
                 );
               }
@@ -168,7 +167,7 @@ export const Console = React.memo(function Console({
               return (
                 <div
                   key={`${m.ts}-${idx}`}
-                  data-testid="console-message"
+                  data-testid="console-line"
                   className={`flex items-start gap-3 px-4 py-1.5 border-b border-surface0/20 ${
                     m.type === 'error'
                       ? 'bg-red/5'

@@ -1,7 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { workerClient } from '../lib/workerClient';
 import { webContainerService, SYSTEM_DEPS } from '../lib/webcontainer';
-import type { InstalledPackage } from '../components/PackageManager';
 import type { ConsoleMessage } from '../components/Console';
 
 const BUILTIN_MODULES = new Set([
@@ -15,20 +13,14 @@ const BUILTIN_MODULES = new Set([
 
 export type PackageManagerStatus = 'idle' | 'installing' | 'uninstalling' | 'syncing' | 'error';
 
-/**
- * usePackageManager coordinates dependency detection and synchronization.
- * It uses the high-level WebContainerService for atomic operations.
- */
 export function usePackageManager(
   tsCode: string,
   addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void,
 ) {
-  const [installedPackages, setInstalledPackages] = useState<InstalledPackage[]>([]);
+  const [installedPackages, setInstalledPackages] = useState<{name: string, version: string}[]>([]);
   const [status, setStatus] = useState<PackageManagerStatus>('idle');
   const tasksInProgress = useRef(0);
   const previousPkgsRef = useRef<Set<string>>(new Set(SYSTEM_DEPS));
-
-  // Use the centralized service queue instead of a local one
   const installQueue = useRef<Promise<void>>(Promise.resolve());
 
   const updateBusyState = useCallback((busy: boolean, type: PackageManagerStatus = 'idle') => {
@@ -44,24 +36,39 @@ export function usePackageManager(
   const checkImports = useCallback(() => {
     const timeout = setTimeout(async () => {
       try {
-        const detected = await workerClient.detectImports(tsCode);
-        const filtered = [...detected].filter(
-          (pkg) =>
-            !pkg.startsWith('node:') &&
-            !BUILTIN_MODULES.has(pkg) &&
-            !SYSTEM_DEPS.includes(pkg)
-        );
-        const detectedSorted = filtered.sort();
+        await webContainerService.enqueue(async () => {
+          let output = '';
+          const proc = await webContainerService.spawnManaged('node', ['__detect_imports.cjs', tsCode], {
+            silent: true,
+            onLog: (line) => { output += line; }
+          });
+          await proc.exit;
 
-        setInstalledPackages((prev) => {
-          const prevNames = prev.map((p) => p.name).sort();
-          if (JSON.stringify(prevNames) === JSON.stringify(detectedSorted)) return prev;
-          return detectedSorted.map((name) => ({ name, version: 'latest' }));
+          const trimmed = output.trim();
+          if (!trimmed) return;
+
+          try {
+            const detected = JSON.parse(trimmed) as string[];
+            const filtered = detected.filter(
+              (pkg) =>
+                !pkg.startsWith('node:') &&
+                !pkg.startsWith('.') &&
+                !BUILTIN_MODULES.has(pkg) &&
+                !SYSTEM_DEPS.includes(pkg)
+            );
+            const detectedSorted = filtered.sort();
+
+            setInstalledPackages((prev) => {
+              const prevNames = prev.map((p) => p.name).sort();
+              if (JSON.stringify(prevNames) === JSON.stringify(detectedSorted)) return prev;
+              return detectedSorted.map((name) => ({ name, version: 'latest' }));
+            });
+          } catch {}
         });
       } catch (error) {
         console.error('Failed to detect imports:', error);
       }
-    }, 1000);
+    });
     return () => clearTimeout(timeout);
   }, [tsCode]);
 
@@ -69,10 +76,6 @@ export function usePackageManager(
     return checkImports();
   }, [tsCode, checkImports]);
 
-  /**
-   * Synchronizes the WebContainer filesystem with the detected packages.
-   * Uses the centralized queue to avoid concurrent npm operations.
-   */
   useEffect(() => {
     const currentNames = new Set(installedPackages.map((p) => p.name));
     const previousNames = previousPkgsRef.current;
@@ -86,30 +89,23 @@ export function usePackageManager(
     previousPkgsRef.current = currentNames;
 
     const performChanges = async () => {
-      // Use the centralized queue
-      await webContainerService.enqueue(async (instance) => {
+      await webContainerService.enqueue(async () => {
         updateBusyState(true, added.length > 0 ? 'installing' : 'uninstalling');
 
         try {
           if (removed.length > 0) {
-            addMessage('info', [`npm uninstall ${removed.join(' ')}...`]);
-            const { exit } = await webContainerService.spawn('npm', ['uninstall', ...removed], (out) => {
-              const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim();
-              if (clean && !/^[/\\|\-]$/.test(clean)) addMessage('info', [clean]);
-            });
-            await exit;
+            webContainerService.emitLog('info', `npm uninstall ${removed.join(' ')}...`);
+            const proc = await webContainerService.spawnManaged('npm', ['uninstall', ...removed]);
+            await proc.exit;
           }
           if (added.length > 0) {
-            addMessage('info', [`npm install ${added.join(' ')}...`]);
-            const { exit } = await webContainerService.spawn('npm', ['install', '--no-progress', ...added], (out) => {
-              const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim();
-              if (clean && !/^[/\\|\-]$/.test(clean)) addMessage('info', [clean]);
-            });
-            await exit;
+            webContainerService.emitLog('info', `npm install ${added.join(' ')}...`);
+            const proc = await webContainerService.spawnManaged('npm', ['install', '--no-progress', ...added]);
+            await proc.exit;
           }
         } catch (error) {
           console.error('Package management failed:', error);
-          addMessage('error', ['Package manager error: ' + (error as Error).message]);
+          webContainerService.emitLog('error', `Package manager error: ${(error as Error).message}`);
         } finally {
           updateBusyState(false);
         }
@@ -117,7 +113,7 @@ export function usePackageManager(
     };
 
     installQueue.current = performChanges();
-  }, [installedPackages, addMessage, updateBusyState]);
+  }, [installedPackages, updateBusyState]);
 
   return {
     installedPackages,
