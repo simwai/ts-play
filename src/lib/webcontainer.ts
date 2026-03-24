@@ -12,35 +12,39 @@ export interface SystemLog {
 }
 
 /**
- * Robust ANSI stripper.
- * Handles fragmented CSI sequences and carriage returns.
+ * Core system dependencies that are required for the playground to function.
+ * These are managed by the system and protected from user-level uninstalls.
+ * Replacing vite-node with tsx for better stability in the WebContainer.
  */
-export function cleanANSI(text: string): string {
-  if (!text) return '';
-  const segments = text.split('\r');
-  let result = segments[segments.length - 1];
-
-  // Standard ANSI CSI sequences: ESC [ <params> <cmd>
-  result = result.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
-
-  // Strip non-printable ASCII
-  result = result.replace(/[^\x20-\x7E\x09\x0A\x0D]/g, '');
-
-  return result;
-}
+export const SYSTEM_DEPS = [
+  'tsx',
+  'esbuild',
+  'prettier',
+  'typescript',
+];
 
 /**
- * Managed WebContainer Environment.
- * Centralized state machine for VM lifecycle and build integrity.
+ * WebContainerService encapsulates the WebContainer runtime.
+ * It provides a singleton interface for filesystem and process management,
+ * ensuring that the environment is correctly initialized and protected.
+ *
+ * Added a centralized queue for all operations to ensure they run in order
+ * and wait for environment readiness.
  */
 class WebContainerService {
   private instance: WebContainer | null = null;
   private status: EnvironmentStatus = 'uninitialized';
   private bootPromise: Promise<WebContainer> | null = null;
+  private envReadyPromise: Promise<void> | null = null;
+  private envReadyResolve: (() => void) | null = null;
   private operationQueue: Promise<any> = Promise.resolve();
 
-  private statusListeners = new Set<(status: EnvironmentStatus) => void>();
-  private logListeners = new Set<(log: SystemLog) => void>();
+  /**
+   * Boots the WebContainer if not already initialized.
+   */
+  public async getInstance(): Promise<WebContainer> {
+    if (this.instance) return this.instance;
+    if (this.bootPromise) return this.bootPromise;
 
   private fsVersion = 0;
   private builtVersion = -1;
@@ -86,16 +90,39 @@ class WebContainerService {
     }
   }
 
-  public async waitForBuild(timeout = 15000) {
-    const start = Date.now();
-    while (this.builtVersion < this.fsVersion) {
-      if (Date.now() - start > timeout) break;
-      if (this.buildPromise) {
-        await Promise.race([this.buildPromise, new Promise(r => setTimeout(r, 500))]);
-      } else {
-        await new Promise(r => setTimeout(r, 100));
-      }
-    }
+  /**
+   * Enqueues an operation to be executed sequentially.
+   * Ensures the environment is ready before running the operation.
+   */
+  public async enqueue<T>(operation: (instance: WebContainer) => Promise<T>): Promise<T> {
+    const task = async () => {
+      await this.getEnvReady();
+      const instance = await this.getInstance();
+      return await operation(instance);
+    };
+
+    const nextOp = this.operationQueue.then(task, task); // Always continue the queue even on failure
+    this.operationQueue = nextOp;
+    return nextOp;
+  }
+
+  /**
+   * Special enqueue for system initialization tasks that don't wait for envReady.
+   */
+  public async enqueueSystem<T>(operation: (instance: WebContainer) => Promise<T>): Promise<T> {
+    const task = async () => {
+      const instance = await this.getInstance();
+      return await operation(instance);
+    };
+
+    const nextOp = this.operationQueue.then(task, task);
+    this.operationQueue = nextOp;
+    return nextOp;
+  }
+
+  public async writeFile(path: string, content: string): Promise<void> {
+    const wc = await this.getInstance();
+    await wc.fs.writeFile(path, content);
   }
 
   public async enqueue<T>(op: (i: WebContainer) => Promise<T>, wait = true): Promise<T> {
@@ -129,8 +156,7 @@ class WebContainerService {
   }
 
   /**
-   * Spawns a process with managed output handling.
-   * Prevents fragmented ANSI leaks and terminal noise.
+   * Spawns a process and pipes output to the provided callback.
    */
   public async spawnManaged(cmd: string, args: string[], opts: { onLog?: (l: string) => void; silent?: boolean } = {}) {
     const wc = await this.getInstance();
@@ -169,16 +195,14 @@ class WebContainerService {
     return { exit: proc.exit, process: proc };
   }
 
-  public async writeFile(path: string, content: string) {
-    this.fsVersion++;
-    await (await this.getInstance()).fs.writeFile(path, content);
-  }
-
-  public async readFile(path: string) {
-    return await (await this.getInstance()).fs.readFile(path, 'utf8');
-  }
-
-  public async readDirRecursive(dir: string, filter: (p: string) => boolean = () => true, base = dir): Promise<Record<string, string>> {
+  /**
+   * Recursively reads a directory.
+   */
+  public async readDirRecursive(
+    dir: string,
+    filter: (path: string) => boolean = () => true,
+    basePath: string = dir
+  ): Promise<Record<string, string>> {
     const wc = await this.getInstance();
     let entries;
     try { entries = await wc.fs.readdir(dir, { withFileTypes: true }); } catch { return {}; }
@@ -194,4 +218,6 @@ class WebContainerService {
 }
 
 export const webContainerService = new WebContainerService();
+
+// Re-export old names for legacy support
 export const getWebContainer = () => webContainerService.getInstance();

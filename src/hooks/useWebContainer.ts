@@ -3,8 +3,10 @@ import { webContainerService, SYSTEM_DEPS } from '../lib/webcontainer';
 import type { ConsoleMessage } from '../components/Console';
 
 /**
- * useWebContainer coordinates the VM initialization and background compiler lifecycle.
- * It observes the WebContainerService and drives the environment preparation.
+ * useWebContainer manages the entire lifecycle of the browser-based environment.
+ * It is responsible for the initial boot, writing system configuration files,
+ * performing the first npm install, and keeping the environment in sync with the UI.
+ * Now it also manages a background 'tsc --watch' process to reactively emit JS/DTS.
  */
 export function useWebContainer(
   tsConfigString: string,
@@ -15,6 +17,9 @@ export function useWebContainer(
   const isInitialSync = useRef(true);
   const [externalTypings, setExternalTypings] = useState<Record<string, string>>({});
 
+  /**
+   * Scans node_modules for .d.ts files and synchronizes them to Monaco.
+   */
   const syncTypes = useCallback(async () => {
     try {
       const types = await webContainerService.readDirRecursive('node_modules', (path) => path.endsWith('.d.ts'));
@@ -24,9 +29,13 @@ export function useWebContainer(
     }
   }, []);
 
+  /**
+   * Watch the 'dist' directory for changes to automatically sync emitted JS and DTS.
+   */
   const watchDist = useCallback(async () => {
     const wc = await webContainerService.getInstance();
 
+    // Initial sync
     const sync = async () => {
       try {
         const js = await wc.fs.readFile('dist/index.js', 'utf8').catch(() => '');
@@ -39,23 +48,20 @@ export function useWebContainer(
       sync();
     });
 
-    sync(); // Initial sync
+    sync(); // Initial
   }, [onArtifactsChange]);
 
-  // Subscribe to service logs
-  useEffect(() => {
-    const unsubscribeLog = webContainerService.onLog((log) => {
-      addMessage(log.type as any, [log.message]);
-    });
-    return () => unsubscribeLog();
-  }, [addMessage]);
-
+  /**
+   * The core initialization loop.
+   * Enqueued in the system queue to ensure order.
+   */
   useEffect(() => {
     if (!isInitialSync.current) return;
     isInitialSync.current = false;
 
-    webContainerService.enqueue(async (instance) => {
+    webContainerService.enqueueSystem(async (instance) => {
       try {
+        // Prepare a standard Node.js project structure
         const pkgJson = {
           name: 'playground',
           type: 'module',
@@ -66,60 +72,36 @@ export function useWebContainer(
         await instance.fs.writeFile('package.json', JSON.stringify(pkgJson, null, 2));
         await instance.fs.writeFile('tsconfig.json', tsConfigString);
         await instance.fs.writeFile('index.ts', tsCode);
-        await instance.fs.mkdir('dist', { recursive: true });
 
-        webContainerService.emitLog('info', 'Preparing environment...');
-        webContainerService.setStatus('preparing');
+        addMessage('info', ['Preparing environment...']);
 
-        const { exit } = await webContainerService.spawnManaged('npm', ['install', '--no-progress'], { silent: false });
-        const exitCode = await exit;
+        // Use the service's spawn method to run the first install
+        const process = await instance.spawn('npm', ['install', '--no-progress']);
 
+        process.output.pipeTo(
+          new WritableStream({
+            write(out) {
+               const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim();
+               if (clean && !/^[/\\|\-]$/.test(clean)) addMessage('info', [clean]);
+            },
+          })
+        );
+
+        const exitCode = await process.exit;
         if (exitCode === 0) {
+          // After successful install, perform an initial type sync
           await syncTypes();
-          webContainerService.emitLog('info', 'Starting reactive compiler...');
-
-          await webContainerService.spawnManaged('./node_modules/.bin/tsc', ['--watch', '--incremental'], {
-            silent: true,
-            onLog: (line) => {
-              if (line.toLowerCase().includes('compilation') || line.toLowerCase().includes('change')) {
-                webContainerService.startBuild();
-              }
-              if (line.includes('errors') || line.includes('Watching') || line.includes('error TS')) {
-                webContainerService.finishBuild();
-                if (line.includes('error TS') || line.includes('Found')) {
-                    webContainerService.emitLog(line.includes('error TS') ? 'error' : 'info', line);
-                }
-              }
-            }
-          });
-
-          watchDist();
-
-          let retries = 0;
-          const checkEmit = async () => {
-            try {
-              const content = await instance.fs.readFile('dist/index.js', 'utf8');
-              if (content.trim()) {
-                webContainerService.markEnvReady();
-                webContainerService.emitLog('info', 'Environment ready.');
-              } else throw new Error('Empty');
-            } catch (e) {
-              if (retries < 60) {
-                retries++;
-                setTimeout(checkEmit, 1000);
-              } else {
-                webContainerService.markEnvReady();
-                webContainerService.emitLog('info', 'Environment ready (compiler slow).');
-              }
-            }
-          };
-          checkEmit();
+          // Signal to other hooks (e.g., compiler manager) that the environment is ready
+          webContainerService.markEnvReady();
+          addMessage('info', ['Environment ready.']);
         } else {
-           webContainerService.emitLog('error', `Environment preparation failed (code ${exitCode}).`);
+           addMessage('error', ['npm install failed. Please check the console output.']);
+           // Still mark as ready so the queue can proceed or retry
            webContainerService.markEnvReady();
         }
       } catch (error) {
-        webContainerService.emitLog('error', `VM Error: ${(error as Error).message}`);
+        console.error('Failed to synchronize environment:', error);
+        addMessage('error', ['Failed to synchronize environment: ' + (error as Error).message]);
         webContainerService.markEnvReady();
       }
     }, false); // Do not wait for ready when initializing the ready state
@@ -127,13 +109,13 @@ export function useWebContainer(
 
   useEffect(() => {
     webContainerService.enqueue(async (instance) => {
-        await webContainerService.writeFile('index.ts', tsCode);
+        await instance.fs.writeFile('index.ts', tsCode);
     });
   }, [tsCode]);
 
   useEffect(() => {
     webContainerService.enqueue(async (instance) => {
-        await webContainerService.writeFile('tsconfig.json', tsConfigString);
+        await instance.fs.writeFile('tsconfig.json', tsConfigString);
     });
   }, [tsConfigString]);
 

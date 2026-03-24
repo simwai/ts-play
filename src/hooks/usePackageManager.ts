@@ -27,6 +27,8 @@ export function usePackageManager(
   const [status, setStatus] = useState<PackageManagerStatus>('idle');
   const tasksInProgress = useRef(0);
   const previousPkgsRef = useRef<Set<string>>(new Set(SYSTEM_DEPS));
+
+  // Use the centralized service queue instead of a local one
   const installQueue = useRef<Promise<void>>(Promise.resolve());
 
   const updateBusyState = useCallback((busy: boolean, type: PackageManagerStatus = 'idle') => {
@@ -67,6 +69,10 @@ export function usePackageManager(
     return checkImports();
   }, [tsCode, checkImports]);
 
+  /**
+   * Synchronizes the WebContainer filesystem with the detected packages.
+   * Uses the centralized queue to avoid concurrent npm operations.
+   */
   useEffect(() => {
     const currentNames = new Set(installedPackages.map((p) => p.name));
     const previousNames = previousPkgsRef.current;
@@ -80,23 +86,30 @@ export function usePackageManager(
     previousPkgsRef.current = currentNames;
 
     const performChanges = async () => {
+      // Use the centralized queue
       await webContainerService.enqueue(async (instance) => {
         updateBusyState(true, added.length > 0 ? 'installing' : 'uninstalling');
 
         try {
           if (removed.length > 0) {
-            webContainerService.emitLog('info', `npm uninstall ${removed.join(' ')}...`);
-            const { exit } = await webContainerService.spawnManaged('npm', ['uninstall', ...removed]);
+            addMessage('info', [`npm uninstall ${removed.join(' ')}...`]);
+            const { exit } = await webContainerService.spawn('npm', ['uninstall', ...removed], (out) => {
+              const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim();
+              if (clean && !/^[/\\|\-]$/.test(clean)) addMessage('info', [clean]);
+            });
             await exit;
           }
           if (added.length > 0) {
-            webContainerService.emitLog('info', `npm install ${added.join(' ')}...`);
-            const { exit } = await webContainerService.spawnManaged('npm', ['install', '--no-progress', ...added]);
+            addMessage('info', [`npm install ${added.join(' ')}...`]);
+            const { exit } = await webContainerService.spawn('npm', ['install', '--no-progress', ...added], (out) => {
+              const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim();
+              if (clean && !/^[/\\|\-]$/.test(clean)) addMessage('info', [clean]);
+            });
             await exit;
           }
         } catch (error) {
           console.error('Package management failed:', error);
-          webContainerService.emitLog('error', `Package manager error: ${(error as Error).message}`);
+          addMessage('error', ['Package manager error: ' + (error as Error).message]);
         } finally {
           updateBusyState(false);
         }
@@ -104,7 +117,7 @@ export function usePackageManager(
     };
 
     installQueue.current = performChanges();
-  }, [installedPackages, updateBusyState]);
+  }, [installedPackages, addMessage, updateBusyState]);
 
   return {
     installedPackages,
