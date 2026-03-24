@@ -62,9 +62,26 @@ export const Console = React.memo(function Console({
         newline: false,
         escapeHtml: true,
         stream: false,
-        colors: trueColorEnabled
+        colors: {
+          0: '#000000',
+          1: '#CD0000',
+          2: '#00CD00',
+          3: '#CDCD00',
+          4: '#0000EE',
+          5: '#CD00CD',
+          6: '#00CDCD',
+          7: '#E5E5E5',
+          8: '#7F7F7F',
+          9: '#FF0000',
+          10: '#00FF00',
+          11: '#FFFF00',
+          12: '#5C5CFF',
+          13: '#FF00FF',
+          14: '#00FFFF',
+          15: '#FFFFFF',
+        }
       }),
-    [trueColorEnabled],
+    [],
   );
 
   useEffect(() => {
@@ -147,7 +164,6 @@ export const Console = React.memo(function Console({
                     />
                   );
                 } catch (err) {
-                  // Fallback for malformed ANSI - render raw but in red
                   content = (
                     <pre className="m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono text-red opacity-80">
                       {fullText}
