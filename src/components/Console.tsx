@@ -16,13 +16,11 @@ type Props = {
   onClear: () => void;
   isOpen: boolean;
   onToggle: () => void;
-  contentHeight: number; // In rem
+  contentHeight: number;
   trueColorEnabled?: boolean;
 };
 
-function typeVariant(
-  type: ConsoleMessage['type'],
-): 'error' | 'warn' | 'info' | 'default' {
+function typeVariant(type: ConsoleMessage['type']): 'error' | 'warn' | 'info' | 'default' {
   if (type === 'error') return 'error';
   if (type === 'warn' || type === 'trace') return 'warn';
   if (type === 'info' || type === 'debug' || type === 'dir') return 'info';
@@ -46,6 +44,26 @@ function typeColorClass(type: ConsoleMessage['type']): string {
   return 'text-text';
 }
 
+// Improved ANSI colors to prevent "weird" splits and use better contrast
+const ANSI_COLORS = {
+  0: '#000000',
+  1: '#CD0000', // Red
+  2: '#00CD00', // Green
+  3: '#CDCD00', // Yellow
+  4: '#0000EE', // Blue
+  5: '#CD00CD', // Magenta
+  6: '#00CDCD', // Cyan
+  7: '#E5E5E5', // Gray
+  8: '#7F7F7F', // Dark Gray
+  9: '#FF0000', // Bright Red
+  10: '#00FF00', // Bright Green
+  11: '#FFFF00', // Bright Yellow
+  12: '#5C5CFF', // Bright Blue
+  13: '#FF00FF', // Bright Magenta
+  14: '#00FFFF', // Bright Cyan
+  15: '#FFFFFF', // White
+};
+
 export const Console = React.memo(function Console({
   messages,
   onClear,
@@ -62,24 +80,7 @@ export const Console = React.memo(function Console({
         newline: false,
         escapeHtml: true,
         stream: false,
-        colors: {
-          0: '#000000',
-          1: '#CD0000',
-          2: '#00CD00',
-          3: '#CDCD00',
-          4: '#0000EE',
-          5: '#CD00CD',
-          6: '#00CDCD',
-          7: '#E5E5E5',
-          8: '#7F7F7F',
-          9: '#FF0000',
-          10: '#00FF00',
-          11: '#FFFF00',
-          12: '#5C5CFF',
-          13: '#FF00FF',
-          14: '#00FFFF',
-          15: '#FFFFFF',
-        }
+        colors: ANSI_COLORS,
       }),
     [],
   );
@@ -92,39 +93,36 @@ export const Console = React.memo(function Console({
     }
   }, [messages.length, isOpen]);
 
-  const errors = useMemo(() => (messages || []).filter((m) => m && m.type === 'error').length, [messages]);
-  const warns = useMemo(() => (messages || []).filter((m) => m && m.type === 'warn').length, [messages]);
+  const stats = useMemo(() => {
+     let err = 0, wrn = 0;
+     for (const m of messages) {
+       if (m.type === 'error') err++;
+       if (m.type === 'warn') wrn++;
+     }
+     return { err, wrn };
+  }, [messages]);
 
   return (
-    <div
-      className="flex flex-col h-full bg-mantle shrink-0"
-      data-testid="console-container"
-    >
+    <div className="flex flex-col h-full bg-mantle shrink-0" data-testid="console-container">
       <PanelHeader
         label="Console"
         isOpen={isOpen}
         onToggle={onToggle}
         left={
           <>
-            {(messages || []).length > 0 && (
-              <Badge label={String((messages || []).length)} />
-            )}
-            {errors > 0 && <Badge label={`${errors} err`} variant="error" />}
-            {warns > 0 && <Badge label={`${warns} warn`} variant="warn" />}
+            {messages.length > 0 && <Badge label={String(messages.length)} />}
+            {stats.err > 0 && <Badge label={`${stats.err} err`} variant="error" />}
+            {stats.wrn > 0 && <Badge label={`${stats.wrn} warn`} variant="warn" />}
           </>
         }
         right={
-          (messages || []).length > 0 ? (
+          messages.length > 0 ? (
             <Button
-              onClick={(e) => {
-                e.stopPropagation();
-                onClear();
-              }}
+              onClick={(e) => { e.stopPropagation(); onClear(); }}
               variant="secondary"
               size="xs"
               title="Clear console"
               data-testid="console-clear-button"
-              tooltipAlign="right"
             >
               <Eraser size={12} />
               Clear
@@ -134,70 +132,25 @@ export const Console = React.memo(function Console({
       />
 
       {isOpen && (
-        <div
-          className="overflow-y-auto overflow-x-hidden border-t border-surface0 flex-1"
-          style={{ height: `${contentHeight}rem` }}
-        >
+        <div className="overflow-y-auto overflow-x-hidden border-t border-surface0 flex-1" style={{ height: `${contentHeight}rem` }}>
           {messages.length === 0 ? (
             <div className="flex items-center justify-center h-full text-overlay0 text-xxs md:text-xs italic font-mono">
               No output yet — press Run to execute
             </div>
           ) : (
-            (messages || []).map((m, idx) => {
+            messages.map((m, idx) => {
               if (!m || !m.args) return null;
-              const fullText = Array.isArray(m.args)
-                ? m.args.join(' ')
-                : String(m.args);
-
+              const fullText = m.args.join(' ');
               const hasAnsi = trueColorEnabled && /[\u001b\u009b]/.test(fullText);
 
-              let content: React.ReactNode;
-              if (hasAnsi) {
-                try {
-                  const converted = ansiConvert.toHtml(fullText);
-                  content = (
-                    <div
-                      className="m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono"
-                      dangerouslySetInnerHTML={{
-                        __html: converted || '',
-                      }}
-                    />
-                  );
-                } catch (err) {
-                  content = (
-                    <pre className="m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono text-red opacity-80">
-                      {fullText}
-                    </pre>
-                  );
-                }
-              } else {
-                content = (
-                  <pre
-                    className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}
-                  >
-                    {fullText}
-                  </pre>
-                );
-              }
-
               return (
-                <div
-                  key={`${m.ts}-${idx}`}
-                  data-testid="console-line"
-                  className={`flex items-start gap-3 px-4 py-1.5 border-b border-surface0/20 ${
-                    m.type === 'error'
-                      ? 'bg-red/5'
-                      : m.type === 'warn'
-                        ? 'bg-yellow/5'
-                        : 'bg-transparent'
-                  }`}
-                >
-                  <Badge
-                    label={typeLabel(m.type)}
-                    variant={typeVariant(m.type)}
-                    className="mt-0.5"
-                  />
-                  {content}
+                <div key={`${m.ts}-${idx}`} data-testid="console-line" className={`flex items-start gap-3 px-4 py-1.5 border-b border-surface0/20 ${m.type === 'error' ? 'bg-red/5' : m.type === 'warn' ? 'bg-yellow/5' : ''}`}>
+                  <Badge label={typeLabel(m.type)} variant={typeVariant(m.type)} className="mt-0.5" />
+                  {hasAnsi ? (
+                    <div className="m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono" dangerouslySetInnerHTML={{ __html: ansiConvert.toHtml(fullText) }} />
+                  ) : (
+                    <pre className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}>{fullText}</pre>
+                  )}
                 </div>
               );
             })

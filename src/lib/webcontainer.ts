@@ -95,7 +95,11 @@ export class WebContainerService {
     await instance.fs.writeFile(path, content);
   }
 
-  // Improved line-buffered and ANSI-aware streaming
+  async readFile(path: string) {
+    const instance = await this.getInstance();
+    return instance.fs.readFile(path, 'utf8');
+  }
+
   async spawnManaged(cmd: string, args: string[], options: { silent?: boolean, onLog?: (line: string) => void } = {}): Promise<WebContainerProcess> {
     const instance = await this.getInstance();
     const proc = await instance.spawn(cmd, args);
@@ -116,37 +120,28 @@ export class WebContainerService {
           }
 
           currentLineBuffer += chunk;
-
-          // Split by newline and carriage return
-          // Carriage returns often reset the line, so we handle them as line splits for simplicity in the UI console
           const lines = currentLineBuffer.split(/\r?\n|\r/);
 
-          // The last segment might be incomplete (either no terminator or partial ANSI sequence)
-          // We check if it ends with an escape sequence or CSI fragment
           const last = lines[lines.length - 1];
           const hasIncompleteAnsi = /[\u001b\u009b][\[\]()#;?]*[0-9;]*$/.test(last);
 
           if (!hasIncompleteAnsi) {
             currentLineBuffer = lines.pop() || '';
             for (const line of lines) {
-              const cleaned = line.trimEnd(); // Remove trailing spaces from CR simulation
-              if (cleaned || line === '') {
-                 if (!options.silent) this.emitLog('info', line);
-                 options.onLog?.(line);
-              }
+               const simplified = line.replace(/\s{5,}/g, '    ');
+               if (!options.silent) this.emitLog('info', simplified);
+               options.onLog?.(simplified);
             }
           } else {
-            // Keep the whole buffer if we are in the middle of an ANSI sequence
-            // but if there were complete lines before it, we can still emit them
             const completeLines = lines.slice(0, -1);
             currentLineBuffer = lines[lines.length - 1];
             for (const line of completeLines) {
-               if (!options.silent) this.emitLog('info', line);
-               options.onLog?.(line);
+               const simplified = line.replace(/\s{5,}/g, '    ');
+               if (!options.silent) this.emitLog('info', simplified);
+               options.onLog?.(simplified);
             }
           }
         }
-        // Emit remaining buffer on close
         if (currentLineBuffer) {
           if (!options.silent) this.emitLog('info', currentLineBuffer);
           options.onLog?.(currentLineBuffer);

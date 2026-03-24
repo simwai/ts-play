@@ -32,8 +32,9 @@ export function useWebContainer(
 
   const syncTypes = useCallback(async () => {
     try {
-      const types = await webContainerService.readDirRecursive('node_modules', (path) => path.endsWith('.d.ts'));
-      setExternalTypings(types);
+      const nodeTypes = await webContainerService.readDirRecursive('node_modules', (path) => path.endsWith('.d.ts'));
+      const emittedTypes = await webContainerService.readDirRecursive('dist', (path) => path.endsWith('.d.ts'));
+      setExternalTypings({ ...nodeTypes, ...emittedTypes });
     } catch (err) {
       console.error('Failed to sync types:', err);
     }
@@ -46,11 +47,12 @@ export function useWebContainer(
         const js = await wc.fs.readFile('dist/index.js', 'utf8').catch(() => '');
         const dts = await wc.fs.readFile('dist/index.d.ts', 'utf8').catch(() => '');
         if (js || dts) onArtifactsChange(js, dts);
+        syncTypes();
       } catch {}
     };
     wc.fs.watch('dist', { recursive: true }, sync);
     sync();
-  }, [onArtifactsChange]);
+  }, [onArtifactsChange, syncTypes]);
 
   useEffect(() => {
     const unsubscribeLog = webContainerService.onLog((log) => {
@@ -66,6 +68,96 @@ export function useWebContainer(
     };
   }, [addMessage]);
 
+  const prepareEnvironment = async () => {
+    const pkgJson = {
+      name: 'playground',
+      type: 'module',
+      private: true,
+      main: 'dist/index.js',
+      dependencies: Object.fromEntries(SYSTEM_DEPS.map(d => [d, 'latest'])),
+    };
+
+    try {
+      await webContainerService.mountSnapshot('/base.snapshot');
+      webContainerService.emitLog('info', '🟣 Snapshot mounted! Skipping npm install.');
+    } catch (e) {
+      webContainerService.emitLog('info', 'No snapshot found, performing full mount & install...');
+      await webContainerService.mount({
+        'package.json': { file: { contents: JSON.stringify(pkgJson, null, 2) } },
+        'tsconfig.json': { file: { contents: tsConfigString } },
+        'index.ts': { file: { contents: tsCode } },
+        '__detect_imports.cjs': { file: { contents: DETECT_IMPORTS_SCRIPT } },
+        'dist': { directory: {} }
+      });
+
+      webContainerService.emitLog('info', 'Preparing environment (npm install)...');
+      const proc = await webContainerService.spawnManaged('npm', ['install', '--no-progress'], { silent: false });
+      const exitCode = await proc.exit;
+      if (exitCode !== 0) throw new Error('NPM install failed.');
+    }
+
+    // Write source files and update scripts
+    await webContainerService.writeFile('index.ts', tsCode);
+    await webContainerService.writeFile('tsconfig.json', tsConfigString);
+    await webContainerService.writeFile('__detect_imports.cjs', DETECT_IMPORTS_SCRIPT);
+  };
+
+  const startCompilers = async () => {
+    const buildScript = `
+      const { build } = require('esbuild');
+      const fs = require('fs');
+      let timeout;
+      async function doBuild() {
+         console.log('Building...');
+         try {
+           await build({
+             entryPoints: ['index.ts'], bundle: true, platform: 'node',
+             format: 'esm', outfile: 'dist/index.js', sourcemap: false,
+           });
+           console.log('Build finished.');
+         } catch (e) { console.log('Build failed.'); console.log(e.message); }
+      }
+      fs.watch('index.ts', (event) => {
+         if (event === 'change') { clearTimeout(timeout); timeout = setTimeout(doBuild, 100); }
+      });
+      doBuild();
+    `;
+    await webContainerService.writeFile('__build.cjs', buildScript);
+
+    await webContainerService.spawnManaged('node', ['__build.cjs'], {
+      silent: false,
+      onLog: (line) => {
+        if (line.includes('Building')) {
+          webContainerService.setCompilerStatus('parcel', 'Compiling');
+          webContainerService.notifyBuildStart();
+        }
+        if (line.includes('Build finished')) {
+          webContainerService.setCompilerStatus('parcel', 'Ready');
+          webContainerService.notifyBuildComplete();
+        }
+        if (line.includes('Build failed')) {
+          webContainerService.setCompilerStatus('parcel', 'Error');
+        }
+      }
+    });
+
+    await webContainerService.spawnManaged('./node_modules/.bin/tsc', ['--watch', '--emitDeclarationOnly', '--incremental', '--outDir', 'dist'], {
+      silent: true,
+      onLog: (line) => {
+         if (line.includes('Starting incremental compilation') || line.includes('File change detected')) {
+            webContainerService.setCompilerStatus('tsc', 'Compiling');
+         }
+         if (line.includes('Found 0 errors') || line.includes('Watching for file changes')) {
+            webContainerService.setCompilerStatus('tsc', 'Ready');
+         }
+         if (line.includes('error TS')) {
+           webContainerService.setCompilerStatus('tsc', 'Error');
+           webContainerService.emitLog('error', `[TSC] ${line}`);
+         }
+      }
+    });
+  };
+
   useEffect(() => {
     if (!isInitialSync.current) return;
     isInitialSync.current = false;
@@ -76,116 +168,18 @@ export function useWebContainer(
         webContainerService.setCompilerStatus('tsc', 'Preparing');
         webContainerService.setCompilerStatus('parcel', 'Preparing');
 
-        const pkgJson = {
-          name: 'playground',
-          type: 'module',
-          private: true,
-          main: 'dist/index.js',
-          dependencies: Object.fromEntries(SYSTEM_DEPS.map(d => [d, 'latest'])),
-        };
-
-        // Attempt snapshot first
-        let snapshotLoaded = false;
-        try {
-           await webContainerService.mountSnapshot('/base.snapshot');
-           snapshotLoaded = true;
-           webContainerService.emitLog('info', '🟣 Snapshot mounted! Skipping npm install.');
-        } catch (e) {
-           webContainerService.emitLog('info', 'No snapshot found, performing full mount & install...');
-           await webContainerService.mount({
-             'package.json': { file: { contents: JSON.stringify(pkgJson, null, 2) } },
-             'tsconfig.json': { file: { contents: tsConfigString } },
-             'index.ts': { file: { contents: tsCode } },
-             '__detect_imports.cjs': { file: { contents: DETECT_IMPORTS_SCRIPT } },
-             'dist': { directory: {} }
-           });
-
-           webContainerService.emitLog('info', 'Preparing environment (npm install)...');
-           const proc = await webContainerService.spawnManaged('npm', ['install', '--no-progress'], { silent: false });
-           const exitCode = await proc.exit;
-           if (exitCode !== 0) throw new Error('NPM install failed.');
-        }
-
-        if (snapshotLoaded) {
-           // Ensure latest source is written
-           await webContainerService.writeFile('index.ts', tsCode);
-           await webContainerService.writeFile('tsconfig.json', tsConfigString);
-           await webContainerService.writeFile('__detect_imports.cjs', DETECT_IMPORTS_SCRIPT);
-        }
-
+        await prepareEnvironment();
         await syncTypes();
+
         webContainerService.emitLog('info', 'Starting reactive compilers...');
-
-        const buildScript = `
-          const { build } = require('esbuild');
-          const fs = require('fs');
-          let timeout;
-          async function doBuild() {
-             console.log('Building...');
-             try {
-               await build({
-                 entryPoints: ['index.ts'],
-                 bundle: true,
-                 platform: 'node',
-                 format: 'esm',
-                 outfile: 'dist/index.js',
-                 sourcemap: false,
-               });
-               console.log('Build finished.');
-             } catch (e) {
-               console.log('Build failed.');
-               console.log(e.message);
-             }
-          }
-          fs.watch('index.ts', (event) => {
-             if (event === 'change') {
-               clearTimeout(timeout);
-               timeout = setTimeout(doBuild, 100);
-             }
-          });
-          doBuild();
-        `;
-        await webContainerService.writeFile('__build.cjs', buildScript);
-
-        await webContainerService.spawnManaged('node', ['__build.cjs'], {
-          silent: false,
-          onLog: (line) => {
-            if (line.includes('Building')) {
-              webContainerService.setCompilerStatus('parcel', 'Compiling');
-              webContainerService.notifyBuildStart();
-            }
-            if (line.includes('Build finished')) {
-              webContainerService.setCompilerStatus('parcel', 'Ready');
-              webContainerService.notifyBuildComplete();
-            }
-            if (line.includes('Build failed')) {
-              webContainerService.setCompilerStatus('parcel', 'Error');
-            }
-          }
-        });
-
-        await webContainerService.spawnManaged('./node_modules/.bin/tsc', ['--watch', '--emitDeclarationOnly', '--incremental'], {
-          silent: true,
-          onLog: (line) => {
-             if (line.includes('Starting incremental compilation') || line.includes('File change detected')) {
-                webContainerService.setCompilerStatus('tsc', 'Compiling');
-             }
-             if (line.includes('Found 0 errors') || line.includes('Watching for file changes')) {
-                webContainerService.setCompilerStatus('tsc', 'Ready');
-             }
-             if (line.includes('error TS')) {
-               webContainerService.setCompilerStatus('tsc', 'Error');
-               webContainerService.emitLog('error', `[TSC] ${line}`);
-             }
-          }
-        });
+        await startCompilers();
 
         watchDist();
 
         let retries = 0;
         const checkEmit = async () => {
           try {
-            const content = await instance.fs.readFile('dist/index.js', 'utf8');
+            const content = await webContainerService.readFile('dist/index.js');
             if (content.trim()) {
               webContainerService.markEnvReady();
               webContainerService.emitLog('info', 'Environment ready.');
