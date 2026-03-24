@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { webContainerService, SYSTEM_DEPS, type CompilerStatus } from '../lib/webcontainer';
+import { webContainerService, SYSTEM_DEPS } from '../lib/webcontainer';
+import { playgroundStore } from '../lib/state-manager';
 import type { ConsoleMessage } from '../components/Console';
 
 const DETECT_IMPORTS_SCRIPT = `
@@ -27,8 +28,6 @@ export function useWebContainer(
 ) {
   const isInitialSync = useRef(true);
   const [externalTypings, setExternalTypings] = useState<Record<string, string>>({});
-  const [tscStatus, setTscStatus] = useState<CompilerStatus>('Idle');
-  const [parcelStatus, setParcelStatus] = useState<CompilerStatus>('Idle');
 
   const syncTypes = useCallback(async () => {
     try {
@@ -55,17 +54,9 @@ export function useWebContainer(
   }, [onArtifactsChange, syncTypes]);
 
   useEffect(() => {
-    const unsubscribeLog = webContainerService.onLog((log) => {
+    return webContainerService.onLog((log) => {
       addMessage(log.type as any, [log.message]);
     });
-    const unsubscribeStatus = webContainerService.onCompilerStatus(() => {
-      setTscStatus(webContainerService.tscStatus);
-      setParcelStatus(webContainerService.parcelStatus);
-    });
-    return () => {
-      unsubscribeLog();
-      unsubscribeStatus();
-    };
   }, [addMessage]);
 
   const prepareEnvironment = async () => {
@@ -96,7 +87,6 @@ export function useWebContainer(
       if (exitCode !== 0) throw new Error('NPM install failed.');
     }
 
-    // Write source files and update scripts
     await webContainerService.writeFile('index.ts', tsCode);
     await webContainerService.writeFile('tsconfig.json', tsConfigString);
     await webContainerService.writeFile('__detect_imports.cjs', DETECT_IMPORTS_SCRIPT);
@@ -128,15 +118,13 @@ export function useWebContainer(
       silent: false,
       onLog: (line) => {
         if (line.includes('Building')) {
-          webContainerService.setCompilerStatus('parcel', 'Compiling');
-          webContainerService.notifyBuildStart();
+          playgroundStore.setState({ parcelStatus: 'Compiling' });
         }
         if (line.includes('Build finished')) {
-          webContainerService.setCompilerStatus('parcel', 'Ready');
-          webContainerService.notifyBuildComplete();
+          playgroundStore.setState({ parcelStatus: 'Ready' });
         }
         if (line.includes('Build failed')) {
-          webContainerService.setCompilerStatus('parcel', 'Error');
+          playgroundStore.setState({ parcelStatus: 'Error' });
         }
       }
     });
@@ -145,13 +133,13 @@ export function useWebContainer(
       silent: true,
       onLog: (line) => {
          if (line.includes('Starting incremental compilation') || line.includes('File change detected')) {
-            webContainerService.setCompilerStatus('tsc', 'Compiling');
+            playgroundStore.setState({ tscStatus: 'Compiling' });
          }
          if (line.includes('Found 0 errors') || line.includes('Watching for file changes')) {
-            webContainerService.setCompilerStatus('tsc', 'Ready');
+            playgroundStore.setState({ tscStatus: 'Ready' });
          }
          if (line.includes('error TS')) {
-           webContainerService.setCompilerStatus('tsc', 'Error');
+           playgroundStore.setState({ tscStatus: 'Error' });
            webContainerService.emitLog('error', `[TSC] ${line}`);
          }
       }
@@ -162,11 +150,13 @@ export function useWebContainer(
     if (!isInitialSync.current) return;
     isInitialSync.current = false;
 
-    webContainerService.enqueue(async (instance) => {
+    webContainerService.enqueue(async () => {
       try {
-        webContainerService.setStatus('preparing');
-        webContainerService.setCompilerStatus('tsc', 'Preparing');
-        webContainerService.setCompilerStatus('parcel', 'Preparing');
+        playgroundStore.setState({
+            lifecycle: 'preparing',
+            tscStatus: 'Preparing',
+            parcelStatus: 'Preparing'
+        });
 
         await prepareEnvironment();
         await syncTypes();
@@ -181,19 +171,21 @@ export function useWebContainer(
           try {
             const content = await webContainerService.readFile('dist/index.js');
             if (content.trim()) {
-              webContainerService.markEnvReady();
+              playgroundStore.setState({ lifecycle: 'ready' });
               webContainerService.emitLog('info', 'Environment ready.');
             } else throw new Error('Empty');
           } catch (e) {
             if (retries < 60) { retries++; setTimeout(checkEmit, 1000); }
-            else { webContainerService.markEnvReady(); webContainerService.emitLog('info', 'Environment ready (compiler slow).'); }
+            else {
+                playgroundStore.setState({ lifecycle: 'ready' });
+                webContainerService.emitLog('info', 'Environment ready (compiler slow).');
+            }
           }
         };
         checkEmit();
       } catch (error: any) {
         webContainerService.emitLog('error', `VM Error: ${error.message}`);
-        webContainerService.setStatus('error');
-        webContainerService.markEnvReady();
+        playgroundStore.setState({ lifecycle: 'error' });
       }
     });
   }, []);
@@ -210,5 +202,5 @@ export function useWebContainer(
     });
   }, [tsConfigString]);
 
-  return { externalTypings, syncTypes, tscStatus, parcelStatus };
+  return { externalTypings, syncTypes };
 }

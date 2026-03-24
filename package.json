@@ -8,6 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "format": "prettier -w .",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
     "prepare": "husky",
     "analyze": "knip && madge --circular --extensions ts,tsx src/"
   },
@@ -17,7 +19,6 @@
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "@webcontainer/api": "^1.6.1",
-    "ansi-to-html": "^0.7.2",
     "clsx": "2.1.1",
     "husky": "^9.1.7",
     "lucide-react": "^0.577.0",
@@ -27,24 +28,23 @@
     "react-dom": "19.2.3",
     "tailwind-merge": "3.4.0"
   },
-  "browserslist": [
-    "> 0.5%",
-    "last 3 versions",
-    "Firefox ESR",
-    "not dead"
-  ],
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@tailwindcss/vite": "4.1.17",
+    "@testing-library/react": "^16.2.0",
     "@types/node": "^22.0.0",
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.1.1",
+    "@vitest/browser": "^3.0.7",
+    "jsdom": "^26.0.0",
     "knip": "^5.88.1",
     "madge": "^8.0.0",
+    "playwright": "^1.50.1",
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3",
     "vite": "7.2.4",
-    "vite-plugin-singlefile": "2.3.0"
+    "vite-plugin-singlefile": "2.3.0",
+    "vitest": "^3.0.7"
   }
 }

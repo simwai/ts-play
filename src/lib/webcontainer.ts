@@ -1,4 +1,5 @@
 import { WebContainer, type WebContainerProcess } from '@webcontainer/api';
+import { playgroundStore } from './state-manager';
 
 export type EnvironmentStatus = 'idle' | 'booting' | 'preparing' | 'ready' | 'error';
 export type CompilerStatus = 'Idle' | 'Preparing' | 'Running' | 'Compiling' | 'Ready' | 'Error';
@@ -7,23 +8,13 @@ export const SYSTEM_DEPS = ['typescript', 'esbuild', 'prettier', 'lodash-es', '@
 
 export class WebContainerService {
   private instance: WebContainer | null = null;
-  private status: EnvironmentStatus = 'idle';
-  private queue: Promise<any> = Promise.resolve();
-  private buildPromise: Promise<void> | null = null;
-  private buildResolver: (() => void) | null = null;
-
   private logCallbacks: Set<(log: { type: string; message: string; timestamp: number }) => void> = new Set();
-  private statusCallbacks: Set<(status: EnvironmentStatus) => void> = new Set();
-
-  public tscStatus: CompilerStatus = 'Idle';
-  public parcelStatus: CompilerStatus = 'Idle';
-  private compilerCallbacks: Set<() => void> = new Set();
 
   public serverUrl: string | null = null;
 
   async getInstance(): Promise<WebContainer> {
     if (!this.instance) {
-      this.setStatus('booting');
+      playgroundStore.setState({ lifecycle: 'booting' });
       this.emitLog('info', 'Booting WebContainer...');
       this.instance = await WebContainer.boot();
       this.emitLog('info', 'WebContainer booted.');
@@ -34,27 +25,6 @@ export class WebContainerService {
       });
     }
     return this.instance;
-  }
-
-  setStatus(s: EnvironmentStatus) {
-    this.status = s;
-    this.statusCallbacks.forEach(cb => cb(s));
-  }
-
-  setCompilerStatus(type: 'tsc' | 'parcel', status: CompilerStatus) {
-    if (type === 'tsc') this.tscStatus = status;
-    else this.parcelStatus = status;
-    this.compilerCallbacks.forEach(cb => cb());
-  }
-
-  onCompilerStatus(cb: () => void) {
-    this.compilerCallbacks.add(cb);
-    return () => this.compilerCallbacks.delete(cb);
-  }
-
-  onStatusChange(cb: (status: EnvironmentStatus) => void) {
-    this.statusCallbacks.add(cb);
-    return () => this.statusCallbacks.delete(cb);
   }
 
   onLog(cb: (log: { type: string; message: string; timestamp: number }) => void) {
@@ -68,11 +38,10 @@ export class WebContainerService {
   }
 
   async enqueue<T>(task: (instance: WebContainer) => Promise<T>): Promise<T> {
-    this.queue = this.queue.then(async () => {
+    return playgroundStore.enqueue(async () => {
       const instance = await this.getInstance();
       return task(instance);
     });
-    return this.queue;
   }
 
   async mount(files: any) {
@@ -154,32 +123,6 @@ export class WebContainerService {
     })();
 
     return proc;
-  }
-
-  notifyBuildStart() {
-    if (!this.buildPromise) {
-      this.buildPromise = new Promise((resolve) => {
-        this.buildResolver = resolve;
-      });
-    }
-  }
-
-  notifyBuildComplete() {
-    if (this.buildResolver) {
-      this.buildResolver();
-      this.buildResolver = null;
-      this.buildPromise = null;
-    }
-  }
-
-  async waitForBuild() {
-    if (this.buildPromise) {
-      await this.buildPromise;
-    }
-  }
-
-  markEnvReady() {
-    this.setStatus('ready');
   }
 
   async readDirRecursive(dir: string, filter?: (path: string) => boolean): Promise<Record<string, string>> {

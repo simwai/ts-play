@@ -3,7 +3,6 @@ import { Eraser } from 'lucide-react';
 import { Badge } from './ui/Badge';
 import { Button } from './ui/Button';
 import { PanelHeader } from './ui/PanelHeader';
-import Ansi from 'ansi-to-html';
 
 export type ConsoleMessage = {
   type: 'log' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'dir';
@@ -17,7 +16,7 @@ type Props = {
   isOpen: boolean;
   onToggle: () => void;
   contentHeight: number;
-  trueColorEnabled?: boolean;
+  stripAnsiEnabled?: boolean;
 };
 
 function typeVariant(type: ConsoleMessage['type']): 'error' | 'warn' | 'info' | 'default' {
@@ -44,25 +43,11 @@ function typeColorClass(type: ConsoleMessage['type']): string {
   return 'text-text';
 }
 
-// Improved ANSI colors to prevent "weird" splits and use better contrast
-const ANSI_COLORS = {
-  0: '#000000',
-  1: '#CD0000', // Red
-  2: '#00CD00', // Green
-  3: '#CDCD00', // Yellow
-  4: '#0000EE', // Blue
-  5: '#CD00CD', // Magenta
-  6: '#00CDCD', // Cyan
-  7: '#E5E5E5', // Gray
-  8: '#7F7F7F', // Dark Gray
-  9: '#FF0000', // Bright Red
-  10: '#00FF00', // Bright Green
-  11: '#FFFF00', // Bright Yellow
-  12: '#5C5CFF', // Bright Blue
-  13: '#FF00FF', // Bright Magenta
-  14: '#00FFFF', // Bright Cyan
-  15: '#FFFFFF', // White
-};
+// Uncle Bob: Clear, focused utility for stripping ANSI sequences
+function stripAnsi(text: string): string {
+  const ansiRegex = /[\u001b\u009b][\[\]()#;?]*[0-9;]*[a-zA-Z]/g;
+  return text.replace(ansiRegex, '');
+}
 
 export const Console = React.memo(function Console({
   messages,
@@ -70,20 +55,9 @@ export const Console = React.memo(function Console({
   isOpen,
   onToggle,
   contentHeight,
-  trueColorEnabled = true,
+  stripAnsiEnabled = false,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
-
-  const ansiConvert = useMemo(
-    () =>
-      new Ansi({
-        newline: false,
-        escapeHtml: true,
-        stream: false,
-        colors: ANSI_COLORS,
-      }),
-    [],
-  );
 
   useEffect(() => {
     if (isOpen) {
@@ -140,17 +114,17 @@ export const Console = React.memo(function Console({
           ) : (
             messages.map((m, idx) => {
               if (!m || !m.args) return null;
-              const fullText = m.args.join(' ');
-              const hasAnsi = trueColorEnabled && /[\u001b\u009b]/.test(fullText);
+              let fullText = m.args.join(' ');
+              if (stripAnsiEnabled) {
+                fullText = stripAnsi(fullText);
+              }
 
               return (
                 <div key={`${m.ts}-${idx}`} data-testid="console-line" className={`flex items-start gap-3 px-4 py-1.5 border-b border-surface0/20 ${m.type === 'error' ? 'bg-red/5' : m.type === 'warn' ? 'bg-yellow/5' : ''}`}>
                   <Badge label={typeLabel(m.type)} variant={typeVariant(m.type)} className="mt-0.5" />
-                  {hasAnsi ? (
-                    <div className="m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono" dangerouslySetInnerHTML={{ __html: ansiConvert.toHtml(fullText) }} />
-                  ) : (
-                    <pre className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}>{fullText}</pre>
-                  )}
+                  <pre className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}>
+                    {fullText}
+                  </pre>
                 </div>
               );
             })
