@@ -52,8 +52,6 @@ export class WebContainerService {
     return () => this.compilerCallbacks.delete(cb);
   }
 
-  getStatus() { return this.status; }
-
   onStatusChange(cb: (status: EnvironmentStatus) => void) {
     this.statusCallbacks.add(cb);
     return () => this.statusCallbacks.delete(cb);
@@ -65,6 +63,7 @@ export class WebContainerService {
   }
 
   emitLog(type: string, message: string) {
+    if (!message) return;
     this.logCallbacks.forEach(cb => cb({ type, message, timestamp: Date.now() }));
   }
 
@@ -96,13 +95,14 @@ export class WebContainerService {
     await instance.fs.writeFile(path, content);
   }
 
+  // Improved line-buffered and ANSI-aware streaming
   async spawnManaged(cmd: string, args: string[], options: { silent?: boolean, onLog?: (line: string) => void } = {}): Promise<WebContainerProcess> {
     const instance = await this.getInstance();
     const proc = await instance.spawn(cmd, args);
 
-    // Use getReader() as recommended for robust streaming
     const reader = proc.output.getReader();
     const decoder = new TextDecoder();
+    let currentLineBuffer = '';
 
     (async () => {
       try {
@@ -110,13 +110,46 @@ export class WebContainerService {
           const { done, value } = await reader.read();
           if (done) break;
 
-          let text = value;
-          if (value instanceof ArrayBuffer || value instanceof Uint8Array) {
-             text = decoder.decode(value);
+          let chunk = value;
+          if (value instanceof Uint8Array) {
+             chunk = decoder.decode(value, { stream: true });
           }
 
-          if (!options.silent) this.emitLog('info', text);
-          options.onLog?.(text);
+          currentLineBuffer += chunk;
+
+          // Split by newline and carriage return
+          // Carriage returns often reset the line, so we handle them as line splits for simplicity in the UI console
+          const lines = currentLineBuffer.split(/\r?\n|\r/);
+
+          // The last segment might be incomplete (either no terminator or partial ANSI sequence)
+          // We check if it ends with an escape sequence or CSI fragment
+          const last = lines[lines.length - 1];
+          const hasIncompleteAnsi = /[\u001b\u009b][\[\]()#;?]*[0-9;]*$/.test(last);
+
+          if (!hasIncompleteAnsi) {
+            currentLineBuffer = lines.pop() || '';
+            for (const line of lines) {
+              const cleaned = line.trimEnd(); // Remove trailing spaces from CR simulation
+              if (cleaned || line === '') {
+                 if (!options.silent) this.emitLog('info', line);
+                 options.onLog?.(line);
+              }
+            }
+          } else {
+            // Keep the whole buffer if we are in the middle of an ANSI sequence
+            // but if there were complete lines before it, we can still emit them
+            const completeLines = lines.slice(0, -1);
+            currentLineBuffer = lines[lines.length - 1];
+            for (const line of completeLines) {
+               if (!options.silent) this.emitLog('info', line);
+               options.onLog?.(line);
+            }
+          }
+        }
+        // Emit remaining buffer on close
+        if (currentLineBuffer) {
+          if (!options.silent) this.emitLog('info', currentLineBuffer);
+          options.onLog?.(currentLineBuffer);
         }
       } catch (err: any) {
         console.warn('[WC Service] Stream read error:', err.message);
