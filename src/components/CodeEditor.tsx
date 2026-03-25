@@ -108,10 +108,10 @@ export const CodeEditor = React.memo(
         const options = {
           target: monaco.languages.typescript.ScriptTarget.ESNext,
           allowNonTsExtensions: true,
-          moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+          moduleResolution: 5, // Bundler
           module: monaco.languages.typescript.ModuleKind.ESNext,
           isolatedModules: true,
-noEmit: true,
+          noEmit: true,
           esModuleInterop: true,
           jsx: monaco.languages.typescript.JsxEmit.ReactJSX,
           allowJs: true,

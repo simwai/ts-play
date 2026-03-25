@@ -12,7 +12,7 @@ export const DEFAULT_TSCONFIG = `{
     "emitDeclarationOnly": false,
     "strict": true,
     "skipLibCheck": true,
-    "isolatedModules": true,
+    "isolatedModules": true, "verbatimModuleSyntax": true,
     "resolveJsonModule": true,
     "moduleDetection": "force",
     "esModuleInterop": true,
