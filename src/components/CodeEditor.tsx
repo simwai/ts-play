@@ -110,11 +110,11 @@ export const CodeEditor = React.memo(
           allowNonTsExtensions: true,
           moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
           module: monaco.languages.typescript.ModuleKind.ESNext,
-          isolatedModules: true,
-noEmit: true,
+          noEmit: true,
           esModuleInterop: true,
           jsx: monaco.languages.typescript.JsxEmit.ReactJSX,
           allowJs: true,
+          isolatedModules: true,
           typeRoots: ['node_modules/@types'],
         };
         tsDefaults.setCompilerOptions(options);
@@ -132,6 +132,11 @@ noEmit: true,
       }
     }, [monaco, modelUri, language]);
 
+    const typeInfoCallbackRef = useRef(onTypeInfoChange);
+    useEffect(() => {
+      typeInfoCallbackRef.current = onTypeInfoChange;
+    }, [onTypeInfoChange]);
+
     const handleEditorDidMount: OnMount = (editor) => {
       editorRef.current = editor;
       editor.onDidChangeCursorPosition(async (e: any) => {
@@ -141,14 +146,17 @@ noEmit: true,
         onCursorChange?.(model.getOffsetAt(e.position));
         onCursorPosChange?.({ line: e.position.lineNumber, col: e.position.column });
 
-        if (!onTypeInfoChange || language !== 'typescript') return;
+        if (!typeInfoCallbackRef.current || (language !== 'typescript' && language !== 'javascript')) return;
         try {
-          const getter = await monaco.languages.typescript.getTypeScriptWorker();
+          const isTS = language === 'typescript';
+          const getter = await (isTS
+            ? monaco.languages.typescript.getTypeScriptWorker()
+            : monaco.languages.typescript.getJavaScriptWorker());
           const worker = await getter(model.uri);
           const info = await worker.getQuickInfoAtPosition(model.uri.toString(), model.getOffsetAt(e.position));
-          onTypeInfoChange(info?.displayParts?.map((p: any) => p.text).join('') || '');
+          typeInfoCallbackRef.current(info?.displayParts?.map((p: any) => p.text).join('') || '');
         } catch {
-          onTypeInfoChange('');
+          typeInfoCallbackRef.current?.('');
         }
       });
     };
