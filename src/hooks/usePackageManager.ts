@@ -22,6 +22,7 @@ export function usePackageManager(
   const tasksInProgress = useRef(0);
   const previousPkgsRef = useRef<Set<string>>(new Set(SYSTEM_DEPS));
   const installQueue = useRef<Promise<void>>(Promise.resolve());
+  const tsCursorPos = useRef(0);
 
   const updateBusyState = useCallback((busy: boolean, type: PackageManagerStatus = 'idle') => {
     if (busy) {
@@ -117,7 +118,7 @@ export function usePackageManager(
 
   return {
     installedPackages,
-    tsCursorPos: { current: 0 },
+    tsCursorPos,
     checkImports,
     installQueue: installQueue.current,
     packageTypings: {} as Record<string, string>,

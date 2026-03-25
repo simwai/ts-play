@@ -13,7 +13,7 @@ export async function formatAllFiles(tsCode: string, jsCode: string, dtsCode: st
 
   // Execute Prettier within the container
   const { exit } = await webContainerService.spawn('npx', ['prettier', '--write', 'temp.ts']);
-  const exitCode = await exit;
+  const exitCode = await proc.exit;
 
   if (exitCode === 0) {
     // Read the formatted content back

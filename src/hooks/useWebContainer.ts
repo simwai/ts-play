@@ -1,12 +1,12 @@
-import { useMemo } from 'react';
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { webContainerService, SYSTEM_DEPS } from '../lib/webcontainer';
 import { playgroundStore } from '../lib/state-manager';
 import { usePlaygroundStore } from './usePlaygroundStore';
 import type { ConsoleMessage } from '../components/Console';
 import { db } from '../lib/db';
 
-const DETECT_IMPORTS_SCRIPT = `
+const SCRIPTS = {
+  DETECT_IMPORTS: `
 const fs = require('fs');
 const code = process.argv[2] || '';
 const imports = [];
@@ -21,7 +21,21 @@ while ((match = regex.exec(code)) !== null) {
   }
 }
 console.log(JSON.stringify([...new Set(imports)]));
-`;
+`,
+  VALIDATE_CONFIG: `
+const fs = require('fs');
+let config = '';
+process.stdin.on('data', chunk => { config += chunk; });
+process.stdin.on('end', () => {
+  try {
+    JSON.parse(config);
+    console.log(JSON.stringify({ valid: true }));
+  } catch (e) {
+    console.log(JSON.stringify({ valid: false, error: e.message }));
+  }
+});
+`
+};
 
 export function useWebContainer(
   tsConfigString: string,
@@ -29,9 +43,12 @@ export function useWebContainer(
   addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void,
   onArtifactsChange: (js: string, dts: string) => void
 ) {
-  const isInitialSync = useRef(true); const startTime = useRef(Date.now());
+  const isInitialSync = useRef(true);
+  const startTime = useRef(Date.now());
   const { inlineDeps } = usePlaygroundStore();
   const esbuildProcRef = useRef<any>(null);
+  const tscProcRef = useRef<any>(null);
+  const watcherRef = useRef<any>(null);
 
   const [nodeTypings, setNodeTypings] = useState<Record<string, string>>({});
   const [emittedTypings, setEmittedTypings] = useState<Record<string, string>>({});
@@ -46,7 +63,6 @@ export function useWebContainer(
   const syncEmittedTypes = useCallback(async () => {
     try {
       const emitted = await webContainerService.readDirRecursive('dist', (p) => p.endsWith('.d.ts'));
-      // Normalize dist/index.d.ts to index.d.ts for Monaco
       if (emitted['dist/index.d.ts']) {
          emitted['index.d.ts'] = emitted['dist/index.d.ts'];
       }
@@ -59,25 +75,27 @@ export function useWebContainer(
   const watchDist = useCallback(async () => {
     const wc = await webContainerService.getInstance();
 
-    // Initial sync
     const sync = async () => {
       try {
-        const js = await wc.fs.readFile('dist/index.js', 'utf8').catch(() => '');
-        const dts = await wc.fs.readFile('dist/index.d.ts', 'utf8').catch(() => '');
+        const [js, dts] = await Promise.all([
+           wc.fs.readFile('dist/index.js', 'utf8').catch(() => ''),
+           wc.fs.readFile('dist/index.d.ts', 'utf8').catch(() => '')
+        ]);
         onArtifactsChange(js, dts);
         await syncEmittedTypes();
       } catch {}
     };
 
-    // Watch for changes in dist/
-    wc.fs.watch('dist', { recursive: true }, (event, filename) => {
+    if (watcherRef.current) watcherRef.current.close();
+
+    watcherRef.current = wc.fs.watch('dist', { recursive: true }, (event, filename) => {
        if (filename === 'index.js' || filename === 'index.d.ts') {
           sync();
        }
     });
 
     sync();
-  }, [onArtifactsChange, syncNodeTypes, syncEmittedTypes]);
+  }, [onArtifactsChange, syncEmittedTypes]);
 
   useEffect(() => {
     return webContainerService.onLog((log) => {
@@ -111,7 +129,8 @@ export function useWebContainer(
         'package.json': { file: { contents: JSON.stringify(pkgJson, null, 2) } },
         'tsconfig.json': { file: { contents: tsConfigString } },
         'index.ts': { file: { contents: tsCode } },
-        '__detect_imports.cjs': { file: { contents: DETECT_IMPORTS_SCRIPT } },
+        '__validate_config.cjs': { file: { contents: SCRIPTS.VALIDATE_CONFIG } },
+        '__detect_imports.cjs': { file: { contents: SCRIPTS.DETECT_IMPORTS } },
         'dist': { directory: {} }
       });
 
@@ -121,24 +140,24 @@ export function useWebContainer(
       if (exitCode !== 0) throw new Error('NPM install failed.');
     }
 
-    const [existingTs, existingTsConfig, existingDetect] = await Promise.all([
+    const [existingTs, existingTsConfig, existingDetect, existingValidate] = await Promise.all([
       webContainerService.readFile('index.ts').catch(() => ''),
       webContainerService.readFile('tsconfig.json').catch(() => ''),
-      webContainerService.readFile('__detect_imports.cjs').catch(() => '')
+      webContainerService.readFile('__detect_imports.cjs').catch(() => ''),
+      webContainerService.readFile('__validate_config.cjs').catch(() => '')
     ]);
 
     if (existingTs !== tsCode) await webContainerService.writeFile('index.ts', tsCode);
     if (existingTsConfig !== tsConfigString) await webContainerService.writeFile('tsconfig.json', tsConfigString);
-    if (existingDetect !== DETECT_IMPORTS_SCRIPT) await webContainerService.writeFile('__detect_imports.cjs', DETECT_IMPORTS_SCRIPT);
+    if (existingDetect !== SCRIPTS.DETECT_IMPORTS) await webContainerService.writeFile('__detect_imports.cjs', SCRIPTS.DETECT_IMPORTS);
+    if (existingValidate !== SCRIPTS.VALIDATE_CONFIG) await webContainerService.writeFile('__validate_config.cjs', SCRIPTS.VALIDATE_CONFIG);
 
     const wc = await webContainerService.getInstance();
     await wc.fs.mkdir('dist', { recursive: true }).catch(() => {});
   };
 
   const startEsbuild = async () => {
-    if (esbuildProcRef.current) {
-      esbuildProcRef.current.kill();
-    }
+    if (esbuildProcRef.current) esbuildProcRef.current.kill();
 
     const buildScript = `
       const { build } = require('esbuild');
@@ -178,29 +197,20 @@ export function useWebContainer(
     esbuildProcRef.current = await webContainerService.spawnManaged('node', ['__build.cjs'], {
       silent: false,
       onLog: (line) => {
-        if (line.includes('Building JS')) {
-          playgroundStore.setState({ esbuildStatus: 'Compiling' });
-        }
-        if (line.includes('Build JS finished') || line.includes('restored from snapshot')) {
-          playgroundStore.setState({ esbuildStatus: 'Ready' });
-        }
-        if (line.includes('Build JS failed')) {
-          playgroundStore.setState({ esbuildStatus: 'Error' });
-        }
+        if (line.includes('Building JS')) playgroundStore.setState({ esbuildStatus: 'Compiling' });
+        if (line.includes('Build JS finished') || line.includes('restored from snapshot')) playgroundStore.setState({ esbuildStatus: 'Ready' });
+        if (line.includes('Build JS failed')) playgroundStore.setState({ esbuildStatus: 'Error' });
       }
     });
   };
 
   const startTsc = async () => {
-    await webContainerService.spawnManaged('npx', ['tsc', '--watch', '--emitDeclarationOnly', '--incremental', '--outDir', 'dist', '--rootDir', '.'], {
+    if (tscProcRef.current) tscProcRef.current.kill();
+    tscProcRef.current = await webContainerService.spawnManaged('npx', ['tsc', '--watch', '--emitDeclarationOnly', '--incremental', '--outDir', 'dist', '--rootDir', '.'], {
       silent: true,
       onLog: (line) => {
-         if (line.includes('Starting incremental compilation') || line.includes('File change detected')) {
-            playgroundStore.setState({ tscStatus: 'Compiling' });
-         }
-         if (line.includes('Found 0 errors') || line.includes('Watching for file changes')) {
-            playgroundStore.setState({ tscStatus: 'Ready' });
-         }
+         if (line.includes('Starting incremental compilation') || line.includes('File change detected')) playgroundStore.setState({ tscStatus: 'Compiling' });
+         if (line.includes('Found 0 errors') || line.includes('Watching for file changes')) playgroundStore.setState({ tscStatus: 'Ready' });
          if (line.includes('error TS')) {
            playgroundStore.setState({ tscStatus: 'Error' });
            webContainerService.emitLog('error', `[TSC] ${line}`);
@@ -215,19 +225,12 @@ export function useWebContainer(
 
     webContainerService.enqueue(async () => {
       try {
-        playgroundStore.setState({
-            lifecycle: 'preparing',
-            tscStatus: 'Preparing',
-            esbuildStatus: 'Preparing'
-        });
-
+        playgroundStore.setState({ lifecycle: 'preparing', tscStatus: 'Preparing', esbuildStatus: 'Preparing' });
         await prepareEnvironment();
         await Promise.all([syncNodeTypes(), syncEmittedTypes()]);
-
         webContainerService.emitLog('info', 'Starting reactive compilers...');
         await startEsbuild();
         await startTsc();
-
         watchDist();
 
         let retries = 0;
@@ -235,19 +238,14 @@ export function useWebContainer(
           try {
             const js = await webContainerService.readFile('dist/index.js').catch(() => '');
             const dts = await webContainerService.readFile('dist/index.d.ts').catch(() => '');
-
             if (js.trim() && dts.trim()) {
               const bootDuration = (Date.now() - startTime.current) / 1000;
               playgroundStore.setState({ lifecycle: 'ready', tscStatus: 'Ready', esbuildStatus: 'Ready', bootTime: bootDuration });
               webContainerService.emitLog('info', `Environment ready in ${bootDuration.toFixed(2)}s.`);
-            } else {
-              throw new Error('Emission incomplete');
-            }
+            } else throw new Error('Emission incomplete');
           } catch (e) {
-            if (retries < 60) {
-              retries++;
-              setTimeout(checkEmit, 1000);
-            } else {
+            if (retries < 60) { retries++; setTimeout(checkEmit, 1000); }
+            else {
               playgroundStore.setState({ lifecycle: 'ready' });
               webContainerService.emitLog('info', 'Environment ready (compiler slow).');
             }
@@ -259,35 +257,31 @@ export function useWebContainer(
         playgroundStore.setState({ lifecycle: 'error' });
       }
     });
+
+    return () => {
+       esbuildProcRef.current?.kill();
+       tscProcRef.current?.kill();
+       watcherRef.current?.close();
+    };
   }, []);
 
-  // Restart esbuild when inlineDeps changes
   useEffect(() => {
     if (playgroundStore.getState().lifecycle === 'ready') {
-       webContainerService.enqueue(async () => {
-         await startEsbuild();
-       });
+       webContainerService.enqueue(async () => { await startEsbuild(); });
     }
   }, [inlineDeps]);
 
   useEffect(() => {
-    webContainerService.enqueue(async () => {
-        await webContainerService.writeFile('index.ts', tsCode);
-    });
+    webContainerService.enqueue(async () => { await webContainerService.writeFile('index.ts', tsCode); });
   }, [tsCode]);
 
   useEffect(() => {
-    webContainerService.enqueue(async () => {
-        await webContainerService.writeFile('tsconfig.json', tsConfigString);
-    });
+    webContainerService.enqueue(async () => { await webContainerService.writeFile('tsconfig.json', tsConfigString); });
   }, [tsConfigString]);
-
 
   const { packageManagerStatus } = usePlaygroundStore();
   useEffect(() => {
-    if (packageManagerStatus === 'idle' && !isInitialSync.current) {
-       syncNodeTypes();
-    }
+    if (packageManagerStatus === 'idle' && !isInitialSync.current) syncNodeTypes();
   }, [packageManagerStatus, syncNodeTypes]);
 
   return { externalTypings, syncNodeTypes, syncEmittedTypes };

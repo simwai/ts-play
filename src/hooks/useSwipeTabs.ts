@@ -6,12 +6,11 @@ function isEditorTarget(target: EventTarget | undefined | null) {
 }
 
 export function useSwipeTabs<T extends string>(
+  tabs: readonly T[],
   activeTab: T,
   setActiveTab: (tab: T) => void,
-  tabs: readonly T[],
-  disabled: boolean,
+  disabled: boolean = false,
 ) {
-  const swipeRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const swiping = useRef(false);
@@ -67,5 +66,5 @@ export function useSwipeTabs<T extends string>(
     [activeTab, disabled, setActiveTab, tabs],
   );
 
-  return { swipeRef, onTouchStart, onTouchMove, onTouchEnd };
+  return { onTouchStart, onTouchMove, onTouchEnd };
 }

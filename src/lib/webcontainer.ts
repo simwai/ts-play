@@ -70,7 +70,6 @@ export class WebContainerService {
   async exportSnapshot(): Promise<Uint8Array> {
     const instance = await this.getInstance();
     this.emitLog('info', 'Exporting environment snapshot...');
-    // Use binary format to avoid JSON serialization issues and reduce size
     const snapshot = await instance.export('.', { format: 'binary' }) as Uint8Array;
     this.emitLog('info', 'Snapshot exported.');
     return snapshot;
@@ -90,6 +89,16 @@ export class WebContainerService {
   async readFile(path: string) {
     const instance = await this.getInstance();
     return instance.fs.readFile(path, 'utf8');
+  }
+
+  async getEnvReady() {
+    return new Promise<void>((resolve) => {
+      const check = () => {
+        if (playgroundStore.getState().lifecycle === "ready") resolve();
+        else setTimeout(check, 100);
+      };
+      check();
+    });
   }
 
   async spawnManaged(cmd: string, args: string[], options: { silent?: boolean, onLog?: (line: string) => void } = {}): Promise<WebContainerProcess> {
@@ -161,7 +170,8 @@ export class WebContainerService {
             await read(fullPath);
           } else if (!filter || filter(fullPath)) {
             const content = await instance.fs.readFile(fullPath, 'utf8');
-            results[fullPath.replace('node_modules/', '')] = content;
+            const monacoPath = fullPath.startsWith('./') ? fullPath.slice(2) : fullPath;
+            results[monacoPath] = content;
           }
         }
       } catch {}

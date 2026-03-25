@@ -29,7 +29,7 @@ interface User {
 }
 
 function greet(user: User): string {
-  return \`Hello, \${user.name}!\`;
+  return \`Hello, ${user.name}!\`;
 }
 
 console.log(greet({ name: "Alice", age: 30 }));
@@ -92,7 +92,7 @@ export function App() {
     return parts.join(' | ') || 'Idle';
   }, [tscStatus, esbuildStatus]);
 
-  const { runCode, isRunning } = useCompilerManager();
+  const { runCode, stopCode, isRunning } = useCompilerManager();
 
   const handleRun = useCallback(async () => {
     if (jsDirty) {
@@ -153,12 +153,12 @@ export function App() {
      localStorage.setItem('tsplay_tsconfig', val);
   };
 
-  useSwipeTabs(TABS, activeTab, (tab) => setActiveTab(tab as TabType));
+  const swipeHandlers = useSwipeTabs(TABS, activeTab, (tab) => setActiveTab(tab as TabType));
   const { compactForKeyboard, isMobileLike } = useVirtualKeyboard();
   const { panelHeight, isResizing, handleResizeStart } = useResizePanel(11.25);
 
   return (
-    <div
+    <div {...swipeHandlers}
       className={`h-[100dvh] flex flex-col bg-crust text-text transition-colors duration-300 ${isDarkMode(theme) ? 'dark' : ''}`}
     >
       <Header
@@ -169,7 +169,7 @@ export function App() {
         handleDeleteAll={handleDeleteAll}
         onSettings={() => setIsSettingsOpen(true)}
         doRun={handleRun}
-        stopCode={() => {}}
+        stopCode={stopCode}
         sharing={isSharing}
         formatting={isFormatting}
         isRunning={isRunning}
