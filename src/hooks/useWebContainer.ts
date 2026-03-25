@@ -160,8 +160,9 @@ export function useWebContainer(
              platform: 'node',
              format: 'esm',
              outfile: 'dist/index.js',
-             sourcemap: false,
+             sourcemap: true,
              treeShaking: true,
+             target: 'node20',
              external,
            });
            console.log('Build JS finished.');
