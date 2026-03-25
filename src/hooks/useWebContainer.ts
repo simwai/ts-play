@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { webContainerService, SYSTEM_DEPS } from '../lib/webcontainer';
 import { playgroundStore } from '../lib/state-manager';
@@ -31,25 +32,29 @@ export function useWebContainer(
   const isInitialSync = useRef(true);
   const { inlineDeps } = usePlaygroundStore();
   const esbuildProcRef = useRef<any>(null);
-  const [externalTypings, setExternalTypings] = useState<Record<string, string>>({});
 
-  const syncTypes = useCallback(async () => {
+  const [nodeTypings, setNodeTypings] = useState<Record<string, string>>({});
+  const [emittedTypings, setEmittedTypings] = useState<Record<string, string>>({});
+
+  const syncNodeTypes = useCallback(async () => {
     try {
-      const nodeTypes = await webContainerService.readDirRecursive('node_modules', (path) => path.endsWith('.d.ts'));
-      const emittedTypes = await webContainerService.readDirRecursive('dist', (path) => path.endsWith('.d.ts'));
-
-      const finalTypes: Record<string, string> = { ...nodeTypes, ...emittedTypes };
-
-      // Specifically ensure Monaco sees the emitted index.d.ts as file:///index.d.ts
-      if (emittedTypes['dist/index.d.ts']) {
-         finalTypes['index.d.ts'] = emittedTypes['dist/index.d.ts'];
-      }
-
-      setExternalTypings(finalTypes);
-    } catch (err) {
-      console.error('Failed to sync types:', err);
-    }
+      const nodeTypes = await webContainerService.readDirRecursive('node_modules', (p) => p.endsWith('.d.ts'));
+      setNodeTypings(nodeTypes);
+    } catch {}
   }, []);
+
+  const syncEmittedTypes = useCallback(async () => {
+    try {
+      const emitted = await webContainerService.readDirRecursive('dist', (p) => p.endsWith('.d.ts'));
+      // Normalize dist/index.d.ts to index.d.ts for Monaco
+      if (emitted['dist/index.d.ts']) {
+         emitted['index.d.ts'] = emitted['dist/index.d.ts'];
+      }
+      setEmittedTypings(emitted);
+    } catch {}
+  }, []);
+
+  const externalTypings = useMemo(() => ({ ...nodeTypings, ...emittedTypings }), [nodeTypings, emittedTypings]);
 
   const watchDist = useCallback(async () => {
     const wc = await webContainerService.getInstance();
@@ -60,7 +65,7 @@ export function useWebContainer(
         const js = await wc.fs.readFile('dist/index.js', 'utf8').catch(() => '');
         const dts = await wc.fs.readFile('dist/index.d.ts', 'utf8').catch(() => '');
         onArtifactsChange(js, dts);
-        await syncTypes();
+        await syncEmittedTypes();
       } catch {}
     };
 
@@ -72,7 +77,7 @@ export function useWebContainer(
     });
 
     sync();
-  }, [onArtifactsChange, syncTypes]);
+  }, [onArtifactsChange, syncNodeTypes, syncEmittedTypes]);
 
   useEffect(() => {
     return webContainerService.onLog((log) => {
@@ -98,7 +103,8 @@ export function useWebContainer(
         webContainerService.emitLog('info', '🟣 Fetching initial environment snapshot...');
         await webContainerService.mountSnapshot('/base.snapshot');
       }
-      webContainerService.emitLog('info', '🚀 Snapshot mounted! Skipping npm install.');
+      webContainerService.emitLog('info', '🚀 Snapshot mounted! Ensuring configuration integrity.');
+      await webContainerService.writeFile('package.json', JSON.stringify(pkgJson, null, 2));
     } catch (e) {
       webContainerService.emitLog('info', '⚠️ Snapshot loading failed, performing full mount & install...');
       await webContainerService.mount({
@@ -174,7 +180,7 @@ export function useWebContainer(
   };
 
   const startTsc = async () => {
-    await webContainerService.spawnManaged('./node_modules/.bin/tsc', ['--watch', '--emitDeclarationOnly', '--incremental', '--outDir', 'dist', '--rootDir', '.', '--noEmit', 'false'], {
+    await webContainerService.spawnManaged('node', ['./node_modules/typescript/bin/tsc', '--watch', '--emitDeclarationOnly', '--incremental', '--outDir', 'dist', '--rootDir', '.'], {
       silent: true,
       onLog: (line) => {
          if (line.includes('Starting incremental compilation') || line.includes('File change detected')) {
@@ -204,7 +210,7 @@ export function useWebContainer(
         });
 
         await prepareEnvironment();
-        await syncTypes();
+        await Promise.all([syncNodeTypes(), syncEmittedTypes()]);
 
         webContainerService.emitLog('info', 'Starting reactive compilers...');
         await startEsbuild();
@@ -215,16 +221,22 @@ export function useWebContainer(
         let retries = 0;
         const checkEmit = async () => {
           try {
-            const content = await webContainerService.readFile('dist/index.js');
-            if (content.trim()) {
-              playgroundStore.setState({ lifecycle: 'ready' });
+            const js = await webContainerService.readFile('dist/index.js').catch(() => '');
+            const dts = await webContainerService.readFile('dist/index.d.ts').catch(() => '');
+
+            if (js.trim() && dts.trim()) {
+              playgroundStore.setState({ lifecycle: 'ready', tscStatus: 'Ready', esbuildStatus: 'Ready' });
               webContainerService.emitLog('info', 'Environment ready.');
-            } else throw new Error('Empty');
+            } else {
+              throw new Error('Emission incomplete');
+            }
           } catch (e) {
-            if (retries < 60) { retries++; setTimeout(checkEmit, 1000); }
-            else {
-                playgroundStore.setState({ lifecycle: 'ready' });
-                webContainerService.emitLog('info', 'Environment ready (compiler slow).');
+            if (retries < 60) {
+              retries++;
+              setTimeout(checkEmit, 1000);
+            } else {
+              playgroundStore.setState({ lifecycle: 'ready' });
+              webContainerService.emitLog('info', 'Environment ready (compiler slow).');
             }
           }
         };
@@ -257,5 +269,5 @@ export function useWebContainer(
     });
   }, [tsConfigString]);
 
-  return { externalTypings, syncTypes };
+  return { externalTypings, syncNodeTypes, syncEmittedTypes };
 }
