@@ -116,6 +116,10 @@ export const CodeEditor = React.memo(
           allowJs: true,
           isolatedModules: true,
           typeRoots: ['node_modules/@types'],
+          baseUrl: '.',
+          paths: {
+            '*': ['node_modules/*']
+          },
         };
         tsDefaults.setCompilerOptions(options);
         jsDefaults.setCompilerOptions(options as any);
