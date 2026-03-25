@@ -153,6 +153,7 @@ export function useWebContainer(
          try {
            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
            const deps = Object.keys(pkg.dependencies || {});
+           const external = ${inlineDeps ? '[]' : 'deps.flatMap(d => [d, d + "/*"])'};
            await build({
              entryPoints: ['index.ts'],
              bundle: true,
@@ -161,7 +162,7 @@ export function useWebContainer(
              outfile: 'dist/index.js',
              sourcemap: false,
              treeShaking: true,
-             external: ${inlineDeps ? '[]' : 'deps'},
+             external,
            });
            console.log('Build JS finished.');
          } catch (e) { console.log('Build JS failed.'); console.log(e.message); }
@@ -190,7 +191,7 @@ export function useWebContainer(
   };
 
   const startTsc = async () => {
-    await webContainerService.spawnManaged('node', ['./node_modules/typescript/bin/tsc', '--watch', '--emitDeclarationOnly', '--incremental', '--outDir', 'dist', '--rootDir', '.'], {
+    await webContainerService.spawnManaged('npx', ['tsc', '--watch', '--emitDeclarationOnly', '--incremental', '--outDir', 'dist', '--rootDir', '.'], {
       silent: true,
       onLog: (line) => {
          if (line.includes('Starting incremental compilation') || line.includes('File change detected')) {
