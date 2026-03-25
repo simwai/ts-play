@@ -29,7 +29,7 @@ export function useWebContainer(
   addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void,
   onArtifactsChange: (js: string, dts: string) => void
 ) {
-  const isInitialSync = useRef(true);
+  const isInitialSync = useRef(true); const startTime = useRef(Date.now());
   const { inlineDeps } = usePlaygroundStore();
   const esbuildProcRef = useRef<any>(null);
 
@@ -237,8 +237,9 @@ export function useWebContainer(
             const dts = await webContainerService.readFile('dist/index.d.ts').catch(() => '');
 
             if (js.trim() && dts.trim()) {
-              playgroundStore.setState({ lifecycle: 'ready', tscStatus: 'Ready', esbuildStatus: 'Ready' });
-              webContainerService.emitLog('info', 'Environment ready.');
+              const bootDuration = (Date.now() - startTime.current) / 1000;
+              playgroundStore.setState({ lifecycle: 'ready', tscStatus: 'Ready', esbuildStatus: 'Ready', bootTime: bootDuration });
+              webContainerService.emitLog('info', `Environment ready in ${bootDuration.toFixed(2)}s.`);
             } else {
               throw new Error('Emission incomplete');
             }
@@ -280,6 +281,14 @@ export function useWebContainer(
         await webContainerService.writeFile('tsconfig.json', tsConfigString);
     });
   }, [tsConfigString]);
+
+
+  const { packageManagerStatus } = usePlaygroundStore();
+  useEffect(() => {
+    if (packageManagerStatus === 'idle' && !isInitialSync.current) {
+       syncNodeTypes();
+    }
+  }, [packageManagerStatus, syncNodeTypes]);
 
   return { externalTypings, syncNodeTypes, syncEmittedTypes };
 }

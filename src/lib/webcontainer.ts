@@ -8,23 +8,31 @@ export const SYSTEM_DEPS = ['typescript', 'esbuild', 'prettier', 'lodash-es', '@
 
 export class WebContainerService {
   private instance: WebContainer | null = null;
+  private bootPromise: Promise<WebContainer> | null = null;
   private logCallbacks: Set<(log: { type: string; message: string; timestamp: number }) => void> = new Set();
 
   public serverUrl: string | null = null;
 
   async getInstance(): Promise<WebContainer> {
-    if (!this.instance) {
+    if (this.instance) return this.instance;
+    if (this.bootPromise) return this.bootPromise;
+
+    this.bootPromise = (async () => {
       playgroundStore.setState({ lifecycle: 'booting' });
       this.emitLog('info', 'Booting WebContainer...');
-      this.instance = await WebContainer.boot();
+      const instance = await WebContainer.boot();
+      this.instance = instance;
       this.emitLog('info', 'WebContainer booted.');
 
-      this.instance.on('server-ready', (port, url) => {
+      instance.on('server-ready', (port, url) => {
         this.serverUrl = url;
         this.emitLog('info', `Server ready: ${url} (port ${port})`);
       });
-    }
-    return this.instance;
+
+      return instance;
+    })();
+
+    return this.bootPromise;
   }
 
   onLog(cb: (log: { type: string; message: string; timestamp: number }) => void) {
