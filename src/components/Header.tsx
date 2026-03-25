@@ -60,10 +60,10 @@ export function Header({
   stopCode,
 }: HeaderProps) {
   return (
-    <header className="flex items-center justify-between px-1.5 md:px-3 h-10 md:h-14 bg-mantle border-b border-surface0 shrink-0 gap-1.5 md:gap-3 relative z-40">
+    <header className="flex items-center justify-between px-1 md:px-2 h-9 md:h-11 bg-mantle border-b border-surface0 shrink-0 gap-1 md:gap-2 relative z-40">
       {/* Brand */}
-      <div className="flex items-center gap-1.5 md:gap-2 px-1">
-        <span className="text-lg md:text-xl font-black tracking-tighter font-mono bg-gradient-to-r from-mauve to-peach bg-clip-text text-transparent drop-shadow-sm select-none">
+      <div className="flex items-center gap-1 md:gap-1.5 px-0.5">
+        <span className="text-base md:text-lg font-black tracking-tighter font-mono bg-gradient-to-r from-mauve to-peach bg-clip-text text-transparent drop-shadow-sm select-none">
           TS<span className="text-text/90">Play</span>
         </span>
       </div>
@@ -76,7 +76,7 @@ export function Header({
             onClick={() => {
               setActiveTab(tab);
             }}
-            className={`px-1.5 py-0.5 md:px-3 md:py-1.5 rounded border-none text-4xs md:text-xs font-semibold font-mono cursor-pointer tracking-wide uppercase transition-all duration-150 ${
+            className={`px-1 py-0.5 md:px-2 md:py-1 rounded border-none text-[10px] md:text-xs font-semibold font-mono cursor-pointer tracking-wide uppercase transition-all duration-150 ${
               activeTab === tab
                 ? 'bg-mauve/15 text-mauve shadow-sm ring-1 ring-mauve/30'
                 : 'bg-transparent text-overlay1 hover:text-text'
@@ -88,7 +88,7 @@ export function Header({
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-1 md:gap-2 shrink-0">
+      <div className="flex items-center gap-0.5 md:gap-1.5 shrink-0">
         {/* Theme toggle */}
         <IconButton
           onClick={() => {
@@ -106,16 +106,17 @@ export function Header({
           tooltipAlign="right"
           variant="surface"
           size="sm"
+          className="w-7 h-7 md:w-8 md:h-8"
         >
           {isDarkMode(themeMode) ? (
-            <Sun className="w-3 h-3 md:w-4 md:h-4" />
+            <Sun className="w-3.5 h-3.5 md:w-4 md:h-4" />
           ) : (
-            <Moon className="w-3 h-3 md:w-4 md:h-4" />
+            <Moon className="w-3.5 h-3.5 md:w-4 md:h-4" />
           )}
         </IconButton>
 
         {/* Separator */}
-        <div className="w-px h-3.5 md:h-5 bg-surface1 shrink-0 mx-0.5 md:mx-1" />
+        <div className="w-px h-3 md:h-4 bg-surface1 shrink-0 mx-0.5" />
 
         {/* Copy all */}
         <IconButton
@@ -124,16 +125,16 @@ export function Header({
           tooltipAlign="right"
           variant="surface"
           size="sm"
-          className={
+          className={`w-7 h-7 md:w-8 md:h-8 ${
             copied
               ? 'text-green border-green bg-green/15 hover:bg-green/20'
               : ''
-          }
+          }`}
         >
           {copied ? (
-            <Check className="w-3 h-3 md:w-4 md:h-4" />
+            <Check className="w-3.5 h-3.5 md:w-4 md:h-4" />
           ) : (
-            <Copy className="w-3 h-3 md:w-4 md:h-4" />
+            <Copy className="w-3.5 h-3.5 md:w-4 md:h-4" />
           )}
         </IconButton>
 
@@ -144,9 +145,9 @@ export function Header({
           tooltipAlign="right"
           variant="surface"
           size="sm"
-          className="text-red hover:text-red"
+          className="w-7 h-7 md:w-8 md:h-8 text-red hover:text-red"
         >
-          <Trash2 className="w-3 h-3 md:w-4 md:h-4" />
+          <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
         </IconButton>
 
         {/* Format */}
@@ -157,23 +158,23 @@ export function Header({
           tooltipAlign="right"
           variant="surface"
           size="sm"
-          className={
+          className={`w-7 h-7 md:w-8 md:h-8 ${
             formatSuccess
               ? 'text-green border-green bg-green/15 hover:bg-green/20'
               : ''
-          }
+          }`}
         >
           {formatting ? (
-            <Loader2 className="w-3 h-3 md:w-4 md:h-4 animate-spin" />
+            <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
           ) : formatSuccess ? (
-            <Check className="w-3 h-3 md:w-4 md:h-4" />
+            <Check className="w-3.5 h-3.5 md:w-4 md:h-4" />
           ) : (
-            <Wand2 className="w-3 h-3 md:w-4 md:h-4" />
+            <Wand2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
           )}
         </IconButton>
 
         {/* Separator */}
-        <div className="w-px h-3.5 md:h-5 bg-surface1 shrink-0 mx-0.5 md:mx-1" />
+        <div className="w-px h-3 md:h-4 bg-surface1 shrink-0 mx-0.5" />
 
         {/* Run / Stop */}
         {isRunning ? (
@@ -184,10 +185,10 @@ export function Header({
             size="sm"
             title="Stop execution"
             tooltipAlign="right"
-            className="font-mono tracking-wide bg-red! border-red! hover:bg-red/80 active:bg-red/90"
+            className="h-7 md:h-8 px-2 md:px-3 font-mono tracking-wide bg-red! border-red! hover:bg-red/80 active:bg-red/90 text-xs"
           >
-            <Square className="w-3 h-3 md:w-4 md:h-4" fill="currentColor" />
-            <span className="hidden sm:inline">Stop</span>
+            <Square className="w-3.5 h-3.5 md:w-4 md:h-4" fill="currentColor" />
+            <span className="hidden sm:inline ml-1">Stop</span>
           </Button>
         ) : (
           <Button
@@ -198,15 +199,15 @@ export function Header({
             size="sm"
             title="Run (compile + execute)"
             tooltipAlign="right"
-            className="font-mono tracking-wide"
+            className="h-7 md:h-8 px-2 md:px-3 font-mono tracking-wide text-xs"
           >
-            <Play className="w-3 h-3 md:w-4 md:h-4" fill="currentColor" />
-            <span className="hidden sm:inline">Run</span>
+            <Play className="w-3.5 h-3.5 md:w-4 md:h-4" fill="currentColor" />
+            <span className="hidden sm:inline ml-1">Run</span>
           </Button>
         )}
 
         {/* Separator */}
-        <div className="w-px h-3.5 md:h-5 bg-surface1 shrink-0 mx-0.5 md:mx-1" />
+        <div className="w-px h-3 md:h-4 bg-surface1 shrink-0 mx-0.5" />
 
         {/* Share */}
         <IconButton
@@ -216,18 +217,18 @@ export function Header({
           variant="surface"
           size="sm"
           disabled={sharing}
-          className={
+          className={`w-7 h-7 md:w-8 md:h-8 ${
             shareSuccess
               ? 'text-green border-green bg-green/15 hover:bg-green/20'
               : ''
-          }
+          }`}
         >
           {sharing ? (
-            <Loader2 className="w-3 h-3 md:w-4 md:h-4 animate-spin" />
+            <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
           ) : shareSuccess ? (
-            <Check className="w-3 h-3 md:w-4 md:h-4" />
+            <Check className="w-3.5 h-3.5 md:w-4 md:h-4" />
           ) : (
-            <Share2 className="w-3 h-3 md:w-4 md:h-4" />
+            <Share2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
           )}
         </IconButton>
       </div>

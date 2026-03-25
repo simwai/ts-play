@@ -20,6 +20,7 @@
     "@monaco-editor/react": "^4.7.0",
     "@webcontainer/api": "^1.6.1",
     "clsx": "2.1.1",
+    "dexie": "^4.3.0",
     "husky": "^9.1.7",
     "lucide-react": "^0.577.0",
     "monaco-editor": "^0.55.1",

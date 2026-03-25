@@ -71,7 +71,6 @@ export const CodeEditor = React.memo(
       focus: () => editorRef.current?.focus(),
     }));
 
-    // Ensure models are partitioned by "file:///" URI to maintain persistent state and highlighting isolation.
     const modelUri = useMemo(() => {
        if (!path) return undefined;
        return monaco?.Uri.parse(`file:///${path.replace(/^\//, '')}`);
@@ -100,7 +99,7 @@ export const CodeEditor = React.memo(
         if (extraLibs) {
            const libs = Object.entries(extraLibs).map(([p, content]) => ({
              content,
-             filePath: `file:///node_modules/${p.replace(/^\//, '')}`,
+             filePath: `file:///${p.replace(/^\//, '')}`,
            }));
            tsDefaults.setExtraLibs(libs);
            jsDefaults.setExtraLibs(libs);
@@ -124,7 +123,6 @@ export const CodeEditor = React.memo(
       }
     }, [monaco, extraLibs, disableDiagnostics]);
 
-    // Force language re-association on the specific model if it exists
     useEffect(() => {
       if (!monaco || !modelUri) return;
       const model = monaco.editor.getModel(modelUri);
