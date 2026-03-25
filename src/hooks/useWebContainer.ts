@@ -1,5 +1,4 @@
-import { useMemo } from 'react';
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { webContainerService, SYSTEM_DEPS } from '../lib/webcontainer';
 import { playgroundStore } from '../lib/state-manager';
 import { usePlaygroundStore } from './usePlaygroundStore';
@@ -23,13 +22,28 @@ while ((match = regex.exec(code)) !== null) {
 console.log(JSON.stringify([...new Set(imports)]));
 `;
 
+const VALIDATE_CONFIG_SCRIPT = `
+const fs = require('fs');
+let config = '';
+process.stdin.on('data', chunk => { config += chunk; });
+process.stdin.on('end', () => {
+  try {
+    JSON.parse(config);
+    console.log(JSON.stringify({ valid: true }));
+  } catch (e) {
+    console.log(JSON.stringify({ valid: false, error: e.message }));
+  }
+});
+`;
+
 export function useWebContainer(
   tsConfigString: string,
   tsCode: string,
   addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void,
   onArtifactsChange: (js: string, dts: string) => void
 ) {
-  const isInitialSync = useRef(true); const startTime = useRef(Date.now());
+  const isInitialSync = useRef(true);
+  const startTime = useRef(Date.now());
   const { inlineDeps } = usePlaygroundStore();
   const esbuildProcRef = useRef<any>(null);
 
@@ -111,6 +125,7 @@ export function useWebContainer(
         'package.json': { file: { contents: JSON.stringify(pkgJson, null, 2) } },
         'tsconfig.json': { file: { contents: tsConfigString } },
         'index.ts': { file: { contents: tsCode } },
+        '__validate_config.cjs': { file: { contents: VALIDATE_CONFIG_SCRIPT } },
         '__detect_imports.cjs': { file: { contents: DETECT_IMPORTS_SCRIPT } },
         'dist': { directory: {} }
       });
@@ -121,15 +136,17 @@ export function useWebContainer(
       if (exitCode !== 0) throw new Error('NPM install failed.');
     }
 
-    const [existingTs, existingTsConfig, existingDetect] = await Promise.all([
+    const [existingTs, existingTsConfig, existingDetect, existingValidate] = await Promise.all([
       webContainerService.readFile('index.ts').catch(() => ''),
       webContainerService.readFile('tsconfig.json').catch(() => ''),
-      webContainerService.readFile('__detect_imports.cjs').catch(() => '')
+      webContainerService.readFile('__detect_imports.cjs').catch(() => ''),
+      webContainerService.readFile('__validate_config.cjs').catch(() => '')
     ]);
 
     if (existingTs !== tsCode) await webContainerService.writeFile('index.ts', tsCode);
     if (existingTsConfig !== tsConfigString) await webContainerService.writeFile('tsconfig.json', tsConfigString);
     if (existingDetect !== DETECT_IMPORTS_SCRIPT) await webContainerService.writeFile('__detect_imports.cjs', DETECT_IMPORTS_SCRIPT);
+    if (existingValidate !== VALIDATE_CONFIG_SCRIPT) await webContainerService.writeFile('__validate_config.cjs', VALIDATE_CONFIG_SCRIPT);
 
     const wc = await webContainerService.getInstance();
     await wc.fs.mkdir('dist', { recursive: true }).catch(() => {});

@@ -92,7 +92,7 @@ export function App() {
     return parts.join(' | ') || 'Idle';
   }, [tscStatus, esbuildStatus]);
 
-  const { runCode, isRunning } = useCompilerManager();
+  const { runCode, stopCode, isRunning } = useCompilerManager();
 
   const handleRun = useCallback(async () => {
     if (jsDirty) {
@@ -169,7 +169,7 @@ export function App() {
         handleDeleteAll={handleDeleteAll}
         onSettings={() => setIsSettingsOpen(true)}
         doRun={handleRun}
-        stopCode={() => {}}
+        stopCode={stopCode}
         sharing={isSharing}
         formatting={isFormatting}
         isRunning={isRunning}

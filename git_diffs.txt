@@ -1,0 +1,3779 @@
+commit 2f30f584bdfe05238e1cb89a56c0b0ce44bcfb71
+Author: Simon Waiblinger <16225108+simwai@users.noreply.github.com>
+Date:   Wed Mar 25 09:11:31 2026 +0100
+
+    Merge pull request #46 from simwai/fix-dts-emission-and-readiness-11966835185685889900
+
+    feat: flawless playground implementation with performance tracking
+
+diff --git a/e2e/happy-path.spec.ts b/e2e/happy-path.spec.ts
+new file mode 100644
+index 0000000..2c4ce76
+--- /dev/null
++++ b/e2e/happy-path.spec.ts
+@@ -0,0 +1,18 @@
++import { test, expect } from '@playwright/test';
++
++test.describe('TSPlay Happy Path', () => {
++  test('reloads, waits for readiness, and runs code', async ({ page }) => {
++    await page.goto('/');
++
++    const runButton = page.getByTestId('header-run-button');
++    await expect(runButton).toBeDisabled();
++
++    // The status bar text can be complex, let's wait for the enabled state
++    await expect(runButton).toBeEnabled({ timeout: 120000 });
++
++    await runButton.click();
++
++    const consoleContainer = page.getByTestId('console-container');
++    await expect(consoleContainer).toContainText('Hello, Alice!', { timeout: 30000 });
++  });
++});
+diff --git a/e2e/visual-regression.spec.ts b/e2e/visual-regression.spec.ts
+new file mode 100644
+index 0000000..9caf4e8
+--- /dev/null
++++ b/e2e/visual-regression.spec.ts
+@@ -0,0 +1,65 @@
++import { test, expect } from '@playwright/test';
++
++test.describe('Visual Regression & Theme Verification', () => {
++  test.beforeEach(async ({ page }) => {
++    await page.goto('/');
++    // Wait for the environment to be ready
++    await page.waitForSelector('[data-testid="status-bar-compiler-status"]:has-text("Ready")', { timeout: 60000 });
++  });
++
++  const analyzeTheme = async (page, mode: 'light' | 'dark') => {
++    const stats = await page.evaluate((m) => {
++      const getLuminance = (el) => {
++        const rgb = window.getComputedStyle(el).backgroundColor.match(/\d+/g).map(Number);
++        return (rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114);
++      };
++
++      const bodyLum = getLuminance(document.body);
++      const headerLum = getLuminance(document.querySelector('header') || document.body);
++      const editorLum = getLuminance(document.querySelector('.monaco-editor-background') || document.body);
++
++      const isLight = (lum) => lum > 180;
++      const isDark = (lum) => lum < 80;
++
++      const check = (lum) => m === 'light' ? isLight(lum) : isDark(lum);
++
++      return {
++        body: check(bodyLum),
++        header: check(headerLum),
++        editor: check(editorLum)
++      };
++    }, mode);
++
++    const matchCount = Object.values(stats).filter(v => v === true).length;
++    // Require at least 2 out of 3 major components to match the theme expectation
++    expect(matchCount).toBeGreaterThanOrEqual(2);
++  };
++
++  test('Tab selection and dark theme check', async ({ page }) => {
++    // Default theme (Mocha) is dark
++    await page.click('button:has-text("TS")');
++    await analyzeTheme(page, 'dark');
++
++    await page.click('button:has-text("JS")');
++    await analyzeTheme(page, 'dark');
++
++    await page.click('button:has-text("DTS")');
++    await analyzeTheme(page, 'dark');
++  });
++
++  test('Settings modal and light theme check', async ({ page }) => {
++    // Open settings
++    await page.click('[data-testid="status-bar-settings-button"]');
++    await expect(page.locator('h2:has-text("Settings")')).toBeVisible();
++
++    // Switch to light mode (Latte)
++    await page.selectOption('select#editor-theme', 'latte');
++
++    // Check theme while modal is open
++    await analyzeTheme(page, 'light');
++
++    // Close and check again
++    await page.click('button:has-text("Close")');
++    await analyzeTheme(page, 'light');
++  });
++});
+diff --git a/playwright.config.ts b/playwright.config.ts
+new file mode 100644
+index 0000000..92b7444
+--- /dev/null
++++ b/playwright.config.ts
+@@ -0,0 +1,27 @@
++import { defineConfig, devices } from '@playwright/test';
++
++export default defineConfig({
++  testDir: './e2e',
++  fullyParallel: true,
++  forbidOnly: !!process.env.CI,
++  retries: process.env.CI ? 2 : 0,
++  workers: 1,
++  timeout: 180000,
++  reporter: 'list',
++  use: {
++    baseURL: 'http://localhost:5173',
++    trace: 'on-first-retry',
++  },
++  projects: [
++    {
++      name: 'chromium',
++      use: { ...devices['Desktop Chrome'] },
++    },
++  ],
++  webServer: {
++    command: 'npm run dev',
++    url: 'http://localhost:5173',
++    reuseExistingServer: !process.env.CI,
++    timeout: 120000,
++  },
++});
+diff --git a/src/App.tsx b/src/App.tsx
+new file mode 100644
+index 0000000..2e96cba
+--- /dev/null
++++ b/src/App.tsx
+@@ -0,0 +1,280 @@
++import { useState, useCallback, useRef, useMemo } from 'react';
++import { isDarkMode } from './lib/theme';
++import { CodeEditor, type CodeEditorHandle } from './components/CodeEditor';
++import { Console } from './components/Console';
++import { Header } from './components/Header';
++import { StatusBar } from './components/StatusBar';
++import { SettingsModal } from './components/SettingsModal';
++import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
++import { formatAllFiles } from './lib/formatter';
++import { useResizePanel } from './hooks/useResizePanel';
++import { useSwipeTabs } from './hooks/useSwipeTabs';
++import { shareSnippet } from './lib/api';
++import { useConsoleManager } from './hooks/useConsoleManager';
++import { useCompilerManager } from './hooks/useCompilerManager';
++import { usePackageManager } from './hooks/usePackageManager';
++import { useWebContainer } from './hooks/useWebContainer';
++import { playgroundStore } from './lib/state-manager';
++import { usePlaygroundStore } from './hooks/usePlaygroundStore';
++import { TABS, type TabType, DEFAULT_TSCONFIG } from './lib/constants';
++
++const DEFAULT_TS = `// TypeScript Playground
++// Powered by Node.js, Prettier and WebContainers! ✨
++
++import { map } from 'lodash-es';
++
++interface User {
++  name: string;
++  age: number;
++}
++
++function greet(user: User): string {
++  return \`Hello, \${user.name}!\`;
++}
++
++console.log(greet({ name: "Alice", age: 30 }));
++console.log("Mapped:", map([1, 2, 3], x => x * 2));
++`;
++
++export function App() {
++  const { theme, lineWrap, stripAnsi, isReady, tscStatus, esbuildStatus, lifecycle, packageManagerStatus } = usePlaygroundStore();
++
++  const [tsCode, setTsCode] = useState(DEFAULT_TS);
++  const [jsCode, setJsCode] = useState('');
++  const [dtsCode, setDtsCode] = useState('');
++  const [activeTab, setActiveTab] = useState<TabType>('ts');
++  const [tsConfigString, setTsConfigString] = useState(
++    () => localStorage.getItem('tsplay_tsconfig') || DEFAULT_TSCONFIG
++  );
++
++  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
++  const [isSharing, setIsSharing] = useState(false);
++  const [isFormatting, setFormatting] = useState(false);
++  const [copied, setCopied] = useState(false);
++  const [jsDirty, setJsDirty] = useState(false);
++  const [typeInfo, setTypeInfo] = useState('');
++  const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
++
++  const editorRef = useRef<CodeEditorHandle>(null);
++
++  const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } =
++    useConsoleManager();
++
++  const handleArtifactsChange = useCallback((js: string, dts: string) => {
++    // If JS is dirty, we don't overwrite it with auto-emitted code
++    if (js) {
++        setJsCode((prev) => (jsDirty ? prev : js));
++    }
++    if (dts) setDtsCode(dts);
++  }, [jsDirty]);
++
++  const { externalTypings } = useWebContainer(
++    tsConfigString,
++    tsCode,
++    addMessage,
++    handleArtifactsChange
++  );
++
++  const { tsCursorPos } = usePackageManager(tsCode, addMessage);
++
++  const statusText = useMemo(() => {
++    const parts = [];
++    if (tscStatus === 'Running' || tscStatus === 'Compiling') parts.push('TS...');
++    else if (tscStatus === 'Ready') parts.push('TS Ready');
++    else if (tscStatus === 'Preparing') parts.push('TS Prep');
++    else if (tscStatus === 'Error') parts.push('TS Error');
++
++    if (esbuildStatus === 'Running' || esbuildStatus === 'Compiling') parts.push('JS...');
++    else if (esbuildStatus === 'Ready') parts.push('JS Ready');
++    else if (esbuildStatus === 'Preparing') parts.push('JS Prep');
++    else if (esbuildStatus === 'Error') parts.push('JS Error');
++
++    return parts.join(' | ') || 'Idle';
++  }, [tscStatus, esbuildStatus]);
++
++  const { runCode, isRunning } = useCompilerManager();
++
++  const handleRun = useCallback(async () => {
++    if (jsDirty) {
++      if (!confirm('The JavaScript code has been modified. Running will overwrite your changes with the latest compiled code. Continue?')) {
++        return;
++      }
++      setJsDirty(false);
++    }
++    runCode();
++  }, [jsDirty, runCode]);
++
++  const handleCopyAll = useCallback(() => {
++    const code =
++      activeTab === 'ts' ? tsCode : activeTab === 'js' ? jsCode : dtsCode;
++    navigator.clipboard.writeText(code).then(() => {
++      setCopied(true);
++      setTimeout(() => setCopied(false), 1500);
++    });
++  }, [activeTab, tsCode, jsCode, dtsCode]);
++
++  const handleDeleteAll = useCallback(() => {
++    if (activeTab === 'ts') setTsCode('');
++    else if (activeTab === 'js') {
++      setJsCode('');
++      setJsDirty(false);
++    } else setDtsCode('');
++  }, [activeTab]);
++
++  const handleFormat = useCallback(async () => {
++    setFormatting(true);
++    try {
++      const fTs = await formatAllFiles(tsCode, '', '');
++      setTsCode(fTs.tsCode);
++    } catch (err) {
++      console.error('Format failed:', err);
++    } finally {
++      setFormatting(false);
++    }
++  }, [tsCode]);
++
++  const handleShare = useCallback(async () => {
++    setIsSharing(true);
++    try {
++      const url = await shareSnippet(tsCode, tsConfigString);
++      await navigator.clipboard.writeText(url);
++      addMessage('info', ['Share URL copied to clipboard!']);
++    } catch (err) {
++      addMessage('error', [
++        'Failed to share snippet: ' + (err as Error).message,
++      ]);
++    } finally {
++      setIsSharing(false);
++    }
++  }, [tsCode, tsConfigString, addMessage]);
++
++  const handleSaveTsConfig = (val: string) => {
++     setTsConfigString(val);
++     localStorage.setItem('tsplay_tsconfig', val);
++  };
++
++  useSwipeTabs(TABS, activeTab, (tab) => setActiveTab(tab as TabType));
++  const { compactForKeyboard, isMobileLike } = useVirtualKeyboard();
++  const { panelHeight, isResizing, handleResizeStart } = useResizePanel(11.25);
++
++  return (
++    <div
++      className={`h-[100dvh] flex flex-col bg-crust text-text transition-colors duration-300 ${isDarkMode(theme) ? 'dark' : ''}`}
++    >
++      <Header
++        onShare={handleShare}
++        onFormat={handleFormat}
++        handleCopyAll={handleCopyAll}
++        copied={copied}
++        handleDeleteAll={handleDeleteAll}
++        onSettings={() => setIsSettingsOpen(true)}
++        doRun={handleRun}
++        stopCode={() => {}}
++        sharing={isSharing}
++        formatting={isFormatting}
++        isRunning={isRunning}
++        activeTab={activeTab}
++        setActiveTab={(t) => setActiveTab(t as TabType)}
++        themeMode={theme}
++        setThemeMode={(t) => playgroundStore.setState({ theme: typeof t === 'function' ? t(theme) : t })}
++        compilerStatus={isReady ? 'ready' : (lifecycle === 'error' || tscStatus === 'Error' || esbuildStatus === 'Error' ? 'error' : 'loading')}
++        formatSuccess={false}
++        shareSuccess={false}
++      />
++
++      <StatusBar
++        statusText={statusText}
++        activeTab={activeTab}
++        jsDirty={jsDirty}
++        handleUndo={() => editorRef.current?.undo()}
++        handleRedo={() => editorRef.current?.redo()}
++        onOpenSettings={() => setIsSettingsOpen(true)}
++        compactForKeyboard={compactForKeyboard}
++        packageManagerStatus={packageManagerStatus}
++      />
++
++      <main className="flex-1 flex flex-col overflow-hidden relative border-t border-surface0/50">
++        <div className="flex-1 overflow-hidden">
++          <CodeEditor
++            ref={editorRef}
++            language={
++              activeTab === 'ts'
++                ? 'typescript'
++                : activeTab === 'js'
++                  ? 'javascript'
++                  : 'typescript'
++            }
++            value={
++              activeTab === 'ts'
++                ? tsCode
++                : activeTab === 'js'
++                  ? jsCode
++                  : dtsCode
++            }
++            onChange={(val) => {
++              if (activeTab === 'ts') setTsCode(val);
++              else if (activeTab === 'js') {
++                setJsCode(val);
++                setJsDirty(true);
++              } else setDtsCode(val);
++            }}
++            onCursorChange={(offset) => {
++              if (activeTab === 'ts') tsCursorPos.current = offset;
++            }}
++            onTypeInfoChange={setTypeInfo}
++            onCursorPosChange={setCursorPos}
++            path={
++              activeTab === 'ts'
++                ? 'index.ts'
++                : activeTab === 'js'
++                  ? 'index.js'
++                  : 'index.d.ts'
++            }
++            lineWrap={lineWrap}
++            themeMode={theme}
++            readOnly={activeTab === 'dts'}
++            extraLibs={externalTypings}
++            isMobileLike={isMobileLike}
++          />
++        </div>
++
++        {/* Type Info Bar */}
++        <div className="flex items-center justify-between px-4 py-1.5 bg-mantle border-t border-surface0/50 text-xxs font-mono text-overlay1 shrink-0">
++          <div className="truncate flex-1">
++             {typeInfo && <span className="text-mauve">{typeInfo}</span>}
++          </div>
++          <div className="ml-4 shrink-0 opacity-70">
++            Ln {cursorPos.line}, Col {cursorPos.col}
++          </div>
++        </div>
++
++        {/* Resizer */}
++        <div
++          onMouseDown={handleResizeStart}
++          onTouchStart={handleResizeStart}
++          className="h-1.5 w-full bg-surface0/30 hover:bg-mauve/40 cursor-ns-resize transition-colors duration-200 z-50 flex items-center justify-center relative"
++        >
++           <div className="w-8 h-0.5 bg-overlay0/20 rounded-full" />
++        </div>
++
++        <div style={{ height: `${panelHeight}rem` }} className="flex flex-col bg-mantle overflow-hidden">
++            <Console
++              messages={messages}
++              onClear={clearMessages}
++              isOpen={consoleOpen}
++              onToggle={toggleConsole}
++              contentHeight={panelHeight}
++              stripAnsiEnabled={stripAnsi}
++            />
++        </div>
++      </main>
++
++      <SettingsModal
++        isOpen={isSettingsOpen}
++        onClose={() => setIsSettingsOpen(false)}
++        tsConfigString={tsConfigString}
++        onSave={handleSaveTsConfig}
++      />
++    </div>
++  );
++}
+diff --git a/src/components/CodeEditor.tsx b/src/components/CodeEditor.tsx
+new file mode 100644
+index 0000000..83342d1
+--- /dev/null
++++ b/src/components/CodeEditor.tsx
+@@ -0,0 +1,195 @@
++import React, { useEffect, useRef, useMemo, useCallback } from 'react';
++import Editor, { useMonaco, type OnMount } from '@monaco-editor/react';
++import { cn } from '../lib/utils';
++import {
++  mocha,
++  latte,
++  githubDark,
++  githubLight,
++  monokai,
++} from '../lib/monaco-themes';
++
++type CodeEditorProps = {
++  value: string;
++  onChange?: (value: string) => void;
++  onCursorChange?: (offset: number) => void;
++  onTypeInfoChange?: (info: string) => void;
++  onCursorPosChange?: (pos: { line: number; col: number }) => void;
++  language?: 'typescript' | 'javascript' | 'json';
++  readOnly?: boolean;
++  extraLibs?: Record<string, string>;
++  isMobileLike?: boolean;
++  className?: string;
++  fontSizeOverride?: number;
++  hideGutter?: boolean;
++  disableAutocomplete?: boolean;
++  disableDiagnostics?: boolean;
++  lineWrap?: boolean;
++  hideTypeInfo?: boolean;
++  themeMode?: string;
++  path?: string;
++};
++
++export type CodeEditorHandle = {
++  undo: () => void;
++  redo: () => void;
++  focus: () => void;
++};
++
++let themesRegistered = false;
++const FONT_STACK = "'JetBrains Mono', 'Victor Mono', 'Fira Code', monospace";
++
++export const CodeEditor = React.memo(
++  React.forwardRef<CodeEditorHandle, CodeEditorProps>((props, ref) => {
++    const {
++      value,
++      onChange,
++      onCursorChange,
++      onTypeInfoChange,
++      onCursorPosChange,
++      language = 'typescript',
++      readOnly = false,
++      extraLibs,
++      isMobileLike,
++      className,
++      fontSizeOverride,
++      hideGutter = false,
++      disableAutocomplete = false,
++      disableDiagnostics = false,
++      lineWrap = false,
++      hideTypeInfo = false,
++      themeMode = 'mocha',
++      path,
++    } = props;
++
++    const monaco = useMonaco();
++    const editorRef = useRef<any>(null);
++
++    React.useImperativeHandle(ref, () => ({
++      undo: () => editorRef.current?.trigger('keyboard', 'undo', null),
++      redo: () => editorRef.current?.trigger('keyboard', 'redo', null),
++      focus: () => editorRef.current?.focus(),
++    }));
++
++    const modelUri = useMemo(() => {
++       if (!path) return undefined;
++       return monaco?.Uri.parse(`file:///${path.replace(/^\//, '')}`);
++    }, [monaco, path]);
++
++    useEffect(() => {
++      if (!monaco) return;
++      try {
++        if (!themesRegistered) {
++          monaco.editor.defineTheme('mocha', mocha);
++          monaco.editor.defineTheme('latte', latte);
++          monaco.editor.defineTheme('githubDark', githubDark);
++          monaco.editor.defineTheme('githubLight', githubLight);
++          monaco.editor.defineTheme('monokai', monokai);
++          themesRegistered = true;
++        }
++
++        const tsDefaults = monaco.languages.typescript.typescriptDefaults;
++        const jsDefaults = monaco.languages.typescript.javascriptDefaults;
++        const jsonDefaults = monaco.languages.json.jsonDefaults;
++
++        tsDefaults.setDiagnosticsOptions({ noSemanticValidation: disableDiagnostics, noSyntaxValidation: disableDiagnostics });
++        jsDefaults.setDiagnosticsOptions({ noSemanticValidation: disableDiagnostics, noSyntaxValidation: disableDiagnostics });
++        jsonDefaults.setDiagnosticsOptions({ validate: !disableDiagnostics, allowComments: true });
++
++        if (extraLibs) {
++           const libs = Object.entries(extraLibs).map(([p, content]) => ({
++             content,
++             filePath: `file:///${p.replace(/^\//, '')}`,
++           }));
++           tsDefaults.setExtraLibs(libs);
++           jsDefaults.setExtraLibs(libs);
++        }
++
++        const options = {
++          target: monaco.languages.typescript.ScriptTarget.ESNext,
++          allowNonTsExtensions: true,
++          moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
++          module: monaco.languages.typescript.ModuleKind.ESNext,
++          isolatedModules: true,
++noEmit: true,
++          esModuleInterop: true,
++          jsx: monaco.languages.typescript.JsxEmit.ReactJSX,
++          allowJs: true,
++          typeRoots: ['node_modules/@types'],
++        };
++        tsDefaults.setCompilerOptions(options);
++        jsDefaults.setCompilerOptions(options as any);
++      } catch (err) {
++        console.error('Monaco Setup Error:', err);
++      }
++    }, [monaco, extraLibs, disableDiagnostics]);
++
++    useEffect(() => {
++      if (!monaco || !modelUri) return;
++      const model = monaco.editor.getModel(modelUri);
++      if (model && model.getLanguageId() !== language) {
++        monaco.editor.setModelLanguage(model, language);
++      }
++    }, [monaco, modelUri, language]);
++
++    const handleEditorDidMount: OnMount = (editor) => {
++      editorRef.current = editor;
++      editor.onDidChangeCursorPosition(async (e: any) => {
++        const model = editor.getModel();
++        if (!model) return;
++
++        onCursorChange?.(model.getOffsetAt(e.position));
++        onCursorPosChange?.({ line: e.position.lineNumber, col: e.position.column });
++
++        if (!onTypeInfoChange || language !== 'typescript') return;
++        try {
++          const getter = await monaco.languages.typescript.getTypeScriptWorker();
++          const worker = await getter(model.uri);
++          const info = await worker.getQuickInfoAtPosition(model.uri.toString(), model.getOffsetAt(e.position));
++          onTypeInfoChange(info?.displayParts?.map((p: any) => p.text).join('') || '');
++        } catch {
++          onTypeInfoChange('');
++        }
++      });
++    };
++
++    const options = useMemo(() => ({
++      fontSize: fontSizeOverride || 12,
++      lineHeight: (fontSizeOverride || 12) * 1.5,
++      fontFamily: FONT_STACK,
++      fontLigatures: true,
++      readOnly,
++      minimap: { enabled: false },
++      scrollBeyondLastLine: false,
++      automaticLayout: true,
++      tabSize: 2,
++      wordWrap: lineWrap ? ('on' as const) : ('off' as const),
++      padding: { top: 8, bottom: 8 },
++      fixedOverflowWidgets: true,
++      links: false,
++      contextmenu: false,
++      theme: themeMode,
++      suggest: { enabled: !disableAutocomplete },
++      hover: { enabled: !hideTypeInfo },
++      renderLineHighlight: 'all' as const,
++      bracketPairColorization: { enabled: true },
++      guides: { indentation: true },
++      scrollbar: { vertical: hideGutter ? 'hidden' as const : 'auto' as const },
++    }), [fontSizeOverride, readOnly, hideGutter, lineWrap, disableAutocomplete, hideTypeInfo, themeMode]);
++
++    return (
++      <div data-testid="code-editor-container" className={cn('code-editor w-full h-full flex flex-col', className)}>
++        <Editor
++          height="100%"
++          language={language}
++          value={value}
++          onChange={(v) => onChange?.(v || '')}
++          onMount={handleEditorDidMount}
++          path={path}
++          options={options}
++          theme={themeMode}
++        />
++      </div>
++    );
++  }),
++);
+diff --git a/src/components/Console.tsx b/src/components/Console.tsx
+new file mode 100644
+index 0000000..3331ccc
+--- /dev/null
++++ b/src/components/Console.tsx
+@@ -0,0 +1,137 @@
++import React, { useRef, useEffect, useMemo } from 'react';
++import { Eraser } from 'lucide-react';
++import { Badge } from './ui/Badge';
++import { Button } from './ui/Button';
++import { PanelHeader } from './ui/PanelHeader';
++
++export type ConsoleMessage = {
++  type: 'log' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'dir';
++  args: string[];
++  ts: number;
++};
++
++type Props = {
++  messages: ConsoleMessage[];
++  onClear: () => void;
++  isOpen: boolean;
++  onToggle: () => void;
++  contentHeight: number;
++  stripAnsiEnabled?: boolean;
++};
++
++function typeVariant(type: ConsoleMessage['type']): 'error' | 'warn' | 'info' | 'default' {
++  if (type === 'error') return 'error';
++  if (type === 'warn' || type === 'trace') return 'warn';
++  if (type === 'info' || type === 'debug' || type === 'dir') return 'info';
++  return 'default';
++}
++
++function typeLabel(type: ConsoleMessage['type']): string {
++  if (type === 'error') return 'ERR';
++  if (type === 'warn') return 'WRN';
++  if (type === 'info') return 'INF';
++  if (type === 'debug') return 'DBG';
++  if (type === 'trace') return 'TRC';
++  if (type === 'dir') return 'DIR';
++  return 'LOG';
++}
++
++function typeColorClass(type: ConsoleMessage['type']): string {
++  if (type === 'error') return 'text-red';
++  if (type === 'warn' || type === 'trace') return 'text-yellow';
++  if (type === 'info' || type === 'debug' || type === 'dir') return 'text-blue';
++  return 'text-text';
++}
++
++// Uncle Bob: Clear, focused utility for stripping ANSI sequences
++function stripAnsi(text: string): string {
++  const ansiRegex = /[\u001b\u009b][\[\]()#;?]*[0-9;]*[a-zA-Z]/g;
++  return text.replace(ansiRegex, '');
++}
++
++export const Console = React.memo(function Console({
++  messages,
++  onClear,
++  isOpen,
++  onToggle,
++  contentHeight,
++  stripAnsiEnabled = false,
++}: Props) {
++  const bottomRef = useRef<HTMLDivElement>(null);
++
++  useEffect(() => {
++    if (isOpen) {
++       requestAnimationFrame(() => {
++         bottomRef.current?.scrollIntoView({ behavior: 'auto' });
++       });
++    }
++  }, [messages.length, isOpen]);
++
++  const stats = useMemo(() => {
++     let err = 0, wrn = 0;
++     for (const m of messages) {
++       if (m.type === 'error') err++;
++       if (m.type === 'warn') wrn++;
++     }
++     return { err, wrn };
++  }, [messages]);
++
++  return (
++    <div className="flex flex-col h-full bg-mantle shrink-0" data-testid="console-container">
++      <PanelHeader
++        label="Console"
++        isOpen={isOpen}
++        onToggle={onToggle}
++        left={
++          <>
++            {messages.length > 0 && <Badge label={String(messages.length)} />}
++            {stats.err > 0 && <Badge label={`${stats.err} err`} variant="error" />}
++            {stats.wrn > 0 && <Badge label={`${stats.wrn} warn`} variant="warn" />}
++          </>
++        }
++        right={
++          messages.length > 0 ? (
++            <Button
++              onClick={(e) => { e.stopPropagation(); onClear(); }}
++              variant="secondary"
++              size="xs"
++              title="Clear console"
++              data-testid="console-clear-button"
++            >
++              <Eraser size={12} />
++              Clear
++            </Button>
++          ) : undefined
++        }
++      />
++
++      {isOpen && (
++        <div className="overflow-y-auto overflow-x-hidden border-t border-surface0 flex-1" style={{ height: `${contentHeight}rem` }}>
++          {messages.length === 0 ? (
++            <div className="flex items-center justify-center h-full text-overlay0 text-xxs md:text-xs italic font-mono">
++              No output yet — press Run to execute
++            </div>
++          ) : (
++            messages.map((m, idx) => {
++              if (!m || !m.args) return null;
++              let fullText = m.args.join(' ');
++              if (stripAnsiEnabled) {
++                fullText = stripAnsi(fullText);
++              }
++
++              return (
++                <div key={`${m.ts}-${idx}`} data-testid="console-line" className={`flex items-start gap-3 px-4 py-1.5 border-b border-surface0/20 ${m.type === 'error' ? 'bg-red/5' : m.type === 'warn' ? 'bg-yellow/5' : ''}`}>
++                  <Badge label={typeLabel(m.type)} variant={typeVariant(m.type)} className="mt-0.5" />
++                  <pre className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}>
++                    {fullText}
++                  </pre>
++                </div>
++              );
++            })
++          )}
++          <div ref={bottomRef} className="h-4 w-full" />
++        </div>
++      )}
++    </div>
++  );
++});
+diff --git a/src/components/Header.tsx b/src/components/Header.tsx
+new file mode 100644
+index 0000000..ef9185b
+--- /dev/null
++++ b/src/components/Header.tsx
+@@ -0,0 +1,237 @@
++import {
++  Sun,
++  Moon,
++  Copy,
++  Check,
++  Trash2,
++  Wand2,
++  Loader2,
++  Play,
++  Square,
++  Share2,
++} from 'lucide-react';
++import { IconButton } from './ui/IconButton';
++import { Button } from './ui/Button';
++import {
++  type ThemeMode,
++  DARK_THEMES,
++  LIGHT_THEMES,
++  isDarkMode,
++} from '../lib/theme';
++import { TABS, type TabType } from '../lib/constants';
++
++type HeaderProps = {
++  activeTab: TabType;
++  setActiveTab: (tab: TabType) => void;
++  themeMode: ThemeMode;
++  setThemeMode: (mode: ThemeMode | ((m: ThemeMode) => ThemeMode)) => void;
++  handleCopyAll: () => void;
++  copied: boolean;
++  handleDeleteAll: () => void;
++  handleFormat: () => void;
++  formatting: boolean;
++  formatSuccess: boolean;
++  doRun: (skipDirtyCheck?: boolean) => void;
++  isRunning: boolean;
++  compilerStatus: 'loading' | 'ready' | 'error';
++  handleShare: () => void;
++  sharing: boolean;
++  shareSuccess: boolean;
++  stopCode?: () => void;
++};
++
++export function Header({
++  activeTab,
++  setActiveTab,
++  themeMode,
++  setThemeMode,
++  handleCopyAll,
++  copied,
++  handleDeleteAll,
++  handleFormat,
++  formatting,
++  formatSuccess,
++  doRun,
++  isRunning,
++  compilerStatus,
++  handleShare,
++  sharing,
++  shareSuccess,
++  stopCode,
++}: HeaderProps) {
++  return (
++    <header className="flex items-center justify-between px-1 md:px-2 h-9 md:h-11 bg-mantle border-b border-surface0 shrink-0 gap-1 md:gap-2 relative z-40">
++      {/* Brand */}
++      <div className="flex items-center gap-1 md:gap-1.5 px-0.5">
++        <span className="text-base md:text-lg font-black tracking-tighter font-mono bg-gradient-to-r from-mauve to-peach bg-clip-text text-transparent drop-shadow-sm select-none">
++          TS<span className="text-text/90">Play</span>
++        </span>
++      </div>
++
++      {/* Tabs */}
++      <div className="flex bg-surface0 rounded-md p-0.5 gap-0.5 shrink">
++        {TABS.map((tab) => (
++          <button
++            key={tab}
++            onClick={() => {
++              setActiveTab(tab);
++            }}
++            className={`px-1 py-0.5 md:px-2 md:py-1 rounded border-none text-[10px] md:text-xs font-semibold font-mono cursor-pointer tracking-wide uppercase transition-all duration-150 ${
++              activeTab === tab
++                ? 'bg-mauve/15 text-mauve shadow-sm ring-1 ring-mauve/30'
++                : 'bg-transparent text-overlay1 hover:text-text'
++            }`}
++          >
++            {tab}
++          </button>
++        ))}
++      </div>
++
++      {/* Actions */}
++      <div className="flex items-center gap-0.5 md:gap-1.5 shrink-0">
++        {/* Theme toggle */}
++        <IconButton
++          onClick={() => {
++            setThemeMode((m) => {
++              const currentIsDark = isDarkMode(m);
++              const oppositeThemes = currentIsDark ? LIGHT_THEMES : DARK_THEMES;
++              return oppositeThemes[0];
++            });
++          }}
++          title={
++            isDarkMode(themeMode)
++              ? 'Switch to Light Mode'
++              : 'Switch to Dark Mode'
++          }
++          tooltipAlign="right"
++          variant="surface"
++          size="sm"
++          className="w-7 h-7 md:w-8 md:h-8"
++        >
++          {isDarkMode(themeMode) ? (
++            <Sun className="w-3.5 h-3.5 md:w-4 md:h-4" />
++          ) : (
++            <Moon className="w-3.5 h-3.5 md:w-4 md:h-4" />
++          )}
++        </IconButton>
++
++        {/* Separator */}
++        <div className="w-px h-3 md:h-4 bg-surface1 shrink-0 mx-0.5" />
++
++        {/* Copy all */}
++        <IconButton
++          onClick={handleCopyAll}
++          title={`Copy all ${activeTab}`}
++          tooltipAlign="right"
++          variant="surface"
++          size="sm"
++          className={`w-7 h-7 md:w-8 md:h-8 ${
++            copied
++              ? 'text-green border-green bg-green/15 hover:bg-green/20'
++              : ''
++          }`}
++        >
++          {copied ? (
++            <Check className="w-3.5 h-3.5 md:w-4 md:h-4" />
++          ) : (
++            <Copy className="w-3.5 h-3.5 md:w-4 md:h-4" />
++          )}
++        </IconButton>
++
++        {/* Delete all */}
++        <IconButton
++          onClick={handleDeleteAll}
++          title={`Clear ${activeTab} editor`}
++          tooltipAlign="right"
++          variant="surface"
++          size="sm"
++          className="w-7 h-7 md:w-8 md:h-8 text-red hover:text-red"
++        >
++          <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
++        </IconButton>
++
++        {/* Format */}
++        <IconButton
++          onClick={handleFormat}
++          disabled={formatting}
++          title="Format all files with Prettier (TS + JS + DTS)"
++          tooltipAlign="right"
++          variant="surface"
++          size="sm"
++          className={`w-7 h-7 md:w-8 md:h-8 ${
++            formatSuccess
++              ? 'text-green border-green bg-green/15 hover:bg-green/20'
++              : ''
++          }`}
++        >
++          {formatting ? (
++            <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
++          ) : formatSuccess ? (
++            <Check className="w-3.5 h-3.5 md:w-4 md:h-4" />
++          ) : (
++            <Wand2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
++          )}
++        </IconButton>
++
++        {/* Separator */}
++        <div className="w-px h-3 md:h-4 bg-surface1 shrink-0 mx-0.5" />
++
++        {/* Run / Stop */}
++        {isRunning ? (
++          <Button
++            onClick={() => stopCode?.()}
++            data-testid="header-stop-button"
++            variant="primary"
++            size="sm"
++            title="Stop execution"
++            tooltipAlign="right"
++            className="h-7 md:h-8 px-2 md:px-3 font-mono tracking-wide bg-red! border-red! hover:bg-red/80 active:bg-red/90 text-xs"
++          >
++            <Square className="w-3.5 h-3.5 md:w-4 md:h-4" fill="currentColor" />
++            <span className="hidden sm:inline ml-1">Stop</span>
++          </Button>
++        ) : (
++          <Button
++            onClick={async () => doRun(false)}
++            data-testid="header-run-button"
++            disabled={compilerStatus !== 'ready'}
++            variant="primary"
++            size="sm"
++            title="Run (compile + execute)"
++            tooltipAlign="right"
++            className="h-7 md:h-8 px-2 md:px-3 font-mono tracking-wide text-xs"
++          >
++            <Play className="w-3.5 h-3.5 md:w-4 md:h-4" fill="currentColor" />
++            <span className="hidden sm:inline ml-1">Run</span>
++          </Button>
++        )}
++
++        {/* Separator */}
++        <div className="w-px h-3 md:h-4 bg-surface1 shrink-0 mx-0.5" />
++
++        {/* Share */}
++        <IconButton
++          onClick={handleShare}
++          title={sharing ? 'Sharing...' : 'Share snippet (expires in 7 days)'}
++          tooltipAlign="right"
++          variant="surface"
++          size="sm"
++          disabled={sharing}
++          className={`w-7 h-7 md:w-8 md:h-8 ${
++            shareSuccess
++              ? 'text-green border-green bg-green/15 hover:bg-green/20'
++              : ''
++          }`}
++        >
++          {sharing ? (
++            <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
++          ) : shareSuccess ? (
++            <Check className="w-3.5 h-3.5 md:w-4 md:h-4" />
++          ) : (
++            <Share2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
++          )}
++        </IconButton>
++      </div>
++    </header>
++  );
++}
+diff --git a/src/components/Modal.tsx b/src/components/Modal.tsx
+new file mode 100644
+index 0000000..5bf7cb9
+--- /dev/null
++++ b/src/components/Modal.tsx
+@@ -0,0 +1,67 @@
++import { useEffect } from 'react';
++import { Button } from './ui/Button';
++
++type Props = {
++  onConfirm: () => void;
++  onCancel: () => void;
++};
++
++export function OverrideModal({ onConfirm, onCancel }: Props) {
++  useEffect(() => {
++    const handler = (e: KeyboardEvent) => {
++      if (e.key === 'Escape') onCancel();
++      if (e.key === 'Enter') onConfirm();
++    };
++
++    globalThis.addEventListener('keydown', handler);
++    return () => {
++      globalThis.removeEventListener('keydown', handler);
++    };
++  }, [onCancel, onConfirm]);
++
++  return (
++    <div
++      onClick={onCancel}
++      className="fixed inset-0 z-50 flex items-center justify-center bg-crust/75 backdrop-blur-sm"
++    >
++      <div
++        onClick={(e) => {
++          e.stopPropagation();
++        }}
++        className="bg-mantle border border-surface1 rounded-xl w-full max-w-sm mx-4 overflow-hidden shadow-2xl shadow-crust"
++      >
++        <div className="p-5 pb-4 flex items-start gap-3">
++          <div className="w-9 h-9 rounded-lg shrink-0 bg-peach/20 border border-peach/30 flex items-center justify-center text-lg">
++            ⚠️
++          </div>
++          <div>
++            <h3 className="m-0 text-base font-semibold text-text">
++              Override JS Code?
++            </h3>
++            <p className="m-0 mt-1.5 text-sm text-subtext0 leading-relaxed">
++              The JavaScript editor has been manually edited. Running TypeScript
++              will overwrite those changes.
++            </p>
++            <p className="m-0 mt-1.5 text-xs text-overlay0 font-mono">
++              Press <strong className="text-text">Enter</strong> to confirm,{' '}
++              <strong className="text-text">Escape</strong> to cancel.
++            </p>
++          </div>
++        </div>
++
++        <div className="flex gap-2 px-4 py-3 justify-end border-t border-surface0">
++          <Button onClick={onCancel} variant="secondary">
++            Cancel
++          </Button>
++          <Button
++            onClick={onConfirm}
++            variant="primary"
++            className="bg-peach text-crust hover:bg-peach/90"
++          >
++            Override
++          </Button>
++        </div>
++      </div>
++    </div>
++  );
++}
+diff --git a/src/components/PackageManager.tsx b/src/components/PackageManager.tsx
+new file mode 100644
+index 0000000..3d8bb46
+--- /dev/null
++++ b/src/components/PackageManager.tsx
+@@ -0,0 +1,84 @@
++import React from 'react';
++import { Badge } from './ui/Badge';
++import { PanelHeader } from './ui/PanelHeader';
++
++export type InstalledPackage = {
++  name: string;
++  version: string;
++};
++
++type Props = {
++  packages: InstalledPackage[];
++  isOpen: boolean;
++  onToggle: () => void;
++  contentHeight: number; // Now in rem
++};
++
++export const PackageManager = React.memo(function PackageManager({
++  packages,
++  isOpen,
++  onToggle,
++  contentHeight,
++}: Props) {
++  return (
++    <div className="border-t border-surface0 bg-mantle shrink-0">
++      <PanelHeader
++        label="📦 Auto-Detected Packages"
++        isOpen={isOpen}
++        onToggle={onToggle}
++        left={
++          packages.length > 0 ? (
++            <Badge label={String(packages.length)} />
++          ) : undefined
++        }
++      />
++
++      {isOpen && (
++        <div
++          className="overflow-y-auto overflow-x-hidden border-t border-surface0 p-4 flex flex-col gap-4 box-border"
++          style={{ height: `${contentHeight}rem` }}
++        >
++          {packages.length > 0 ? (
++            <div className="flex flex-col gap-2">
++              <span className="text-xs font-semibold text-overlay1 uppercase tracking-wider">
++                Detected Imports ({packages.length})
++              </span>
++
++              {packages.map((pkg) => (
++                <div
++                  key={pkg.name}
++                  className="flex items-center gap-3 px-3 py-2.5 bg-surface0 border border-surface1 rounded-md"
++                >
++                  <div className="flex-1 min-w-0 flex flex-col gap-1">
++                    <div className="flex items-center gap-2 flex-wrap">
++                      <span className="text-text text-sm font-semibold font-mono">
++                        {pkg.name}
++                      </span>
++                      <Badge label={pkg.version} variant="info" />
++                    </div>
++                  </div>
++                </div>
++              ))}
++            </div>
++          ) : (
++            <div className="p-6 text-center text-overlay0 text-sm font-mono">
++              No external imports detected.
++              <br />
++              <br />
++              <span className="opacity-70 text-xs">
++                Type{' '}
++                <code className="text-mauve">import React from 'react'</code> to
++                see it appear here automatically.
++              </span>
++            </div>
++          )}
++
++          <div className="text-xs text-overlay0 italic mt-auto">
++            Packages are automatically detected and installed via npm in the
++            WebContainer.
++          </div>
++        </div>
++      )}
++    </div>
++  );
++});
+diff --git a/src/components/SettingsModal.tsx b/src/components/SettingsModal.tsx
+new file mode 100644
+index 0000000..af886cb
+--- /dev/null
++++ b/src/components/SettingsModal.tsx
+@@ -0,0 +1,257 @@
++import { useState, useEffect } from 'react';
++import { X, Save, RotateCcw, Box, Cpu, FileJson, Layers, Monitor, AlertCircle, PackageCheck } from 'lucide-react';
++import { Button } from './ui/Button';
++import { IconButton } from './ui/IconButton';
++import { Badge } from './ui/Badge';
++import { CodeEditor } from './CodeEditor';
++import { webContainerService } from '../lib/webcontainer';
++import { playgroundStore } from '../lib/state-manager';
++import { usePlaygroundStore } from '../hooks/usePlaygroundStore';
++import { type ThemeMode, DARK_THEMES, LIGHT_THEMES, isDarkMode } from '../lib/theme';
++import { DEFAULT_TSCONFIG } from '../lib/constants';
++
++type SettingsModalProps = {
++  isOpen: boolean;
++  onClose: () => void;
++  tsConfigString: string;
++  onSave: (val: string) => void;
++};
++
++export function SettingsModal({
++  isOpen,
++  onClose,
++  tsConfigString,
++  onSave,
++}: SettingsModalProps) {
++  const { theme, stripAnsi, lineWrap, inlineDeps, packageManagerStatus } = usePlaygroundStore();
++  const [temporaryTsConfig, setTemporaryTsConfig] = useState(tsConfigString);
++  const [isSaving, setIsSaving] = useState(false);
++  const [configError, setConfigError] = useState<string | null>(null);
++
++  useEffect(() => {
++    if (isOpen) {
++      setTemporaryTsConfig(tsConfigString);
++      setConfigError(null);
++    }
++  }, [isOpen, tsConfigString]);
++
++  const validateConfig = async (config: string) => {
++    try {
++      const result = await webContainerService.enqueue(async () => {
++         let output = '';
++         const proc = await webContainerService.spawnManaged('node', ['__validate_config.cjs', config], {
++           silent: true,
++           onLog: (line) => { output += line; }
++         });
++         await proc.exit;
++         return JSON.parse(output.trim()) as { valid: boolean; error?: string };
++      });
++      return result;
++    } catch (e) {
++      return { valid: false, error: (e as Error).message };
++    }
++  };
++
++  const handleSave = async () => {
++    setIsSaving(true);
++    const result = await validateConfig(temporaryTsConfig);
++    if (result.valid) {
++      onSave(temporaryTsConfig);
++      onClose();
++    } else {
++      setConfigError(result.error || 'Invalid tsconfig.json');
++    }
++    setIsSaving(false);
++  };
++
++  const handleReset = () => {
++    if (confirm('Reset tsconfig.json to defaults?')) {
++      setTemporaryTsConfig(DEFAULT_TSCONFIG);
++      setConfigError(null);
++    }
++  };
++
++  const currentIsDark = isDarkMode(theme);
++  const themeOptions = currentIsDark ? DARK_THEMES : LIGHT_THEMES;
++
++  if (!isOpen) return null;
++
++  return (
++    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-crust/80 backdrop-blur-sm animate-in fade-in duration-200">
++      <div className="bg-mantle border border-surface0 w-full max-w-2xl rounded-xl shadow-2xl flex flex-col max-h-[90dvh] overflow-hidden">
++        {/* Header */}
++        <div className="flex items-center justify-between px-6 py-4 border-b border-surface0 bg-mantle/50">
++          <div className="flex items-center gap-3">
++            <Cpu className="text-mauve" size={20} />
++            <h2 className="text-lg font-bold tracking-tight text-text">System Settings</h2>
++          </div>
++          <IconButton onClick={onClose} title="Close" size="sm" variant="ghost">
++            <X size={20} />
++          </IconButton>
++        </div>
++
++        {/* Content */}
++        <div className="flex-1 overflow-y-auto p-6 space-y-8">
++          {/* Appearance */}
++          <section className="space-y-4">
++            <div className="flex items-center gap-2 text-mauve font-semibold">
++              <Monitor size={18} />
++              <h3>Appearance</h3>
++            </div>
++            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
++              <div className="space-y-2">
++                <label htmlFor="theme-select" className="text-xs font-mono text-overlay1 uppercase tracking-wider">Editor Theme</label>
++                <select
++                  id="theme-select"
++                  value={theme}
++                  onChange={(e) => playgroundStore.setState({ theme: e.target.value as ThemeMode })}
++                  className="w-full bg-crust border border-surface0 text-text rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-mauve transition-all"
++                >
++                  {themeOptions.map(t => (
++                    <option key={t} value={t}>
++                      {t.charAt(0).toUpperCase() + t.slice(1).replace(/([A-Z])/g, ' ')}
++                    </option>
++                  ))}
++                </select>
++                <p className="text-xxs text-overlay0 italic">Only showing {currentIsDark ? 'dark' : 'light'} themes.</p>
++              </div>
++              <div className="flex flex-col justify-end space-y-3">
++                <label className="flex items-center gap-3 cursor-pointer group">
++                  <div className="relative flex items-center">
++                    <input
++                      type="checkbox"
++                      checked={stripAnsi}
++                      onChange={(e) => playgroundStore.setState({ stripAnsi: e.target.checked })}
++                      className="sr-only peer"
++                    />
++                    <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors"></div>
++                    <div className="absolute left-1 w-3 h-3 bg-text rounded-full transition-transform peer-checked:translate-x-5"></div>
++                  </div>
++                  <span className="text-sm text-overlay1 group-hover:text-text transition-colors">Strip ANSI Escapes</span>
++                </label>
++                <label className="flex items-center gap-3 cursor-pointer group">
++                  <div className="relative flex items-center">
++                    <input
++                      type="checkbox"
++                      checked={lineWrap}
++                      onChange={(e) => playgroundStore.setState({ lineWrap: e.target.checked })}
++                      className="sr-only peer"
++                    />
++                    <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors"></div>
++                    <div className="absolute left-1 w-3 h-3 bg-text rounded-full transition-transform peer-checked:translate-x-5"></div>
++                  </div>
++                  <span className="text-sm text-overlay1 group-hover:text-text transition-colors">Soft Line Wrap</span>
++                </label>
++              </div>
++            </div>
++          </section>
++
++          {/* Compilation & Dependencies */}
++          <section className="space-y-4">
++             <div className="flex items-center gap-2 text-mauve font-semibold">
++                <PackageCheck size={18} />
++                <h3>Compilation & Bundling</h3>
++              </div>
++              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
++                <label className="flex items-center gap-3 cursor-pointer group">
++                    <div className="relative flex items-center">
++                      <input
++                        type="checkbox"
++                        checked={inlineDeps}
++                        onChange={(e) => playgroundStore.setState({ inlineDeps: e.target.checked })}
++                        className="sr-only peer"
++                      />
++                      <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors"></div>
++                      <div className="absolute left-1 w-3 h-3 bg-text rounded-full transition-transform peer-checked:translate-x-5"></div>
++                    </div>
++                    <div>
++                      <span className="text-sm text-overlay1 group-hover:text-text transition-colors block">Inline Dependencies</span>
++                      <span className="text-4xs text-overlay0 uppercase font-mono tracking-tighter">BUNDLE node_modules into output</span>
++                    </div>
++                </label>
++              </div>
++          </section>
++
++          {/* TSConfig Editor */}
++          <section className="space-y-4">
++            <div className="flex items-center justify-between">
++              <div className="flex items-center gap-2 text-mauve font-semibold">
++                <FileJson size={18} />
++                <h3>Compiler Configuration</h3>
++              </div>
++              <Badge label="tsconfig.json" />
++            </div>
++            <div className="h-64 border border-surface0 rounded-lg overflow-hidden bg-crust relative">
++              <CodeEditor
++                language="json"
++                value={temporaryTsConfig}
++                onChange={setTemporaryTsConfig}
++                fontSizeOverride={12}
++                hideGutter={false}
++                disableAutocomplete
++                themeMode={theme}
++                path="tsconfig.json"
++              />
++              {configError && (
++                <div className="absolute bottom-0 inset-x-0 bg-red/10 border-t border-red/20 p-2 flex items-center gap-2 text-xxs text-red animate-in slide-in-from-bottom-2">
++                  <AlertCircle size={12} className="shrink-0" />
++                  <span className="truncate">{configError}</span>
++                </div>
++              )}
++            </div>
++          </section>
++
++          {/* Environment Info */}
++          <section className="space-y-4">
++             <div className="flex items-center gap-2 text-mauve font-semibold">
++                <Layers size={18} />
++                <h3>Environment</h3>
++              </div>
++              <div className="p-4 bg-crust border border-surface0 rounded-lg space-y-3">
++                 <div className="flex items-center justify-between text-xs font-mono">
++                    <span className="text-overlay1">Runtime</span>
++                    <span className="text-mauve flex items-center gap-1.5"><Box size={12}/> WebContainer</span>
++                 </div>
++                 <div className="flex items-center justify-between text-xs font-mono">
++                    <span className="text-overlay1">PM Status</span>
++                    <span className={packageManagerStatus === 'idle' ? 'text-green' : 'text-yellow'}>
++                      {packageManagerStatus.toUpperCase()}
++                    </span>
++                 </div>
++              </div>
++          </section>
++        </div>
++
++        {/* Footer */}
++        <div className="px-6 py-4 border-t border-surface0 bg-mantle flex items-center justify-between shrink-0">
++          <Button
++            variant="secondary"
++            size="sm"
++            onClick={handleReset}
++            className="text-overlay1 hover:text-red hover:bg-red/5"
++          >
++            <RotateCcw size={16} />
++            Reset Defaults
++          </Button>
++          <div className="flex items-center gap-3">
++             <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
++             <Button
++                onClick={handleSave}
++                disabled={isSaving}
++                className="bg-mauve hover:bg-mauve/90 text-crust font-bold min-w-[100px]"
++              >
++               {isSaving ? (
++                 <div className="w-4 h-4 border-2 border-crust border-t-transparent rounded-full animate-spin" />
++               ) : (
++                 <>
++                   <Save size={16} />
++                   Save Changes
++                 </>
++               )}
++             </Button>
++          </div>
++        </div>
++      </div>
++    </div>
++  );
++}
+diff --git a/src/components/StatusBar.tsx b/src/components/StatusBar.tsx
+new file mode 100644
+index 0000000..6f437c0
+--- /dev/null
++++ b/src/components/StatusBar.tsx
+@@ -0,0 +1,116 @@
++import { Undo2, Redo2, Settings } from 'lucide-react';
++import { IconButton } from './ui/IconButton';
++import type { TabType } from '../lib/constants';
++import type { PackageManagerStatus } from '../hooks/usePackageManager';
++import { usePlaygroundStore } from '../hooks/usePlaygroundStore';
++
++type StatusBarProps = {
++  statusText: string;
++  activeTab: TabType;
++  jsDirty: boolean;
++  handleUndo: () => void;
++  handleRedo: () => void;
++  onOpenSettings: () => void;
++  compactForKeyboard: boolean;
++  packageManagerStatus: PackageManagerStatus;
++};
++
++export function StatusBar({
++  statusText,
++  activeTab,
++  jsDirty,
++  handleUndo,
++  handleRedo,
++  onOpenSettings,
++  compactForKeyboard,
++  packageManagerStatus,
++}: StatusBarProps) {
++  const { bootTime } = usePlaygroundStore();
++
++  const pmLabel =
++    packageManagerStatus === 'installing'
++      ? 'Installing...'
++      : packageManagerStatus === 'uninstalling'
++        ? 'Uninstalling...'
++        : packageManagerStatus === 'syncing'
++          ? 'Syncing...'
++          : packageManagerStatus === 'error'
++            ? 'PM Error'
++            : '';
++
++  const statusColorClass = statusText.includes('Error')
++    ? 'text-red'
++    : statusText.includes('...') || statusText.includes('Prep')
++    ? 'text-yellow'
++    : 'text-green';
++
++  return (
++    <div
++      className="flex items-center justify-between px-2 md:px-4 bg-crust border-b border-surface0 shrink-0 relative z-30 gap-2 md:gap-4 h-8 md:h-9"
++      style={compactForKeyboard ? { height: '1.5rem' } : undefined}
++    >
++      <div className="flex items-center justify-start flex-1 min-w-0 gap-2 md:gap-4">
++        <span
++          className={`text-3xs md:text-xs font-mono tracking-wide truncate ${statusColorClass}`}
++          data-testid="status-bar-compiler-status"
++        >
++          {statusText}
++        </span>
++        {pmLabel && (
++          <span className="text-3xs md:text-xs font-mono tracking-wide text-mauve animate-pulse truncate shrink-0">
++            {pmLabel}
++          </span>
++        )}
++      </div>
++
++      <div className="flex items-center justify-center shrink-0 min-w-0">
++        <span className="text-3xs md:text-xs text-overlay0 font-mono truncate">
++          {activeTab === 'ts'
++            ? 'TypeScript'
++            : activeTab === 'js'
++              ? 'JavaScript'
++              : 'Declarations'}
++          {bootTime !== null && <span className="text-overlay0 px-2 py-0.5 bg-surface0/30 rounded-md select-none mr-2">{bootTime.toFixed(2)}s</span>}
++          {activeTab === 'js' && jsDirty && (
++            <span className="ml-2 text-peach">● modified</span>
++          )}
++        </span>
++      </div>
++
++      <div className="flex items-center justify-end gap-1 md:gap-1.5 flex-1 min-w-0">
++        <IconButton
++          onClick={handleUndo}
++          title="Undo"
++          tooltipAlign="right"
++          size="xs"
++          variant="ghost"
++          className="text-overlay1 hover:text-text"
++        >
++          <Undo2 className="w-3 h-3 md:w-4 md:h-4" />
++        </IconButton>
++        <IconButton
++          onClick={handleRedo}
++          title="Redo"
++          tooltipAlign="right"
++          size="xs"
++          variant="ghost"
++          className="text-overlay1 hover:text-text"
++        >
++          <Redo2 className="w-3 h-3 md:w-4 md:h-4" />
++        </IconButton>
++        <div className="w-px h-3 md:h-4 bg-surface1 mx-0.5 md:mx-1 shrink-0" />
++        <IconButton
++          onClick={onOpenSettings}
++          title="Settings"
++          data-testid="status-bar-settings-button"
++          tooltipAlign="right"
++          size="xs"
++          variant="ghost"
++          className="text-overlay1 hover:text-text"
++        >
++          <Settings className="w-3 h-3 md:w-4 md:h-4" />
++        </IconButton>
++      </div>
++    </div>
++  );
++}
+diff --git a/src/components/ui/Badge.tsx b/src/components/ui/Badge.tsx
+new file mode 100644
+index 0000000..241281b
+--- /dev/null
++++ b/src/components/ui/Badge.tsx
+@@ -0,0 +1,55 @@
++import { type CSSProperties } from 'react';
++import { cn } from '../../lib/utils';
++
++export type BadgeVariant =
++  | 'default'
++  | 'error'
++  | 'warn'
++  | 'info'
++  | 'success'
++  | 'custom';
++
++type BadgeProps = {
++  label: string;
++  variant?: BadgeVariant;
++  color?: string; // Used when variant === 'custom'
++  style?: CSSProperties;
++  className?: string;
++};
++
++export function Badge({
++  label,
++  variant = 'default',
++  color,
++  style,
++  className,
++}: BadgeProps) {
++  return (
++    <span
++      className={cn(
++        'text-4xs font-bold tracking-wider uppercase font-mono rounded-[0.1875rem] px-1.5 py-0.5 shrink-0 leading-none border',
++        {
++          'bg-overlay1/20 text-overlay1 border-overlay1/40':
++            variant === 'default',
++          'bg-red/20 text-red border-red/40': variant === 'error',
++          'bg-yellow/20 text-yellow border-yellow/40': variant === 'warn',
++          'bg-blue/20 text-blue border-blue/40': variant === 'info',
++          'bg-green/20 text-green border-green/40': variant === 'success',
++        },
++        className,
++      )}
++      style={
++        variant === 'custom' && color
++          ? {
++              color,
++              background: `${color}20`,
++              borderColor: `${color}40`,
++              ...style,
++            }
++          : style
++      }
++    >
++      {label}
++    </span>
++  );
++}
+diff --git a/src/components/ui/Button.tsx b/src/components/ui/Button.tsx
+new file mode 100644
+index 0000000..4a5f821
+--- /dev/null
++++ b/src/components/ui/Button.tsx
+@@ -0,0 +1,131 @@
++import { type CSSProperties, type ReactNode, useState, useRef } from 'react';
++import { cn } from '../../lib/utils';
++
++type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
++type Size = 'xs' | 'sm' | 'md' | 'lg';
++
++type ButtonProps = {
++  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
++  disabled?: boolean;
++  children: ReactNode;
++  variant?: Variant;
++  size?: Size;
++  title?: string;
++  tooltipAlign?: 'center' | 'right' | 'left';
++  style?: CSSProperties;
++  type?: 'button' | 'submit' | 'reset';
++  className?: string;
++};
++
++const sizeClasses: Record<Size, string> = {
++  xs: 'h-5 md:h-7 px-1.5 md:px-2.5 text-4xs md:text-xs',
++  sm: 'h-6 md:h-8 px-2 md:px-3 text-3xs md:text-sm',
++  md: 'h-8 md:h-10 px-3 md:px-4 text-xs md:text-base',
++  lg: 'h-10 md:h-12 px-4 md:px-5 text-sm md:text-lg',
++};
++
++export function Button({
++  onClick,
++  disabled = false,
++  children,
++  variant = 'secondary',
++  size = 'md',
++  title,
++  tooltipAlign = 'center',
++  style,
++  type = 'button',
++  className,
++  ...props
++}: ButtonProps & React.ButtonHTMLAttributes<HTMLButtonElement>) {
++  const [pressed, setPressed] = useState(false);
++  const [showTooltip, setShowTooltip] = useState(false);
++  const touchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
++    undefined,
++  );
++  const isLongPress = useRef(false);
++
++  const handleTouchStart = () => {
++    isLongPress.current = false;
++    if (touchTimer.current) clearTimeout(touchTimer.current);
++    touchTimer.current = setTimeout(() => {
++      isLongPress.current = true;
++      setShowTooltip(true);
++    }, 400);
++  };
++
++  const handleTouchEnd = () => {
++    if (touchTimer.current) clearTimeout(touchTimer.current);
++    setTimeout(() => {
++      setShowTooltip(false);
++    }, 2000);
++  };
++
++  const handleTouchMove = () => {
++    if (touchTimer.current) clearTimeout(touchTimer.current);
++    setShowTooltip(false);
++  };
++
++  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
++    if (isLongPress.current) {
++      e.preventDefault();
++      isLongPress.current = false;
++      return;
++    }
++    onClick?.(e);
++  };
++
++  return (
++    <button
++      {...props}
++      type={type}
++      onClick={handleClick}
++      disabled={disabled}
++      aria-label={title}
++      onMouseLeave={() => setPressed(false)}
++      onMouseDown={() => setPressed(true)}
++      onMouseUp={() => setPressed(false)}
++      onTouchStart={handleTouchStart}
++      onTouchEnd={handleTouchEnd}
++      onTouchMove={handleTouchMove}
++      className={cn(
++        'group relative font-inherit rounded-md flex items-center justify-center gap-1.5 transition-all duration-150 whitespace-nowrap',
++        sizeClasses[size],
++        variant === 'primary' ? 'font-bold' : 'font-medium',
++        disabled
++          ? 'cursor-not-allowed opacity-50'
++          : 'cursor-pointer opacity-100',
++        pressed && !disabled ? 'scale-95' : 'scale-100',
++        {
++          'bg-green text-[color:var(--crust)] hover:bg-teal border-none':
++            variant === 'primary',
++          'bg-surface0 text-text hover:bg-surface1 border border-surface1':
++            variant === 'secondary',
++          'bg-red/15 text-red hover:bg-red/25 border border-red/40 hover:border-red/60':
++            variant === 'danger',
++          'bg-transparent text-text hover:bg-surface0 border-none':
++            variant === 'ghost',
++        },
++        className,
++      )}
++      style={style}
++    >
++      {children}
++      {title && (
++        <div
++          className={cn(
++            'absolute top-full mt-2 px-2.5 py-1.5 bg-crust text-text text-xs font-mono rounded-md border border-surface1 shadow-lg z-50 pointer-events-none transition-opacity duration-150',
++            'w-max max-w-64 whitespace-normal font-normal',
++            tooltipAlign === 'center' &&
++              'left-1/2 -translate-x-1/2 text-center',
++            tooltipAlign === 'right' && 'right-0 text-right',
++            tooltipAlign === 'left' && 'left-0 text-left',
++            showTooltip ? 'opacity-100' : 'opacity-0',
++            'group-hover:opacity-100',
++          )}
++        >
++          {title}
++        </div>
++      )}
++    </button>
++  );
++}
+diff --git a/src/components/ui/IconButton.tsx b/src/components/ui/IconButton.tsx
+new file mode 100644
+index 0000000..3d7d497
+--- /dev/null
++++ b/src/components/ui/IconButton.tsx
+@@ -0,0 +1,124 @@
++import { type CSSProperties, type ReactNode, useState, useRef } from 'react';
++import { cn } from '../../lib/utils';
++
++type Size = 'xs' | 'sm' | 'md' | 'lg';
++
++type IconButtonProps = {
++  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
++  title?: string;
++  tooltipAlign?: 'center' | 'right' | 'left';
++  disabled?: boolean;
++  children: ReactNode;
++  variant?: 'ghost' | 'surface' | 'danger';
++  size?: Size;
++  style?: CSSProperties;
++  className?: string;
++};
++
++const sizeClasses: Record<Size, string> = {
++  xs: 'w-5 h-5 md:w-7 md:h-7 text-xs',
++  sm: 'w-6 h-6 md:w-8 md:h-8 text-sm',
++  md: 'w-8 h-8 md:w-10 md:h-10 text-base',
++  lg: 'w-10 h-10 md:w-12 md:h-12 text-lg',
++};
++
++export function IconButton({
++  onClick,
++  title,
++  tooltipAlign = 'center',
++  disabled = false,
++  children,
++  variant = 'surface',
++  size = 'md',
++  style,
++  className,
++  ...props
++}: IconButtonProps & React.ButtonHTMLAttributes<HTMLButtonElement>) {
++  const [pressed, setPressed] = useState(false);
++  const [showTooltip, setShowTooltip] = useState(false);
++  const touchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
++    undefined,
++  );
++  const isLongPress = useRef(false);
++
++  const handleTouchStart = () => {
++    isLongPress.current = false;
++    if (touchTimer.current) clearTimeout(touchTimer.current);
++    touchTimer.current = setTimeout(() => {
++      isLongPress.current = true;
++      setShowTooltip(true);
++    }, 400);
++  };
++
++  const handleTouchEnd = () => {
++    if (touchTimer.current) clearTimeout(touchTimer.current);
++    setTimeout(() => {
++      setShowTooltip(false);
++    }, 2000);
++  };
++
++  const handleTouchMove = () => {
++    if (touchTimer.current) clearTimeout(touchTimer.current);
++    setShowTooltip(false);
++  };
++
++  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
++    if (isLongPress.current) {
++      e.preventDefault();
++      isLongPress.current = false;
++      return;
++    }
++    onClick?.(e);
++  };
++
++  return (
++    <button
++      {...props}
++      onClick={handleClick}
++      disabled={disabled}
++      aria-label={title}
++      onMouseLeave={() => setPressed(false)}
++      onMouseDown={() => setPressed(true)}
++      onMouseUp={() => setPressed(false)}
++      onTouchStart={handleTouchStart}
++      onTouchEnd={handleTouchEnd}
++      onTouchMove={handleTouchMove}
++      className={cn(
++        'group relative rounded-md leading-none flex items-center justify-center shrink-0 transition-all duration-150',
++        sizeClasses[size],
++        disabled
++          ? 'cursor-not-allowed opacity-50'
++          : 'cursor-pointer opacity-100',
++        pressed && !disabled ? 'scale-95' : 'scale-100',
++        {
++          'bg-transparent hover:bg-surface0 text-text border-none':
++            variant === 'ghost',
++          'bg-red/15 hover:bg-red/28 text-red border border-red/44 hover:border-red/60':
++            variant === 'danger',
++          'bg-surface0 hover:bg-surface1 text-text border border-surface1':
++            variant === 'surface',
++        },
++        className,
++      )}
++      style={style}
++    >
++      {children}
++      {title && (
++        <div
++          className={cn(
++            'absolute top-full mt-2 px-2.5 py-1.5 bg-crust text-text text-xs font-mono rounded-md border border-surface1 shadow-lg z-50 pointer-events-none transition-opacity duration-150',
++            'w-max max-w-64 whitespace-normal font-normal',
++            tooltipAlign === 'center' &&
++              'left-1/2 -translate-x-1/2 text-center',
++            tooltipAlign === 'right' && 'right-0 text-right',
++            tooltipAlign === 'left' && 'left-0 text-left',
++            showTooltip ? 'opacity-100' : 'opacity-0',
++            'group-hover:opacity-100',
++          )}
++        >
++          {title}
++        </div>
++      )}
++    </button>
++  );
++}
+diff --git a/src/components/ui/PanelHeader.tsx b/src/components/ui/PanelHeader.tsx
+new file mode 100644
+index 0000000..5148ad3
+--- /dev/null
++++ b/src/components/ui/PanelHeader.tsx
+@@ -0,0 +1,62 @@
++import { type ReactNode } from 'react';
++import { cn } from '../../lib/utils';
++
++type PanelHeaderProps = {
++  label: string;
++  isOpen: boolean;
++  onToggle: () => void;
++  left?: ReactNode;
++  right?: ReactNode;
++  className?: string;
++};
++
++export function PanelHeader({
++  label,
++  isOpen,
++  onToggle,
++  left,
++  right,
++  className,
++}: PanelHeaderProps) {
++  return (
++    <div
++      role="button"
++      aria-expanded={isOpen}
++      tabIndex={0}
++      onClick={onToggle}
++      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onToggle()}
++      className={cn(
++        'flex items-center justify-between px-4 py-2 cursor-pointer select-none h-10 transition-colors duration-150 bg-mantle hover:bg-surface0',
++        className,
++      )}
++    >
++      <div className="flex items-center gap-3">
++        <span className="font-mono text-xs font-bold tracking-wider uppercase text-subtext0">
++          {label}
++        </span>
++        {left}
++      </div>
++
++      <div className="flex items-center gap-3">
++        {right && (
++          <div
++            onClick={(e) => {
++              e.stopPropagation();
++            }}
++            className="flex items-center gap-2"
++          >
++            {right}
++          </div>
++        )}
++        <span
++          className={cn(
++            'text-sm inline-block leading-none pointer-events-none transition-transform duration-200 text-overlay1',
++            isOpen ? 'rotate-180' : 'rotate-0',
++          )}
++        >
++          ▾
++        </span>
++      </div>
++    </div>
++  );
++}
+diff --git a/src/hooks/useCompilerManager.test.ts b/src/hooks/useCompilerManager.test.ts
+new file mode 100644
+index 0000000..4b0ac27
+--- /dev/null
++++ b/src/hooks/useCompilerManager.test.ts
+@@ -0,0 +1,42 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest';
++import { renderHook, act } from '@testing-library/react';
++import { useCompilerManager } from './useCompilerManager';
++import { webContainerService } from '../lib/webcontainer';
++
++vi.mock('../lib/webcontainer', () => ({
++  webContainerService: {
++    spawnManaged: vi.fn(),
++    exportSnapshot: vi.fn(),
++    emitLog: vi.fn(),
++  },
++}));
++
++vi.mock('../lib/db', () => ({
++  db: {
++    saveSnapshot: vi.fn(),
++  },
++}));
++
++vi.mock('./usePlaygroundStore', () => ({
++  usePlaygroundStore: () => ({ isReady: true }),
++}));
++
++describe('useCompilerManager', () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++  });
++
++  it('runCode logs error if snapshot export fails', async () => {
++    const mockExit = Promise.resolve(0);
++    (webContainerService.spawnManaged as any).mockResolvedValue({ exit: mockExit });
++    (webContainerService.exportSnapshot as any).mockRejectedValue(new Error('Serialization failed'));
++
++    const { result } = renderHook(() => useCompilerManager());
++
++    await act(async () => {
++      await result.current.runCode();
++    });
++
++    expect(webContainerService.emitLog).toHaveBeenCalledWith('error', 'Failed to save snapshot: Serialization failed');
++  });
++});
+diff --git a/src/hooks/useCompilerManager.ts b/src/hooks/useCompilerManager.ts
+new file mode 100644
+index 0000000..00c431a
+--- /dev/null
++++ b/src/hooks/useCompilerManager.ts
+@@ -0,0 +1,41 @@
++import { useState, useCallback } from 'react';
++import { webContainerService } from '../lib/webcontainer';
++import { usePlaygroundStore } from './usePlaygroundStore';
++import { db } from '../lib/db';
++
++export function useCompilerManager() {
++  const [isRunning, setIsRunning] = useState(false);
++  const { isReady } = usePlaygroundStore();
++
++  const runCode = useCallback(async () => {
++    if (isRunning || !isReady) return;
++
++    setIsRunning(true);
++    try {
++      const proc = await webContainerService.spawnManaged('node', ['dist/index.js']);
++      const exitCode = await proc.exit;
++      if (exitCode === 0) {
++        // Successful execution - capture snapshot
++        try {
++          const snapshot = await webContainerService.exportSnapshot();
++          await db.saveSnapshot('playground', snapshot);
++          webContainerService.emitLog('info', '✨ Environment snapshot saved to IndexedDB.');
++        } catch (err: any) {
++          console.error('Failed to save snapshot:', err);
++          webContainerService.emitLog('error', `Failed to save snapshot: ${err.message}`);
++        }
++      } else {
++        webContainerService.emitLog('error', `Process exited with code ${exitCode}`);
++      }
++    } catch (err: any) {
++      webContainerService.emitLog('error', `Execution Error: ${err.message}`);
++    } finally {
++      setIsRunning(false);
++    }
++  }, [isRunning, isReady]);
++
++  return {
++    runCode,
++    isRunning,
++  };
++}
+diff --git a/src/hooks/useConsoleManager.ts b/src/hooks/useConsoleManager.ts
+new file mode 100644
+index 0000000..cc64796
+--- /dev/null
++++ b/src/hooks/useConsoleManager.ts
+@@ -0,0 +1,161 @@
++import { useState, useCallback, useEffect, useRef } from 'react';
++import type { ConsoleMessage } from '../components/Console';
++
++export function useConsoleManager() {
++  const [messages, setMessages] = useState<ConsoleMessage[]>([]);
++  const [consoleOpen, setConsoleOpen] = useState(true);
++  const messagesRef = useRef<ConsoleMessage[]>([]);
++
++  const addMessage = useCallback(
++    (type: ConsoleMessage['type'], args: unknown[]) => {
++      // Prevent recursion from our own logging
++      if (
++        type === 'error' &&
++        args.some(
++          (a) =>
++            typeof a === 'string' &&
++            a.includes('Maximum update depth exceeded'),
++        )
++      ) {
++        return;
++      }
++
++      // Sanitize and format args
++      const formatted = args.map((a) => {
++        if (a instanceof Error) return a.stack || a.message;
++        if (typeof a === 'string') {
++           // Strip problematic characters but keep basic ANSI and layout
++           // Strip large repeating whitespace but keep tabs/newlines
++           return a.replace(/ {10,}/g, (match) => '          ' + (match.length - 10) + ' spaces ');
++        }
++        try {
++          return JSON.stringify(a, null, 2);
++        } catch {
++          return String(a);
++        }
++      });
++
++      try {
++        const newMessage: ConsoleMessage = { type, args: formatted, ts: Date.now() };
++        messagesRef.current = [...messagesRef.current, newMessage].slice(-200);
++        setMessages([...messagesRef.current]);
++      } catch (err) {
++        // Fallback
++        (window as any).__ORIG_CONSOLE__?.error('Failed to update messages:', err);
++      }
++    },
++    [],
++  );
++
++  const clearMessages = useCallback(() => {
++    messagesRef.current = [];
++    setMessages([]);
++  }, []);
++
++  const toggleConsole = useCallback(() => {
++    if (document.activeElement instanceof HTMLElement) {
++      document.activeElement.blur();
++    }
++    setConsoleOpen((o) => !o);
++  }, []);
++
++  useEffect(() => {
++    const win = window as any;
++    const origLog = win.__ORIG_CONSOLE__?.log || console.log;
++    const origError = win.__ORIG_CONSOLE__?.error || console.error;
++    const origWarn = win.__ORIG_CONSOLE__?.warn || console.warn;
++    const origInfo = win.__ORIG_CONSOLE__?.info || console.info;
++    const origDebug = win.__ORIG_CONSOLE__?.debug || console.debug;
++    const origTrace = win.__ORIG_CONSOLE__?.trace || console.trace;
++    const origDir = win.__ORIG_CONSOLE__?.dir || console.dir;
++
++    if (!win.__ORIG_CONSOLE__) {
++      win.__ORIG_CONSOLE__ = {
++        log: origLog,
++        error: origError,
++        warn: origWarn,
++        info: origInfo,
++        debug: origDebug,
++        trace: origTrace,
++        dir: origDir,
++      };
++    }
++
++    let isInternalProcessing = false;
++
++    console.log = (...a) => {
++      if (!isInternalProcessing) {
++        isInternalProcessing = true;
++        addMessage('log', a);
++        isInternalProcessing = false;
++      }
++      origLog(...a);
++    };
++
++    console.error = (...a) => {
++      if (!isInternalProcessing) {
++        isInternalProcessing = true;
++        addMessage('error', a);
++        isInternalProcessing = false;
++      }
++      origError(...a);
++    };
++
++    console.warn = (...a) => {
++      if (!isInternalProcessing) {
++        isInternalProcessing = true;
++        addMessage('warn', a);
++        isInternalProcessing = false;
++      }
++      origWarn(...a);
++    };
++
++    console.info = (...a) => {
++      if (!isInternalProcessing) {
++        isInternalProcessing = true;
++        addMessage('info', a);
++        isInternalProcessing = false;
++      }
++      origInfo(...a);
++    };
++
++    console.debug = (...a) => {
++      if (!isInternalProcessing) {
++        isInternalProcessing = true;
++        addMessage('debug', a);
++        isInternalProcessing = false;
++      }
++      origDebug(...a);
++    };
++
++    console.trace = (...a) => {
++      if (!isInternalProcessing) {
++        isInternalProcessing = true;
++        addMessage('trace', a);
++        isInternalProcessing = false;
++      }
++      origTrace(...a);
++    };
++
++    console.dir = (...a) => {
++      if (!isInternalProcessing) {
++        isInternalProcessing = true;
++        addMessage('dir', a);
++        isInternalProcessing = false;
++      }
++      origDir(...a);
++    };
++
++    return () => {
++      console.log = origLog;
++      console.error = origError;
++      console.warn = origWarn;
++      console.info = origInfo;
++      console.debug = origDebug;
++      console.trace = origTrace;
++      console.dir = origDir;
++    };
++  }, [addMessage]);
++
++  return { messages, addMessage, clearMessages, consoleOpen, toggleConsole };
++}
+diff --git a/src/hooks/useLocalStorage.ts b/src/hooks/useLocalStorage.ts
+new file mode 100644
+index 0000000..a46b5df
+--- /dev/null
++++ b/src/hooks/useLocalStorage.ts
+@@ -0,0 +1,14 @@
++import { useState, useEffect } from 'react';
++
++export function useLocalStorage(key: string, initialValue: string) {
++  const [value, setValue] = useState<string>(() => {
++    const item = localStorage.getItem(key);
++    return item !== null ? item : initialValue;
++  });
++
++  useEffect(() => {
++    localStorage.setItem(key, value);
++  }, [key, value]);
++
++  return [value, setValue] as const;
++}
+diff --git a/src/hooks/usePackageManager.ts b/src/hooks/usePackageManager.ts
+new file mode 100644
+index 0000000..fb2af0f
+--- /dev/null
++++ b/src/hooks/usePackageManager.ts
+@@ -0,0 +1,125 @@
++import { useState, useEffect, useRef, useCallback } from 'react';
++import { webContainerService, SYSTEM_DEPS } from '../lib/webcontainer';
++import { playgroundStore } from '../lib/state-manager';
++import type { ConsoleMessage } from '../components/Console';
++
++const BUILTIN_MODULES = new Set([
++  'assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'console',
++  'constants', 'crypto', 'dgram', 'diagnostics_channel', 'dns', 'domain',
++  'events', 'fs', 'http', 'http2', 'https', 'inspector', 'module', 'net',
++  'os', 'path', 'perf_hooks', 'process', 'punycode', 'querystring', 'readline',
++  'repl', 'stream', 'string_decoder', 'sys', 'timers', 'tls', 'trace_events',
++  'tty', 'url', 'util', 'v8', 'vm', 'worker_threads', 'zlib',
++]);
++
++export type PackageManagerStatus = 'idle' | 'installing' | 'uninstalling' | 'syncing' | 'error';
++
++export function usePackageManager(
++  tsCode: string,
++  addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void,
++) {
++  const [installedPackages, setInstalledPackages] = useState<{name: string, version: string}[]>([]);
++  const tasksInProgress = useRef(0);
++  const previousPkgsRef = useRef<Set<string>>(new Set(SYSTEM_DEPS));
++  const installQueue = useRef<Promise<void>>(Promise.resolve());
++
++  const updateBusyState = useCallback((busy: boolean, type: PackageManagerStatus = 'idle') => {
++    if (busy) {
++      tasksInProgress.current++;
++      playgroundStore.setState({ packageManagerStatus: type });
++    } else {
++      tasksInProgress.current = Math.max(0, tasksInProgress.current - 1);
++      if (tasksInProgress.current === 0) playgroundStore.setState({ packageManagerStatus: 'idle' });
++    }
++  }, []);
++
++  const checkImports = useCallback(() => {
++    const timeout = setTimeout(async () => {
++      try {
++        await webContainerService.enqueue(async () => {
++          let output = '';
++          const proc = await webContainerService.spawnManaged('node', ['__detect_imports.cjs', tsCode], {
++            silent: true,
++            onLog: (line) => { output += line; }
++          });
++          await proc.exit;
++
++          const trimmed = output.trim();
++          if (!trimmed) return;
++
++          try {
++            const detected = JSON.parse(trimmed) as string[];
++            const filtered = detected.filter(
++              (pkg) =>
++                !pkg.startsWith('node:') &&
++                !pkg.startsWith('.') &&
++                !BUILTIN_MODULES.has(pkg) &&
++                !SYSTEM_DEPS.includes(pkg)
++            );
++            const detectedSorted = filtered.sort();
++
++            setInstalledPackages((prev) => {
++              const prevNames = prev.map((p) => p.name).sort();
++              if (JSON.stringify(prevNames) === JSON.stringify(detectedSorted)) return prev;
++              return detectedSorted.map((name) => ({ name, version: 'latest' }));
++            });
++          } catch {}
++        });
++      } catch (error) {
++        console.error('Failed to detect imports:', error);
++      }
++    });
++    return () => clearTimeout(timeout);
++  }, [tsCode]);
++
++  useEffect(() => {
++    return checkImports();
++  }, [tsCode, checkImports]);
++
++  useEffect(() => {
++    const currentNames = new Set(installedPackages.map((p) => p.name));
++    const previousNames = previousPkgsRef.current;
++
++    const added = [...currentNames].filter((x) => !previousNames.has(x));
++    const removed = [...previousNames].filter(
++      (x) => !currentNames.has(x) && !SYSTEM_DEPS.includes(x)
++    );
++
++    if (added.length === 0 && removed.length === 0) return;
++    previousPkgsRef.current = currentNames;
++
++    const performChanges = async () => {
++      await webContainerService.enqueue(async () => {
++        updateBusyState(true, added.length > 0 ? 'installing' : 'uninstalling');
++
++        try {
++          if (removed.length > 0) {
++            webContainerService.emitLog('info', `npm uninstall ${removed.join(' ')}...`);
++            const proc = await webContainerService.spawnManaged('npm', ['uninstall', ...removed]);
++            await proc.exit;
++          }
++          if (added.length > 0) {
++            webContainerService.emitLog('info', `npm install ${added.join(' ')}...`);
++            const proc = await webContainerService.spawnManaged('npm', ['install', '--no-progress', ...added]);
++            await proc.exit;
++          }
++        } catch (error) {
++          console.error('Package management failed:', error);
++          webContainerService.emitLog('error', `Package manager error: ${(error as Error).message}`);
++        } finally {
++          updateBusyState(false);
++        }
++      });
++    };
++
++    installQueue.current = performChanges();
++  }, [installedPackages, updateBusyState]);
++
++  return {
++    installedPackages,
++    tsCursorPos: { current: 0 },
++    checkImports,
++    installQueue: installQueue.current,
++    packageTypings: {} as Record<string, string>,
++  };
++}
+diff --git a/src/hooks/usePlaygroundStore.ts b/src/hooks/usePlaygroundStore.ts
+new file mode 100644
+index 0000000..883d239
+--- /dev/null
++++ b/src/hooks/usePlaygroundStore.ts
+@@ -0,0 +1,12 @@
++import { useState, useEffect } from 'react';
++import { playgroundStore, type PlaygroundState } from '../lib/state-manager';
++
++export function usePlaygroundStore() {
++  const [state, setState] = useState<PlaygroundState>(playgroundStore.getState());
++
++  useEffect(() => {
++    return playgroundStore.subscribe(setState);
++  }, []);
++
++  return state;
++}
+diff --git a/src/hooks/useResizePanel.ts b/src/hooks/useResizePanel.ts
+new file mode 100644
+index 0000000..d52a35e
+--- /dev/null
++++ b/src/hooks/useResizePanel.ts
+@@ -0,0 +1,70 @@
++import { useState, useRef, useCallback, useEffect } from 'react';
++
++export function useResizePanel(
++  initialHeightRem = 11.25, // 180px
++  minHeightRem = 5, // 80px
++  maxHeightRem = 25, // 400px
++) {
++  const [panelHeight, setPanelHeight] = useState(initialHeightRem);
++  const [isResizing, setIsResizing] = useState(false);
++  const resizeStartY = useRef(0);
++  const resizeStartHeight = useRef(0);
++
++  const handleResizeStart = useCallback(
++    (e: React.MouseEvent | React.TouchEvent) => {
++      e.preventDefault();
++      setIsResizing(true);
++      resizeStartY.current = 'touches' in e ? e.touches[0].clientY : e.clientY;
++      resizeStartHeight.current = panelHeight;
++    },
++    [panelHeight],
++  );
++
++  const handleResizeMove = useCallback(
++    (e: MouseEvent | TouchEvent) => {
++      if (!isResizing) return;
++      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
++      const deltaY = resizeStartY.current - clientY;
++
++      // Convert pixel delta to rem based on root font size
++      const remSize =
++        parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
++      const deltaRem = deltaY / remSize;
++
++      const newHeight = Math.max(
++        minHeightRem,
++        Math.min(maxHeightRem, resizeStartHeight.current + deltaRem),
++      );
++      setPanelHeight(newHeight);
++    },
++    [isResizing, minHeightRem, maxHeightRem],
++  );
++
++  const handleResizeEnd = useCallback(() => {
++    setIsResizing(false);
++  }, []);
++
++  useEffect(() => {
++    if (isResizing) {
++      globalThis.addEventListener('mousemove', handleResizeMove);
++      globalThis.addEventListener('mouseup', handleResizeEnd);
++      globalThis.addEventListener('touchmove', handleResizeMove, {
++        passive: false,
++      });
++      globalThis.addEventListener('touchend', handleResizeEnd);
++      document.body.style.cursor = 'ns-resize';
++      document.body.style.userSelect = 'none';
++    }
++
++    return () => {
++      globalThis.removeEventListener('mousemove', handleResizeMove);
++      globalThis.removeEventListener('mouseup', handleResizeEnd);
++      globalThis.removeEventListener('touchmove', handleResizeMove);
++      globalThis.removeEventListener('touchend', handleResizeEnd);
++      document.body.style.cursor = '';
++      document.body.style.userSelect = '';
++    };
++  }, [isResizing, handleResizeMove, handleResizeEnd]);
++
++  return { panelHeight, isResizing, handleResizeStart };
++}
+diff --git a/src/hooks/useSwipeTabs.ts b/src/hooks/useSwipeTabs.ts
+new file mode 100644
+index 0000000..7d8b191
+--- /dev/null
++++ b/src/hooks/useSwipeTabs.ts
+@@ -0,0 +1,71 @@
++import { useRef, useCallback } from 'react';
++
++function isEditorTarget(target: EventTarget | undefined | null) {
++  if (!(target instanceof Element)) return false;
++  return Boolean(target.closest('[data-testid="code-editor-container"]'));
++}
++
++export function useSwipeTabs<T extends string>(
++  activeTab: T,
++  setActiveTab: (tab: T) => void,
++  tabs: readonly T[],
++  disabled: boolean,
++) {
++  const swipeRef = useRef<HTMLDivElement>(null);
++  const touchStartX = useRef(0);
++  const touchStartY = useRef(0);
++  const swiping = useRef(false);
++
++  const onTouchStart = useCallback(
++    (e: React.TouchEvent) => {
++      if (disabled) return;
++      if (isEditorTarget(e.target)) return;
++      touchStartX.current = e.touches[0].clientX;
++      touchStartY.current = e.touches[0].clientY;
++      swiping.current = false;
++    },
++    [disabled],
++  );
++
++  const onTouchMove = useCallback(
++    (e: React.TouchEvent) => {
++      if (disabled) return;
++      if (isEditorTarget(e.target)) return;
++      const dx = e.touches[0].clientX - touchStartX.current;
++      const dy = e.touches[0].clientY - touchStartY.current;
++      if (!swiping.current && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) {
++        swiping.current = true;
++      }
++
++      if (swiping.current) e.preventDefault();
++    },
++    [disabled],
++  );
++
++  const onTouchEnd = useCallback(
++    (e: React.TouchEvent) => {
++      if (disabled) return;
++      if (isEditorTarget(e.target)) return;
++      if (!swiping.current) return;
++      const dx = e.changedTouches[0].clientX - touchStartX.current;
++      const dy = e.changedTouches[0].clientY - touchStartY.current;
++      if (Math.abs(dx) < Math.abs(dy) * 1.5) return;
++      if (Math.abs(dx) < 40) return;
++
++      const currentIndex = tabs.indexOf(activeTab);
++
++      if (dx < 0) {
++        const nextIndex = (currentIndex + 1) % tabs.length;
++        setActiveTab(tabs[nextIndex]);
++      } else {
++        const previousIndex = (currentIndex - 1 + tabs.length) % tabs.length;
++        setActiveTab(tabs[previousIndex]);
++      }
++
++      swiping.current = false;
++    },
++    [activeTab, disabled, setActiveTab, tabs],
++  );
++
++  return { swipeRef, onTouchStart, onTouchMove, onTouchEnd };
++}
+diff --git a/src/hooks/useVirtualKeyboard.ts b/src/hooks/useVirtualKeyboard.ts
+new file mode 100644
+index 0000000..637de87
+--- /dev/null
++++ b/src/hooks/useVirtualKeyboard.ts
+@@ -0,0 +1,84 @@
++import { useEffect, useMemo, useState, useRef } from 'react';
++
++type VKState = {
++  keyboardOpen: boolean;
++  keyboardHeight: number;
++  isMobileLike: boolean;
++  compactForKeyboard: boolean;
++};
++
++function activeTextTarget() {
++  const element = document.activeElement as HTMLElement | undefined;
++  if (!element) return false;
++  if (element instanceof HTMLTextAreaElement) return true;
++  if (element instanceof HTMLInputElement) return true;
++  // Monaco uses a hidden textarea or div
++  return Boolean(element.closest('[data-testid="code-editor-container"]')) ||
++         Boolean(element.closest('[contenteditable="true"]'));
++}
++
++export function useVirtualKeyboard(): VKState {
++  const [keyboardHeight, setKeyboardHeight] = useState(0);
++  const baselineHeight = useRef(0);
++
++  const isMobileLike = useMemo(() => {
++    return (
++      globalThis.matchMedia?.('(max-width: 820px)').matches ??
++      window.innerWidth <= 820
++    );
++  }, []);
++
++  useEffect(() => {
++    const vv = window.visualViewport;
++
++    const handleOrientation = () => {
++      setKeyboardHeight(0);
++      baselineHeight.current = vv?.height ?? window.innerHeight;
++    };
++
++    const handleFocusOut = () => {
++      setKeyboardHeight(0);
++      baselineHeight.current = vv?.height ?? window.innerHeight;
++    };
++
++    const measure = () => {
++      const viewportHeight = vv?.height ?? window.innerHeight;
++
++      if (!baselineHeight.current) {
++        baselineHeight.current = viewportHeight;
++      } else if (
++        !activeTextTarget() &&
++        viewportHeight > baselineHeight.current
++      ) {
++        baselineHeight.current = viewportHeight;
++      }
++
++      const base = baselineHeight.current || viewportHeight;
++      const delta = Math.max(0, Math.round(base - viewportHeight));
++      const open = activeTextTarget() && delta > 120;
++      setKeyboardHeight(open ? delta : 0);
++    };
++
++    measure();
++    vv?.addEventListener('resize', measure);
++    vv?.addEventListener('scroll', measure);
++    globalThis.addEventListener('focusin', measure);
++    globalThis.addEventListener('focusout', handleFocusOut);
++    globalThis.addEventListener('orientationchange', handleOrientation);
++
++    return () => {
++      vv?.removeEventListener('resize', measure);
++      vv?.removeEventListener('scroll', measure);
++      globalThis.removeEventListener('focusin', measure);
++      globalThis.removeEventListener('focusout', handleFocusOut);
++      globalThis.removeEventListener('orientationchange', handleOrientation);
++    };
++  }, []);
++
++  return {
++    keyboardOpen: keyboardHeight > 0,
++    keyboardHeight,
++    isMobileLike,
++    compactForKeyboard: keyboardHeight > 0,
++  };
++}
+diff --git a/src/hooks/useWebContainer.ts b/src/hooks/useWebContainer.ts
+new file mode 100644
+index 0000000..b844182
+--- /dev/null
++++ b/src/hooks/useWebContainer.ts
+@@ -0,0 +1,294 @@
++import { useMemo } from 'react';
++import { useEffect, useRef, useCallback, useState } from 'react';
++import { webContainerService, SYSTEM_DEPS } from '../lib/webcontainer';
++import { playgroundStore } from '../lib/state-manager';
++import { usePlaygroundStore } from './usePlaygroundStore';
++import type { ConsoleMessage } from '../components/Console';
++import { db } from '../lib/db';
++
++const DETECT_IMPORTS_SCRIPT = `
++const fs = require('fs');
++const code = process.argv[2] || '';
++const imports = [];
++const regex = /(?:import\\s+(?:[\\w\\s{},*]+)\\s+from\\s+['"]([^'"]+)['"])|(import\\(['"]([^'"]+)['"]\\))|(require\\(['"]([^'"]+)['"]\\))/g;
++let match;
++while ((match = regex.exec(code)) !== null) {
++  const name = match[1] || match[2] || match[3] || match[4] || match[5];
++  if (name && !name.startsWith('.') && !name.startsWith('/')) {
++    const parts = name.split('/');
++    const pkg = name.startsWith('@') ? \`\${parts[0]}/\${parts[1]}\` : parts[0];
++    imports.push(pkg);
++  }
++}
++console.log(JSON.stringify([...new Set(imports)]));
++`;
++
++export function useWebContainer(
++  tsConfigString: string,
++  tsCode: string,
++  addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void,
++  onArtifactsChange: (js: string, dts: string) => void
++) {
++  const isInitialSync = useRef(true); const startTime = useRef(Date.now());
++  const { inlineDeps } = usePlaygroundStore();
++  const esbuildProcRef = useRef<any>(null);
++
++  const [nodeTypings, setNodeTypings] = useState<Record<string, string>>({});
++  const [emittedTypings, setEmittedTypings] = useState<Record<string, string>>({});
++
++  const syncNodeTypes = useCallback(async () => {
++    try {
++      const nodeTypes = await webContainerService.readDirRecursive('node_modules', (p) => p.endsWith('.d.ts'));
++      setNodeTypings(nodeTypes);
++    } catch {}
++  }, []);
++
++  const syncEmittedTypes = useCallback(async () => {
++    try {
++      const emitted = await webContainerService.readDirRecursive('dist', (p) => p.endsWith('.d.ts'));
++      // Normalize dist/index.d.ts to index.d.ts for Monaco
++      if (emitted['dist/index.d.ts']) {
++         emitted['index.d.ts'] = emitted['dist/index.d.ts'];
++      }
++      setEmittedTypings(emitted);
++    } catch {}
++  }, []);
++
++  const externalTypings = useMemo(() => ({ ...nodeTypings, ...emittedTypings }), [nodeTypings, emittedTypings]);
++
++  const watchDist = useCallback(async () => {
++    const wc = await webContainerService.getInstance();
++
++    // Initial sync
++    const sync = async () => {
++      try {
++        const js = await wc.fs.readFile('dist/index.js', 'utf8').catch(() => '');
++        const dts = await wc.fs.readFile('dist/index.d.ts', 'utf8').catch(() => '');
++        onArtifactsChange(js, dts);
++        await syncEmittedTypes();
++      } catch {}
++    };
++
++    // Watch for changes in dist/
++    wc.fs.watch('dist', { recursive: true }, (event, filename) => {
++       if (filename === 'index.js' || filename === 'index.d.ts') {
++          sync();
++       }
++    });
++
++    sync();
++  }, [onArtifactsChange, syncNodeTypes, syncEmittedTypes]);
++
++  useEffect(() => {
++    return webContainerService.onLog((log) => {
++      addMessage(log.type as any, [log.message]);
++    });
++  }, [addMessage]);
++
++  const prepareEnvironment = async () => {
++    const pkgJson = {
++      name: 'playground',
++      type: 'module',
++      private: true,
++      main: 'dist/index.js',
++      dependencies: Object.fromEntries(SYSTEM_DEPS.map(d => [d, 'latest'])),
++    };
++
++    try {
++      const localSnapshot = await db.getLatestSnapshot('playground');
++      if (localSnapshot) {
++        webContainerService.emitLog('info', '📦 Loading last session snapshot from IndexedDB...');
++        await webContainerService.mountRawSnapshot(localSnapshot.data);
++      } else {
++        webContainerService.emitLog('info', '🟣 Fetching initial environment snapshot...');
++        await webContainerService.mountSnapshot('/base.snapshot');
++      }
++      webContainerService.emitLog('info', '🚀 Snapshot mounted! Ensuring configuration integrity.');
++      await webContainerService.writeFile('package.json', JSON.stringify(pkgJson, null, 2));
++    } catch (e) {
++      webContainerService.emitLog('info', '⚠️ Snapshot loading failed, performing full mount & install...');
++      await webContainerService.mount({
++        'package.json': { file: { contents: JSON.stringify(pkgJson, null, 2) } },
++        'tsconfig.json': { file: { contents: tsConfigString } },
++        'index.ts': { file: { contents: tsCode } },
++        '__detect_imports.cjs': { file: { contents: DETECT_IMPORTS_SCRIPT } },
++        'dist': { directory: {} }
++      });
++
++      webContainerService.emitLog('info', 'Preparing environment (npm install)...');
++      const proc = await webContainerService.spawnManaged('npm', ['install', '--no-progress'], { silent: false });
++      const exitCode = await proc.exit;
++      if (exitCode !== 0) throw new Error('NPM install failed.');
++    }
++
++    const [existingTs, existingTsConfig, existingDetect] = await Promise.all([
++      webContainerService.readFile('index.ts').catch(() => ''),
++      webContainerService.readFile('tsconfig.json').catch(() => ''),
++      webContainerService.readFile('__detect_imports.cjs').catch(() => '')
++    ]);
++
++    if (existingTs !== tsCode) await webContainerService.writeFile('index.ts', tsCode);
++    if (existingTsConfig !== tsConfigString) await webContainerService.writeFile('tsconfig.json', tsConfigString);
++    if (existingDetect !== DETECT_IMPORTS_SCRIPT) await webContainerService.writeFile('__detect_imports.cjs', DETECT_IMPORTS_SCRIPT);
++
++    const wc = await webContainerService.getInstance();
++    await wc.fs.mkdir('dist', { recursive: true }).catch(() => {});
++  };
++
++  const startEsbuild = async () => {
++    if (esbuildProcRef.current) {
++      esbuildProcRef.current.kill();
++    }
++
++    const buildScript = `
++      const { build } = require('esbuild');
++      const fs = require('fs');
++      let timeout;
++      async function doBuild(force = true) {
++         if (!force && fs.existsSync('dist/index.js')) {
++            console.log('Build JS finished (restored from snapshot).');
++            return;
++         }
++         console.log('Building JS...');
++         try {
++           const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
++           const deps = Object.keys(pkg.dependencies || {});
++           const external = ${inlineDeps ? '[]' : 'deps.flatMap(d => [d, d + "/*"])'};
++           await build({
++             entryPoints: ['index.ts'],
++             bundle: true,
++             platform: 'node',
++             format: 'esm',
++             outfile: 'dist/index.js',
++             sourcemap: true,
++             treeShaking: true,
++             target: 'node20',
++             external,
++           });
++           console.log('Build JS finished.');
++         } catch (e) { console.log('Build JS failed.'); console.log(e.message); }
++      }
++      fs.watch('index.ts', (event) => {
++         if (event === 'change') { clearTimeout(timeout); timeout = setTimeout(() => doBuild(true), 100); }
++      });
++      doBuild(false);
++    `;
++    await webContainerService.writeFile('__build.cjs', buildScript);
++
++    esbuildProcRef.current = await webContainerService.spawnManaged('node', ['__build.cjs'], {
++      silent: false,
++      onLog: (line) => {
++        if (line.includes('Building JS')) {
++          playgroundStore.setState({ esbuildStatus: 'Compiling' });
++        }
++        if (line.includes('Build JS finished') || line.includes('restored from snapshot')) {
++          playgroundStore.setState({ esbuildStatus: 'Ready' });
++        }
++        if (line.includes('Build JS failed')) {
++          playgroundStore.setState({ esbuildStatus: 'Error' });
++        }
++      }
++    });
++  };
++
++  const startTsc = async () => {
++    await webContainerService.spawnManaged('npx', ['tsc', '--watch', '--emitDeclarationOnly', '--incremental', '--outDir', 'dist', '--rootDir', '.'], {
++      silent: true,
++      onLog: (line) => {
++         if (line.includes('Starting incremental compilation') || line.includes('File change detected')) {
++            playgroundStore.setState({ tscStatus: 'Compiling' });
++         }
++         if (line.includes('Found 0 errors') || line.includes('Watching for file changes')) {
++            playgroundStore.setState({ tscStatus: 'Ready' });
++         }
++         if (line.includes('error TS')) {
++           playgroundStore.setState({ tscStatus: 'Error' });
++           webContainerService.emitLog('error', `[TSC] ${line}`);
++         }
++      }
++    });
++  };
++
++  useEffect(() => {
++    if (!isInitialSync.current) return;
++    isInitialSync.current = false;
++
++    webContainerService.enqueue(async () => {
++      try {
++        playgroundStore.setState({
++            lifecycle: 'preparing',
++            tscStatus: 'Preparing',
++            esbuildStatus: 'Preparing'
++        });
++
++        await prepareEnvironment();
++        await Promise.all([syncNodeTypes(), syncEmittedTypes()]);
++
++        webContainerService.emitLog('info', 'Starting reactive compilers...');
++        await startEsbuild();
++        await startTsc();
++
++        watchDist();
++
++        let retries = 0;
++        const checkEmit = async () => {
++          try {
++            const js = await webContainerService.readFile('dist/index.js').catch(() => '');
++            const dts = await webContainerService.readFile('dist/index.d.ts').catch(() => '');
++
++            if (js.trim() && dts.trim()) {
++              const bootDuration = (Date.now() - startTime.current) / 1000;
++              playgroundStore.setState({ lifecycle: 'ready', tscStatus: 'Ready', esbuildStatus: 'Ready', bootTime: bootDuration });
++              webContainerService.emitLog('info', `Environment ready in ${bootDuration.toFixed(2)}s.`);
++            } else {
++              throw new Error('Emission incomplete');
++            }
++          } catch (e) {
++            if (retries < 60) {
++              retries++;
++              setTimeout(checkEmit, 1000);
++            } else {
++              playgroundStore.setState({ lifecycle: 'ready' });
++              webContainerService.emitLog('info', 'Environment ready (compiler slow).');
++            }
++          }
++        };
++        checkEmit();
++      } catch (error: any) {
++        webContainerService.emitLog('error', `VM Error: ${error.message}`);
++        playgroundStore.setState({ lifecycle: 'error' });
++      }
++    });
++  }, []);
++
++  // Restart esbuild when inlineDeps changes
++  useEffect(() => {
++    if (playgroundStore.getState().lifecycle === 'ready') {
++       webContainerService.enqueue(async () => {
++         await startEsbuild();
++       });
++    }
++  }, [inlineDeps]);
++
++  useEffect(() => {
++    webContainerService.enqueue(async () => {
++        await webContainerService.writeFile('index.ts', tsCode);
++    });
++  }, [tsCode]);
++
++  useEffect(() => {
++    webContainerService.enqueue(async () => {
++        await webContainerService.writeFile('tsconfig.json', tsConfigString);
++    });
++  }, [tsConfigString]);
++
++
++  const { packageManagerStatus } = usePlaygroundStore();
++  useEffect(() => {
++    if (packageManagerStatus === 'idle' && !isInitialSync.current) {
++       syncNodeTypes();
++    }
++  }, [packageManagerStatus, syncNodeTypes]);
++
++  return { externalTypings, syncNodeTypes, syncEmittedTypes };
++}
+diff --git a/src/lib/ansi.test.ts b/src/lib/ansi.test.ts
+new file mode 100644
+index 0000000..3456306
+--- /dev/null
++++ b/src/lib/ansi.test.ts
+@@ -0,0 +1,28 @@
++import { describe, it, expect } from 'vitest';
++
++function stripAnsi(text: string): string {
++  const ansiRegex = /[\u001b\u009b][\[\]()#;?]*[0-9;]*[a-zA-Z]/g;
++  return text.replace(ansiRegex, '');
++}
++
++describe('ANSI Stripping Logic', () => {
++  it('strips basic 16 color sequences', () => {
++    const input = '\x1b[31mRed Text\x1b[0m';
++    expect(stripAnsi(input)).toBe('Red Text');
++  });
++
++  it('strips TrueColor (24-bit) RGB sequences', () => {
++    const input = '\x1b[38;2;255;100;50mCustom RGB\x1b[0m';
++    expect(stripAnsi(input)).toBe('Custom RGB');
++  });
++
++  it('strips bold and italic sequences', () => {
++    const input = '\x1b[1mBold\x1b[0m \x1b[3mItalic\x1b[0m';
++    expect(stripAnsi(input)).toBe('Bold Italic');
++  });
++
++  it('handles complex mixed sequences', () => {
++    const input = '\x1b[1;31mBold Red\x1b[0m and \x1b[4;32mUnderline Green\x1b[0m';
++    expect(stripAnsi(input)).toBe('Bold Red and Underline Green');
++  });
++});
+diff --git a/src/lib/api.ts b/src/lib/api.ts
+new file mode 100644
+index 0000000..c6fc92a
+--- /dev/null
++++ b/src/lib/api.ts
+@@ -0,0 +1,6 @@
++export async function shareSnippet(ts: string, tsconfig: string): Promise<string> {
++  // Mocking share API for now to focus on core logic
++  const state = JSON.stringify({ ts, tsconfig });
++  const encoded = btoa(encodeURIComponent(state));
++  return `${window.location.origin}/#code=${encoded}`;
++}
+diff --git a/src/lib/constants.ts b/src/lib/constants.ts
+new file mode 100644
+index 0000000..595ca5e
+--- /dev/null
++++ b/src/lib/constants.ts
+@@ -0,0 +1,29 @@
++export const TABS = ['ts', 'js', 'dts'] as const;
++export type TabType = (typeof TABS)[number];
++
++export const DEFAULT_TSCONFIG = `{
++  "compilerOptions": {
++    "target": "ESNext",
++    "module": "ESNext",
++    "lib": ["ESNext", "DOM", "DOM.Iterable"],
++    "moduleResolution": "bundler",
++    "outDir": "dist",
++    "declaration": true,
++    "emitDeclarationOnly": false,
++    "strict": true,
++    "skipLibCheck": true,
++    "isolatedModules": true,
++    "resolveJsonModule": true,
++    "moduleDetection": "force",
++    "esModuleInterop": true,
++    "jsx": "react-jsx",
++    "allowJs": true,
++    "noUnusedLocals": true,
++    "noUnusedParameters": true,
++    "noImplicitReturns": true,
++    "noFallthroughCasesInSwitch": true,
++    "useUnknownInCatchVariables": true,
++    "noImplicitOverride": true
++  },
++  "include": ["index.ts"]
++}`;
+diff --git a/src/lib/db.ts b/src/lib/db.ts
+new file mode 100644
+index 0000000..5f29ea1
+--- /dev/null
++++ b/src/lib/db.ts
+@@ -0,0 +1,38 @@
++import Dexie, { type Table } from 'dexie';
++
++export interface Snapshot {
++  id?: number;
++  name: string;
++  data: Uint8Array;
++  timestamp: number;
++}
++
++export class PlaygroundDatabase extends Dexie {
++  snapshots!: Table<Snapshot>;
++
++  constructor() {
++    super('PlaygroundDatabase');
++    this.version(1).stores({
++      snapshots: '++id, name, timestamp'
++    });
++  }
++
++  async saveSnapshot(name: string, data: Uint8Array) {
++    await this.snapshots.put({
++      name,
++      data,
++      timestamp: Date.now()
++    });
++  }
++
++  async getLatestSnapshot(name: string): Promise<Snapshot | undefined> {
++    return this.snapshots
++      .where('name')
++      .equals(name)
++      .reverse()
++      .sortBy('timestamp')
++      .then(results => results[0]);
++  }
++}
++
++export const db = new PlaygroundDatabase();
+diff --git a/src/lib/formatter.ts b/src/lib/formatter.ts
+new file mode 100644
+index 0000000..82fbf95
+--- /dev/null
++++ b/src/lib/formatter.ts
+@@ -0,0 +1,44 @@
++import { webContainerService } from './webcontainer';
++
++/**
++ * Orchestrates the formatting of all playground files using Prettier
++ * running within the WebContainer environment.
++ */
++export async function formatAllFiles(tsCode: string, jsCode: string, dtsCode: string) {
++  // Write the current TS code to a temporary file in the container
++  await webContainerService.writeFile('temp.ts', tsCode);
++
++  // Wait for the environment to be ready (Prettier must be installed)
++  await webContainerService.getEnvReady();
++
++  // Execute Prettier within the container
++  const { exit } = await webContainerService.spawn('npx', ['prettier', '--write', 'temp.ts']);
++  const exitCode = await exit;
++
++  if (exitCode === 0) {
++    // Read the formatted content back
++    const formattedTs = await webContainerService.readFile('temp.ts');
++    return { tsCode: formattedTs, jsCode, dtsCode };
++  }
++
++  // Return original code if formatting fails
++  return { tsCode, jsCode, dtsCode };
++}
++
++/**
++ * Standard JSON formatter for configuration files.
++ */
++export async function formatJson(json: string) {
++  try {
++    return JSON.stringify(JSON.parse(json), null, 2);
++  } catch {
++    return json;
++  }
++}
++
++/**
++ * Prettier is managed within the WebContainer, so this is a no-op on the main thread.
++ */
++export async function loadPrettier() {
++  return Promise.resolve();
++}
+diff --git a/src/lib/monaco-themes.ts b/src/lib/monaco-themes.ts
+new file mode 100644
+index 0000000..e28111b
+--- /dev/null
++++ b/src/lib/monaco-themes.ts
+@@ -0,0 +1,154 @@
++import type { editor } from 'monaco-editor';
++
++export const mocha: editor.IStandaloneThemeData = {
++  base: 'vs-dark',
++  inherit: true,
++  rules: [
++    { token: 'comment', foreground: '6c7086', fontStyle: 'italic' },
++    { token: 'string', foreground: 'a6e3a1' },
++    { token: 'number', foreground: 'fab387' },
++    { token: 'keyword', foreground: 'cba6f7' },
++    { token: 'type', foreground: 'f9e2af' },
++    { token: 'class', foreground: 'f9e2af' },
++    { token: 'function', foreground: '89b4fa' },
++    { token: 'variable', foreground: 'cdd6f4' },
++    { token: 'constant', foreground: 'fab387' },
++    { token: 'operator', foreground: '89dceb' },
++    { token: 'delimiter', foreground: '9399b2' },
++    { token: 'tag', foreground: 'cba6f7' },
++  ],
++  colors: {
++    'editor.background': '#1e1e2e',
++    'editor.foreground': '#cdd6f4',
++    'editorCursor.foreground': '#f5e0dc',
++    'editor.lineHighlightBackground': '#313244',
++    'editor.selectionBackground': '#585b7066',
++    'editor.inactiveSelectionBackground': '#585b7044',
++    'editorWidget.background': '#181825',
++    'editorWidget.border': '#45475a',
++    'editorHoverWidget.background': '#181825',
++    'editorHoverWidget.border': '#45475a',
++    'editorSuggestWidget.background': '#181825',
++    'editorSuggestWidget.border': '#45475a',
++    'editorSuggestWidget.selectedBackground': '#313244',
++    'editorSuggestWidget.highlightForeground': '#cba6f7',
++    'editorIndentGuide.background': '#313244',
++    'editorIndentGuide.activeBackground': '#45475a',
++    'editorLineNumber.foreground': '#6c7086',
++    'editorLineNumber.activeForeground': '#cba6f7',
++  },
++};
++
++export const latte: editor.IStandaloneThemeData = {
++  base: 'vs',
++  inherit: true,
++  rules: [
++    { token: 'comment', foreground: '9ca0b0', fontStyle: 'italic' },
++    { token: 'string', foreground: '40a02b' },
++    { token: 'number', foreground: 'fe640b' },
++    { token: 'keyword', foreground: '8839ef' },
++    { token: 'type', foreground: 'df8e1d' },
++    { token: 'class', foreground: 'df8e1d' },
++    { token: 'function', foreground: '1e66f5' },
++    { token: 'variable', foreground: '4c4f69' },
++    { token: 'constant', foreground: 'fe640b' },
++    { token: 'operator', foreground: '04a5e5' },
++    { token: 'delimiter', foreground: '7c7f93' },
++    { token: 'tag', foreground: '8839ef' },
++  ],
++  colors: {
++    'editor.background': '#eff1f5',
++    'editor.foreground': '#4c4f69',
++    'editorCursor.foreground': '#dc8a78',
++    'editor.lineHighlightBackground': '#ccd0da',
++    'editor.selectionBackground': '#acb0be66',
++    'editor.inactiveSelectionBackground': '#acb0be44',
++    'editorWidget.background': '#e6e9ef',
++    'editorWidget.border': '#bcc0cc',
++    'editorHoverWidget.background': '#e6e9ef',
++    'editorHoverWidget.border': '#bcc0cc',
++    'editorSuggestWidget.background': '#e6e9ef',
++    'editorSuggestWidget.border': '#bcc0cc',
++    'editorSuggestWidget.selectedBackground': '#ccd0da',
++    'editorSuggestWidget.highlightForeground': '#8839ef',
++    'editorIndentGuide.background': '#ccd0da',
++    'editorIndentGuide.activeBackground': '#bcc0cc',
++    'editorLineNumber.foreground': '#9ca0b0',
++    'editorLineNumber.activeForeground': '#8839ef',
++  },
++};
++
++export const githubDark: editor.IStandaloneThemeData = {
++  base: 'vs-dark',
++  inherit: true,
++  rules: [
++    { token: 'comment', foreground: '8b949e', fontStyle: 'italic' },
++    { token: 'keyword', foreground: 'ff7b72' },
++    { token: 'string', foreground: 'a5d6ff' },
++    { token: 'number', foreground: 'd2a8ff' },
++    { token: 'type', foreground: 'ffa657' },
++    { token: 'class', foreground: 'ffa657' },
++    { token: 'function', foreground: 'd2a8ff' },
++    { token: 'variable', foreground: 'c9d1d9' },
++    { token: 'constant', foreground: '79c0ff' },
++    { token: 'operator', foreground: '79c0ff' },
++  ],
++  colors: {
++    'editor.background': '#0d1117',
++    'editor.foreground': '#c9d1d9',
++    'editor.lineHighlightBackground': '#161b22',
++    'editor.selectionBackground': '#58a6ff33',
++    'editorLineNumber.foreground': '#484f58',
++    'editorLineNumber.activeForeground': '#c9d1d9',
++  },
++};
++
++export const githubLight: editor.IStandaloneThemeData = {
++  base: 'vs',
++  inherit: true,
++  rules: [
++    { token: 'comment', foreground: '6e7781', fontStyle: 'italic' },
++    { token: 'keyword', foreground: 'cf222e' },
++    { token: 'string', foreground: '0a3069' },
++    { token: 'number', foreground: '0550ae' },
++    { token: 'type', foreground: '953800' },
++    { token: 'class', foreground: '953800' },
++    { token: 'function', foreground: '8250df' },
++    { token: 'variable', foreground: '24292f' },
++    { token: 'constant', foreground: '0550ae' },
++    { token: 'operator', foreground: '0550ae' },
++  ],
++  colors: {
++    'editor.background': '#ffffff',
++    'editor.foreground': '#24292f',
++    'editor.lineHighlightBackground': '#f6f8fa',
++    'editor.selectionBackground': '#add6ff66',
++    'editorLineNumber.foreground': '#8c959f',
++    'editorLineNumber.activeForeground': '#24292f',
++  },
++};
++
++export const monokai: editor.IStandaloneThemeData = {
++  base: 'vs-dark',
++  inherit: true,
++  rules: [
++    { token: 'comment', foreground: '75715e', fontStyle: 'italic' },
++    { token: 'keyword', foreground: 'f92672' },
++    { token: 'string', foreground: 'e6db74' },
++    { token: 'number', foreground: 'ae81ff' },
++    { token: 'type', foreground: '66d9ef', fontStyle: 'italic' },
++    { token: 'class', foreground: 'a6e22e' },
++    { token: 'function', foreground: 'a6e22e' },
++    { token: 'variable', foreground: 'f8f8f2' },
++    { token: 'constant', foreground: 'ae81ff' },
++    { token: 'operator', foreground: 'f92672' },
++  ],
++  colors: {
++    'editor.background': '#272822',
++    'editor.foreground': '#f8f8f2',
++    'editor.lineHighlightBackground': '#3e3d32',
++    'editor.selectionBackground': '#49483e',
++    'editorLineNumber.foreground': '#90908a',
++    'editorLineNumber.activeForeground': '#f8f8f2',
++  },
++};
+diff --git a/src/lib/shareCodec.ts b/src/lib/shareCodec.ts
+new file mode 100644
+index 0000000..ef05aa7
+--- /dev/null
++++ b/src/lib/shareCodec.ts
+@@ -0,0 +1,80 @@
++type SharePayload = {
++  tsCode: string;
++  jsCode: string;
++  packages: unknown[];
++};
++
++function toBase64Url(bytes: Uint8Array) {
++  let binary = '';
++  const chunk = 0x80_00;
++  for (let i = 0; i < bytes.length; i += chunk) {
++    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
++  }
++
++  return btoa(binary)
++    .replaceAll('+', '-')
++    .replaceAll('/', '_')
++    .replaceAll(/=+$/g, '');
++}
++
++function fromBase64Url(input: string) {
++  const padded = input
++    .replaceAll('-', '+')
++    .replaceAll('_', '/')
++    .padEnd(Math.ceil(input.length / 4) * 4, '=');
++  const binary = atob(padded);
++  const bytes = new Uint8Array(binary.length);
++  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
++  return bytes;
++}
++
++async function gzip(input: Uint8Array) {
++  if (typeof CompressionStream !== 'function') return null;
++  const stream = new Blob([Uint8Array.from(input)])
++    .stream()
++    .pipeThrough(new CompressionStream('gzip'));
++  const buf = await new Response(stream).arrayBuffer();
++  return new Uint8Array(buf);
++}
++
++async function gunzip(input: Uint8Array) {
++  if (typeof DecompressionStream !== 'function') return null;
++  const stream = new Blob([Uint8Array.from(input)])
++    .stream()
++    .pipeThrough(new DecompressionStream('gzip'));
++  const buf = await new Response(stream).arrayBuffer();
++  return new Uint8Array(buf);
++}
++
++export async function encodeSharePayload(payload: SharePayload) {
++  const json = JSON.stringify(payload);
++  const bytes = new TextEncoder().encode(json);
++  const compressed = await gzip(bytes);
++
++  if (compressed) {
++    return `gz.${toBase64Url(compressed)}`;
++  }
++
++  return `raw.${toBase64Url(bytes)}`;
++}
++
++export async function decodeSharePayload(token: string): Promise<SharePayload> {
++  const [kind, data] = token.split('.', 2);
++  if (!kind || !data) throw new Error('Invalid embedded share link');
++
++  const bytes = fromBase64Url(data);
++  let decoded: Uint8Array | undefined;
++
++  if (kind === 'gz') {
++    decoded = (await gunzip(bytes)) ?? undefined;
++    if (!decoded)
++      throw new Error('This browser cannot decode compressed share links');
++  } else if (kind === 'raw') {
++    decoded = bytes;
++  } else {
++    throw new Error('Unknown embedded share format');
++  }
++
++  const json = new TextDecoder().decode(decoded);
++  return JSON.parse(json) as SharePayload;
++}
+diff --git a/src/lib/state-manager.ts b/src/lib/state-manager.ts
+new file mode 100644
+index 0000000..6d81ebc
+--- /dev/null
++++ b/src/lib/state-manager.ts
+@@ -0,0 +1,76 @@
++import { ThemeMode } from './theme';
++import { CompilerStatus, EnvironmentStatus } from './webcontainer';
++import type { PackageManagerStatus } from '../hooks/usePackageManager';
++
++export interface PlaygroundState {
++  lifecycle: EnvironmentStatus;
++  tscStatus: CompilerStatus;
++  esbuildStatus: CompilerStatus;
++  packageManagerStatus: PackageManagerStatus;
++  theme: ThemeMode;
++  lineWrap: boolean;
++  stripAnsi: boolean;
++  inlineDeps: boolean;
++  isReady: boolean; bootTime: number | null;
++}
++
++type StateListener = (state: PlaygroundState) => void;
++
++class PlaygroundStore {
++  private state: PlaygroundState = {
++    lifecycle: 'idle',
++    tscStatus: 'Idle',
++    esbuildStatus: 'Idle',
++    packageManagerStatus: 'idle',
++    theme: (localStorage.getItem('tsplay_theme') as ThemeMode) || 'mocha',
++    lineWrap: localStorage.getItem('tsplay_linewrap') === 'true',
++    stripAnsi: localStorage.getItem('tsplay_stripansi') === 'true',
++    inlineDeps: localStorage.getItem('tsplay_inlinedeps') === 'true',
++    isReady: false, bootTime: null,
++  };
++
++  private listeners: Set<StateListener> = new Set();
++  private operationQueue: Promise<any> = Promise.resolve();
++
++  getState(): PlaygroundState {
++    return { ...this.state };
++  }
++
++  setState(patch: Partial<PlaygroundState>) {
++    const oldReady = this.state.isReady;
++    this.state = { ...this.state, ...patch };
++
++    // Persistence
++    if (patch.theme) localStorage.setItem('tsplay_theme', patch.theme);
++    if (patch.lineWrap !== undefined) localStorage.setItem('tsplay_linewrap', String(patch.lineWrap));
++    if (patch.stripAnsi !== undefined) localStorage.setItem('tsplay_stripansi', String(patch.stripAnsi));
++    if (patch.inlineDeps !== undefined) localStorage.setItem('tsplay_inlinedeps', String(patch.inlineDeps));
++
++    // Derive readiness
++    this.state.isReady =
++      this.state.lifecycle === 'ready' &&
++      this.state.tscStatus === 'Ready' &&
++      this.state.esbuildStatus === 'Ready';
++
++    if (this.state.isReady !== oldReady || Object.keys(patch).length > 0) {
++      this.notify();
++    }
++  }
++
++  subscribe(listener: StateListener) {
++    this.listeners.add(listener);
++    return () => this.listeners.delete(listener);
++  }
++
++  private notify() {
++    const snapshot = { ...this.state };
++    this.listeners.forEach(l => l(snapshot));
++  }
++
++  async enqueue<T>(task: () => Promise<T>): Promise<T> {
++    this.operationQueue = this.operationQueue.then(task);
++    return this.operationQueue;
++  }
++}
++
++export const playgroundStore = new PlaygroundStore();
+diff --git a/src/lib/theme.ts b/src/lib/theme.ts
+new file mode 100644
+index 0000000..a54b8da
+--- /dev/null
++++ b/src/lib/theme.ts
+@@ -0,0 +1,13 @@
++export type ThemeMode =
++  | 'mocha'
++  | 'latte'
++  | 'githubDark'
++  | 'githubLight'
++  | 'monokai';
++
++export const DARK_THEMES: ThemeMode[] = ['mocha', 'githubDark', 'monokai'];
++export const LIGHT_THEMES: ThemeMode[] = ['latte', 'githubLight'];
++
++export function isDarkMode(theme: ThemeMode): boolean {
++  return DARK_THEMES.includes(theme);
++}
+diff --git a/src/lib/utils.ts b/src/lib/utils.ts
+new file mode 100644
+index 0000000..2819a83
+--- /dev/null
++++ b/src/lib/utils.ts
+@@ -0,0 +1,6 @@
++import { clsx, type ClassValue } from 'clsx';
++import { twMerge } from 'tailwind-merge';
++
++export function cn(...inputs: ClassValue[]) {
++  return twMerge(clsx(inputs));
++}
+diff --git a/src/lib/webcontainer.test.ts b/src/lib/webcontainer.test.ts
+new file mode 100644
+index 0000000..6be0c78
+--- /dev/null
++++ b/src/lib/webcontainer.test.ts
+@@ -0,0 +1,31 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest';
++import { WebContainerService } from './webcontainer';
++
++vi.mock('@webcontainer/api', () => ({
++  WebContainer: {
++    boot: vi.fn().mockResolvedValue({
++      export: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3])),
++      on: vi.fn(),
++    }),
++  },
++}));
++
++describe('WebContainerService', () => {
++  let service: WebContainerService;
++
++  beforeEach(() => {
++    vi.clearAllMocks();
++    service = new WebContainerService();
++  });
++
++  it('exportSnapshot should call export with binary format', async () => {
++    const instance = await service.getInstance();
++    const exportSpy = vi.spyOn(instance, 'export');
++
++    const result = await service.exportSnapshot();
++
++    expect(exportSpy).toHaveBeenCalledWith('.', { format: 'binary' });
++    expect(result).toBeInstanceOf(Uint8Array);
++    expect(result).toEqual(new Uint8Array([1, 2, 3]));
++  });
++});
+diff --git a/src/lib/webcontainer.ts b/src/lib/webcontainer.ts
+new file mode 100644
+index 0000000..5591f57
+--- /dev/null
++++ b/src/lib/webcontainer.ts
+@@ -0,0 +1,175 @@
++import { WebContainer, type WebContainerProcess } from '@webcontainer/api';
++import { playgroundStore } from './state-manager';
++
++export type EnvironmentStatus = 'idle' | 'booting' | 'preparing' | 'ready' | 'error';
++export type CompilerStatus = 'Idle' | 'Preparing' | 'Running' | 'Compiling' | 'Ready' | 'Error';
++
++export const SYSTEM_DEPS = ['typescript', 'esbuild', 'prettier', 'lodash-es', '@types/lodash-es', '@types/node'];
++
++export class WebContainerService {
++  private instance: WebContainer | null = null;
++  private bootPromise: Promise<WebContainer> | null = null;
++  private logCallbacks: Set<(log: { type: string; message: string; timestamp: number }) => void> = new Set();
++
++  public serverUrl: string | null = null;
++
++  async getInstance(): Promise<WebContainer> {
++    if (this.instance) return this.instance;
++    if (this.bootPromise) return this.bootPromise;
++
++    this.bootPromise = (async () => {
++      playgroundStore.setState({ lifecycle: 'booting' });
++      this.emitLog('info', 'Booting WebContainer...');
++      const instance = await WebContainer.boot();
++      this.instance = instance;
++      this.emitLog('info', 'WebContainer booted.');
++
++      instance.on('server-ready', (port, url) => {
++        this.serverUrl = url;
++        this.emitLog('info', `Server ready: ${url} (port ${port})`);
++      });
++
++      return instance;
++    })();
++
++    return this.bootPromise;
++  }
++
++  onLog(cb: (log: { type: string; message: string; timestamp: number }) => void) {
++    this.logCallbacks.add(cb);
++    return () => this.logCallbacks.delete(cb);
++  }
++
++  emitLog(type: string, message: string) {
++    if (!message) return;
++    this.logCallbacks.forEach(cb => cb({ type, message, timestamp: Date.now() }));
++  }
++
++  async enqueue<T>(task: (instance: WebContainer) => Promise<T>): Promise<T> {
++    return playgroundStore.enqueue(async () => {
++      const instance = await this.getInstance();
++      return task(instance);
++    });
++  }
++
++  async mount(files: any) {
++    const instance = await this.getInstance();
++    await instance.mount(files);
++  }
++
++  async mountSnapshot(url: string) {
++    this.emitLog('info', `Fetching snapshot from ${url}...`);
++    const res = await fetch(url);
++    if (!res.ok) throw new Error(`Snapshot fetch failed: ${res.status}`);
++    const buffer = await res.arrayBuffer();
++    const instance = await this.getInstance();
++    await instance.mount(new Uint8Array(buffer));
++    this.emitLog('info', 'Snapshot mounted successfully.');
++  }
++
++  async exportSnapshot(): Promise<Uint8Array> {
++    const instance = await this.getInstance();
++    this.emitLog('info', 'Exporting environment snapshot...');
++    // Use binary format to avoid JSON serialization issues and reduce size
++    const snapshot = await instance.export('.', { format: 'binary' }) as Uint8Array;
++    this.emitLog('info', 'Snapshot exported.');
++    return snapshot;
++  }
++
++  async mountRawSnapshot(data: Uint8Array) {
++    const instance = await this.getInstance();
++    await instance.mount(data);
++    this.emitLog('info', 'Local snapshot mounted.');
++  }
++
++  async writeFile(path: string, content: string) {
++    const instance = await this.getInstance();
++    await instance.fs.writeFile(path, content);
++  }
++
++  async readFile(path: string) {
++    const instance = await this.getInstance();
++    return instance.fs.readFile(path, 'utf8');
++  }
++
++  async spawnManaged(cmd: string, args: string[], options: { silent?: boolean, onLog?: (line: string) => void } = {}): Promise<WebContainerProcess> {
++    const instance = await this.getInstance();
++    const proc = await instance.spawn(cmd, args);
++
++    const reader = proc.output.getReader();
++    const decoder = new TextDecoder();
++    let currentLineBuffer = '';
++
++    (async () => {
++      try {
++        while (true) {
++          const { done, value } = await reader.read();
++          if (done) break;
++
++          let chunk = value;
++          if (value instanceof Uint8Array) {
++             chunk = decoder.decode(value, { stream: true });
++          }
++
++          currentLineBuffer += chunk;
++          const lines = currentLineBuffer.split(/\r?\n|\r/);
++
++          const last = lines[lines.length - 1];
++          const hasIncompleteAnsi = /[\u001b\u009b][\[\]()#;?]*[0-9;]*$/.test(last);
++
++          if (!hasIncompleteAnsi) {
++            currentLineBuffer = lines.pop() || '';
++            for (const line of lines) {
++               const simplified = line.replace(/\s{5,}/g, '    ');
++               if (!options.silent) this.emitLog('info', simplified);
++               options.onLog?.(simplified);
++            }
++          } else {
++            const completeLines = lines.slice(0, -1);
++            currentLineBuffer = lines[lines.length - 1];
++            for (const line of completeLines) {
++               const simplified = line.replace(/\s{5,}/g, '    ');
++               if (!options.silent) this.emitLog('info', simplified);
++               options.onLog?.(simplified);
++            }
++          }
++        }
++        if (currentLineBuffer) {
++          if (!options.silent) this.emitLog('info', currentLineBuffer);
++          options.onLog?.(currentLineBuffer);
++        }
++      } catch (err: any) {
++        console.warn('[WC Service] Stream read error:', err.message);
++      } finally {
++        reader.releaseLock();
++      }
++    })();
++
++    return proc;
++  }
++
++  async readDirRecursive(dir: string, filter?: (path: string) => boolean): Promise<Record<string, string>> {
++    const instance = await this.getInstance();
++    const results: Record<string, string> = {};
++
++    const read = async (currentPath: string) => {
++      try {
++        const entries = await instance.fs.readdir(currentPath, { withFileTypes: true });
++        for (const entry of entries) {
++          const fullPath = `${currentPath}/${entry.name}`;
++          if (entry.isDirectory()) {
++            await read(fullPath);
++          } else if (!filter || filter(fullPath)) {
++            const content = await instance.fs.readFile(fullPath, 'utf8');
++            results[fullPath.replace('node_modules/', '')] = content;
++          }
++        }
++      } catch {}
++    };
++
++    await read(dir);
++    return results;
++  }
++}
++
++export const webContainerService = new WebContainerService();
+diff --git a/src/main.tsx b/src/main.tsx
+new file mode 100644
+index 0000000..696f992
+--- /dev/null
++++ b/src/main.tsx
+@@ -0,0 +1,10 @@
++import { StrictMode } from 'react';
++import { createRoot } from 'react-dom/client';
++import './index.css';
++import { App } from './App';
++
++createRoot(document.querySelector('#root')!).render(
++  <StrictMode>
++    <App />
++  </StrictMode>,
++);
+diff --git a/vite.config.ts b/vite.config.ts
+new file mode 100644
+index 0000000..5b4c789
+--- /dev/null
++++ b/vite.config.ts
+@@ -0,0 +1,61 @@
++import path from 'node:path';
++import { fileURLToPath } from 'node:url';
++import tailwindcss from '@tailwindcss/vite';
++import react from '@vitejs/plugin-react';
++import { defineConfig } from 'vite';
++import { viteSingleFile } from 'vite-plugin-singlefile';
++
++const __filename = fileURLToPath(import.meta.url);
++const __dirname = path.dirname(__filename);
++
++// Parse environment variables for build configuration
++const isMinified =
++  process.env.IS_MINIFIED !== 'false' && process.env.IS_MINIFIED !== '0';
++const isSourceMapped =
++  process.env.IS_SOURCE_MAPPED === 'true' ||
++  process.env.IS_SOURCE_MAPPED === '1';
++
++// Custom plugin to forcefully set COOP/COEP headers for all requests in dev/preview
++const crossOriginIsolation = () => ({
++  name: 'cross-origin-isolation',
++  configureServer(server: any) {
++    server.middlewares.use((_request: any, res: any, next: any) => {
++      res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
++      res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
++      next();
++    });
++  },
++  configurePreviewServer(server: any) {
++    server.middlewares.use((_request: any, res: any, next: any) => {
++      res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
++      res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
++      next();
++    });
++  },
++});
++
++// https://vite.dev/config/
++export default defineConfig({
++  plugins: [react(), tailwindcss(), viteSingleFile(), crossOriginIsolation()],
++  resolve: {
++    alias: {
++      '@': path.resolve(__dirname, 'src'),
++    },
++  },
++  server: {
++    headers: {
++      'Cross-Origin-Embedder-Policy': 'require-corp',
++      'Cross-Origin-Opener-Policy': 'same-origin',
++    },
++  },
++  preview: {
++    headers: {
++      'Cross-Origin-Embedder-Policy': 'require-corp',
++      'Cross-Origin-Opener-Policy': 'same-origin',
++    },
++  },
++  build: {
++    minify: isMinified,
++    sourcemap: isSourceMapped,
++  },
++});
+diff --git a/vitest.config.ts b/vitest.config.ts
+new file mode 100644
+index 0000000..40453a4
+--- /dev/null
++++ b/vitest.config.ts
+@@ -0,0 +1,11 @@
++import { defineConfig } from 'vitest/config';
++import react from '@vitejs/plugin-react';
++
++export default defineConfig({
++  plugins: [react()],
++  test: {
++    environment: 'jsdom',
++    globals: true,
++    exclude: ['**/node_modules/**', '**/e2e/**'],
++  },
++});

@@ -67,6 +67,16 @@ export class WebContainerService {
     this.emitLog('info', 'Snapshot mounted successfully.');
   }
 
+  async getEnvReady() {
+    return new Promise<void>((resolve) => {
+      const check = () => {
+        if (playgroundStore.getState().lifecycle === "ready") resolve();
+        else setTimeout(check, 100);
+      };
+      check();
+    });
+  }
+
   async exportSnapshot(): Promise<Uint8Array> {
     const instance = await this.getInstance();
     this.emitLog('info', 'Exporting environment snapshot...');

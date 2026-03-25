@@ -11,7 +11,8 @@ export interface PlaygroundState {
   lineWrap: boolean;
   stripAnsi: boolean;
   inlineDeps: boolean;
-  isReady: boolean; bootTime: number | null;
+  isReady: boolean;
+  bootTime: number | null;
 }
 
 type StateListener = (state: PlaygroundState) => void;
@@ -26,7 +27,8 @@ class PlaygroundStore {
     lineWrap: localStorage.getItem('tsplay_linewrap') === 'true',
     stripAnsi: localStorage.getItem('tsplay_stripansi') === 'true',
     inlineDeps: localStorage.getItem('tsplay_inlinedeps') === 'true',
-    isReady: false, bootTime: null,
+    isReady: false,
+    bootTime: null,
   };
 
   private listeners: Set<StateListener> = new Set();
@@ -36,15 +38,17 @@ class PlaygroundStore {
     return { ...this.state };
   }
 
-  setState(patch: Partial<PlaygroundState>) {
+  setState(patch: Partial<PlaygroundState> | ((prev: PlaygroundState) => Partial<PlaygroundState>)) {
     const oldReady = this.state.isReady;
-    this.state = { ...this.state, ...patch };
+    const resolvedPatch = typeof patch === 'function' ? patch(this.state) : patch;
+
+    this.state = { ...this.state, ...resolvedPatch };
 
     // Persistence
-    if (patch.theme) localStorage.setItem('tsplay_theme', patch.theme);
-    if (patch.lineWrap !== undefined) localStorage.setItem('tsplay_linewrap', String(patch.lineWrap));
-    if (patch.stripAnsi !== undefined) localStorage.setItem('tsplay_stripansi', String(patch.stripAnsi));
-    if (patch.inlineDeps !== undefined) localStorage.setItem('tsplay_inlinedeps', String(patch.inlineDeps));
+    if (resolvedPatch.theme) localStorage.setItem('tsplay_theme', resolvedPatch.theme);
+    if (resolvedPatch.lineWrap !== undefined) localStorage.setItem('tsplay_linewrap', String(resolvedPatch.lineWrap));
+    if (resolvedPatch.stripAnsi !== undefined) localStorage.setItem('tsplay_stripansi', String(resolvedPatch.stripAnsi));
+    if (resolvedPatch.inlineDeps !== undefined) localStorage.setItem('tsplay_inlinedeps', String(resolvedPatch.inlineDeps));
 
     // Derive readiness
     this.state.isReady =
@@ -52,7 +56,7 @@ class PlaygroundStore {
       this.state.tscStatus === 'Ready' &&
       this.state.esbuildStatus === 'Ready';
 
-    if (this.state.isReady !== oldReady || Object.keys(patch).length > 0) {
+    if (this.state.isReady !== oldReady || Object.keys(resolvedPatch).length > 0) {
       this.notify();
     }
   }
