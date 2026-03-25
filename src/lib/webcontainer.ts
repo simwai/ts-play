@@ -92,6 +92,16 @@ export class WebContainerService {
     return instance.fs.readFile(path, 'utf8');
   }
 
+  async getEnvReady() {
+    return new Promise<void>((resolve) => {
+      const check = () => {
+        if (playgroundStore.getState().lifecycle === "ready") resolve();
+        else setTimeout(check, 100);
+      };
+      check();
+    });
+  }
+
   async spawnManaged(cmd: string, args: string[], options: { silent?: boolean, onLog?: (line: string) => void } = {}): Promise<WebContainerProcess> {
     const instance = await this.getInstance();
     const proc = await instance.spawn(cmd, args);
@@ -161,7 +171,9 @@ export class WebContainerService {
             await read(fullPath);
           } else if (!filter || filter(fullPath)) {
             const content = await instance.fs.readFile(fullPath, 'utf8');
-            results[fullPath.replace('node_modules/', '')] = content;
+            // Keep the full path relative to the root for Monaco
+            const monacoPath = fullPath.startsWith('./') ? fullPath.slice(2) : fullPath;
+            results[monacoPath] = content;
           }
         }
       } catch {}

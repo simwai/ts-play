@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import Editor, { useMonaco, type OnMount } from '@monaco-editor/react';
 import { cn } from '../lib/utils';
 import {
@@ -116,6 +116,10 @@ export const CodeEditor = React.memo(
           allowJs: true,
           isolatedModules: true,
           typeRoots: ['node_modules/@types'],
+          baseUrl: '.',
+          paths: {
+            '*': ['node_modules/*']
+          },
         };
         tsDefaults.setCompilerOptions(options);
         jsDefaults.setCompilerOptions(options as any);

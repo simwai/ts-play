@@ -43,7 +43,11 @@ export function SettingsModal({
            silent: true,
            onLog: (line) => { output += line; }
          });
+         const writer = proc.input.getWriter();
+         await writer.write(config);
+         await writer.close();
          await proc.exit;
+
          return JSON.parse(output.trim()) as { valid: boolean; error?: string };
       });
       return result;

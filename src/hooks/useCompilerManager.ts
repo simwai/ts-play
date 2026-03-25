@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { webContainerService } from '../lib/webcontainer';
 import { usePlaygroundStore } from './usePlaygroundStore';
 import { db } from '../lib/db';
@@ -6,6 +6,16 @@ import { db } from '../lib/db';
 export function useCompilerManager() {
   const [isRunning, setIsRunning] = useState(false);
   const { isReady } = usePlaygroundStore();
+  const currentProcRef = useRef<any>(null);
+
+  const stopCode = useCallback(() => {
+    if (currentProcRef.current) {
+      currentProcRef.current.kill();
+      currentProcRef.current = null;
+      setIsRunning(false);
+      webContainerService.emitLog('info', 'Execution stopped by user.');
+    }
+  }, []);
 
   const runCode = useCallback(async () => {
     if (isRunning || !isReady) return;
@@ -13,7 +23,11 @@ export function useCompilerManager() {
     setIsRunning(true);
     try {
       const proc = await webContainerService.spawnManaged('node', ['dist/index.js']);
+      currentProcRef.current = proc;
+
       const exitCode = await proc.exit;
+      currentProcRef.current = null;
+
       if (exitCode === 0) {
         // Successful execution - capture snapshot
         try {
@@ -24,7 +38,7 @@ export function useCompilerManager() {
           console.error('Failed to save snapshot:', err);
           webContainerService.emitLog('error', `Failed to save snapshot: ${err.message}`);
         }
-      } else {
+      } else if (exitCode !== null) {
         webContainerService.emitLog('error', `Process exited with code ${exitCode}`);
       }
     } catch (err: any) {
@@ -36,6 +50,7 @@ export function useCompilerManager() {
 
   return {
     runCode,
+    stopCode,
     isRunning,
   };
 }
