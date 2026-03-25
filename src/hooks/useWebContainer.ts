@@ -121,9 +121,15 @@ export function useWebContainer(
       if (exitCode !== 0) throw new Error('NPM install failed.');
     }
 
-    await webContainerService.writeFile('index.ts', tsCode);
-    await webContainerService.writeFile('tsconfig.json', tsConfigString);
-    await webContainerService.writeFile('__detect_imports.cjs', DETECT_IMPORTS_SCRIPT);
+    const [existingTs, existingTsConfig, existingDetect] = await Promise.all([
+      webContainerService.readFile('index.ts').catch(() => ''),
+      webContainerService.readFile('tsconfig.json').catch(() => ''),
+      webContainerService.readFile('__detect_imports.cjs').catch(() => '')
+    ]);
+
+    if (existingTs !== tsCode) await webContainerService.writeFile('index.ts', tsCode);
+    if (existingTsConfig !== tsConfigString) await webContainerService.writeFile('tsconfig.json', tsConfigString);
+    if (existingDetect !== DETECT_IMPORTS_SCRIPT) await webContainerService.writeFile('__detect_imports.cjs', DETECT_IMPORTS_SCRIPT);
 
     const wc = await webContainerService.getInstance();
     await wc.fs.mkdir('dist', { recursive: true }).catch(() => {});
@@ -138,7 +144,11 @@ export function useWebContainer(
       const { build } = require('esbuild');
       const fs = require('fs');
       let timeout;
-      async function doBuild() {
+      async function doBuild(force = true) {
+         if (!force && fs.existsSync('dist/index.js')) {
+            console.log('Build JS finished (restored from snapshot).');
+            return;
+         }
          console.log('Building JS...');
          try {
            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
@@ -157,9 +167,9 @@ export function useWebContainer(
          } catch (e) { console.log('Build JS failed.'); console.log(e.message); }
       }
       fs.watch('index.ts', (event) => {
-         if (event === 'change') { clearTimeout(timeout); timeout = setTimeout(doBuild, 100); }
+         if (event === 'change') { clearTimeout(timeout); timeout = setTimeout(() => doBuild(true), 100); }
       });
-      doBuild();
+      doBuild(false);
     `;
     await webContainerService.writeFile('__build.cjs', buildScript);
 
@@ -169,7 +179,7 @@ export function useWebContainer(
         if (line.includes('Building JS')) {
           playgroundStore.setState({ esbuildStatus: 'Compiling' });
         }
-        if (line.includes('Build JS finished')) {
+        if (line.includes('Build JS finished') || line.includes('restored from snapshot')) {
           playgroundStore.setState({ esbuildStatus: 'Ready' });
         }
         if (line.includes('Build JS failed')) {
