@@ -50,13 +50,27 @@ export class WebContainerService {
   }
 
   async mountSnapshot(url: string) {
-     this.emitLog('info', `Fetching snapshot from ${url}...`);
-     const res = await fetch(url);
-     if (!res.ok) throw new Error(`Snapshot fetch failed: ${res.status}`);
-     const buffer = await res.arrayBuffer();
-     const instance = await this.getInstance();
-     await instance.mount(buffer);
-     this.emitLog('info', 'Snapshot mounted successfully.');
+    this.emitLog('info', `Fetching snapshot from ${url}...`);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Snapshot fetch failed: ${res.status}`);
+    const buffer = await res.arrayBuffer();
+    const instance = await this.getInstance();
+    await instance.mount(new Uint8Array(buffer));
+    this.emitLog('info', 'Snapshot mounted successfully.');
+  }
+
+  async exportSnapshot(): Promise<Uint8Array> {
+    const instance = await this.getInstance();
+    this.emitLog('info', 'Exporting environment snapshot...');
+    const snapshot = await instance.export();
+    this.emitLog('info', 'Snapshot exported.');
+    return snapshot;
+  }
+
+  async mountRawSnapshot(data: Uint8Array) {
+    const instance = await this.getInstance();
+    await instance.mount(data);
+    this.emitLog('info', 'Local snapshot mounted.');
   }
 
   async writeFile(path: string, content: string) {

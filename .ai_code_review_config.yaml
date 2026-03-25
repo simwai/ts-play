@@ -1,0 +1,13 @@
+# Verification that snapshots are handled correctly
+- path: src/lib/webcontainer.ts
+  checks:
+    - "Ensure mountSnapshot uses Uint8Array for the buffer."
+    - "Verify exportSnapshot returns a Uint8Array."
+- path: src/hooks/useWebContainer.ts
+  checks:
+    - "Verify snapshot priority: Dexie -> base.snapshot -> full install."
+    - "Check that tsc emits declarations to dist/ correctly."
+    - "Ensure syncTypes maps dist/index.d.ts to index.d.ts for Monaco."
+- path: src/App.tsx
+  checks:
+    - "Verify jsDirty state is set on manual change and checked on Run."

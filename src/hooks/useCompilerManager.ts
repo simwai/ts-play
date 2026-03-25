@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { webContainerService } from '../lib/webcontainer';
 import { usePlaygroundStore } from './usePlaygroundStore';
+import { db } from '../lib/db';
 
 export function useCompilerManager() {
   const [isRunning, setIsRunning] = useState(false);
@@ -11,10 +12,18 @@ export function useCompilerManager() {
 
     setIsRunning(true);
     try {
-      // The state-manager already ensures we are 'Ready' before this is enabled
       const proc = await webContainerService.spawnManaged('node', ['dist/index.js']);
       const exitCode = await proc.exit;
-      if (exitCode !== 0) {
+      if (exitCode === 0) {
+        // Successful execution - capture snapshot
+        try {
+          const snapshot = await webContainerService.exportSnapshot();
+          await db.saveSnapshot('playground', snapshot);
+          webContainerService.emitLog('info', '✨ Environment snapshot saved to IndexedDB.');
+        } catch (err: any) {
+          console.error('Failed to save snapshot:', err);
+        }
+      } else {
         webContainerService.emitLog('error', `Process exited with code ${exitCode}`);
       }
     } catch (err: any) {

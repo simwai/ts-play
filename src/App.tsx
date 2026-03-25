@@ -61,12 +61,12 @@ export function App() {
     useConsoleManager();
 
   const handleArtifactsChange = useCallback((js: string, dts: string) => {
+    // If JS is dirty, we don't overwrite it with auto-emitted code
     if (js) {
-        setJsCode(js);
-        setJsDirty(false);
+        setJsCode((prev) => (jsDirty ? prev : js));
     }
     if (dts) setDtsCode(dts);
-  }, []);
+  }, [jsDirty]);
 
   const { externalTypings } = useWebContainer(
     tsConfigString,
@@ -93,6 +93,16 @@ export function App() {
   }, [tscStatus, esbuildStatus]);
 
   const { runCode, isRunning } = useCompilerManager();
+
+  const handleRun = useCallback(async () => {
+    if (jsDirty) {
+      if (!confirm('The JavaScript code has been modified. Running will overwrite your changes with the latest compiled code. Continue?')) {
+        return;
+      }
+      setJsDirty(false);
+    }
+    runCode();
+  }, [jsDirty, runCode]);
 
   const handleCopyAll = useCallback(() => {
     const code =
@@ -158,7 +168,7 @@ export function App() {
         copied={copied}
         handleDeleteAll={handleDeleteAll}
         onSettings={() => setIsSettingsOpen(true)}
-        doRun={runCode}
+        doRun={handleRun}
         stopCode={() => {}}
         sharing={isSharing}
         formatting={isFormatting}

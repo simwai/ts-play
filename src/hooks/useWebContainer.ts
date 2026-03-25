@@ -3,6 +3,7 @@ import { webContainerService, SYSTEM_DEPS } from '../lib/webcontainer';
 import { playgroundStore } from '../lib/state-manager';
 import { usePlaygroundStore } from './usePlaygroundStore';
 import type { ConsoleMessage } from '../components/Console';
+import { db } from '../lib/db';
 
 const DETECT_IMPORTS_SCRIPT = `
 const fs = require('fs');
@@ -36,7 +37,15 @@ export function useWebContainer(
     try {
       const nodeTypes = await webContainerService.readDirRecursive('node_modules', (path) => path.endsWith('.d.ts'));
       const emittedTypes = await webContainerService.readDirRecursive('dist', (path) => path.endsWith('.d.ts'));
-      setExternalTypings({ ...nodeTypes, ...emittedTypes });
+
+      const finalTypes: Record<string, string> = { ...nodeTypes, ...emittedTypes };
+
+      // Specifically ensure Monaco sees the emitted index.d.ts as file:///index.d.ts
+      if (emittedTypes['dist/index.d.ts']) {
+         finalTypes['index.d.ts'] = emittedTypes['dist/index.d.ts'];
+      }
+
+      setExternalTypings(finalTypes);
     } catch (err) {
       console.error('Failed to sync types:', err);
     }
@@ -44,15 +53,24 @@ export function useWebContainer(
 
   const watchDist = useCallback(async () => {
     const wc = await webContainerService.getInstance();
+
+    // Initial sync
     const sync = async () => {
       try {
         const js = await wc.fs.readFile('dist/index.js', 'utf8').catch(() => '');
         const dts = await wc.fs.readFile('dist/index.d.ts', 'utf8').catch(() => '');
         onArtifactsChange(js, dts);
-        syncTypes();
+        await syncTypes();
       } catch {}
     };
-    wc.fs.watch('dist', { recursive: true }, sync);
+
+    // Watch for changes in dist/
+    wc.fs.watch('dist', { recursive: true }, (event, filename) => {
+       if (filename === 'index.js' || filename === 'index.d.ts') {
+          sync();
+       }
+    });
+
     sync();
   }, [onArtifactsChange, syncTypes]);
 
@@ -72,10 +90,17 @@ export function useWebContainer(
     };
 
     try {
-      await webContainerService.mountSnapshot('/base.snapshot');
-      webContainerService.emitLog('info', '🟣 Snapshot mounted! Skipping npm install.');
+      const localSnapshot = await db.getLatestSnapshot('playground');
+      if (localSnapshot) {
+        webContainerService.emitLog('info', '📦 Loading last session snapshot from IndexedDB...');
+        await webContainerService.mountRawSnapshot(localSnapshot.data);
+      } else {
+        webContainerService.emitLog('info', '🟣 Fetching initial environment snapshot...');
+        await webContainerService.mountSnapshot('/base.snapshot');
+      }
+      webContainerService.emitLog('info', '🚀 Snapshot mounted! Skipping npm install.');
     } catch (e) {
-      webContainerService.emitLog('info', 'No snapshot found, performing full mount & install...');
+      webContainerService.emitLog('info', '⚠️ Snapshot loading failed, performing full mount & install...');
       await webContainerService.mount({
         'package.json': { file: { contents: JSON.stringify(pkgJson, null, 2) } },
         'tsconfig.json': { file: { contents: tsConfigString } },
@@ -93,6 +118,9 @@ export function useWebContainer(
     await webContainerService.writeFile('index.ts', tsCode);
     await webContainerService.writeFile('tsconfig.json', tsConfigString);
     await webContainerService.writeFile('__detect_imports.cjs', DETECT_IMPORTS_SCRIPT);
+
+    const wc = await webContainerService.getInstance();
+    await wc.fs.mkdir('dist', { recursive: true }).catch(() => {});
   };
 
   const startEsbuild = async () => {
@@ -105,7 +133,7 @@ export function useWebContainer(
       const fs = require('fs');
       let timeout;
       async function doBuild() {
-         console.log('Building...');
+         console.log('Building JS...');
          try {
            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
            const deps = Object.keys(pkg.dependencies || {});
@@ -119,8 +147,8 @@ export function useWebContainer(
              treeShaking: true,
              external: ${inlineDeps ? '[]' : 'deps'},
            });
-           console.log('Build finished.');
-         } catch (e) { console.log('Build failed.'); console.log(e.message); }
+           console.log('Build JS finished.');
+         } catch (e) { console.log('Build JS failed.'); console.log(e.message); }
       }
       fs.watch('index.ts', (event) => {
          if (event === 'change') { clearTimeout(timeout); timeout = setTimeout(doBuild, 100); }
@@ -132,13 +160,13 @@ export function useWebContainer(
     esbuildProcRef.current = await webContainerService.spawnManaged('node', ['__build.cjs'], {
       silent: false,
       onLog: (line) => {
-        if (line.includes('Building')) {
+        if (line.includes('Building JS')) {
           playgroundStore.setState({ esbuildStatus: 'Compiling' });
         }
-        if (line.includes('Build finished')) {
+        if (line.includes('Build JS finished')) {
           playgroundStore.setState({ esbuildStatus: 'Ready' });
         }
-        if (line.includes('Build failed')) {
+        if (line.includes('Build JS failed')) {
           playgroundStore.setState({ esbuildStatus: 'Error' });
         }
       }
@@ -146,7 +174,7 @@ export function useWebContainer(
   };
 
   const startTsc = async () => {
-    await webContainerService.spawnManaged('./node_modules/.bin/tsc', ['--watch', '--emitDeclarationOnly', '--incremental', '--outDir', 'dist', '--rootDir', '.'], {
+    await webContainerService.spawnManaged('./node_modules/.bin/tsc', ['--watch', '--emitDeclarationOnly', '--incremental', '--outDir', 'dist', '--rootDir', '.', '--noEmit', 'false'], {
       silent: true,
       onLog: (line) => {
          if (line.includes('Starting incremental compilation') || line.includes('File change detected')) {
