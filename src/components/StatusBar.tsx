@@ -2,6 +2,7 @@ import { Undo2, Redo2, Settings } from 'lucide-react';
 import { IconButton } from './ui/IconButton';
 import type { TabType } from '../lib/constants';
 import type { PackageManagerStatus } from '../hooks/usePackageManager';
+import { usePlaygroundStore } from '../hooks/usePlaygroundStore';
 
 type StatusBarProps = {
   statusText: string;
@@ -24,6 +25,7 @@ export function StatusBar({
   compactForKeyboard,
   packageManagerStatus,
 }: StatusBarProps) {
+  const { bootTime } = usePlaygroundStore();
 
   const pmLabel =
     packageManagerStatus === 'installing'
@@ -68,6 +70,7 @@ export function StatusBar({
             : activeTab === 'js'
               ? 'JavaScript'
               : 'Declarations'}
+          {bootTime !== null && <span className="text-overlay0 px-2 py-0.5 bg-surface0/30 rounded-md select-none mr-2">{bootTime.toFixed(2)}s</span>}
           {activeTab === 'js' && jsDirty && (
             <span className="ml-2 text-peach">● modified</span>
           )}

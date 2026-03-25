@@ -11,7 +11,7 @@ export interface PlaygroundState {
   lineWrap: boolean;
   stripAnsi: boolean;
   inlineDeps: boolean;
-  isReady: boolean;
+  isReady: boolean; bootTime: number | null;
 }
 
 type StateListener = (state: PlaygroundState) => void;
@@ -26,7 +26,7 @@ class PlaygroundStore {
     lineWrap: localStorage.getItem('tsplay_linewrap') === 'true',
     stripAnsi: localStorage.getItem('tsplay_stripansi') === 'true',
     inlineDeps: localStorage.getItem('tsplay_inlinedeps') === 'true',
-    isReady: false,
+    isReady: false, bootTime: null,
   };
 
   private listeners: Set<StateListener> = new Set();
