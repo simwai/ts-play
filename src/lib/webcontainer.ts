@@ -70,6 +70,7 @@ export class WebContainerService {
   async exportSnapshot(): Promise<Uint8Array> {
     const instance = await this.getInstance();
     this.emitLog('info', 'Exporting environment snapshot...');
+    // Use binary format to avoid JSON serialization issues and reduce size
     const snapshot = await instance.export('.', { format: 'binary' }) as Uint8Array;
     this.emitLog('info', 'Snapshot exported.');
     return snapshot;
@@ -170,6 +171,7 @@ export class WebContainerService {
             await read(fullPath);
           } else if (!filter || filter(fullPath)) {
             const content = await instance.fs.readFile(fullPath, 'utf8');
+            // Keep the full path relative to the root for Monaco
             const monacoPath = fullPath.startsWith('./') ? fullPath.slice(2) : fullPath;
             results[monacoPath] = content;
           }

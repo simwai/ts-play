@@ -5,6 +5,7 @@ import { Console } from './components/Console';
 import { Header } from './components/Header';
 import { StatusBar } from './components/StatusBar';
 import { SettingsModal } from './components/SettingsModal';
+import { PackageManager } from './components/PackageManager';
 import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
 import { formatAllFiles } from './lib/formatter';
 import { useResizePanel } from './hooks/useResizePanel';
@@ -54,6 +55,7 @@ export function App() {
   const [jsDirty, setJsDirty] = useState(false);
   const [typeInfo, setTypeInfo] = useState('');
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
+  const [pmOpen, setPmOpen] = useState(false);
 
   const editorRef = useRef<CodeEditorHandle>(null);
 
@@ -75,7 +77,7 @@ export function App() {
     handleArtifactsChange
   );
 
-  const { tsCursorPos } = usePackageManager(tsCode, addMessage);
+  const { tsCursorPos, installedPackages } = usePackageManager(tsCode, addMessage);
 
   const statusText = useMemo(() => {
     const parts = [];
@@ -258,12 +260,18 @@ export function App() {
         </div>
 
         <div style={{ height: `${panelHeight}rem` }} className="flex flex-col bg-mantle overflow-hidden">
+            <PackageManager
+              packages={installedPackages}
+              isOpen={pmOpen}
+              onToggle={() => setPmOpen(!pmOpen)}
+              contentHeight={pmOpen ? panelHeight : 0}
+            />
             <Console
               messages={messages}
               onClear={clearMessages}
               isOpen={consoleOpen}
               onToggle={toggleConsole}
-              contentHeight={panelHeight}
+              contentHeight={consoleOpen ? panelHeight : 0}
               stripAnsiEnabled={stripAnsi}
             />
         </div>

@@ -5,6 +5,7 @@ export function useConsoleManager() {
   const [messages, setMessages] = useState<ConsoleMessage[]>([]);
   const [consoleOpen, setConsoleOpen] = useState(true);
   const messagesRef = useRef<ConsoleMessage[]>([]);
+  const isInternalProcessing = useRef(false);
 
   const addMessage = useCallback(
     (type: ConsoleMessage['type'], args: unknown[]) => {
@@ -24,7 +25,6 @@ export function useConsoleManager() {
       const formatted = args.map((a) => {
         if (a instanceof Error) return a.stack || a.message;
         if (typeof a === 'string') {
-           // Strip problematic characters but keep basic ANSI and layout
            // Strip large repeating whitespace but keep tabs/newlines
            return a.replace(/ {10,}/g, (match) => '          ' + (match.length - 10) + ' spaces ');
         }
@@ -41,7 +41,10 @@ export function useConsoleManager() {
         setMessages([...messagesRef.current]);
       } catch (err) {
         // Fallback
-        (window as any).__ORIG_CONSOLE__?.error('Failed to update messages:', err);
+        const win = window as any;
+        if (win.__ORIG_CONSOLE__?.error) {
+           win.__ORIG_CONSOLE__.error('Failed to update messages:', err);
+        }
       }
     },
     [],
@@ -81,70 +84,24 @@ export function useConsoleManager() {
       };
     }
 
-    let isInternalProcessing = false;
-
-    console.log = (...a) => {
-      if (!isInternalProcessing) {
-        isInternalProcessing = true;
-        addMessage('log', a);
-        isInternalProcessing = false;
-      }
-      origLog(...a);
+    const patch = (type: ConsoleMessage['type'], orig: (...args: any[]) => void) => {
+       return (...args: any[]) => {
+          if (!isInternalProcessing.current) {
+             isInternalProcessing.current = true;
+             addMessage(type, args);
+             isInternalProcessing.current = false;
+          }
+          orig(...args);
+       };
     };
 
-    console.error = (...a) => {
-      if (!isInternalProcessing) {
-        isInternalProcessing = true;
-        addMessage('error', a);
-        isInternalProcessing = false;
-      }
-      origError(...a);
-    };
-
-    console.warn = (...a) => {
-      if (!isInternalProcessing) {
-        isInternalProcessing = true;
-        addMessage('warn', a);
-        isInternalProcessing = false;
-      }
-      origWarn(...a);
-    };
-
-    console.info = (...a) => {
-      if (!isInternalProcessing) {
-        isInternalProcessing = true;
-        addMessage('info', a);
-        isInternalProcessing = false;
-      }
-      origInfo(...a);
-    };
-
-    console.debug = (...a) => {
-      if (!isInternalProcessing) {
-        isInternalProcessing = true;
-        addMessage('debug', a);
-        isInternalProcessing = false;
-      }
-      origDebug(...a);
-    };
-
-    console.trace = (...a) => {
-      if (!isInternalProcessing) {
-        isInternalProcessing = true;
-        addMessage('trace', a);
-        isInternalProcessing = false;
-      }
-      origTrace(...a);
-    };
-
-    console.dir = (...a) => {
-      if (!isInternalProcessing) {
-        isInternalProcessing = true;
-        addMessage('dir', a);
-        isInternalProcessing = false;
-      }
-      origDir(...a);
-    };
+    console.log = patch('log', origLog);
+    console.error = patch('error', origError);
+    console.warn = patch('warn', origWarn);
+    console.info = patch('info', origInfo);
+    console.debug = patch('debug', origDebug);
+    console.trace = patch('trace', origTrace);
+    console.dir = patch('dir', origDir);
 
     return () => {
       console.log = origLog;
