@@ -62,7 +62,8 @@ export class WebContainerService {
   async exportSnapshot(): Promise<Uint8Array> {
     const instance = await this.getInstance();
     this.emitLog('info', 'Exporting environment snapshot...');
-    const snapshot = await instance.export();
+    // Use binary format to avoid JSON serialization issues and reduce size
+    const snapshot = await instance.export('.', { format: 'binary' }) as Uint8Array;
     this.emitLog('info', 'Snapshot exported.');
     return snapshot;
   }

@@ -22,6 +22,7 @@ export function useCompilerManager() {
           webContainerService.emitLog('info', '✨ Environment snapshot saved to IndexedDB.');
         } catch (err: any) {
           console.error('Failed to save snapshot:', err);
+          webContainerService.emitLog('error', `Failed to save snapshot: ${err.message}`);
         }
       } else {
         webContainerService.emitLog('error', `Process exited with code ${exitCode}`);
