@@ -4,7 +4,7 @@ import { playgroundStore } from './state-manager';
 export type EnvironmentStatus = 'idle' | 'booting' | 'preparing' | 'ready' | 'error';
 export type CompilerStatus = 'Idle' | 'Preparing' | 'Running' | 'Compiling' | 'Ready' | 'Error';
 
-export const SYSTEM_DEPS = ['typescript', 'esbuild', 'prettier', 'lodash-es', '@types/lodash-es'];
+export const SYSTEM_DEPS = ['typescript', 'esbuild', 'prettier', 'lodash-es', '@types/lodash-es', '@types/node'];
 
 export class WebContainerService {
   private instance: WebContainer | null = null;
