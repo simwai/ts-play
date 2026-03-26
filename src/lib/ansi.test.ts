@@ -22,7 +22,8 @@ describe('ANSI Stripping Logic', () => {
   });
 
   it('handles complex mixed sequences', () => {
-    const input = '\x1b[1;31mBold Red\x1b[0m and \x1b[4;32mUnderline Green\x1b[0m';
+    const input =
+      '\x1b[1;31mBold Red\x1b[0m and \x1b[4;32mUnderline Green\x1b[0m';
     expect(stripAnsi(input)).toBe('Bold Red and Underline Green');
   });
 });

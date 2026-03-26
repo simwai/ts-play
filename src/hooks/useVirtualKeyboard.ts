@@ -13,8 +13,10 @@ function activeTextTarget() {
   if (element instanceof HTMLTextAreaElement) return true;
   if (element instanceof HTMLInputElement) return true;
   // Monaco uses a hidden textarea or div
-  return Boolean(element.closest('[data-testid="code-editor-container"]')) ||
-         Boolean(element.closest('[contenteditable="true"]'));
+  return (
+    Boolean(element.closest('[data-testid="code-editor-container"]')) ||
+    Boolean(element.closest('[contenteditable="true"]'))
+  );
 }
 
 export function useVirtualKeyboard(): VKState {

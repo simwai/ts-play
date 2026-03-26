@@ -38,17 +38,29 @@ class PlaygroundStore {
     return { ...this.state };
   }
 
-  setState(patch: Partial<PlaygroundState> | ((prev: PlaygroundState) => Partial<PlaygroundState>)) {
+  setState(
+    patch:
+      | Partial<PlaygroundState>
+      | ((prev: PlaygroundState) => Partial<PlaygroundState>),
+  ) {
     const oldReady = this.state.isReady;
-    const resolvedPatch = typeof patch === 'function' ? patch(this.state) : patch;
+    const resolvedPatch =
+      typeof patch === 'function' ? patch(this.state) : patch;
 
     this.state = { ...this.state, ...resolvedPatch };
 
     // Persistence
-    if (resolvedPatch.theme) localStorage.setItem('tsplay_theme', resolvedPatch.theme);
-    if (resolvedPatch.lineWrap !== undefined) localStorage.setItem('tsplay_linewrap', String(resolvedPatch.lineWrap));
-    if (resolvedPatch.stripAnsi !== undefined) localStorage.setItem('tsplay_stripansi', String(resolvedPatch.stripAnsi));
-    if (resolvedPatch.inlineDeps !== undefined) localStorage.setItem('tsplay_inlinedeps', String(resolvedPatch.inlineDeps));
+    if (resolvedPatch.theme)
+      localStorage.setItem('tsplay_theme', resolvedPatch.theme);
+    if (resolvedPatch.lineWrap !== undefined)
+      localStorage.setItem('tsplay_linewrap', String(resolvedPatch.lineWrap));
+    if (resolvedPatch.stripAnsi !== undefined)
+      localStorage.setItem('tsplay_stripansi', String(resolvedPatch.stripAnsi));
+    if (resolvedPatch.inlineDeps !== undefined)
+      localStorage.setItem(
+        'tsplay_inlinedeps',
+        String(resolvedPatch.inlineDeps),
+      );
 
     // Derive readiness
     this.state.isReady =
@@ -56,7 +68,10 @@ class PlaygroundStore {
       this.state.tscStatus === 'Ready' &&
       this.state.esbuildStatus === 'Ready';
 
-    if (this.state.isReady !== oldReady || Object.keys(resolvedPatch).length > 0) {
+    if (
+      this.state.isReady !== oldReady ||
+      Object.keys(resolvedPatch).length > 0
+    ) {
       this.notify();
     }
   }
@@ -68,7 +83,7 @@ class PlaygroundStore {
 
   private notify() {
     const snapshot = { ...this.state };
-    this.listeners.forEach(l => l(snapshot));
+    this.listeners.forEach((l) => l(snapshot));
   }
 
   async enqueue<T>(task: () => Promise<T>): Promise<T> {
