@@ -25,6 +25,7 @@ import {
   isDarkMode,
 } from '../lib/theme';
 import { DEFAULT_TSCONFIG } from '../lib/constants';
+import { RegexPatterns, toRegExp } from '../lib/regex';
 
 type SettingsModalProps = {
   isOpen: boolean;
@@ -129,14 +130,9 @@ export function SettingsModal({
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label
-                  htmlFor="theme-select"
-                  className="text-xs font-mono text-overlay1 uppercase tracking-wider"
-                >
-                  Editor Theme
-                </label>
+                <label htmlFor="editor-theme" className="text-xs font-mono text-overlay1 uppercase tracking-wider">Editor Theme</label>
                 <select
-                  id="theme-select"
+                  id="editor-theme"
                   value={theme}
                   onChange={(e) =>
                     playgroundStore.setState({
@@ -160,6 +156,7 @@ export function SettingsModal({
                 <label className="flex items-center gap-3 cursor-pointer group">
                   <div className="relative flex items-center">
                     <input
+                      id="strip-ansi"
                       type="checkbox"
                       checked={stripAnsi}
                       onChange={(e) =>
@@ -179,6 +176,7 @@ export function SettingsModal({
                 <label className="flex items-center gap-3 cursor-pointer group">
                   <div className="relative flex items-center">
                     <input
+                      id="line-wrap"
                       type="checkbox"
                       checked={lineWrap}
                       onChange={(e) =>
@@ -199,34 +197,29 @@ export function SettingsModal({
 
           {/* Compilation & Dependencies */}
           <section className="space-y-4">
-            <div className="flex items-center gap-2 text-mauve font-semibold">
-              <PackageCheck size={18} />
-              <h3>Compilation & Bundling</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <div className="relative flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={inlineDeps}
-                    onChange={(e) =>
-                      playgroundStore.setState({ inlineDeps: e.target.checked })
-                    }
-                    className="sr-only peer"
-                  />
-                  <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors"></div>
-                  <div className="absolute left-1 w-3 h-3 bg-text rounded-full transition-transform peer-checked:translate-x-5"></div>
-                </div>
-                <div>
-                  <span className="text-sm text-overlay1 group-hover:text-text transition-colors block">
-                    Inline Dependencies
-                  </span>
-                  <span className="text-4xs text-overlay0 uppercase font-mono tracking-tighter">
-                    BUNDLE node_modules into output
-                  </span>
-                </div>
-              </label>
-            </div>
+             <div className="flex items-center gap-2 text-mauve font-semibold">
+                <PackageCheck size={18} />
+                <h3>Compilation & Bundling</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <label className="flex items-center gap-3 cursor-pointer group">
+                    <div className="relative flex items-center">
+                      <input
+                        id="inline-deps"
+                        type="checkbox"
+                        checked={inlineDeps}
+                        onChange={(e) => playgroundStore.setState({ inlineDeps: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors"></div>
+                      <div className="absolute left-1 w-3 h-3 bg-text rounded-full transition-transform peer-checked:translate-x-5"></div>
+                    </div>
+                    <div>
+                      <span className="text-sm text-overlay1 group-hover:text-text transition-colors block">Inline Dependencies</span>
+                      <span className="text-4xs text-overlay0 uppercase font-mono tracking-tighter">BUNDLE node_modules into output</span>
+                    </div>
+                </label>
+              </div>
           </section>
 
           {/* TSConfig Editor */}

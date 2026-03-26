@@ -4,12 +4,13 @@ import { playgroundStore } from '../lib/state-manager';
 import { usePlaygroundStore } from './usePlaygroundStore';
 import type { ConsoleMessage } from '../components/Console';
 import { db } from '../lib/db';
+import { RegexPatterns, toRegExp } from '../lib/regex';
 
 const DETECT_IMPORTS_SCRIPT = `
 const fs = require('fs');
 const code = process.argv[2] || '';
 const imports = [];
-const regex = /(?:import\\s+(?:[\\w\\s{},*]+)\\s+from\\s+['"]([^'"]+)['"])|(import\\(['"]([^'"]+)['"]\\))|(require\\(['"]([^'"]+)['"]\\))/g;
+const regex = ${RegexPatterns.IMPORT_EXPORT};
 let match;
 while ((match = regex.exec(code)) !== null) {
   const name = match[1] || match[2] || match[3] || match[4] || match[5];
