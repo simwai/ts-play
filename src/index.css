@@ -100,7 +100,38 @@
 }
 
 @layer base {
-  :root {
+  :root,
+  .theme-mocha {
+    /* Catppuccin Mocha (Dark Mode) */
+    --base: #1e1e2e;
+    --mantle: #181825;
+    --crust: #11111b;
+    --surface0: #313244;
+    --surface1: #45475a;
+    --surface2: #585b70;
+    --overlay0: #6c7086;
+    --overlay1: #7f849c;
+    --overlay2: #9399b2;
+    --text: #cdd6f4;
+    --subtext0: #a6adc8;
+    --subtext1: #bac2de;
+    --rosewater: #f5e0dc;
+    --flamingo: #f2cdcd;
+    --pink: #f5c2e7;
+    --mauve: #cba6f7;
+    --red: #f38ba8;
+    --maroon: #eba0ac;
+    --peach: #fab387;
+    --yellow: #f9e2af;
+    --green: #a6e3a1;
+    --teal: #94e2d5;
+    --sky: #89dceb;
+    --sapphire: #74c7ec;
+    --blue: #89b4fa;
+    --lavender: #b4befe;
+  }
+
+  .theme-latte {
     /* Catppuccin Latte (Light Mode) */
     --base: #eff1f5;
     --mantle: #e6e9ef;
@@ -130,34 +161,91 @@
     --lavender: #7287fd;
   }
 
-  .dark {
-    /* Catppuccin Mocha (Dark Mode) */
-    --base: #1e1e2e;
-    --mantle: #181825;
-    --crust: #11111b;
-    --surface0: #313244;
-    --surface1: #45475a;
-    --surface2: #585b70;
-    --overlay0: #6c7086;
-    --overlay1: #7f849c;
-    --overlay2: #9399b2;
-    --text: #cdd6f4;
-    --subtext0: #a6adc8;
-    --subtext1: #bac2de;
-    --rosewater: #f5e0dc;
-    --flamingo: #f2cdcd;
-    --pink: #f5c2e7;
-    --mauve: #cba6f7;
-    --red: #f38ba8;
-    --maroon: #eba0ac;
-    --peach: #fab387;
-    --yellow: #f9e2af;
-    --green: #a6e3a1;
-    --teal: #94e2d5;
-    --sky: #89dceb;
-    --sapphire: #74c7ec;
-    --blue: #89b4fa;
-    --lavender: #b4befe;
+  .theme-githubDark {
+    --base: #0d1117;
+    --mantle: #161b22;
+    --crust: #010409;
+    --surface0: #21262d;
+    --surface1: #30363d;
+    --surface2: #484f58;
+    --overlay0: #6e7681;
+    --overlay1: #8b949e;
+    --overlay2: #b1bac4;
+    --text: #c9d1d9;
+    --subtext0: #8b949e;
+    --subtext1: #b1bac4;
+    --rosewater: #ffa657;
+    --flamingo: #ffa657;
+    --pink: #ff7b72;
+    --mauve: #d2a8ff;
+    --red: #f85149;
+    --maroon: #f85149;
+    --peach: #ffa657;
+    --yellow: #d29922;
+    --green: #3fb950;
+    --teal: #3fb950;
+    --sky: #79c0ff;
+    --sapphire: #79c0ff;
+    --blue: #58a6ff;
+    --lavender: #a5d6ff;
+  }
+
+  .theme-githubLight {
+    --base: #ffffff;
+    --mantle: #f6f8fa;
+    --crust: #ffffff;
+    --surface0: #d0d7de;
+    --surface1: #afb8c1;
+    --surface2: #8c959f;
+    --overlay0: #6e7781;
+    --overlay1: #57606a;
+    --overlay2: #424a53;
+    --text: #24292f;
+    --subtext0: #57606a;
+    --subtext1: #424a53;
+    --rosewater: #953800;
+    --flamingo: #953800;
+    --pink: #cf222e;
+    --mauve: #8250df;
+    --red: #cf222e;
+    --maroon: #cf222e;
+    --peach: #953800;
+    --yellow: #9a6700;
+    --green: #1a7f37;
+    --teal: #1a7f37;
+    --sky: #0550ae;
+    --sapphire: #0550ae;
+    --blue: #0969da;
+    --lavender: #218bff;
+  }
+
+  .theme-monokai {
+    --base: #272822;
+    --mantle: #1e1f1c;
+    --crust: #141512;
+    --surface0: #3e3d32;
+    --surface1: #49483e;
+    --surface2: #75715e;
+    --overlay0: #90908a;
+    --overlay1: #a5a5a2;
+    --overlay2: #bcbcb4;
+    --text: #f8f8f2;
+    --subtext0: #a5a5a2;
+    --subtext1: #bcbcb4;
+    --rosewater: #fd971f;
+    --flamingo: #fd971f;
+    --pink: #f92672;
+    --mauve: #ae81ff;
+    --red: #f92672;
+    --maroon: #f92672;
+    --peach: #fd971f;
+    --yellow: #e6db74;
+    --green: #a6e22e;
+    --teal: #a6e22e;
+    --sky: #66d9ef;
+    --sapphire: #66d9ef;
+    --blue: #66d9ef;
+    --lavender: #ae81ff;
   }
 }
 

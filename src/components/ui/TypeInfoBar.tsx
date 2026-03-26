@@ -71,7 +71,11 @@ function renderWithLinksAndHighlight(text: string) {
   });
 }
 
-export function TypeInfoBar({ typeInfo, language, themeMode = 'mocha' }: TypeInfoBarProps) {
+export function TypeInfoBar({
+  typeInfo,
+  language,
+  themeMode = 'mocha',
+}: TypeInfoBarProps) {
   const monaco = useMonaco();
   const [highlightedType, setHighlightedType] = useState('');
   const [highlightedSig, setHighlightedSig] = useState('');
@@ -84,11 +88,22 @@ export function TypeInfoBar({ typeInfo, language, themeMode = 'mocha' }: TypeInf
     }
 
     const colorize = async () => {
-      const typeHtml = await monaco.editor.colorize(typeInfo.typeAnnotation, 'typescript', { tabSize: 2 });
+      const typeHtml = await monaco.editor.colorize(
+        typeInfo.typeAnnotation,
+        'typescript',
+        { tabSize: 2 },
+      );
       setHighlightedType(typeHtml);
 
-      if (typeInfo.signature && typeInfo.signature !== typeInfo.typeAnnotation) {
-        const sigHtml = await monaco.editor.colorize(typeInfo.signature, 'typescript', { tabSize: 2 });
+      if (
+        typeInfo.signature &&
+        typeInfo.signature !== typeInfo.typeAnnotation
+      ) {
+        const sigHtml = await monaco.editor.colorize(
+          typeInfo.signature,
+          'typescript',
+          { tabSize: 2 },
+        );
         setHighlightedSig(sigHtml);
       } else {
         setHighlightedSig('');
@@ -101,7 +116,9 @@ export function TypeInfoBar({ typeInfo, language, themeMode = 'mocha' }: TypeInf
   if (!typeInfo) {
     return (
       <div className="flex items-center px-4 py-1.5 bg-mantle border-t border-surface0/50 text-xxs font-mono text-overlay1 shrink-0 italic">
-        {language === 'typescript' ? 'Move cursor over a symbol for type info' : 'JavaScript output'}
+        {language === 'typescript'
+          ? 'Move cursor over a symbol for type info'
+          : 'JavaScript output'}
       </div>
     );
   }
@@ -116,16 +133,22 @@ export function TypeInfoBar({ typeInfo, language, themeMode = 'mocha' }: TypeInf
         <span
           className={cn(
             'text-[10px] font-bold tracking-wider uppercase rounded-md px-1.5 py-0.5 shrink-0 leading-tight border transition-colors',
-            kc, kcBg, kcBorder
+            kc,
+            kcBg,
+            kcBorder,
           )}
         >
           {typeInfo.kind}
         </span>
-        <span className="text-text font-semibold shrink-0">{typeInfo.name || (typeInfo.kind === 'keyword' ? '' : 'unknown')}</span>
+        <span className="text-text font-semibold shrink-0">
+          {typeInfo.name || (typeInfo.kind === 'keyword' ? '' : 'unknown')}
+        </span>
         <span className="text-overlay0 shrink-0">:</span>
         <div
           className="whitespace-pre-wrap break-all flex-1 min-w-0 inline-block align-baseline"
-          dangerouslySetInnerHTML={{ __html: highlightedType || typeInfo.typeAnnotation }}
+          dangerouslySetInnerHTML={{
+            __html: highlightedType || typeInfo.typeAnnotation,
+          }}
         />
       </div>
 
@@ -146,42 +169,69 @@ export function TypeInfoBar({ typeInfo, language, themeMode = 'mocha' }: TypeInf
 
 function kindColorClass(kind: string): string {
   switch (kind) {
-    case 'function': return 'text-blue';
-    case 'type': return 'text-yellow';
-    case 'interface': return 'text-teal';
-    case 'class': return 'text-green';
-    case 'parameter': return 'text-maroon';
-    case 'property': return 'text-sapphire';
-    case 'keyword': return 'text-mauve';
-    case 'builtin': return 'text-peach';
-    default: return 'text-lavender';
+    case 'function':
+      return 'text-blue';
+    case 'type':
+      return 'text-yellow';
+    case 'interface':
+      return 'text-teal';
+    case 'class':
+      return 'text-green';
+    case 'parameter':
+      return 'text-maroon';
+    case 'property':
+      return 'text-sapphire';
+    case 'keyword':
+      return 'text-mauve';
+    case 'builtin':
+      return 'text-peach';
+    default:
+      return 'text-lavender';
   }
 }
 
 function kindBgClass(kind: string): string {
   switch (kind) {
-    case 'function': return 'bg-blue/10';
-    case 'type': return 'bg-yellow/10';
-    case 'interface': return 'bg-teal/10';
-    case 'class': return 'bg-green/10';
-    case 'parameter': return 'bg-maroon/10';
-    case 'property': return 'bg-sapphire/10';
-    case 'keyword': return 'bg-mauve/10';
-    case 'builtin': return 'bg-peach/10';
-    default: return 'bg-lavender/10';
+    case 'function':
+      return 'bg-blue/10';
+    case 'type':
+      return 'bg-yellow/10';
+    case 'interface':
+      return 'bg-teal/10';
+    case 'class':
+      return 'bg-green/10';
+    case 'parameter':
+      return 'bg-maroon/10';
+    case 'property':
+      return 'bg-sapphire/10';
+    case 'keyword':
+      return 'bg-mauve/10';
+    case 'builtin':
+      return 'bg-peach/10';
+    default:
+      return 'bg-lavender/10';
   }
 }
 
 function kindBorderClass(kind: string): string {
   switch (kind) {
-    case 'function': return 'border-blue/20';
-    case 'type': return 'border-yellow/20';
-    case 'interface': return 'border-teal/20';
-    case 'class': return 'border-green/20';
-    case 'parameter': return 'border-maroon/20';
-    case 'property': return 'border-sapphire/20';
-    case 'keyword': return 'border-mauve/20';
-    case 'builtin': return 'border-peach/20';
-    default: return 'border-lavender/20';
+    case 'function':
+      return 'border-blue/20';
+    case 'type':
+      return 'border-yellow/20';
+    case 'interface':
+      return 'border-teal/20';
+    case 'class':
+      return 'border-green/20';
+    case 'parameter':
+      return 'border-maroon/20';
+    case 'property':
+      return 'border-sapphire/20';
+    case 'keyword':
+      return 'border-mauve/20';
+    case 'builtin':
+      return 'border-peach/20';
+    default:
+      return 'border-lavender/20';
   }
 }

@@ -20,7 +20,9 @@ type Props = {
   stripAnsiEnabled?: boolean;
 };
 
-function typeVariant(type: ConsoleMessage['type']): 'error' | 'warn' | 'info' | 'default' {
+function typeVariant(
+  type: ConsoleMessage['type'],
+): 'error' | 'warn' | 'info' | 'default' {
   if (type === 'error') return 'error';
   if (type === 'warn' || type === 'trace') return 'warn';
   if (type === 'info' || type === 'debug' || type === 'dir') return 'info';
@@ -62,23 +64,27 @@ export const Console = React.memo(function Console({
 
   useEffect(() => {
     if (isOpen) {
-       requestAnimationFrame(() => {
-         bottomRef.current?.scrollIntoView({ behavior: 'auto' });
-       });
+      requestAnimationFrame(() => {
+        bottomRef.current?.scrollIntoView({ behavior: 'auto' });
+      });
     }
   }, [messages.length, isOpen]);
 
   const stats = useMemo(() => {
-     let err = 0, wrn = 0;
-     for (const m of messages) {
-       if (m.type === 'error') err++;
-       if (m.type === 'warn') wrn++;
-     }
-     return { err, wrn };
+    let err = 0,
+      wrn = 0;
+    for (const m of messages) {
+      if (m.type === 'error') err++;
+      if (m.type === 'warn') wrn++;
+    }
+    return { err, wrn };
   }, [messages]);
 
   return (
-    <div className="flex flex-col h-full bg-mantle shrink-0" data-testid="console-container">
+    <div
+      className="flex flex-col h-full bg-mantle shrink-0"
+      data-testid="console-container"
+    >
       <PanelHeader
         label="Console"
         isOpen={isOpen}
@@ -93,7 +99,10 @@ export const Console = React.memo(function Console({
         right={
           messages.length > 0 ? (
             <Button
-              onClick={(e) => { e.stopPropagation(); onClear(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onClear();
+              }}
               variant="secondary"
               size="xs"
               title="Clear console"
@@ -107,7 +116,10 @@ export const Console = React.memo(function Console({
       />
 
       {isOpen && (
-        <div className="overflow-y-auto overflow-x-hidden border-t border-surface0 flex-1" style={{ height: `${contentHeight}rem` }}>
+        <div
+          className="overflow-y-auto overflow-x-hidden border-t border-surface0 flex-1"
+          style={{ height: `${contentHeight}rem` }}
+        >
           {messages.length === 0 ? (
             <div className="flex items-center justify-center h-full text-overlay0 text-xxs md:text-xs italic font-mono">
               No output yet — press Run to execute
@@ -121,9 +133,19 @@ export const Console = React.memo(function Console({
               }
 
               return (
-                <div key={`${m.ts}-${idx}`} data-testid="console-line" className={`flex items-start gap-3 px-4 py-1.5 border-b border-surface0/20 ${m.type === 'error' ? 'bg-red/5' : m.type === 'warn' ? 'bg-yellow/5' : ''}`}>
-                  <Badge label={typeLabel(m.type)} variant={typeVariant(m.type)} className="mt-0.5" />
-                  <pre className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}>
+                <div
+                  key={`${m.ts}-${idx}`}
+                  data-testid="console-line"
+                  className={`flex items-start gap-3 px-4 py-1.5 border-b border-surface0/20 ${m.type === 'error' ? 'bg-red/5' : m.type === 'warn' ? 'bg-yellow/5' : ''}`}
+                >
+                  <Badge
+                    label={typeLabel(m.type)}
+                    variant={typeVariant(m.type)}
+                    className="mt-0.5"
+                  />
+                  <pre
+                    className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}
+                  >
                     {fullText}
                   </pre>
                 </div>

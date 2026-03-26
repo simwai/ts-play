@@ -41,8 +41,8 @@ export function StatusBar({
   const statusColorClass = statusText.includes('Error')
     ? 'text-red'
     : statusText.includes('...') || statusText.includes('Prep')
-    ? 'text-yellow'
-    : 'text-green';
+      ? 'text-yellow'
+      : 'text-green';
 
   return (
     <div
@@ -70,7 +70,11 @@ export function StatusBar({
             : activeTab === 'js'
               ? 'JavaScript'
               : 'Declarations'}
-          {bootTime !== null && <span className="text-overlay0 px-2 py-0.5 bg-surface0/30 rounded-md select-none mr-2">{bootTime.toFixed(2)}s</span>}
+          {bootTime !== null && (
+            <span className="text-overlay0 px-2 py-0.5 bg-surface0/30 rounded-md select-none mr-2">
+              {bootTime.toFixed(2)}s
+            </span>
+          )}
           {activeTab === 'js' && jsDirty && (
             <span className="ml-2 text-peach">● modified</span>
           )}

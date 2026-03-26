@@ -28,8 +28,12 @@ describe('useCompilerManager', () => {
 
   it('runCode logs error if snapshot export fails', async () => {
     const mockExit = Promise.resolve(0);
-    (webContainerService.spawnManaged as any).mockResolvedValue({ exit: mockExit });
-    (webContainerService.exportSnapshot as any).mockRejectedValue(new Error('Serialization failed'));
+    (webContainerService.spawnManaged as any).mockResolvedValue({
+      exit: mockExit,
+    });
+    (webContainerService.exportSnapshot as any).mockRejectedValue(
+      new Error('Serialization failed'),
+    );
 
     const { result } = renderHook(() => useCompilerManager());
 
@@ -37,6 +41,9 @@ describe('useCompilerManager', () => {
       await result.current.runCode();
     });
 
-    expect(webContainerService.emitLog).toHaveBeenCalledWith('error', 'Failed to save snapshot: Serialization failed');
+    expect(webContainerService.emitLog).toHaveBeenCalledWith(
+      'error',
+      'Failed to save snapshot: Serialization failed',
+    );
   });
 });

@@ -38,19 +38,30 @@ console.log("Mapped:", map([1, 2, 3], x => x * 2));
 `;
 
 export function App() {
-  const { theme, lineWrap, stripAnsi, isReady, tscStatus, esbuildStatus, lifecycle, packageManagerStatus } = usePlaygroundStore();
+  const {
+    theme,
+    lineWrap,
+    stripAnsi,
+    isReady,
+    tscStatus,
+    esbuildStatus,
+    lifecycle,
+    packageManagerStatus,
+  } = usePlaygroundStore();
 
   const [tsCode, setTsCode] = useState(DEFAULT_TS);
   const [jsCode, setJsCode] = useState('');
   const [dtsCode, setDtsCode] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('ts');
   const [tsConfigString, setTsConfigString] = useState(
-    () => localStorage.getItem('tsplay_tsconfig') || DEFAULT_TSCONFIG
+    () => localStorage.getItem('tsplay_tsconfig') || DEFAULT_TSCONFIG,
   );
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [isFormatting, setFormatting] = useState(false);
+  const [formatSuccess, setFormatSuccess] = useState(false);
+  const [shareSuccess, setShareSuccess] = useState(false);
   const [copied, setCopied] = useState(false);
   const [jsDirty, setJsDirty] = useState(false);
   const [typeInfo, setTypeInfo] = useState<TypeInfo | null>(null);
@@ -61,31 +72,36 @@ export function App() {
   const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } =
     useConsoleManager();
 
-  const handleArtifactsChange = useCallback((js: string, dts: string) => {
-    // If JS is dirty, we don't overwrite it with auto-emitted code
-    if (js) {
+  const handleArtifactsChange = useCallback(
+    (js: string, dts: string) => {
+      // If JS is dirty, we don't overwrite it with auto-emitted code
+      if (js) {
         setJsCode((prev) => (jsDirty ? prev : js));
-    }
-    if (dts) setDtsCode(dts);
-  }, [jsDirty]);
+      }
+      if (dts) setDtsCode(dts);
+    },
+    [jsDirty],
+  );
 
   const { externalTypings } = useWebContainer(
     tsConfigString,
     tsCode,
     addMessage,
-    handleArtifactsChange
+    handleArtifactsChange,
   );
 
   const { tsCursorPos } = usePackageManager(tsCode, addMessage);
 
   const statusText = useMemo(() => {
     const parts = [];
-    if (tscStatus === 'Running' || tscStatus === 'Compiling') parts.push('TS...');
+    if (tscStatus === 'Running' || tscStatus === 'Compiling')
+      parts.push('TS...');
     else if (tscStatus === 'Ready') parts.push('TS Ready');
     else if (tscStatus === 'Preparing') parts.push('TS Prep');
     else if (tscStatus === 'Error') parts.push('TS Error');
 
-    if (esbuildStatus === 'Running' || esbuildStatus === 'Compiling') parts.push('JS...');
+    if (esbuildStatus === 'Running' || esbuildStatus === 'Compiling')
+      parts.push('JS...');
     else if (esbuildStatus === 'Ready') parts.push('JS Ready');
     else if (esbuildStatus === 'Preparing') parts.push('JS Prep');
     else if (esbuildStatus === 'Error') parts.push('JS Error');
@@ -97,7 +113,11 @@ export function App() {
 
   const handleRun = useCallback(async () => {
     if (jsDirty) {
-      if (!confirm('The JavaScript code has been modified. Running will overwrite your changes with the latest compiled code. Continue?')) {
+      if (
+        !confirm(
+          'The JavaScript code has been modified. Running will overwrite your changes with the latest compiled code. Continue?',
+        )
+      ) {
         return;
       }
       setJsDirty(false);
@@ -127,6 +147,8 @@ export function App() {
     try {
       const fTs = await formatAllFiles(tsCode, '', '');
       setTsCode(fTs.tsCode);
+      setFormatSuccess(true);
+      setTimeout(() => setFormatSuccess(false), 1500);
     } catch (err) {
       console.error('Format failed:', err);
     } finally {
@@ -140,6 +162,8 @@ export function App() {
       const url = await shareSnippet(tsCode, tsConfigString);
       await navigator.clipboard.writeText(url);
       addMessage('info', ['Share URL copied to clipboard!']);
+      setShareSuccess(true);
+      setTimeout(() => setShareSuccess(false), 1500);
     } catch (err) {
       addMessage('error', [
         'Failed to share snippet: ' + (err as Error).message,
@@ -150,8 +174,8 @@ export function App() {
   }, [tsCode, tsConfigString, addMessage]);
 
   const handleSaveTsConfig = (val: string) => {
-     setTsConfigString(val);
-     localStorage.setItem('tsplay_tsconfig', val);
+    setTsConfigString(val);
+    localStorage.setItem('tsplay_tsconfig', val);
   };
 
   useSwipeTabs(TABS, activeTab, (tab) => setActiveTab(tab as TabType));
@@ -160,15 +184,14 @@ export function App() {
 
   return (
     <div
-      className={`h-[100dvh] flex flex-col bg-crust text-text transition-colors duration-300 ${isDarkMode(theme) ? 'dark' : ''}`}
+      className={`h-[100dvh] flex flex-col bg-crust text-text transition-colors duration-300 ${isDarkMode(theme) ? 'dark' : ''} theme-${theme}`}
     >
       <Header
-        onShare={handleShare}
-        onFormat={handleFormat}
+        handleShare={handleShare}
+        handleFormat={handleFormat}
         handleCopyAll={handleCopyAll}
         copied={copied}
         handleDeleteAll={handleDeleteAll}
-        onSettings={() => setIsSettingsOpen(true)}
         doRun={handleRun}
         stopCode={stopCode}
         sharing={isSharing}
@@ -177,10 +200,22 @@ export function App() {
         activeTab={activeTab}
         setActiveTab={(t) => setActiveTab(t as TabType)}
         themeMode={theme}
-        setThemeMode={(t) => playgroundStore.setState({ theme: typeof t === 'function' ? t(theme) : t })}
-        compilerStatus={isReady ? 'ready' : (lifecycle === 'error' || tscStatus === 'Error' || esbuildStatus === 'Error' ? 'error' : 'loading')}
-        formatSuccess={false}
-        shareSuccess={false}
+        setThemeMode={(t) =>
+          playgroundStore.setState({
+            theme: typeof t === 'function' ? t(theme) : t,
+          })
+        }
+        compilerStatus={
+          isReady
+            ? 'ready'
+            : lifecycle === 'error' ||
+                tscStatus === 'Error' ||
+                esbuildStatus === 'Error'
+              ? 'error'
+              : 'loading'
+        }
+        formatSuccess={formatSuccess}
+        shareSuccess={shareSuccess}
       />
 
       <StatusBar
@@ -241,10 +276,14 @@ export function App() {
 
         {/* Type Info Bar */}
         <div className="relative flex flex-col shrink-0">
-           <TypeInfoBar typeInfo={typeInfo} language={activeTab === 'ts' ? 'typescript' : 'javascript'} themeMode={theme} />
-           <div className="absolute right-4 top-1.5 text-xxs font-mono text-overlay1 opacity-50 pointer-events-none">
-             Ln {cursorPos.line}, Col {cursorPos.col}
-           </div>
+          <TypeInfoBar
+            typeInfo={typeInfo}
+            language={activeTab === 'ts' ? 'typescript' : 'javascript'}
+            themeMode={theme}
+          />
+          <div className="absolute right-4 top-1.5 text-xxs font-mono text-overlay1 opacity-50 pointer-events-none">
+            Ln {cursorPos.line}, Col {cursorPos.col}
+          </div>
         </div>
 
         {/* Resizer */}
@@ -253,18 +292,21 @@ export function App() {
           onTouchStart={handleResizeStart}
           className="h-1.5 w-full bg-surface0/30 hover:bg-mauve/40 cursor-ns-resize transition-colors duration-200 z-50 flex items-center justify-center relative"
         >
-           <div className="w-8 h-0.5 bg-overlay0/20 rounded-full" />
+          <div className="w-8 h-0.5 bg-overlay0/20 rounded-full" />
         </div>
 
-        <div style={{ height: `${panelHeight}rem` }} className="flex flex-col bg-mantle overflow-hidden">
-            <Console
-              messages={messages}
-              onClear={clearMessages}
-              isOpen={consoleOpen}
-              onToggle={toggleConsole}
-              contentHeight={panelHeight}
-              stripAnsiEnabled={stripAnsi}
-            />
+        <div
+          style={{ height: `${panelHeight}rem` }}
+          className="flex flex-col bg-mantle overflow-hidden"
+        >
+          <Console
+            messages={messages}
+            onClear={clearMessages}
+            isOpen={consoleOpen}
+            onToggle={toggleConsole}
+            contentHeight={panelHeight}
+            stripAnsiEnabled={stripAnsi}
+          />
         </div>
       </main>
 

@@ -37,12 +37,19 @@ export function useConsoleManager() {
       });
 
       try {
-        const newMessage: ConsoleMessage = { type, args: formatted, ts: Date.now() };
+        const newMessage: ConsoleMessage = {
+          type,
+          args: formatted,
+          ts: Date.now(),
+        };
         messagesRef.current = [...messagesRef.current, newMessage].slice(-200);
         setMessages([...messagesRef.current]);
       } catch (err) {
         // Fallback
-        (window as any).__ORIG_CONSOLE__?.error('Failed to update messages:', err);
+        (window as any).__ORIG_CONSOLE__?.error(
+          'Failed to update messages:',
+          err,
+        );
       }
     },
     [],

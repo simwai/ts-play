@@ -1,5 +1,16 @@
 import { useState, useEffect } from 'react';
-import { X, Save, RotateCcw, Box, Cpu, FileJson, Layers, Monitor, AlertCircle, PackageCheck } from 'lucide-react';
+import {
+  X,
+  Save,
+  RotateCcw,
+  Box,
+  Cpu,
+  FileJson,
+  Layers,
+  Monitor,
+  AlertCircle,
+  PackageCheck,
+} from 'lucide-react';
 import { Button } from './ui/Button';
 import { IconButton } from './ui/IconButton';
 import { Badge } from './ui/Badge';
@@ -7,7 +18,12 @@ import { CodeEditor } from './CodeEditor';
 import { webContainerService } from '../lib/webcontainer';
 import { playgroundStore } from '../lib/state-manager';
 import { usePlaygroundStore } from '../hooks/usePlaygroundStore';
-import { type ThemeMode, DARK_THEMES, LIGHT_THEMES, isDarkMode } from '../lib/theme';
+import {
+  type ThemeMode,
+  DARK_THEMES,
+  LIGHT_THEMES,
+  isDarkMode,
+} from '../lib/theme';
 import { DEFAULT_TSCONFIG } from '../lib/constants';
 import { RegexPatterns, toRegExp } from '../lib/regex';
 
@@ -24,7 +40,8 @@ export function SettingsModal({
   tsConfigString,
   onSave,
 }: SettingsModalProps) {
-  const { theme, stripAnsi, lineWrap, inlineDeps, packageManagerStatus } = usePlaygroundStore();
+  const { theme, stripAnsi, lineWrap, inlineDeps, packageManagerStatus } =
+    usePlaygroundStore();
   const [temporaryTsConfig, setTemporaryTsConfig] = useState(tsConfigString);
   const [isSaving, setIsSaving] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
@@ -39,17 +56,23 @@ export function SettingsModal({
   const validateConfig = async (config: string) => {
     try {
       const result = await webContainerService.enqueue(async () => {
-         let output = '';
-         const proc = await webContainerService.spawnManaged('node', ['__validate_config.cjs'], {
-           silent: true,
-           onLog: (line) => { output += line; }
-         });
-         const writer = proc.input.getWriter();
-         await writer.write(config);
-         await writer.close();
-         await proc.exit;
+        let output = '';
+        const proc = await webContainerService.spawnManaged(
+          'node',
+          ['__validate_config.cjs'],
+          {
+            silent: true,
+            onLog: (line) => {
+              output += line;
+            },
+          },
+        );
+        const writer = proc.input.getWriter();
+        await writer.write(config);
+        await writer.close();
+        await proc.exit;
 
-         return JSON.parse(output.trim()) as { valid: boolean; error?: string };
+        return JSON.parse(output.trim()) as { valid: boolean; error?: string };
       });
       return result;
     } catch (e) {
@@ -88,7 +111,9 @@ export function SettingsModal({
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface0 bg-mantle/50">
           <div className="flex items-center gap-3">
             <Cpu className="text-mauve" size={20} />
-            <h2 className="text-lg font-bold tracking-tight text-text">System Settings</h2>
+            <h2 className="text-lg font-bold tracking-tight text-text">
+              System Settings
+            </h2>
           </div>
           <IconButton onClick={onClose} title="Close" size="sm" variant="ghost">
             <X size={20} />
@@ -109,16 +134,23 @@ export function SettingsModal({
                 <select
                   id="editor-theme"
                   value={theme}
-                  onChange={(e) => playgroundStore.setState({ theme: e.target.value as ThemeMode })}
+                  onChange={(e) =>
+                    playgroundStore.setState({
+                      theme: e.target.value as ThemeMode,
+                    })
+                  }
                   className="w-full bg-crust border border-surface0 text-text rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-mauve transition-all"
                 >
-                  <option value="mocha">Mocha</option>
-                  <option value="latte">Latte</option>
-                  <option value="githubDark">GitHub Dark</option>
-                  <option value="githubLight">GitHub Light</option>
-                  <option value="monokai">Monokai</option>
+                  {themeOptions.map((t) => (
+                    <option key={t} value={t}>
+                      {t.charAt(0).toUpperCase() +
+                        t.slice(1).replace(/([A-Z])/g, ' ')}
+                    </option>
+                  ))}
                 </select>
-                <p className="text-xxs text-overlay0 italic">Only showing {currentIsDark ? 'dark' : 'light'} themes.</p>
+                <p className="text-xxs text-overlay0 italic">
+                  Only showing {currentIsDark ? 'dark' : 'light'} themes.
+                </p>
               </div>
               <div className="flex flex-col justify-end space-y-3">
                 <label className="flex items-center gap-3 cursor-pointer group">
@@ -127,13 +159,19 @@ export function SettingsModal({
                       id="strip-ansi"
                       type="checkbox"
                       checked={stripAnsi}
-                      onChange={(e) => playgroundStore.setState({ stripAnsi: e.target.checked })}
+                      onChange={(e) =>
+                        playgroundStore.setState({
+                          stripAnsi: e.target.checked,
+                        })
+                      }
                       className="sr-only peer"
                     />
                     <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors"></div>
                     <div className="absolute left-1 w-3 h-3 bg-text rounded-full transition-transform peer-checked:translate-x-5"></div>
                   </div>
-                  <span className="text-sm text-overlay1 group-hover:text-text transition-colors">Strip ANSI Escapes</span>
+                  <span className="text-sm text-overlay1 group-hover:text-text transition-colors">
+                    Strip ANSI Escapes
+                  </span>
                 </label>
                 <label className="flex items-center gap-3 cursor-pointer group">
                   <div className="relative flex items-center">
@@ -141,13 +179,17 @@ export function SettingsModal({
                       id="line-wrap"
                       type="checkbox"
                       checked={lineWrap}
-                      onChange={(e) => playgroundStore.setState({ lineWrap: e.target.checked })}
+                      onChange={(e) =>
+                        playgroundStore.setState({ lineWrap: e.target.checked })
+                      }
                       className="sr-only peer"
                     />
                     <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors"></div>
                     <div className="absolute left-1 w-3 h-3 bg-text rounded-full transition-transform peer-checked:translate-x-5"></div>
                   </div>
-                  <span className="text-sm text-overlay1 group-hover:text-text transition-colors">Soft Line Wrap</span>
+                  <span className="text-sm text-overlay1 group-hover:text-text transition-colors">
+                    Soft Line Wrap
+                  </span>
                 </label>
               </div>
             </div>
@@ -211,22 +253,30 @@ export function SettingsModal({
 
           {/* Environment Info */}
           <section className="space-y-4">
-             <div className="flex items-center gap-2 text-mauve font-semibold">
-                <Layers size={18} />
-                <h3>Environment</h3>
+            <div className="flex items-center gap-2 text-mauve font-semibold">
+              <Layers size={18} />
+              <h3>Environment</h3>
+            </div>
+            <div className="p-4 bg-crust border border-surface0 rounded-lg space-y-3">
+              <div className="flex items-center justify-between text-xs font-mono">
+                <span className="text-overlay1">Runtime</span>
+                <span className="text-mauve flex items-center gap-1.5">
+                  <Box size={12} /> WebContainer
+                </span>
               </div>
-              <div className="p-4 bg-crust border border-surface0 rounded-lg space-y-3">
-                 <div className="flex items-center justify-between text-xs font-mono">
-                    <span className="text-overlay1">Runtime</span>
-                    <span className="text-mauve flex items-center gap-1.5"><Box size={12}/> WebContainer</span>
-                 </div>
-                 <div className="flex items-center justify-between text-xs font-mono">
-                    <span className="text-overlay1">PM Status</span>
-                    <span className={packageManagerStatus === 'idle' ? 'text-green' : 'text-yellow'}>
-                      {packageManagerStatus.toUpperCase()}
-                    </span>
-                 </div>
+              <div className="flex items-center justify-between text-xs font-mono">
+                <span className="text-overlay1">PM Status</span>
+                <span
+                  className={
+                    packageManagerStatus === 'idle'
+                      ? 'text-green'
+                      : 'text-yellow'
+                  }
+                >
+                  {packageManagerStatus.toUpperCase()}
+                </span>
               </div>
+            </div>
           </section>
         </div>
 
@@ -242,21 +292,23 @@ export function SettingsModal({
             Reset Defaults
           </Button>
           <div className="flex items-center gap-3">
-             <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
-             <Button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="bg-mauve hover:bg-mauve/90 text-crust font-bold min-w-[100px]"
-              >
-               {isSaving ? (
-                 <div className="w-4 h-4 border-2 border-crust border-t-transparent rounded-full animate-spin" />
-               ) : (
-                 <>
-                   <Save size={16} />
-                   Save Changes
-                 </>
-               )}
-             </Button>
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="bg-mauve hover:bg-mauve/90 text-crust font-bold min-w-[100px]"
+            >
+              {isSaving ? (
+                <div className="w-4 h-4 border-2 border-crust border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  <Save size={16} />
+                  Save Changes
+                </>
+              )}
+            </Button>
           </div>
         </div>
 
@@ -264,7 +316,8 @@ export function SettingsModal({
         <div className="px-6 py-4 border-t border-surface0 bg-mantle flex flex-col items-center gap-2 relative overflow-hidden shrink-0">
           <div className="absolute inset-0 opacity-5 bg-gradient-to-r from-mauve via-pink to-mauve animate-gradient-x pointer-events-none" />
           <p className="text-xs text-overlay1 relative z-10">
-            Made with 💜 by <span className="font-bold text-mauve">simwai</span> feat. jules and aider
+            Made with 💜 by <span className="font-bold text-mauve">simwai</span>{' '}
+            feat. jules and aider
           </p>
           <a
             href="https://github.com/simwai/ts-play"
