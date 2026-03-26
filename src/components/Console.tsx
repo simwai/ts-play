@@ -87,7 +87,7 @@ export const Console = React.memo(function Console({
           <>
             {messages.length > 0 && <Badge label={String(messages.length)} />}
             {stats.err > 0 && <Badge label={`${stats.err} err`} variant="error" />}
-            {stats.wrn > 0 && <Badge label={`${stats.wrn} warn`} variant="warn" />}
+            {stats.warn > 0 && <Badge label={`${stats.warn} warn`} variant="warn" />}
           </>
         }
         right={

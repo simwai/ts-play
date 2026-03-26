@@ -1,3 +1,5 @@
+import { RegexPatterns, toRegExp } from './regex';
+
 type SharePayload = {
   tsCode: string;
   jsCode: string;
@@ -14,7 +16,7 @@ function toBase64Url(bytes: Uint8Array) {
   return btoa(binary)
     .replaceAll('+', '-')
     .replaceAll('/', '_')
-    .replaceAll(/=+$/g, '');
+    .replaceAll(toRegExp(RegexPatterns.BASE64_PADDING), '');
 }
 
 function fromBase64Url(input: string) {

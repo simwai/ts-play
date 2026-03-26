@@ -1,0 +1,139 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e6]: TSPlay
+      - generic [ref=e7]:
+        - button "ts" [active] [ref=e8] [cursor=pointer]
+        - button "js" [ref=e9] [cursor=pointer]
+        - button "dts" [ref=e10] [cursor=pointer]
+      - generic [ref=e11]:
+        - button "Switch to Light Mode" [ref=e12] [cursor=pointer]:
+          - img [ref=e13]
+          - generic: Switch to Light Mode
+        - button "Copy all ts" [ref=e20] [cursor=pointer]:
+          - img [ref=e21]
+          - generic: Copy all ts
+        - button "Clear ts editor" [ref=e24] [cursor=pointer]:
+          - img [ref=e25]
+          - generic: Clear ts editor
+        - button "Format all files with Prettier (TS + JS + DTS)" [ref=e28] [cursor=pointer]:
+          - img [ref=e29]
+          - generic: Format all files with Prettier (TS + JS + DTS)
+        - button "Run (compile + execute)" [disabled] [ref=e33]:
+          - img [ref=e34]
+          - generic [ref=e36]: Run
+          - generic: Run (compile + execute)
+        - button "Share snippet (expires in 7 days)" [ref=e38] [cursor=pointer]:
+          - img [ref=e39]
+          - generic: Share snippet (expires in 7 days)
+    - generic [ref=e45]:
+      - generic [ref=e47]: TS Prep | JS Ready
+      - generic [ref=e49]: TypeScript
+      - generic [ref=e50]:
+        - button "Undo" [ref=e51] [cursor=pointer]:
+          - img [ref=e52]
+          - generic: Undo
+        - button "Redo" [ref=e55] [cursor=pointer]:
+          - img [ref=e56]
+          - generic: Redo
+        - button "Settings" [ref=e60] [cursor=pointer]:
+          - img [ref=e61]
+          - generic: Settings
+    - main [ref=e64]:
+      - code [ref=e69]:
+        - generic [ref=e70]:
+          - textbox "Editor content"
+          - textbox [ref=e71]
+          - generic [ref=e73]:
+            - generic [ref=e76]: "1"
+            - generic [ref=e78]: "2"
+            - generic [ref=e80]: "3"
+            - generic [ref=e82]: "4"
+            - generic [ref=e84]: "5"
+            - generic [ref=e85]:
+              - generic [ref=e86] [cursor=pointer]: 
+              - generic [ref=e87]: "6"
+            - generic [ref=e89]: "7"
+            - generic [ref=e91]: "8"
+            - generic [ref=e93]: "9"
+            - generic [ref=e95]: "10"
+            - generic [ref=e96]:
+              - generic [ref=e97] [cursor=pointer]: 
+              - generic [ref=e98]: "11"
+            - generic [ref=e100]: "12"
+            - generic [ref=e102]: "13"
+            - generic [ref=e104]: "14"
+            - generic [ref=e106]: "15"
+            - generic [ref=e108]: "16"
+            - generic [ref=e110]: "17"
+          - generic [ref=e133]:
+            - generic [ref=e135]: // TypeScript Playground
+            - generic [ref=e137]: // Powered by Node.js, Prettier and WebContainers! ✨
+            - generic [ref=e140]: "import { map } from 'lodash-es';"
+            - generic [ref=e143]: "interface User {"
+            - generic [ref=e145]: "name: string;"
+            - generic [ref=e147]: "age: number;"
+            - generic [ref=e149]: "}"
+            - generic [ref=e152]: "function greet(user: User): string {"
+            - generic [ref=e154]: "return `Hello, ${user.name}!`;"
+            - generic [ref=e156]: "}"
+            - generic [ref=e159]: "console.log(greet({ name: \"Alice\", age: 30 }));"
+            - generic [ref=e161]: console.log("Mapped:", map([1, 2, 3], x => x * 2));
+      - generic [ref=e164]:
+        - generic [ref=e165]: Move cursor over a symbol for type info
+        - generic: Ln 1, Col 1
+      - generic [ref=e169]:
+        - button "Console 12 Clear console ▾" [expanded] [ref=e170] [cursor=pointer]:
+          - generic [ref=e171]:
+            - generic [ref=e172]: Console
+            - generic [ref=e173]: "12"
+          - generic [ref=e174]:
+            - button "Clear console" [ref=e176]:
+              - img [ref=e177]
+              - text: Clear
+              - generic: Clear console
+            - generic: ▾
+        - generic [ref=e180]:
+          - generic [ref=e181]:
+            - generic [ref=e182]: INF
+            - generic [ref=e183]: Booting WebContainer...
+          - generic [ref=e184]:
+            - generic [ref=e185]: INF
+            - generic [ref=e186]: WebContainer booted.
+          - generic [ref=e187]:
+            - generic [ref=e188]: INF
+            - generic [ref=e189]: 🟣 Fetching initial environment snapshot...
+          - generic [ref=e190]:
+            - generic [ref=e191]: INF
+            - generic [ref=e192]: Fetching snapshot from /base.snapshot...
+          - generic [ref=e193]:
+            - generic [ref=e194]: INF
+            - generic [ref=e195]: ⚠️ Snapshot loading failed, performing full mount & install...
+          - generic [ref=e196]:
+            - generic [ref=e197]: INF
+            - generic [ref=e198]: Preparing environment (npm install)...
+          - generic [ref=e199]:
+            - generic [ref=e200]: INF
+            - generic [ref=e201]: added 9 packages in 5s
+          - generic [ref=e202]:
+            - generic [ref=e203]: INF
+            - generic [ref=e204]: 1 package is looking for funding
+          - generic [ref=e205]:
+            - generic [ref=e206]: INF
+            - generic [ref=e207]: "run `npm fund` for details"
+          - generic [ref=e208]:
+            - generic [ref=e209]: INF
+            - generic [ref=e210]: Starting reactive compilers...
+          - generic [ref=e211]:
+            - generic [ref=e212]: INF
+            - generic [ref=e213]: Building JS...
+          - generic [ref=e214]:
+            - generic [ref=e215]: INF
+            - generic [ref=e216]: Build JS finished.
+  - generic [ref=e218]:
+    - alert
+    - alert
+```

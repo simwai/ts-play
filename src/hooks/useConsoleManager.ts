@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { ConsoleMessage } from '../components/Console';
+import { RegexPatterns, toRegExp } from '../lib/regex';
 
 export function useConsoleManager() {
   const [messages, setMessages] = useState<ConsoleMessage[]>([]);
@@ -26,7 +27,7 @@ export function useConsoleManager() {
         if (typeof a === 'string') {
            // Strip problematic characters but keep basic ANSI and layout
            // Strip large repeating whitespace but keep tabs/newlines
-           return a.replace(/ {10,}/g, (match) => '          ' + (match.length - 10) + ' spaces ');
+           return a.replace(toRegExp(RegexPatterns.EXCESSIVE_SPACES), (match) => '          ' + (match.length - 10) + ' spaces ');
         }
         try {
           return JSON.stringify(a, null, 2);
