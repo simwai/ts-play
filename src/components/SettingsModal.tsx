@@ -39,7 +39,7 @@ export function SettingsModal({
     try {
       const result = await webContainerService.enqueue(async () => {
          let output = '';
-         const proc = await webContainerService.spawnManaged('node', ['__validate_config.cjs', config], {
+         const proc = await webContainerService.spawnManaged('node', ['__validate_config.cjs'], {
            silent: true,
            onLog: (line) => { output += line; }
          });
@@ -254,6 +254,22 @@ export function SettingsModal({
                )}
              </Button>
           </div>
+        </div>
+
+        {/* Credits */}
+        <div className="px-6 py-4 border-t border-surface0 bg-mantle flex flex-col items-center gap-2 relative overflow-hidden shrink-0">
+          <div className="absolute inset-0 opacity-5 bg-gradient-to-r from-mauve via-pink to-mauve animate-gradient-x pointer-events-none" />
+          <p className="text-xs text-overlay1 relative z-10">
+            Made with 💜 by <span className="font-bold text-mauve">simwai</span> feat. jules and aider
+          </p>
+          <a
+            href="https://github.com/simwai/ts-play"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xxs text-mauve hover:underline relative z-10 opacity-70 transition-opacity hover:opacity-100"
+          >
+            GitHub Repository
+          </a>
         </div>
       </div>
     </div>
