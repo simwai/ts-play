@@ -13,7 +13,7 @@ type CodeEditorProps = {
   value: string;
   onChange?: (value: string) => void;
   onCursorChange?: (offset: number) => void;
-  onTypeInfoChange?: (info: any) => void;
+  onTypeInfoChange?: (info: string) => void;
   onCursorPosChange?: (pos: { line: number; col: number }) => void;
   language?: 'typescript' | 'javascript' | 'json';
   readOnly?: boolean;
@@ -150,10 +150,7 @@ export const CodeEditor = React.memo(
         onCursorChange?.(model.getOffsetAt(e.position));
         onCursorPosChange?.({ line: e.position.lineNumber, col: e.position.column });
 
-        if (!typeInfoCallbackRef.current || (language !== 'typescript' && language !== 'javascript')) {
-          typeInfoCallbackRef.current?.(null);
-          return;
-        }
+        if (!typeInfoCallbackRef.current || (language !== 'typescript' && language !== 'javascript')) return;
         try {
           const isTS = language === 'typescript';
           const getter = await (isTS
@@ -161,27 +158,9 @@ export const CodeEditor = React.memo(
             : monaco.languages.typescript.getJavaScriptWorker());
           const worker = await getter(model.uri);
           const info = await worker.getQuickInfoAtPosition(model.uri.toString(), model.getOffsetAt(e.position));
-
-          if (!info) {
-            typeInfoCallbackRef.current(null);
-            return;
-          }
-
-          const typeAnnotation = info.displayParts?.map((p: any) => p.text).join('') || '';
-          const name = info.displayParts?.find((p: any) =>
-            ['propertyName', 'className', 'functionName', 'methodName', 'interfaceName', 'enumName', 'moduleName', 'typeParameterName', 'parameterName', 'localName', 'aliasName'].includes(p.kind)
-          )?.text || '';
-          const jsDoc = info.documentation?.map((p: any) => p.text).join('\n') || '';
-
-          typeInfoCallbackRef.current({
-            name,
-            kind: info.kind,
-            typeAnnotation,
-            jsDoc,
-            signature: typeAnnotation
-          });
+          typeInfoCallbackRef.current(info?.displayParts?.map((p: any) => p.text).join('') || '');
         } catch {
-          typeInfoCallbackRef.current?.(null);
+          typeInfoCallbackRef.current?.('');
         }
       });
     };

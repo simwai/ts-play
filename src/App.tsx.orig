@@ -11,7 +11,6 @@ import { useResizePanel } from './hooks/useResizePanel';
 import { useSwipeTabs } from './hooks/useSwipeTabs';
 import { shareSnippet } from './lib/api';
 import { useConsoleManager } from './hooks/useConsoleManager';
-import { TypeInfoBar, type TypeInfo } from './components/ui/TypeInfoBar';
 import { useCompilerManager } from './hooks/useCompilerManager';
 import { usePackageManager } from './hooks/usePackageManager';
 import { useWebContainer } from './hooks/useWebContainer';
@@ -53,7 +52,7 @@ export function App() {
   const [isFormatting, setFormatting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [jsDirty, setJsDirty] = useState(false);
-  const [typeInfo, setTypeInfo] = useState<TypeInfo | null>(null);
+  const [typeInfo, setTypeInfo] = useState('');
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
 
   const editorRef = useRef<CodeEditorHandle>(null);
@@ -240,11 +239,13 @@ export function App() {
         </div>
 
         {/* Type Info Bar */}
-        <div className="relative flex flex-col shrink-0">
-           <TypeInfoBar typeInfo={typeInfo} language={activeTab === 'ts' ? 'typescript' : 'javascript'} themeMode={theme} />
-           <div className="absolute right-4 top-1.5 text-xxs font-mono text-overlay1 opacity-50 pointer-events-none">
-             Ln {cursorPos.line}, Col {cursorPos.col}
-           </div>
+        <div className="flex items-center justify-between px-4 py-1.5 bg-mantle border-t border-surface0/50 text-xxs font-mono text-overlay1 shrink-0">
+          <div className="truncate flex-1">
+             {typeInfo && <span className="text-mauve">{typeInfo}</span>}
+          </div>
+          <div className="ml-4 shrink-0 opacity-70">
+            Ln {cursorPos.line}, Col {cursorPos.col}
+          </div>
         </div>
 
         {/* Resizer */}

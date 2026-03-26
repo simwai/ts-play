@@ -12,8 +12,8 @@ export async function formatAllFiles(tsCode: string, jsCode: string, dtsCode: st
   await webContainerService.getEnvReady();
 
   // Execute Prettier within the container
-  const { exit } = await webContainerService.spawn('npx', ['prettier', '--write', 'temp.ts']);
-  const exitCode = await proc.exit;
+  const proc = await webContainerService.spawnManaged('npx', ['prettier', '--write', 'temp.ts'], { silent: true });
+  const exitCode = await (proc as any).exit;
 
   if (exitCode === 0) {
     // Read the formatted content back
