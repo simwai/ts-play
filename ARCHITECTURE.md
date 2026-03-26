@@ -42,4 +42,4 @@ Components are "dumb" consumers of the SSOT via `usePlaygroundStore`.
 
 ---
 
-*Refactored with ❤️ by Jules, following the wisdom of Uncle Bob, Martin Fowler, and Kent C. Dodds.*
+_Refactored with ❤️ by Jules, following the wisdom of Uncle Bob, Martin Fowler, and Kent C. Dodds._

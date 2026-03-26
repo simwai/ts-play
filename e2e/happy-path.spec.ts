@@ -13,6 +13,8 @@ test.describe('TSPlay Happy Path', () => {
     await runButton.click();
 
     const consoleContainer = page.getByTestId('console-container');
-    await expect(consoleContainer).toContainText('Hello, Alice!', { timeout: 30000 });
+    await expect(consoleContainer).toContainText('Hello, Alice!', {
+      timeout: 30000,
+    });
   });
 });

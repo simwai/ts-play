@@ -4,33 +4,43 @@ test.describe('Visual Regression & Theme Verification', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     // Wait for the environment to be ready
-    await page.waitForSelector('[data-testid="status-bar-compiler-status"]:has-text("Ready")', { timeout: 60000 });
+    await page.waitForSelector(
+      '[data-testid="status-bar-compiler-status"]:has-text("Ready")',
+      { timeout: 60000 },
+    );
   });
 
   const analyzeTheme = async (page, mode: 'light' | 'dark') => {
     const stats = await page.evaluate((m) => {
       const getLuminance = (el) => {
-        const rgb = window.getComputedStyle(el).backgroundColor.match(/\d+/g).map(Number);
-        return (rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114);
+        const rgb = window
+          .getComputedStyle(el)
+          .backgroundColor.match(/\d+/g)
+          .map(Number);
+        return rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114;
       };
 
       const bodyLum = getLuminance(document.body);
-      const headerLum = getLuminance(document.querySelector('header') || document.body);
-      const editorLum = getLuminance(document.querySelector('.monaco-editor-background') || document.body);
+      const headerLum = getLuminance(
+        document.querySelector('header') || document.body,
+      );
+      const editorLum = getLuminance(
+        document.querySelector('.monaco-editor-background') || document.body,
+      );
 
       const isLight = (lum) => lum > 180;
       const isDark = (lum) => lum < 80;
 
-      const check = (lum) => m === 'light' ? isLight(lum) : isDark(lum);
+      const check = (lum) => (m === 'light' ? isLight(lum) : isDark(lum));
 
       return {
         body: check(bodyLum),
         header: check(headerLum),
-        editor: check(editorLum)
+        editor: check(editorLum),
       };
     }, mode);
 
-    const matchCount = Object.values(stats).filter(v => v === true).length;
+    const matchCount = Object.values(stats).filter((v) => v === true).length;
     // Require at least 2 out of 3 major components to match the theme expectation
     expect(matchCount).toBeGreaterThanOrEqual(2);
   };

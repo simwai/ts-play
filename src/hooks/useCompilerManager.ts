@@ -22,7 +22,9 @@ export function useCompilerManager() {
 
     setIsRunning(true);
     try {
-      const proc = await webContainerService.spawnManaged('node', ['dist/index.js']);
+      const proc = await webContainerService.spawnManaged('node', [
+        'dist/index.js',
+      ]);
       currentProcRef.current = proc;
 
       const exitCode = await proc.exit;
@@ -33,13 +35,22 @@ export function useCompilerManager() {
         try {
           const snapshot = await webContainerService.exportSnapshot();
           await db.saveSnapshot('playground', snapshot);
-          webContainerService.emitLog('info', '✨ Environment snapshot saved to IndexedDB.');
+          webContainerService.emitLog(
+            'info',
+            '✨ Environment snapshot saved to IndexedDB.',
+          );
         } catch (err: any) {
           console.error('Failed to save snapshot:', err);
-          webContainerService.emitLog('error', `Failed to save snapshot: ${err.message}`);
+          webContainerService.emitLog(
+            'error',
+            `Failed to save snapshot: ${err.message}`,
+          );
         }
       } else if (exitCode !== null) {
-        webContainerService.emitLog('error', `Process exited with code ${exitCode}`);
+        webContainerService.emitLog(
+          'error',
+          `Process exited with code ${exitCode}`,
+        );
       }
     } catch (err: any) {
       webContainerService.emitLog('error', `Execution Error: ${err.message}`);
