@@ -3,6 +3,7 @@ import { Eraser } from 'lucide-react';
 import { Badge } from './ui/Badge';
 import { Button } from './ui/Button';
 import { PanelHeader } from './ui/PanelHeader';
+import { RegexPatterns, toRegExp } from '../lib/regex';
 
 export type ConsoleMessage = {
   type: 'log' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'dir';
@@ -45,7 +46,7 @@ function typeColorClass(type: ConsoleMessage['type']): string {
 
 // Uncle Bob: Clear, focused utility for stripping ANSI sequences
 function stripAnsi(text: string): string {
-  const ansiRegex = /[\u001b\u009b][\[\]()#;?]*[0-9;]*[a-zA-Z]/g;
+  const ansiRegex = toRegExp(RegexPatterns.ANSI_ESCAPE);
   return text.replace(ansiRegex, '');
 }
 

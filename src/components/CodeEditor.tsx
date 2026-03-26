@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import Editor, { useMonaco, type OnMount } from '@monaco-editor/react';
 import { cn } from '../lib/utils';
+import { RegexPatterns, toRegExp } from '../lib/regex';
 import {
   mocha,
   latte,
@@ -73,7 +74,7 @@ export const CodeEditor = React.memo(
 
     const modelUri = useMemo(() => {
        if (!path) return undefined;
-       return monaco?.Uri.parse(`file:///${path.replace(/^\//, '')}`);
+       return monaco?.Uri.parse(`file:///${path.replace(toRegExp(RegexPatterns.LEADING_SLASH), '')}`);
     }, [monaco, path]);
 
     useEffect(() => {
@@ -99,7 +100,7 @@ export const CodeEditor = React.memo(
         if (extraLibs) {
            const libs = Object.entries(extraLibs).map(([p, content]) => ({
              content,
-             filePath: `file:///${p.replace(/^\//, '')}`,
+             filePath: `file:///${p.replace(toRegExp(RegexPatterns.LEADING_SLASH), '')}`,
            }));
            tsDefaults.setExtraLibs(libs);
            jsDefaults.setExtraLibs(libs);

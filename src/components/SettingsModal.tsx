@@ -9,6 +9,7 @@ import { playgroundStore } from '../lib/state-manager';
 import { usePlaygroundStore } from '../hooks/usePlaygroundStore';
 import { type ThemeMode, DARK_THEMES, LIGHT_THEMES, isDarkMode } from '../lib/theme';
 import { DEFAULT_TSCONFIG } from '../lib/constants';
+import { RegexPatterns, toRegExp } from '../lib/regex';
 
 type SettingsModalProps = {
   isOpen: boolean;
@@ -104,18 +105,18 @@ export function SettingsModal({
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label htmlFor="theme-select" className="text-xs font-mono text-overlay1 uppercase tracking-wider">Editor Theme</label>
+                <label htmlFor="editor-theme" className="text-xs font-mono text-overlay1 uppercase tracking-wider">Editor Theme</label>
                 <select
-                  id="theme-select"
+                  id="editor-theme"
                   value={theme}
                   onChange={(e) => playgroundStore.setState({ theme: e.target.value as ThemeMode })}
                   className="w-full bg-crust border border-surface0 text-text rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-mauve transition-all"
                 >
-                  {themeOptions.map(t => (
-                    <option key={t} value={t}>
-                      {t.charAt(0).toUpperCase() + t.slice(1).replace(/([A-Z])/g, ' ')}
-                    </option>
-                  ))}
+                  <option value="mocha">Mocha</option>
+                  <option value="latte">Latte</option>
+                  <option value="githubDark">GitHub Dark</option>
+                  <option value="githubLight">GitHub Light</option>
+                  <option value="monokai">Monokai</option>
                 </select>
                 <p className="text-xxs text-overlay0 italic">Only showing {currentIsDark ? 'dark' : 'light'} themes.</p>
               </div>
@@ -123,6 +124,7 @@ export function SettingsModal({
                 <label className="flex items-center gap-3 cursor-pointer group">
                   <div className="relative flex items-center">
                     <input
+                      id="strip-ansi"
                       type="checkbox"
                       checked={stripAnsi}
                       onChange={(e) => playgroundStore.setState({ stripAnsi: e.target.checked })}
@@ -136,6 +138,7 @@ export function SettingsModal({
                 <label className="flex items-center gap-3 cursor-pointer group">
                   <div className="relative flex items-center">
                     <input
+                      id="line-wrap"
                       type="checkbox"
                       checked={lineWrap}
                       onChange={(e) => playgroundStore.setState({ lineWrap: e.target.checked })}
@@ -160,6 +163,7 @@ export function SettingsModal({
                 <label className="flex items-center gap-3 cursor-pointer group">
                     <div className="relative flex items-center">
                       <input
+                        id="inline-deps"
                         type="checkbox"
                         checked={inlineDeps}
                         onChange={(e) => playgroundStore.setState({ inlineDeps: e.target.checked })}
