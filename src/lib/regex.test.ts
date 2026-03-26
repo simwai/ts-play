@@ -22,7 +22,8 @@ describe('RegexPatterns', () => {
 
   it('MARKDOWN_LINKS_OR_CODE should match various markdown elements', () => {
     const re = toRegExp(RegexPatterns.MARKDOWN_LINKS_OR_CODE);
-    const text = 'Check [this](https://example.com) and `code` here. Also visit https://vitest.dev';
+    const text =
+      'Check [this](https://example.com) and `code` here. Also visit https://vitest.dev';
     const matches = text.match(re);
     expect(matches).toContain('[this](https://example.com)');
     expect(matches).toContain('`code`');
@@ -78,7 +79,9 @@ describe('RegexPatterns', () => {
 
   it('EXCESSIVE_WHITESPACE should match 5 or more spaces', () => {
     const re = toRegExp(RegexPatterns.EXCESSIVE_WHITESPACE);
-    expect('too     many spaces'.replace(re, '    ')).toBe('too    many spaces');
+    expect('too     many spaces'.replace(re, '    ')).toBe(
+      'too    many spaces',
+    );
     expect('four    spaces'.replace(re, '    ')).toBe('four    spaces');
   });
 

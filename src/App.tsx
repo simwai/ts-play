@@ -60,8 +60,6 @@ export function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [isFormatting, setFormatting] = useState(false);
-  const [formatSuccess, setFormatSuccess] = useState(false);
-  const [shareSuccess, setShareSuccess] = useState(false);
   const [copied, setCopied] = useState(false);
   const [jsDirty, setJsDirty] = useState(false);
   const [typeInfo, setTypeInfo] = useState<TypeInfo | null>(null);
@@ -147,8 +145,6 @@ export function App() {
     try {
       const fTs = await formatAllFiles(tsCode, '', '');
       setTsCode(fTs.tsCode);
-      setFormatSuccess(true);
-      setTimeout(() => setFormatSuccess(false), 1500);
     } catch (err) {
       console.error('Format failed:', err);
     } finally {
@@ -162,8 +158,6 @@ export function App() {
       const url = await shareSnippet(tsCode, tsConfigString);
       await navigator.clipboard.writeText(url);
       addMessage('info', ['Share URL copied to clipboard!']);
-      setShareSuccess(true);
-      setTimeout(() => setShareSuccess(false), 1500);
     } catch (err) {
       addMessage('error', [
         'Failed to share snippet: ' + (err as Error).message,
@@ -184,14 +178,15 @@ export function App() {
 
   return (
     <div
-      className={`h-[100dvh] flex flex-col bg-crust text-text transition-colors duration-300 ${isDarkMode(theme) ? 'dark' : ''} theme-${theme}`}
+      className={`h-[100dvh] flex flex-col bg-crust text-text transition-colors duration-300 ${isDarkMode(theme) ? 'dark' : ''}`}
     >
       <Header
-        handleShare={handleShare}
-        handleFormat={handleFormat}
+        onShare={handleShare}
+        onFormat={handleFormat}
         handleCopyAll={handleCopyAll}
         copied={copied}
         handleDeleteAll={handleDeleteAll}
+        onSettings={() => setIsSettingsOpen(true)}
         doRun={handleRun}
         stopCode={stopCode}
         sharing={isSharing}
@@ -214,8 +209,8 @@ export function App() {
               ? 'error'
               : 'loading'
         }
-        formatSuccess={formatSuccess}
-        shareSuccess={shareSuccess}
+        formatSuccess={false}
+        shareSuccess={false}
       />
 
       <StatusBar

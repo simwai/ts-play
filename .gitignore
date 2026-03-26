@@ -32,3 +32,8 @@ snippets/*.json
 *.php.bak
 .aider*
 *.old
+# Test artifacts
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

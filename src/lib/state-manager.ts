@@ -1,6 +1,9 @@
 import { ThemeMode } from './theme';
-import { CompilerStatus, EnvironmentStatus } from './webcontainer';
-import type { PackageManagerStatus } from '../hooks/usePackageManager';
+import type {
+  EnvironmentStatus,
+  CompilerStatus,
+  PackageManagerStatus,
+} from '../types/status';
 
 export interface PlaygroundState {
   lifecycle: EnvironmentStatus;

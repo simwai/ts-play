@@ -1,13 +1,13 @@
 import Dexie, { type Table } from 'dexie';
 
-export interface Snapshot {
+interface Snapshot {
   id?: number;
   name: string;
   data: Uint8Array;
   timestamp: number;
 }
 
-export class PlaygroundDatabase extends Dexie {
+class PlaygroundDatabase extends Dexie {
   snapshots!: Table<Snapshot>;
 
   constructor() {

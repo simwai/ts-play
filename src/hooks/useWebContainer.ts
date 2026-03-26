@@ -271,7 +271,6 @@ export function useWebContainer(
       [
         'tsc',
         '--watch',
-        '--declaration',
         '--emitDeclarationOnly',
         '--incremental',
         '--outDir',
@@ -280,7 +279,7 @@ export function useWebContainer(
         '.',
       ],
       {
-        silent: false,
+        silent: true,
         onLog: (line) => {
           if (
             line.includes('Starting incremental compilation') ||
@@ -335,10 +334,6 @@ export function useWebContainer(
               .catch(() => '');
 
             if (js.trim() && dts.trim()) {
-              playgroundStore.setState({
-                tscStatus: 'Ready',
-                esbuildStatus: 'Ready',
-              });
               const bootDuration = (Date.now() - startTime.current) / 1000;
               playgroundStore.setState({
                 lifecycle: 'ready',
@@ -358,11 +353,7 @@ export function useWebContainer(
               retries++;
               setTimeout(checkEmit, 1000);
             } else {
-              playgroundStore.setState({
-                lifecycle: 'ready',
-                tscStatus: 'Ready',
-                esbuildStatus: 'Ready',
-              });
+              playgroundStore.setState({ lifecycle: 'ready' });
               webContainerService.emitLog(
                 'info',
                 'Environment ready (compiler slow).',

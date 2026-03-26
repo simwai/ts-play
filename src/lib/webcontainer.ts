@@ -1,20 +1,7 @@
 import { WebContainer, type WebContainerProcess } from '@webcontainer/api';
 import { playgroundStore } from './state-manager';
 import { RegexPatterns, toRegExp } from './regex';
-
-export type EnvironmentStatus =
-  | 'idle'
-  | 'booting'
-  | 'preparing'
-  | 'ready'
-  | 'error';
-export type CompilerStatus =
-  | 'Idle'
-  | 'Preparing'
-  | 'Running'
-  | 'Compiling'
-  | 'Ready'
-  | 'Error';
+import type { EnvironmentStatus, CompilerStatus } from '../types/status';
 
 export const SYSTEM_DEPS = [
   'typescript',
@@ -153,25 +140,35 @@ export class WebContainerService {
           }
 
           currentLineBuffer += chunk;
-          const lines = currentLineBuffer.split(toRegExp(RegexPatterns.NEWLINE));
+          const lines = currentLineBuffer.split(
+            toRegExp(RegexPatterns.NEWLINE),
+          );
 
           const last = lines[lines.length - 1];
-          const hasIncompleteAnsi = toRegExp(RegexPatterns.INCOMPLETE_ANSI).test(last);
+          const hasIncompleteAnsi = toRegExp(
+            RegexPatterns.INCOMPLETE_ANSI,
+          ).test(last);
 
           if (!hasIncompleteAnsi) {
             currentLineBuffer = lines.pop() || '';
             for (const line of lines) {
-               const simplified = line.replace(toRegExp(RegexPatterns.EXCESSIVE_WHITESPACE), '    ');
-               if (!options.silent) this.emitLog('info', simplified);
-               options.onLog?.(simplified);
+              const simplified = line.replace(
+                toRegExp(RegexPatterns.EXCESSIVE_WHITESPACE),
+                '    ',
+              );
+              if (!options.silent) this.emitLog('info', simplified);
+              options.onLog?.(simplified);
             }
           } else {
             const completeLines = lines.slice(0, -1);
             currentLineBuffer = lines[lines.length - 1];
             for (const line of completeLines) {
-               const simplified = line.replace(toRegExp(RegexPatterns.EXCESSIVE_WHITESPACE), '    ');
-               if (!options.silent) this.emitLog('info', simplified);
-               options.onLog?.(simplified);
+              const simplified = line.replace(
+                toRegExp(RegexPatterns.EXCESSIVE_WHITESPACE),
+                '    ',
+              );
+              if (!options.silent) this.emitLog('info', simplified);
+              options.onLog?.(simplified);
             }
           }
         }

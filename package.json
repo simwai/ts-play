@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "prepare": "husky",
-    "analyze": "knip && madge --circular --extensions ts,tsx src/"
+    "analyze": "knip && madge --circular --extensions ts,tsx src/",
+    "check-quality": "knip && madge --circular --extensions ts,tsx src/"
   },
   "engines": {
     "node": ">=20.19.0 <21 || >=22.12.0"

@@ -32,21 +32,3 @@ export async function formatAllFiles(
   // Return original code if formatting fails
   return { tsCode, jsCode, dtsCode };
 }
-
-/**
- * Standard JSON formatter for configuration files.
- */
-export async function formatJson(json: string) {
-  try {
-    return JSON.stringify(JSON.parse(json), null, 2);
-  } catch {
-    return json;
-  }
-}
-
-/**
- * Prettier is managed within the WebContainer, so this is a no-op on the main thread.
- */
-export async function loadPrettier() {
-  return Promise.resolve();
-}

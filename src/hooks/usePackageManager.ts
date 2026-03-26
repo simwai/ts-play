@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { webContainerService, SYSTEM_DEPS } from '../lib/webcontainer';
 import { playgroundStore } from '../lib/state-manager';
 import type { ConsoleMessage } from '../components/Console';
+import type { PackageManagerStatus } from '../types/status';
 
 const BUILTIN_MODULES = new Set([
   'assert',
@@ -46,13 +47,6 @@ const BUILTIN_MODULES = new Set([
   'worker_threads',
   'zlib',
 ]);
-
-export type PackageManagerStatus =
-  | 'idle'
-  | 'installing'
-  | 'uninstalling'
-  | 'syncing'
-  | 'error';
 
 export function usePackageManager(
   tsCode: string,
