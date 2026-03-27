@@ -68,12 +68,7 @@ class PlaygroundStore {
       this.state.tscStatus === 'Ready' &&
       this.state.esbuildStatus === 'Ready';
 
-    if (
-      this.state.isReady !== oldReady ||
-      Object.keys(resolvedPatch).length > 0
-    ) {
-      this.notify();
-    }
+    this.notify();
   }
 
   subscribe(listener: StateListener) {

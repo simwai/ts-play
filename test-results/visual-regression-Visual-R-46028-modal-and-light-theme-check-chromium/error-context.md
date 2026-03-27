@@ -1,0 +1,248 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+    - generic [ref=e3]:
+        - banner [ref=e4]:
+            - generic [ref=e6]: TSPlay
+            - generic [ref=e7]:
+                - button "ts" [ref=e8] [cursor=pointer]
+                - button "js" [ref=e9] [cursor=pointer]
+                - button "dts" [ref=e10] [cursor=pointer]
+            - generic [ref=e11]:
+                - button "Switch to Light Mode" [ref=e12] [cursor=pointer]:
+                    - img [ref=e13]
+                    - generic: Switch to Light Mode
+                - button "Copy all ts" [ref=e20] [cursor=pointer]:
+                    - img [ref=e21]
+                    - generic: Copy all ts
+                - button "Clear ts editor" [ref=e24] [cursor=pointer]:
+                    - img [ref=e25]
+                    - generic: Clear ts editor
+                - button "Format all files with Prettier (TS + JS + DTS)" [ref=e28] [cursor=pointer]:
+                    - img [ref=e29]
+                    - generic: Format all files with Prettier (TS + JS + DTS)
+                - button "Run (compile + execute)" [ref=e33] [cursor=pointer]:
+                    - img [ref=e34]
+                    - generic [ref=e36]: Run
+                    - generic: Run (compile + execute)
+                - button "Share snippet (expires in 7 days)" [ref=e38] [cursor=pointer]:
+                    - img [ref=e39]
+                    - generic: Share snippet (expires in 7 days)
+        - generic [ref=e45]:
+            - generic [ref=e47]: TS Ready | JS Ready
+            - generic [ref=e49]:
+                - text: TypeScript
+                - generic [ref=e50]: 20.34s
+            - generic [ref=e51]:
+                - button "Undo" [ref=e52] [cursor=pointer]:
+                    - img [ref=e53]
+                    - generic: Undo
+                - button "Redo" [ref=e56] [cursor=pointer]:
+                    - img [ref=e57]
+                    - generic: Redo
+                - button "Settings" [active] [ref=e61] [cursor=pointer]:
+                    - img [ref=e62]
+                    - generic: Settings
+        - main [ref=e65]:
+            - code [ref=e70]:
+                - generic [ref=e71]:
+                    - textbox "Editor content"
+                    - textbox [ref=e72]
+                    - generic [ref=e74]:
+                        - generic [ref=e77]: '1'
+                        - generic [ref=e79]: '2'
+                        - generic [ref=e81]: '3'
+                        - generic [ref=e83]: '4'
+                        - generic [ref=e85]: '5'
+                        - generic [ref=e86]:
+                            - generic [ref=e87] [cursor=pointer]: 
+                            - generic [ref=e88]: '6'
+                        - generic [ref=e90]: '7'
+                        - generic [ref=e92]: '8'
+                        - generic [ref=e94]: '9'
+                        - generic [ref=e96]: '10'
+                        - generic [ref=e97]:
+                            - generic [ref=e98] [cursor=pointer]: 
+                            - generic [ref=e99]: '11'
+                        - generic [ref=e101]: '12'
+                        - generic [ref=e103]: '13'
+                        - generic [ref=e105]: '14'
+                        - generic [ref=e107]: '15'
+                        - generic [ref=e109]: '16'
+                        - generic [ref=e111]: '17'
+                    - generic [ref=e134]:
+                        - generic [ref=e136]: // TypeScript Playground
+                        - generic [ref=e138]: // Powered by Node.js, Prettier and WebContainers! ✨
+                        - generic [ref=e141]: "import { map } from 'lodash-es';"
+                        - generic [ref=e144]: 'interface User {'
+                        - generic [ref=e146]: 'name: string;'
+                        - generic [ref=e148]: 'age: number;'
+                        - generic [ref=e150]: '}'
+                        - generic [ref=e153]: 'function greet(user: User): string {'
+                        - generic [ref=e155]: 'return `Hello, ${user.name}!`;'
+                        - generic [ref=e157]: '}'
+                        - generic [ref=e160]: 'console.log(greet({ name: "Alice", age: 30 }));'
+                        - generic [ref=e162]: console.log("Mapped:", map([1, 2, 3], x => x * 2));
+            - generic [ref=e165]:
+                - generic [ref=e166]: Move cursor over a symbol for type info
+                - generic: Ln 1, Col 1
+            - generic [ref=e170]:
+                - button "Console 12 Clear console ▾" [expanded] [ref=e171] [cursor=pointer]:
+                    - generic [ref=e172]:
+                        - generic [ref=e173]: Console
+                        - generic [ref=e174]: '12'
+                    - generic [ref=e175]:
+                        - button "Clear console" [ref=e177]:
+                            - img [ref=e178]
+                            - text: Clear
+                            - generic: Clear console
+                        - generic: ▾
+                - generic [ref=e181]:
+                    - generic [ref=e182]:
+                        - generic [ref=e183]: INF
+                        - generic [ref=e184]: Booting WebContainer...
+                    - generic [ref=e185]:
+                        - generic [ref=e186]: INF
+                        - generic [ref=e187]: WebContainer booted.
+                    - generic [ref=e188]:
+                        - generic [ref=e189]: INF
+                        - generic [ref=e190]: 🟣 Fetching initial environment snapshot...
+                    - generic [ref=e191]:
+                        - generic [ref=e192]: INF
+                        - generic [ref=e193]: Fetching snapshot from /base.snapshot...
+                    - generic [ref=e194]:
+                        - generic [ref=e195]: INF
+                        - generic [ref=e196]: ⚠️ Snapshot loading failed, performing full mount & install...
+                    - generic [ref=e197]:
+                        - generic [ref=e198]: INF
+                        - generic [ref=e199]: Preparing environment (npm install)...
+                    - generic [ref=e200]:
+                        - generic [ref=e201]: WRN
+                        - generic [ref=e202]: "[WC Service] Stream read error: Failed to execute 'decode' on 'TextDecoder': parameter 1 is not of type 'ArrayBuffer'."
+                    - generic [ref=e203]:
+                        - generic [ref=e204]: INF
+                        - generic [ref=e205]: Starting reactive compilers...
+                    - generic [ref=e206]:
+                        - generic [ref=e207]: WRN
+                        - generic [ref=e208]: "[WC Service] Stream read error: Failed to execute 'decode' on 'TextDecoder': parameter 1 is not of type 'ArrayBuffer'."
+                    - generic [ref=e209]:
+                        - generic [ref=e210]: WRN
+                        - generic [ref=e211]: "[WC Service] Stream read error: Failed to execute 'decode' on 'TextDecoder': parameter 1 is not of type 'ArrayBuffer'."
+                    - generic [ref=e212]:
+                        - generic [ref=e213]: WRN
+                        - generic [ref=e214]: "[WC Service] Stream read error: Failed to execute 'decode' on 'TextDecoder': parameter 1 is not of type 'ArrayBuffer'."
+                    - generic [ref=e215]:
+                        - generic [ref=e216]: INF
+                        - generic [ref=e217]: Environment ready in 20.34s.
+        - generic [ref=e220]:
+            - generic [ref=e221]:
+                - generic [ref=e222]:
+                    - img [ref=e223]
+                    - heading "System Settings" [level=2] [ref=e226]
+                - button "Close" [ref=e227] [cursor=pointer]:
+                    - img [ref=e228]
+                    - generic: Close
+            - generic [ref=e231]:
+                - generic [ref=e232]:
+                    - generic [ref=e233]:
+                        - img [ref=e234]
+                        - heading "Appearance" [level=3] [ref=e236]
+                    - generic [ref=e237]:
+                        - generic [ref=e238]:
+                            - text: Editor Theme
+                            - combobox "Editor Theme" [ref=e239]:
+                                - option "Mocha" [selected]
+                                - option "Github ark"
+                                - option "Monokai"
+                            - paragraph [ref=e240]: Only showing dark themes.
+                        - generic [ref=e241]:
+                            - generic [ref=e242] [cursor=pointer]:
+                                - checkbox "Strip ANSI Escapes" [ref=e244]
+                                - generic [ref=e247]: Strip ANSI Escapes
+                            - generic [ref=e248] [cursor=pointer]:
+                                - checkbox "Soft Line Wrap" [ref=e250]
+                                - generic [ref=e253]: Soft Line Wrap
+                - generic [ref=e254]:
+                    - generic [ref=e255]:
+                        - img [ref=e256]
+                        - heading "Compilation & Bundling" [level=3] [ref=e261]
+                    - generic [ref=e263] [cursor=pointer]:
+                        - checkbox "Inline Dependencies BUNDLE node_modules into output" [ref=e265]
+                        - generic [ref=e268]:
+                            - generic [ref=e269]: Inline Dependencies
+                            - text: BUNDLE node_modules into output
+                - generic [ref=e270]:
+                    - generic [ref=e271]:
+                        - generic [ref=e272]:
+                            - img [ref=e273]
+                            - heading "Compiler Configuration" [level=3] [ref=e278]
+                        - generic [ref=e279]: tsconfig.json
+                    - code [ref=e284]:
+                        - generic [ref=e285]:
+                            - textbox "Editor content"
+                            - textbox [ref=e286]
+                            - generic [ref=e288]:
+                                - generic [ref=e289]:
+                                    - generic [ref=e291] [cursor=pointer]: 
+                                    - generic [ref=e292]: '1'
+                                - generic [ref=e293]:
+                                    - generic [ref=e294] [cursor=pointer]: 
+                                    - generic [ref=e295]: '2'
+                                - generic [ref=e297]: '3'
+                                - generic [ref=e299]: '4'
+                                - generic [ref=e301]: '5'
+                                - generic [ref=e303]: '6'
+                                - generic [ref=e305]: '7'
+                                - generic [ref=e307]: '8'
+                                - generic [ref=e309]: '9'
+                                - generic [ref=e311]: '10'
+                                - generic [ref=e313]: '11'
+                                - generic [ref=e315]: '12'
+                                - generic [ref=e317]: '13'
+                                - generic [ref=e319]: '14'
+                            - generic [ref=e361]:
+                                - generic [ref=e363]: '{'
+                                - generic [ref=e365]: '"compilerOptions": {'
+                                - generic [ref=e367]: '"target": "ESNext",'
+                                - generic [ref=e369]: '"module": "ESNext",'
+                                - generic [ref=e371]: '"lib": ["ESNext", "DOM", "DOM.Iterable"],'
+                                - generic [ref=e373]: '"moduleResolution": "bundler",'
+                                - generic [ref=e375]: '"outDir": "dist",'
+                                - generic [ref=e377]: '"declaration": true,'
+                                - generic [ref=e379]: '"emitDeclarationOnly": false,'
+                                - generic [ref=e381]: '"strict": true,'
+                                - generic [ref=e383]: '"skipLibCheck": true,'
+                                - generic [ref=e385]: '"isolatedModules": true,'
+                                - generic [ref=e387]: '"resolveJsonModule": true,'
+                                - generic [ref=e389]: '"moduleDetection": "force",'
+                - generic [ref=e391]:
+                    - generic [ref=e392]:
+                        - img [ref=e393]
+                        - heading "Environment" [level=3] [ref=e397]
+                    - generic [ref=e398]:
+                        - generic [ref=e399]:
+                            - generic [ref=e400]: Runtime
+                            - generic [ref=e401]:
+                                - img [ref=e402]
+                                - text: WebContainer
+                        - generic [ref=e405]:
+                            - generic [ref=e406]: PM Status
+                            - generic [ref=e407]: IDLE
+            - generic [ref=e408]:
+                - button "Reset Defaults" [ref=e409] [cursor=pointer]:
+                    - img [ref=e410]
+                    - text: Reset Defaults
+                - generic [ref=e413]:
+                    - button "Cancel" [ref=e414] [cursor=pointer]
+                    - button "Save Changes" [ref=e415] [cursor=pointer]:
+                        - img [ref=e416]
+                        - text: Save Changes
+            - generic [ref=e420]:
+                - paragraph [ref=e421]: Made with 💜 by simwai feat. jules and aider
+                - link "GitHub Repository" [ref=e422] [cursor=pointer]:
+                    - /url: https://github.com/simwai/ts-play
+    - generic [ref=e423]:
+        - alert
+        - alert
+```

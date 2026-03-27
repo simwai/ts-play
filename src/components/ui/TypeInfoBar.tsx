@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useMonaco } from '@monaco-editor/react';
-import { RegexPatterns, toRegExp } from '../../lib/regex';
+import { RegexPatterns } from '../../lib/regex';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -23,11 +23,11 @@ type TypeInfoBarProps = {
 };
 
 function renderWithLinksAndHighlight(text: string) {
-  const regex = toRegExp(RegexPatterns.MARKDOWN_LINKS_OR_CODE);
+  const regex = RegexPatterns.MARKDOWN_LINKS_OR_CODE;
   const parts = text.split(regex);
 
   return parts.map((part, i) => {
-    const mdMatch = toRegExp(RegexPatterns.MARKDOWN_LINK).exec(part);
+    const mdMatch = RegexPatterns.MARKDOWN_LINK.exec(part);
     if (mdMatch) {
       return (
         <a
@@ -43,7 +43,7 @@ function renderWithLinksAndHighlight(text: string) {
       );
     }
 
-    const urlMatch = toRegExp(RegexPatterns.URL).exec(part);
+    const urlMatch = RegexPatterns.URL.exec(part);
     if (urlMatch) {
       return (
         <a
