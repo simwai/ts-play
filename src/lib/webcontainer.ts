@@ -151,20 +151,7 @@ export class WebContainerService {
         const { done, value } = await reader.read();
         if (done) break;
 
-        // value should be Uint8Array, but some environments might pass something else
-        if (value instanceof Uint8Array || value instanceof ArrayBuffer) {
-           buffer += decoder.decode(value, { stream: true });
-        } else if (typeof value === 'string') {
-           buffer += value;
-        } else {
-           // Fallback for unexpected types
-           try {
-             buffer += decoder.decode(value as any, { stream: true });
-           } catch (e) {
-             console.warn('[WC Service] Failed to decode value:', value);
-           }
-        }
-
+        buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split(RegexPatterns.NEWLINE);
 
         // If the last line is an incomplete ANSI sequence, keep it in the buffer
@@ -211,8 +198,9 @@ export class WebContainerService {
             await read(fullPath);
           } else if (!filter || filter(fullPath)) {
             const content = await instance.fs.readFile(fullPath, 'utf8');
-            // Keep the full path relative to the root for Monaco
-            const monacoPath = fullPath.startsWith('./') ? fullPath.slice(2) : fullPath;
+            const monacoPath = fullPath.startsWith('./')
+              ? fullPath.slice(2)
+              : fullPath;
             results[monacoPath] = content;
           }
         }
