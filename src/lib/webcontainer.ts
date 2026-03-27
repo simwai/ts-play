@@ -124,7 +124,7 @@ export class WebContainerService {
   }
 
   private async processStream(
-    reader: ReadableStreamDefaultReader<Uint8Array>,
+    reader: ReadableStreamDefaultReader<Uint8Array | string>,
     options: { silent?: boolean; onLog?: (line: string) => void },
   ) {
     const decoder = new TextDecoder()
@@ -135,8 +135,12 @@ export class WebContainerService {
         const { done, value } = await reader.read()
         if (done) break
 
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split(RegexPatterns.NEWLINE)
+        if (typeof value === 'string') {
+          buffer += value;
+        } else if (value) {
+          buffer += decoder.decode(value, { stream: true });
+        }
+        const lines = buffer.split(RegexPatterns.NEWLINE);
 
         // If the last line is an incomplete ANSI sequence, keep it in the buffer
         buffer = RegexPatterns.INCOMPLETE_ANSI.test(lines[lines.length - 1])

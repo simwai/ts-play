@@ -1,0 +1,9 @@
+<<<<<<< SEARCH
+        if (typeof value === 'string') { buffer += value; } else { buffer += decoder.decode(value, { stream: true }); }
+=======
+        if (typeof value === 'string') {
+          buffer += value;
+        } else if (value) {
+          buffer += decoder.decode(value, { stream: true });
+        }
+>>>>>>> REPLACE

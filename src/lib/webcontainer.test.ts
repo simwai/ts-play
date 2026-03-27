@@ -71,8 +71,40 @@ describe('WebContainerService', () => {
 
     // In some test environments, value instanceof Uint8Array may fail
     // if realms differ. We check for 'hello' or its encoded string.
-    const allLogs = logs.join('\n')
-    expect(allLogs.includes('hello') || allLogs.includes('104,101,108,108,111')).toBe(true)
-    expect(allLogs.includes('world') || allLogs.includes('119,111,114,108,100')).toBe(true)
-  })
-})
+    const allLogs = logs.join('\n');
+    expect(
+      allLogs.includes('hello') || allLogs.includes('104,101,108,108,111'),
+    ).toBe(true);
+    expect(
+      allLogs.includes('world') || allLogs.includes('119,111,114,108,100'),
+    ).toBe(true);
+  });
+
+  it('spawnManaged should handle string output from stream', async () => {
+    const logs: string[] = [];
+    service.onLog((log) => logs.push(log.message));
+
+    const instance = await service.getInstance();
+    const mockProc = {
+      output: {
+        getReader: vi.fn().mockReturnValue({
+          read: vi
+            .fn()
+            .mockResolvedValueOnce({
+              value: 'hello from string\n',
+              done: false,
+            })
+            .mockResolvedValueOnce({ done: true }),
+          releaseLock: vi.fn(),
+        }),
+      },
+    };
+    vi.spyOn(instance, 'spawn').mockResolvedValue(mockProc as any);
+
+    await service.spawnManaged('echo', ['hello']);
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    expect(logs.join('\n')).toContain('hello from string');
+  });
+});
