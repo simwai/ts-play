@@ -1,12 +1,11 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
-import { isDarkMode } from './lib/theme';
-import { CodeEditor, type CodeEditorHandle } from './components/CodeEditor';
-import { Console } from './components/Console';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { Header } from './components/Header';
 import { StatusBar } from './components/StatusBar';
+import { Console } from './components/Console';
 import { SettingsModal } from './components/SettingsModal';
-import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
+import { CodeEditor, type CodeEditorHandle } from './components/CodeEditor';
 import { formatAllFiles } from './lib/formatter';
+import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
 import { useResizePanel } from './hooks/useResizePanel';
 import { useSwipeTabs } from './hooks/useSwipeTabs';
 import { shareSnippet } from './lib/api';
@@ -18,6 +17,7 @@ import { useWebContainer } from './hooks/useWebContainer';
 import { playgroundStore } from './lib/state-manager';
 import { usePlaygroundStore } from './hooks/usePlaygroundStore';
 import { TABS, type TabType, DEFAULT_TSCONFIG } from './lib/constants';
+import { isDarkMode } from './lib/theme';
 
 const DEFAULT_TS = `// TypeScript Playground
 // Powered by Node.js, Prettier and WebContainers! ✨
@@ -184,7 +184,7 @@ export function App() {
 
   return (
     <div
-      className={`h-[100dvh] flex flex-col bg-crust text-text transition-colors duration-300 ${isDarkMode(theme) ? 'dark' : ''} theme-${theme}`}
+      className={`h-[100dvh] flex flex-col bg-crust text-text transition-all duration-300 ${isDarkMode(theme) ? 'dark' : ''} theme-${theme}`}
     >
       <Header
         handleShare={handleShare}
@@ -200,11 +200,10 @@ export function App() {
         activeTab={activeTab}
         setActiveTab={(t) => setActiveTab(t as TabType)}
         themeMode={theme}
-        setThemeMode={(t) =>
-          playgroundStore.setState({
-            theme: typeof t === 'function' ? t(theme) : t,
-          })
-        }
+        setThemeMode={(t) => {
+          const nextTheme = typeof t === 'function' ? t(theme) : t;
+          playgroundStore.setState({ theme: nextTheme });
+        }}
         compilerStatus={
           isReady
             ? 'ready'

@@ -22,7 +22,7 @@ import {
   type ThemeMode,
   DARK_THEMES,
   LIGHT_THEMES,
-  isDarkMode,
+  isDarkMode, THEME_LABELS,
 } from '../lib/theme';
 import { DEFAULT_TSCONFIG } from '../lib/constants';
 import { RegexPatterns } from '../lib/regex';
@@ -148,8 +148,7 @@ export function SettingsModal({
                 >
                   {themeOptions.map((t) => (
                     <option key={t} value={t}>
-                      {t.charAt(0).toUpperCase() +
-                        t.slice(1).replace(/([A-Z])/g, ' ')}
+                      {THEME_LABELS[t]}
                     </option>
                   ))}
                 </select>
