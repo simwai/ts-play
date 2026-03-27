@@ -153,10 +153,6 @@ export const monokai: editor.IStandaloneThemeData = {
   },
 };
 
-
-
-
-
 export const shadesOfPurple: editor.IStandaloneThemeData = {
   base: 'vs-dark',
   inherit: true,

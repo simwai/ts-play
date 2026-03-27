@@ -53,7 +53,7 @@ export function SettingsModal({
     }
   }, [isOpen, tsConfigString]);
 
-      const validateConfig = async (config: string): Promise<{ valid: boolean; error?: string }> => {
+  const validateConfig = async (config: string): Promise<{ valid: boolean; error?: string }> => {
     const timeoutPromise = new Promise<{ valid: boolean; error?: string }>((resolve) => {
       setTimeout(() => resolve({ valid: false, error: 'Validation timed out' }), 5000);
     });
@@ -150,13 +150,13 @@ export function SettingsModal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface0 bg-mantle/50">
           <div className="flex items-center gap-3">
-            <Cpu className="text-mauve" size={20} />
+            <Cpu aria-hidden="true" className="text-mauve" size={20} />
             <h2 className="text-lg font-bold tracking-tight text-text">
               System Settings
             </h2>
           </div>
           <IconButton onClick={onClose} title="Close" size="sm" variant="ghost">
-            <X size={20} />
+            <X aria-hidden="true" size={20} />
           </IconButton>
         </div>
 
@@ -165,7 +165,7 @@ export function SettingsModal({
           {/* Appearance */}
           <section className="space-y-4">
             <div className="flex items-center gap-2 text-mauve font-semibold">
-              <Monitor size={18} />
+              <Monitor aria-hidden="true" size={18} />
               <h3>Appearance</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -242,7 +242,7 @@ export function SettingsModal({
           {/* Compilation & Dependencies */}
           <section className="space-y-4">
             <div className="flex items-center gap-2 text-mauve font-semibold">
-              <PackageCheck size={18} />
+              <PackageCheck aria-hidden="true" size={18} />
               <h3>Compilation & Bundling</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -276,7 +276,7 @@ export function SettingsModal({
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-mauve font-semibold">
-                <FileJson size={18} />
+                <FileJson aria-hidden="true" size={18} />
                 <h3>Compiler Configuration</h3>
               </div>
               <Badge label="tsconfig.json" />
@@ -294,7 +294,7 @@ export function SettingsModal({
               />
               {configError && (
                 <div className="absolute bottom-0 inset-x-0 bg-red/10 border-t border-red/20 p-2 flex items-center gap-2 text-xxs text-red animate-in slide-in-from-bottom-2">
-                  <AlertCircle size={12} className="shrink-0" />
+                  <AlertCircle aria-hidden="true" size={12} className="shrink-0" />
                   <span className="truncate">{configError}</span>
                 </div>
               )}
@@ -304,14 +304,14 @@ export function SettingsModal({
           {/* Environment Info */}
           <section className="space-y-4">
             <div className="flex items-center gap-2 text-mauve font-semibold">
-              <Layers size={18} />
+              <Layers aria-hidden="true" size={18} />
               <h3>Environment</h3>
             </div>
             <div className="p-4 bg-crust border border-surface0 rounded-lg space-y-3">
               <div className="flex items-center justify-between text-xs font-mono">
                 <span className="text-overlay1">Runtime</span>
                 <span className="text-mauve flex items-center gap-1.5">
-                  <Box size={12} /> WebContainer
+                  <Box aria-hidden="true" size={12} /> WebContainer
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs font-mono">
@@ -338,7 +338,7 @@ export function SettingsModal({
             onClick={handleReset}
             className="text-overlay1 hover:text-red hover:bg-red/5"
           >
-            <RotateCcw size={16} />
+            <RotateCcw aria-hidden="true" size={16} />
             Reset Defaults
           </Button>
           <div className="flex items-center gap-3">
@@ -354,7 +354,7 @@ export function SettingsModal({
                 <div className="w-4 h-4 border-2 border-crust border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
-                  <Save size={16} />
+                  <Save aria-hidden="true" size={16} />
                   Save Changes
                 </>
               )}
