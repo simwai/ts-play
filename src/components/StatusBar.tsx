@@ -1,19 +1,19 @@
-import { Undo2, Redo2, Settings } from 'lucide-react';
-import { IconButton } from './ui/IconButton';
-import type { TabType } from '../lib/constants';
-import type { PackageManagerStatus } from '../hooks/usePackageManager';
-import { usePlaygroundStore } from '../hooks/usePlaygroundStore';
+import { Redo2, Settings, Undo2 } from 'lucide-react'
+import type { PackageManagerStatus } from '../hooks/usePackageManager'
+import { usePlaygroundStore } from '../hooks/usePlaygroundStore'
+import type { TabType } from '../lib/constants'
+import { IconButton } from './ui/IconButton'
 
 type StatusBarProps = {
-  statusText: string;
-  activeTab: TabType;
-  jsDirty: boolean;
-  handleUndo: () => void;
-  handleRedo: () => void;
-  onOpenSettings: () => void;
-  compactForKeyboard: boolean;
-  packageManagerStatus: PackageManagerStatus;
-};
+  statusText: string
+  activeTab: TabType
+  jsDirty: boolean
+  handleUndo: () => void
+  handleRedo: () => void
+  onOpenSettings: () => void
+  compactForKeyboard: boolean
+  packageManagerStatus: PackageManagerStatus
+}
 
 export function StatusBar({
   statusText,
@@ -25,7 +25,7 @@ export function StatusBar({
   compactForKeyboard,
   packageManagerStatus,
 }: StatusBarProps) {
-  const { bootTime } = usePlaygroundStore();
+  const { bootTime } = usePlaygroundStore()
 
   const pmLabel =
     packageManagerStatus === 'installing'
@@ -36,13 +36,13 @@ export function StatusBar({
           ? 'Syncing...'
           : packageManagerStatus === 'error'
             ? 'PM Error'
-            : '';
+            : ''
 
   const statusColorClass = statusText.includes('Error')
     ? 'text-red'
     : statusText.includes('...') || statusText.includes('Prep')
       ? 'text-yellow'
-      : 'text-green';
+      : 'text-green'
 
   return (
     <div
@@ -65,19 +65,13 @@ export function StatusBar({
 
       <div className="flex items-center justify-center shrink-0 min-w-0">
         <span className="text-3xs md:text-xs text-overlay0 font-mono truncate">
-          {activeTab === 'ts'
-            ? 'TypeScript'
-            : activeTab === 'js'
-              ? 'JavaScript'
-              : 'Declarations'}
+          {activeTab === 'ts' ? 'TypeScript' : activeTab === 'js' ? 'JavaScript' : 'Declarations'}
           {bootTime !== null && (
             <span className="text-overlay0 px-2 py-0.5 bg-surface0/30 rounded-md select-none mr-2">
               {bootTime.toFixed(2)}s
             </span>
           )}
-          {activeTab === 'js' && jsDirty && (
-            <span className="ml-2 text-peach">● modified</span>
-          )}
+          {activeTab === 'js' && jsDirty && <span className="ml-2 text-peach">● modified</span>}
         </span>
       </div>
 
@@ -116,5 +110,5 @@ export function StatusBar({
         </IconButton>
       </div>
     </div>
-  );
+  )
 }

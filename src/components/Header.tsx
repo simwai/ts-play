@@ -1,44 +1,28 @@
-import {
-  Sun,
-  Moon,
-  Copy,
-  Check,
-  Trash2,
-  Wand2,
-  Loader2,
-  Play,
-  Square,
-  Share2,
-} from 'lucide-react';
-import { IconButton } from './ui/IconButton';
-import { Button } from './ui/Button';
-import {
-  type ThemeMode,
-  DARK_THEMES,
-  LIGHT_THEMES,
-  isDarkMode,
-} from '../lib/theme';
-import { TABS, type TabType } from '../lib/constants';
+import { Check, Copy, Loader2, Moon, Play, Share2, Square, Sun, Trash2, Wand2 } from 'lucide-react'
+import { TABS, type TabType } from '../lib/constants'
+import { DARK_THEMES, LIGHT_THEMES, type ThemeMode, isDarkMode } from '../lib/theme'
+import { Button } from './ui/Button'
+import { IconButton } from './ui/IconButton'
 
 type HeaderProps = {
-  activeTab: TabType;
-  setActiveTab: (tab: TabType) => void;
-  themeMode: ThemeMode;
-  setThemeMode: (mode: ThemeMode | ((m: ThemeMode) => ThemeMode)) => void;
-  handleCopyAll: () => void;
-  copied: boolean;
-  handleDeleteAll: () => void;
-  handleFormat: () => void;
-  formatting: boolean;
-  formatSuccess: boolean;
-  doRun: (skipDirtyCheck?: boolean) => void;
-  isRunning: boolean;
-  compilerStatus: 'loading' | 'ready' | 'error';
-  handleShare: () => void;
-  sharing: boolean;
-  shareSuccess: boolean;
-  stopCode?: () => void;
-};
+  activeTab: TabType
+  setActiveTab: (tab: TabType) => void
+  themeMode: ThemeMode
+  setThemeMode: (mode: ThemeMode | ((m: ThemeMode) => ThemeMode)) => void
+  handleCopyAll: () => void
+  copied: boolean
+  handleDeleteAll: () => void
+  handleFormat: () => void
+  formatting: boolean
+  formatSuccess: boolean
+  doRun: (skipDirtyCheck?: boolean) => void
+  isRunning: boolean
+  compilerStatus: 'loading' | 'ready' | 'error'
+  handleShare: () => void
+  sharing: boolean
+  shareSuccess: boolean
+  stopCode?: () => void
+}
 
 export function Header({
   activeTab,
@@ -74,7 +58,7 @@ export function Header({
           <button
             key={tab}
             onClick={() => {
-              setActiveTab(tab);
+              setActiveTab(tab)
             }}
             className={`px-1 py-0.5 md:px-2 md:py-1 rounded border-none text-[10px] md:text-xs font-semibold font-mono cursor-pointer tracking-wide uppercase transition-all duration-150 ${
               activeTab === tab
@@ -93,16 +77,12 @@ export function Header({
         <IconButton
           onClick={() => {
             setThemeMode((m) => {
-              const currentIsDark = isDarkMode(m);
-              const oppositeThemes = currentIsDark ? LIGHT_THEMES : DARK_THEMES;
-              return oppositeThemes[0];
-            });
+              const currentIsDark = isDarkMode(m)
+              const oppositeThemes = currentIsDark ? LIGHT_THEMES : DARK_THEMES
+              return oppositeThemes[0]
+            })
           }}
-          title={
-            isDarkMode(themeMode)
-              ? 'Switch to Light Mode'
-              : 'Switch to Dark Mode'
-          }
+          title={isDarkMode(themeMode) ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           tooltipAlign="right"
           variant="surface"
           size="sm"
@@ -126,9 +106,7 @@ export function Header({
           variant="surface"
           size="sm"
           className={`w-7 h-7 md:w-8 md:h-8 ${
-            copied
-              ? 'text-green border-green bg-green/15 hover:bg-green/20'
-              : ''
+            copied ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''
           }`}
         >
           {copied ? (
@@ -159,9 +137,7 @@ export function Header({
           variant="surface"
           size="sm"
           className={`w-7 h-7 md:w-8 md:h-8 ${
-            formatSuccess
-              ? 'text-green border-green bg-green/15 hover:bg-green/20'
-              : ''
+            formatSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''
           }`}
         >
           {formatting ? (
@@ -218,9 +194,7 @@ export function Header({
           size="sm"
           disabled={sharing}
           className={`w-7 h-7 md:w-8 md:h-8 ${
-            shareSuccess
-              ? 'text-green border-green bg-green/15 hover:bg-green/20'
-              : ''
+            shareSuccess ? 'text-green border-green bg-green/15 hover:bg-green/20' : ''
           }`}
         >
           {sharing ? (
@@ -233,5 +207,5 @@ export function Header({
         </IconButton>
       </div>
     </header>
-  );
+  )
 }
