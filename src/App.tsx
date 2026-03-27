@@ -7,7 +7,6 @@ import { PackageManager } from './components/PackageManager';
 import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
 import { CodeEditor, type CodeEditorHandle } from './components/CodeEditor';
 import { formatAllFiles } from './lib/formatter';
-import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
 import { useResizePanel } from './hooks/useResizePanel';
 import { useSwipeTabs } from './hooks/useSwipeTabs';
 import { shareSnippet } from './lib/api';

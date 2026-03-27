@@ -53,31 +53,71 @@ export function SettingsModal({
     }
   }, [isOpen, tsConfigString]);
 
-  const validateConfig = async (config: string) => {
-    try {
-      const result = await webContainerService.enqueue(async () => {
-        let output = '';
-        const proc = await webContainerService.spawnManaged(
-          'node',
-          ['__validate_config.cjs'],
-          {
-            silent: true,
-            onLog: (line) => {
-              output += line;
-            },
-          },
-        );
-        const writer = proc.input.getWriter();
-        await writer.write(config);
-        await writer.close();
-        await proc.exit;
+      const validateConfig = async (config: string): Promise<{ valid: boolean; error?: string }> => {
+    const timeoutPromise = new Promise<{ valid: boolean; error?: string }>((resolve) => {
+      setTimeout(() => resolve({ valid: false, error: 'Validation timed out' }), 5000);
+    });
 
-        return JSON.parse(output.trim()) as { valid: boolean; error?: string };
-      });
-      return result;
-    } catch (e) {
-      return { valid: false, error: (e as Error).message };
-    }
+    const executionPromise = (async () => {
+      try {
+        const result = await webContainerService.enqueue(async () => {
+          let output = '';
+          const proc = await webContainerService.spawnManaged(
+            'node',
+            ['__validate_config.cjs'],
+            {
+              silent: true,
+              onLog: (line) => {
+                output += line;
+              },
+            },
+          );
+
+          try {
+            const writer = proc.input.getWriter();
+            await writer.write(config);
+            await writer.close();
+
+            const exitCode = await Promise.race([
+              proc.exit,
+              new Promise<number>((_, reject) =>
+                setTimeout(() => reject(new Error('Process hang')), 4000),
+              ),
+            ]);
+
+            if (exitCode !== 0 && !output) {
+              return {
+                valid: false,
+                error: `Validation process exited with code ${exitCode}`,
+              };
+            }
+          } catch (e) {
+            proc.kill();
+            return { valid: false, error: (e as Error).message };
+          }
+
+          try {
+            const trimmedOutput = output.trim();
+            if (!trimmedOutput)
+              return { valid: false, error: 'No output from validation script' };
+            return JSON.parse(trimmedOutput) as {
+              valid: boolean;
+              error?: string;
+            };
+          } catch (e) {
+            return {
+              valid: false,
+              error: 'Failed to parse validation output: ' + output,
+            };
+          }
+        });
+        return result;
+      } catch (e) {
+        return { valid: false, error: (e as Error).message };
+      }
+    })();
+
+    return Promise.race([timeoutPromise, executionPromise]);
   };
 
   const handleSave = async () => {
@@ -137,7 +177,7 @@ export function SettingsModal({
                   Editor Theme
                 </label>
                 <select
-                  id="editor-theme"
+                  id="editor-theme" aria-label="Select Editor Theme"
                   value={theme}
                   onChange={(e) =>
                     playgroundStore.setState({
@@ -160,7 +200,7 @@ export function SettingsModal({
                 <label className="flex items-center gap-3 cursor-pointer group">
                   <div className="relative flex items-center">
                     <input
-                      id="strip-ansi"
+                      id="strip-ansi" aria-label="Strip ANSI Escapes"
                       type="checkbox"
                       checked={stripAnsi}
                       onChange={(e) =>
@@ -170,8 +210,8 @@ export function SettingsModal({
                       }
                       className="sr-only peer"
                     />
-                    <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors"></div>
-                    <div className="absolute left-1 w-3 h-3 bg-text rounded-full transition-transform peer-checked:translate-x-5"></div>
+                    <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-mauve peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-mantle"></div>
+                    <div className="absolute left-1 w-3 h-3 bg-white peer-checked:bg-crust rounded-full transition-transform peer-checked:translate-x-5"></div>
                   </div>
                   <span className="text-sm text-overlay1 group-hover:text-text transition-colors">
                     Strip ANSI Escapes
@@ -180,7 +220,7 @@ export function SettingsModal({
                 <label className="flex items-center gap-3 cursor-pointer group">
                   <div className="relative flex items-center">
                     <input
-                      id="line-wrap"
+                      id="line-wrap" aria-label="Soft Line Wrap"
                       type="checkbox"
                       checked={lineWrap}
                       onChange={(e) =>
@@ -188,8 +228,8 @@ export function SettingsModal({
                       }
                       className="sr-only peer"
                     />
-                    <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors"></div>
-                    <div className="absolute left-1 w-3 h-3 bg-text rounded-full transition-transform peer-checked:translate-x-5"></div>
+                    <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-mauve peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-mantle"></div>
+                    <div className="absolute left-1 w-3 h-3 bg-white peer-checked:bg-crust rounded-full transition-transform peer-checked:translate-x-5"></div>
                   </div>
                   <span className="text-sm text-overlay1 group-hover:text-text transition-colors">
                     Soft Line Wrap
@@ -209,7 +249,7 @@ export function SettingsModal({
               <label className="flex items-center gap-3 cursor-pointer group">
                 <div className="relative flex items-center">
                   <input
-                    id="inline-deps"
+                    id="inline-deps" aria-label="Inline Dependencies"
                     type="checkbox"
                     checked={inlineDeps}
                     onChange={(e) =>
@@ -217,8 +257,8 @@ export function SettingsModal({
                     }
                     className="sr-only peer"
                   />
-                  <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors"></div>
-                  <div className="absolute left-1 w-3 h-3 bg-text rounded-full transition-transform peer-checked:translate-x-5"></div>
+                  <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-mauve peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-mantle"></div>
+                  <div className="absolute left-1 w-3 h-3 bg-white peer-checked:bg-crust rounded-full transition-transform peer-checked:translate-x-5"></div>
                 </div>
                 <div>
                   <span className="text-sm text-overlay1 group-hover:text-text transition-colors block">

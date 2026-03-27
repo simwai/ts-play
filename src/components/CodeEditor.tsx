@@ -8,6 +8,9 @@ import {
   githubDark,
   githubLight,
   monokai,
+  shikiDark,
+  shikiLight,
+  shadesOfPurple,
 } from '../lib/monaco-themes';
 
 type CodeEditorProps = {
@@ -88,6 +91,9 @@ export const CodeEditor = React.memo(
           monaco.editor.defineTheme('githubDark', githubDark);
           monaco.editor.defineTheme('githubLight', githubLight);
           monaco.editor.defineTheme('monokai', monokai);
+          monaco.editor.defineTheme('shikiDark', shikiDark);
+          monaco.editor.defineTheme('shikiLight', shikiLight);
+          monaco.editor.defineTheme('shadesOfPurple', shadesOfPurple);
           themesRegistered = true;
         }
 
