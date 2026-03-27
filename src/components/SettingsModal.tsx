@@ -53,31 +53,71 @@ export function SettingsModal({
     }
   }, [isOpen, tsConfigString]);
 
-  const validateConfig = async (config: string) => {
-    try {
-      const result = await webContainerService.enqueue(async () => {
-        let output = '';
-        const proc = await webContainerService.spawnManaged(
-          'node',
-          ['__validate_config.cjs'],
-          {
-            silent: true,
-            onLog: (line) => {
-              output += line;
-            },
-          },
-        );
-        const writer = proc.input.getWriter();
-        await writer.write(config);
-        await writer.close();
-        await proc.exit;
+  const validateConfig = async (config: string): Promise<{ valid: boolean; error?: string }> => {
+    const timeoutPromise = new Promise<{ valid: boolean; error?: string }>((resolve) => {
+      setTimeout(() => resolve({ valid: false, error: 'Validation timed out' }), 5000);
+    });
 
-        return JSON.parse(output.trim()) as { valid: boolean; error?: string };
-      });
-      return result;
-    } catch (e) {
-      return { valid: false, error: (e as Error).message };
-    }
+    const executionPromise = (async () => {
+      try {
+        const result = await webContainerService.enqueue(async () => {
+          let output = '';
+          const proc = await webContainerService.spawnManaged(
+            'node',
+            ['__validate_config.cjs'],
+            {
+              silent: true,
+              onLog: (line) => {
+                output += line;
+              },
+            },
+          );
+
+          try {
+            const writer = proc.input.getWriter();
+            await writer.write(config);
+            await writer.close();
+
+            const exitCode = await Promise.race([
+              proc.exit,
+              new Promise<number>((_, reject) =>
+                setTimeout(() => reject(new Error('Process hang')), 4000),
+              ),
+            ]);
+
+            if (exitCode !== 0 && !output) {
+              return {
+                valid: false,
+                error: `Validation process exited with code ${exitCode}`,
+              };
+            }
+          } catch (e) {
+            proc.kill();
+            return { valid: false, error: (e as Error).message };
+          }
+
+          try {
+            const trimmedOutput = output.trim();
+            if (!trimmedOutput)
+              return { valid: false, error: 'No output from validation script' };
+            return JSON.parse(trimmedOutput) as {
+              valid: boolean;
+              error?: string;
+            };
+          } catch (e) {
+            return {
+              valid: false,
+              error: 'Failed to parse validation output: ' + output,
+            };
+          }
+        });
+        return result;
+      } catch (e) {
+        return { valid: false, error: (e as Error).message };
+      }
+    })();
+
+    return Promise.race([timeoutPromise, executionPromise]);
   };
 
   const handleSave = async () => {
@@ -110,13 +150,13 @@ export function SettingsModal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface0 bg-mantle/50">
           <div className="flex items-center gap-3">
-            <Cpu className="text-mauve" size={20} />
+            <Cpu aria-hidden="true" className="text-mauve" size={20} />
             <h2 className="text-lg font-bold tracking-tight text-text">
               System Settings
             </h2>
           </div>
           <IconButton onClick={onClose} title="Close" size="sm" variant="ghost">
-            <X size={20} />
+            <X aria-hidden="true" size={20} />
           </IconButton>
         </div>
 
@@ -125,7 +165,7 @@ export function SettingsModal({
           {/* Appearance */}
           <section className="space-y-4">
             <div className="flex items-center gap-2 text-mauve font-semibold">
-              <Monitor size={18} />
+              <Monitor aria-hidden="true" size={18} />
               <h3>Appearance</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -137,7 +177,7 @@ export function SettingsModal({
                   Editor Theme
                 </label>
                 <select
-                  id="editor-theme"
+                  id="editor-theme" aria-label="Select Editor Theme"
                   value={theme}
                   onChange={(e) =>
                     playgroundStore.setState({
@@ -160,7 +200,7 @@ export function SettingsModal({
                 <label className="flex items-center gap-3 cursor-pointer group">
                   <div className="relative flex items-center">
                     <input
-                      id="strip-ansi"
+                      id="strip-ansi" aria-label="Strip ANSI Escapes"
                       type="checkbox"
                       checked={stripAnsi}
                       onChange={(e) =>
@@ -170,8 +210,8 @@ export function SettingsModal({
                       }
                       className="sr-only peer"
                     />
-                    <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors"></div>
-                    <div className="absolute left-1 w-3 h-3 bg-text rounded-full transition-transform peer-checked:translate-x-5"></div>
+                    <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-mauve peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-mantle"></div>
+                    <div className="absolute left-1 w-3 h-3 bg-white peer-checked:bg-crust rounded-full transition-transform peer-checked:translate-x-5"></div>
                   </div>
                   <span className="text-sm text-overlay1 group-hover:text-text transition-colors">
                     Strip ANSI Escapes
@@ -180,7 +220,7 @@ export function SettingsModal({
                 <label className="flex items-center gap-3 cursor-pointer group">
                   <div className="relative flex items-center">
                     <input
-                      id="line-wrap"
+                      id="line-wrap" aria-label="Soft Line Wrap"
                       type="checkbox"
                       checked={lineWrap}
                       onChange={(e) =>
@@ -188,8 +228,8 @@ export function SettingsModal({
                       }
                       className="sr-only peer"
                     />
-                    <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors"></div>
-                    <div className="absolute left-1 w-3 h-3 bg-text rounded-full transition-transform peer-checked:translate-x-5"></div>
+                    <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-mauve peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-mantle"></div>
+                    <div className="absolute left-1 w-3 h-3 bg-white peer-checked:bg-crust rounded-full transition-transform peer-checked:translate-x-5"></div>
                   </div>
                   <span className="text-sm text-overlay1 group-hover:text-text transition-colors">
                     Soft Line Wrap
@@ -202,14 +242,14 @@ export function SettingsModal({
           {/* Compilation & Dependencies */}
           <section className="space-y-4">
             <div className="flex items-center gap-2 text-mauve font-semibold">
-              <PackageCheck size={18} />
+              <PackageCheck aria-hidden="true" size={18} />
               <h3>Compilation & Bundling</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <label className="flex items-center gap-3 cursor-pointer group">
                 <div className="relative flex items-center">
                   <input
-                    id="inline-deps"
+                    id="inline-deps" aria-label="Inline Dependencies"
                     type="checkbox"
                     checked={inlineDeps}
                     onChange={(e) =>
@@ -217,8 +257,8 @@ export function SettingsModal({
                     }
                     className="sr-only peer"
                   />
-                  <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors"></div>
-                  <div className="absolute left-1 w-3 h-3 bg-text rounded-full transition-transform peer-checked:translate-x-5"></div>
+                  <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-mauve peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-mantle"></div>
+                  <div className="absolute left-1 w-3 h-3 bg-white peer-checked:bg-crust rounded-full transition-transform peer-checked:translate-x-5"></div>
                 </div>
                 <div>
                   <span className="text-sm text-overlay1 group-hover:text-text transition-colors block">
@@ -236,7 +276,7 @@ export function SettingsModal({
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-mauve font-semibold">
-                <FileJson size={18} />
+                <FileJson aria-hidden="true" size={18} />
                 <h3>Compiler Configuration</h3>
               </div>
               <Badge label="tsconfig.json" />
@@ -254,7 +294,7 @@ export function SettingsModal({
               />
               {configError && (
                 <div className="absolute bottom-0 inset-x-0 bg-red/10 border-t border-red/20 p-2 flex items-center gap-2 text-xxs text-red animate-in slide-in-from-bottom-2">
-                  <AlertCircle size={12} className="shrink-0" />
+                  <AlertCircle aria-hidden="true" size={12} className="shrink-0" />
                   <span className="truncate">{configError}</span>
                 </div>
               )}
@@ -264,14 +304,14 @@ export function SettingsModal({
           {/* Environment Info */}
           <section className="space-y-4">
             <div className="flex items-center gap-2 text-mauve font-semibold">
-              <Layers size={18} />
+              <Layers aria-hidden="true" size={18} />
               <h3>Environment</h3>
             </div>
             <div className="p-4 bg-crust border border-surface0 rounded-lg space-y-3">
               <div className="flex items-center justify-between text-xs font-mono">
                 <span className="text-overlay1">Runtime</span>
                 <span className="text-mauve flex items-center gap-1.5">
-                  <Box size={12} /> WebContainer
+                  <Box aria-hidden="true" size={12} /> WebContainer
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs font-mono">
@@ -298,7 +338,7 @@ export function SettingsModal({
             onClick={handleReset}
             className="text-overlay1 hover:text-red hover:bg-red/5"
           >
-            <RotateCcw size={16} />
+            <RotateCcw aria-hidden="true" size={16} />
             Reset Defaults
           </Button>
           <div className="flex items-center gap-3">
@@ -314,7 +354,7 @@ export function SettingsModal({
                 <div className="w-4 h-4 border-2 border-crust border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
-                  <Save size={16} />
+                  <Save aria-hidden="true" size={16} />
                   Save Changes
                 </>
               )}

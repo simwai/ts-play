@@ -42,20 +42,6 @@ process.stdin.on('end', () => {
 });
 `;
 
-const VALIDATE_CONFIG_SCRIPT = `
-const fs = require('fs');
-let config = '';
-process.stdin.on('data', chunk => { config += chunk; });
-process.stdin.on('end', () => {
-  try {
-    JSON.parse(config);
-    console.log(JSON.stringify({ valid: true }));
-  } catch (e) {
-    console.log(JSON.stringify({ valid: false, error: e.message }));
-  }
-});
-`;
-
 export function useWebContainer(
   tsConfigString: string,
   tsCode: string,
