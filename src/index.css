@@ -247,6 +247,35 @@
     --blue: #66d9ef;
     --lavender: #ae81ff;
   }
+
+  .theme-shadesOfPurple {
+    --base: #2d2b55;
+    --mantle: #222145;
+    --crust: #1e1e3f;
+    --surface0: #3b3969;
+    --surface1: #4d4b8a;
+    --surface2: #5d5b99;
+    --overlay0: #a599e9;
+    --overlay1: #b362ff;
+    --overlay2: #c5a3ff;
+    --text: #ffffff;
+    --subtext0: #a599e9;
+    --subtext1: #b362ff;
+    --rosewater: #fad000;
+    --flamingo: #fad000;
+    --pink: #ff628c;
+    --mauve: #b362ff;
+    --red: #ff628c;
+    --maroon: #ff628c;
+    --peach: #ff9d00;
+    --yellow: #fad000;
+    --green: #a5ff90;
+    --teal: #a5ff90;
+    --sky: #9effff;
+    --sapphire: #9effff;
+    --blue: #80ffbb;
+    --lavender: #a599e9;
+  }
 }
 
 @layer base {

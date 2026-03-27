@@ -152,3 +152,30 @@ export const monokai: editor.IStandaloneThemeData = {
     'editorLineNumber.activeForeground': '#f8f8f2',
   },
 };
+
+export const shadesOfPurple: editor.IStandaloneThemeData = {
+  base: 'vs-dark',
+  inherit: true,
+  rules: [
+    { token: 'comment', foreground: 'b362ff', fontStyle: 'italic' },
+    { token: 'keyword', foreground: 'ff9d00' },
+    { token: 'string', foreground: 'a5ff90' },
+    { token: 'number', foreground: 'ff628c' },
+    { token: 'type', foreground: '9effff' },
+    { token: 'class', foreground: '9effff' },
+    { token: 'function', foreground: 'fad000' },
+    { token: 'variable', foreground: '9effff' },
+    { token: 'constant', foreground: 'ff628c' },
+    { token: 'operator', foreground: 'ff9d00' },
+  ],
+  colors: {
+    'editor.background': '#2d2b55',
+    'editor.foreground': '#a599e9',
+    'editor.lineHighlightBackground': '#3b3969',
+    'editor.selectionBackground': '#b362ff88',
+    'editorLineNumber.foreground': '#a599e9',
+    'editorLineNumber.activeForeground': '#fad000',
+    'editorIndentGuide.background': '#a599e94d',
+    'editorIndentGuide.activeBackground': '#a599e999',
+  },
+};

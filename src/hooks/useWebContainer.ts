@@ -8,19 +8,24 @@ import { RegexPatterns } from '../lib/regex';
 
 const DETECT_IMPORTS_SCRIPT = `
 const fs = require('fs');
-const code = process.argv[2] || '';
-const imports = [];
-const regex = ${RegexPatterns.IMPORT_EXPORT};
-let match;
-while ((match = regex.exec(code)) !== null) {
-  const name = match[1] || match[2] || match[3] || match[4] || match[5];
-  if (name && !name.startsWith('.') && !name.startsWith('/')) {
-    const parts = name.split('/');
-    const pkg = name.startsWith('@') ? \`\${parts[0]}/\${parts[1]}\` : parts[0];
-    imports.push(pkg);
+let code = '';
+process.stdin.on('data', chunk => { code += chunk; });
+process.stdin.on('end', () => {
+  const imports = [];
+  const regex = ${RegexPatterns.IMPORT_EXPORT};
+  let match;
+  while ((match = regex.exec(code)) !== null) {
+    // Group 1: result of (?:(?:import|export)...['"]([^'"]+)['"])
+    // Group 2: result of (?:require...['"]([^'"]+)['"])
+    const name = match[1] || match[2];
+    if (name && !name.startsWith('.') && !name.startsWith('/')) {
+      const parts = name.split('/');
+      const pkg = name.startsWith('@') ? \`\${parts[0]}/\${parts[1]}\` : parts[0];
+      imports.push(pkg);
+    }
   }
-}
-console.log(JSON.stringify([...new Set(imports)]));
+  console.log(JSON.stringify([...new Set(imports)]));
+});
 `;
 
 const VALIDATE_CONFIG_SCRIPT = `
@@ -267,9 +272,9 @@ export function useWebContainer(
 
   const startTsc = async () => {
     await webContainerService.spawnManaged(
-      'npx',
+      'node',
       [
-        'tsc',
+        'node_modules/typescript/lib/tsc.js',
         '--watch',
         '--declaration',
         '--emitDeclarationOnly',
