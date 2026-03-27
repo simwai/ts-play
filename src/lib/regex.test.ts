@@ -55,8 +55,8 @@ describe('RegexPatterns', () => {
     const matches = [];
     let m;
     while ((m = re.exec(code)) !== null) {
-      // Group index: 1 (import), 3 (dynamic import), 5 (require)
-      matches.push(m[1] || m[3] || m[5]);
+      // New regex has groups 1 (import/export) and 2 (require)
+      matches.push(m[1] || m[2]);
     }
     expect(matches).toContain('bar');
     expect(matches).toContain('baz');

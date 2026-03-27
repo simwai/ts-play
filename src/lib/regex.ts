@@ -7,7 +7,7 @@ export const RegexPatterns = {
   MARKDOWN_LINK: /^\[([^\]]+)]\((https?:\/\/[^\s)]+)\)$/,
   URL: /^(https?:\/\/[^\s)]+)$/,
   IMPORT_EXPORT:
-    /(?:import\s+(?:[\w\s{},*]+)\s+from\s+['"]([^'"]+)['"])|(import\(['"]([^'"]+)['"]\))|(require\(['"]([^'"]+)['"]\))/g,
+    /(?:(?:import|export)\s+(?:[\w\s{},*]+)\s+from\s+|import\s+|import\s*\()\s*['"]([^'"]+)['"]|(?:require\s*\()\s*['"]([^'"]+)['"]/g,
   NEWLINE: /\r?\n|\r/,
   INCOMPLETE_ANSI: /[\u001b\u009b][\[\]()#;?]*[0-9;]*$/,
   EXCESSIVE_WHITESPACE: /\s{5,}/g,
