@@ -1,21 +1,21 @@
-import { ThemeMode } from './theme';
-import { CompilerStatus, EnvironmentStatus } from './webcontainer';
-import type { PackageManagerStatus } from '../hooks/usePackageManager';
+import type { PackageManagerStatus } from '../hooks/usePackageManager'
+import type { ThemeMode } from './theme'
+import type { CompilerStatus, EnvironmentStatus } from './webcontainer'
 
 export interface PlaygroundState {
-  lifecycle: EnvironmentStatus;
-  tscStatus: CompilerStatus;
-  esbuildStatus: CompilerStatus;
-  packageManagerStatus: PackageManagerStatus;
-  theme: ThemeMode;
-  lineWrap: boolean;
-  stripAnsi: boolean;
-  inlineDeps: boolean;
-  isReady: boolean;
-  bootTime: number | null;
+  lifecycle: EnvironmentStatus
+  tscStatus: CompilerStatus
+  esbuildStatus: CompilerStatus
+  packageManagerStatus: PackageManagerStatus
+  theme: ThemeMode
+  lineWrap: boolean
+  stripAnsi: boolean
+  inlineDeps: boolean
+  isReady: boolean
+  bootTime: number | null
 }
 
-type StateListener = (state: PlaygroundState) => void;
+type StateListener = (state: PlaygroundState) => void
 
 class PlaygroundStore {
   private state: PlaygroundState = {
@@ -29,62 +29,55 @@ class PlaygroundStore {
     inlineDeps: localStorage.getItem('tsplay_inlinedeps') === 'true',
     isReady: false,
     bootTime: null,
-  };
+  }
 
-  private listeners: Set<StateListener> = new Set();
-  private operationQueue: Promise<any> = Promise.resolve();
+  private listeners: Set<StateListener> = new Set()
+  private operationQueue: Promise<any> = Promise.resolve()
 
   getState(): PlaygroundState {
-    return { ...this.state };
+    return { ...this.state }
   }
 
   setState(
-    patch:
-      | Partial<PlaygroundState>
-      | ((prev: PlaygroundState) => Partial<PlaygroundState>),
+    patch: Partial<PlaygroundState> | ((prev: PlaygroundState) => Partial<PlaygroundState>),
   ) {
-    const oldReady = this.state.isReady;
-    const resolvedPatch =
-      typeof patch === 'function' ? patch(this.state) : patch;
+    const oldReady = this.state.isReady
+    const resolvedPatch = typeof patch === 'function' ? patch(this.state) : patch
 
-    this.state = { ...this.state, ...resolvedPatch };
+    this.state = { ...this.state, ...resolvedPatch }
 
     // Persistence
-    if (resolvedPatch.theme)
-      localStorage.setItem('tsplay_theme', resolvedPatch.theme);
+    if (resolvedPatch.theme) localStorage.setItem('tsplay_theme', resolvedPatch.theme)
     if (resolvedPatch.lineWrap !== undefined)
-      localStorage.setItem('tsplay_linewrap', String(resolvedPatch.lineWrap));
+      localStorage.setItem('tsplay_linewrap', String(resolvedPatch.lineWrap))
     if (resolvedPatch.stripAnsi !== undefined)
-      localStorage.setItem('tsplay_stripansi', String(resolvedPatch.stripAnsi));
+      localStorage.setItem('tsplay_stripansi', String(resolvedPatch.stripAnsi))
     if (resolvedPatch.inlineDeps !== undefined)
-      localStorage.setItem(
-        'tsplay_inlinedeps',
-        String(resolvedPatch.inlineDeps),
-      );
+      localStorage.setItem('tsplay_inlinedeps', String(resolvedPatch.inlineDeps))
 
     // Derive readiness
     this.state.isReady =
       this.state.lifecycle === 'ready' &&
       this.state.tscStatus === 'Ready' &&
-      this.state.esbuildStatus === 'Ready';
+      this.state.esbuildStatus === 'Ready'
 
-    this.notify();
+    this.notify()
   }
 
   subscribe(listener: StateListener) {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
   }
 
   private notify() {
-    const snapshot = { ...this.state };
-    this.listeners.forEach((l) => l(snapshot));
+    const snapshot = { ...this.state }
+    this.listeners.forEach((l) => l(snapshot))
   }
 
   async enqueue<T>(task: () => Promise<T>): Promise<T> {
-    this.operationQueue = this.operationQueue.then(task);
-    return this.operationQueue;
+    this.operationQueue = this.operationQueue.then(task)
+    return this.operationQueue
   }
 }
 
-export const playgroundStore = new PlaygroundStore();
+export const playgroundStore = new PlaygroundStore()

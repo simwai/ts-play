@@ -1,0 +1,104 @@
+{
+  "$schema": "https://biomejs.dev/schemas/1.8.3/schema.json",
+
+  "formatter": {
+    "enabled": true,
+    "ignore": ["dist", "coverage", "node_modules"],
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "style": {
+        "noNonNullAssertion": "off",
+        "noNamespace": "error",
+        "useConst": "error",
+        "noVar": "error",
+        "useSelfClosingElements": "off",
+        "useTemplate": "off"
+      },
+      "correctness": {
+        "noUnusedVariables": "off",
+        "noUnusedImports": "error",
+        "noUndeclaredDependencies": "off",
+        "noVoidTypeReturn": "error",
+        "useExhaustiveDependencies": "off"
+      },
+      "suspicious": {
+        "noExplicitAny": "off",
+        "noImplicitAnyLet": "off",
+        "noAssignInExpressions": "off",
+        "noConsole": "off",
+        "noDebugger": "error",
+        "noControlCharactersInRegex": "off",
+        "noArrayIndexKey": "off"
+      },
+      "complexity": {
+        "noExtraBooleanCast": "warn",
+        "noForEach": "off"
+      },
+      "a11y": {
+        "useKeyWithClickEvents": "off",
+        "useButtonType": "off",
+        "useSemanticElements": "off"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "off"
+      }
+    }
+  },
+
+  "organizeImports": {
+    "enabled": true
+  },
+
+  "javascript": {
+    "formatter": {
+      "enabled": true,
+      "lineWidth": 100,
+      "semicolons": "asNeeded",
+      "trailingCommas": "all",
+      "indentWidth": 2,
+      "indentStyle": "space",
+      "arrowParentheses": "always",
+      "quoteStyle": "single"
+    }
+  },
+
+  "json": {
+    "formatter": {
+      "enabled": true,
+      "indentWidth": 2
+    },
+    "linter": {
+      "enabled": true
+    }
+  },
+
+  "overrides": [
+    {
+      "include": ["*.test.ts", "*.test.tsx", "**/*.test.ts", "**/*.test.tsx"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    },
+    {
+      "include": ["**/scripts/*.ts", "**/*.config.{js,ts,cjs,mjs}"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    }
+  ]
+}

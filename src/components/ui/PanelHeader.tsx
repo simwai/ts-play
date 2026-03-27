@@ -1,23 +1,16 @@
-import { type ReactNode } from 'react';
-import { cn } from '../../lib/utils';
+import type { ReactNode } from 'react'
+import { cn } from '../../lib/utils'
 
 type PanelHeaderProps = {
-  label: string;
-  isOpen: boolean;
-  onToggle: () => void;
-  left?: ReactNode;
-  right?: ReactNode;
-  className?: string;
-};
+  label: string
+  isOpen: boolean
+  onToggle: () => void
+  left?: ReactNode
+  right?: ReactNode
+  className?: string
+}
 
-export function PanelHeader({
-  label,
-  isOpen,
-  onToggle,
-  left,
-  right,
-  className,
-}: PanelHeaderProps) {
+export function PanelHeader({ label, isOpen, onToggle, left, right, className }: PanelHeaderProps) {
   return (
     <div
       role="button"
@@ -41,7 +34,7 @@ export function PanelHeader({
         {right && (
           <div
             onClick={(e) => {
-              e.stopPropagation();
+              e.stopPropagation()
             }}
             className="flex items-center gap-2"
           >
@@ -58,5 +51,5 @@ export function PanelHeader({
         </span>
       </div>
     </div>
-  );
+  )
 }

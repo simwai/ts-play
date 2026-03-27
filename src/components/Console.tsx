@@ -1,55 +1,53 @@
-import React, { useRef, useEffect, useMemo } from 'react';
-import { Eraser } from 'lucide-react';
-import { Badge } from './ui/Badge';
-import { Button } from './ui/Button';
-import { PanelHeader } from './ui/PanelHeader';
-import { RegexPatterns } from '../lib/regex';
+import { Eraser } from 'lucide-react'
+import React, { useRef, useEffect, useMemo } from 'react'
+import { RegexPatterns } from '../lib/regex'
+import { Badge } from './ui/Badge'
+import { Button } from './ui/Button'
+import { PanelHeader } from './ui/PanelHeader'
 
 export type ConsoleMessage = {
-  type: 'log' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'dir';
-  args: string[];
-  ts: number;
-};
+  type: 'log' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'dir'
+  args: string[]
+  ts: number
+}
 
 type Props = {
-  messages: ConsoleMessage[];
-  onClear: () => void;
-  isOpen: boolean;
-  onToggle: () => void;
-  contentHeight: number;
-  stripAnsiEnabled?: boolean;
-};
+  messages: ConsoleMessage[]
+  onClear: () => void
+  isOpen: boolean
+  onToggle: () => void
+  contentHeight: number
+  stripAnsiEnabled?: boolean
+}
 
-function typeVariant(
-  type: ConsoleMessage['type'],
-): 'error' | 'warn' | 'info' | 'default' {
-  if (type === 'error') return 'error';
-  if (type === 'warn' || type === 'trace') return 'warn';
-  if (type === 'info' || type === 'debug' || type === 'dir') return 'info';
-  return 'default';
+function typeVariant(type: ConsoleMessage['type']): 'error' | 'warn' | 'info' | 'default' {
+  if (type === 'error') return 'error'
+  if (type === 'warn' || type === 'trace') return 'warn'
+  if (type === 'info' || type === 'debug' || type === 'dir') return 'info'
+  return 'default'
 }
 
 function typeLabel(type: ConsoleMessage['type']): string {
-  if (type === 'error') return 'ERR';
-  if (type === 'warn') return 'WRN';
-  if (type === 'info') return 'INF';
-  if (type === 'debug') return 'DBG';
-  if (type === 'trace') return 'TRC';
-  if (type === 'dir') return 'DIR';
-  return 'LOG';
+  if (type === 'error') return 'ERR'
+  if (type === 'warn') return 'WRN'
+  if (type === 'info') return 'INF'
+  if (type === 'debug') return 'DBG'
+  if (type === 'trace') return 'TRC'
+  if (type === 'dir') return 'DIR'
+  return 'LOG'
 }
 
 function typeColorClass(type: ConsoleMessage['type']): string {
-  if (type === 'error') return 'text-red';
-  if (type === 'warn' || type === 'trace') return 'text-yellow';
-  if (type === 'info' || type === 'debug' || type === 'dir') return 'text-blue';
-  return 'text-text';
+  if (type === 'error') return 'text-red'
+  if (type === 'warn' || type === 'trace') return 'text-yellow'
+  if (type === 'info' || type === 'debug' || type === 'dir') return 'text-blue'
+  return 'text-text'
 }
 
 // Uncle Bob: Clear, focused utility for stripping ANSI sequences
 function stripAnsi(text: string): string {
-  const ansiRegex = RegexPatterns.ANSI_ESCAPE;
-  return text.replace(ansiRegex, '');
+  const ansiRegex = RegexPatterns.ANSI_ESCAPE
+  return text.replace(ansiRegex, '')
 }
 
 export const Console = React.memo(function Console({
@@ -60,31 +58,28 @@ export const Console = React.memo(function Console({
   contentHeight,
   stripAnsiEnabled = false,
 }: Props) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (isOpen) {
       requestAnimationFrame(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'auto' });
-      });
+        bottomRef.current?.scrollIntoView({ behavior: 'auto' })
+      })
     }
-  }, [messages.length, isOpen]);
+  }, [messages.length, isOpen])
 
   const stats = useMemo(() => {
-    let err = 0,
-      wrn = 0;
+    let err = 0
+    let wrn = 0
     for (const m of messages) {
-      if (m.type === 'error') err++;
-      if (m.type === 'warn') wrn++;
+      if (m.type === 'error') err++
+      if (m.type === 'warn') wrn++
     }
-    return { err, wrn };
-  }, [messages]);
+    return { err, wrn }
+  }, [messages])
 
   return (
-    <div
-      className="flex flex-col h-full bg-mantle shrink-0"
-      data-testid="console-container"
-    >
+    <div className="flex flex-col h-full bg-mantle shrink-0" data-testid="console-container">
       <PanelHeader
         label="Console"
         isOpen={isOpen}
@@ -92,20 +87,16 @@ export const Console = React.memo(function Console({
         left={
           <>
             {messages.length > 0 && <Badge label={String(messages.length)} />}
-            {stats.err > 0 && (
-              <Badge label={`${stats.err} err`} variant="error" />
-            )}
-            {stats.warn > 0 && (
-              <Badge label={`${stats.warn} warn`} variant="warn" />
-            )}
+            {stats.err > 0 && <Badge label={`${stats.err} err`} variant="error" />}
+            {stats.warn > 0 && <Badge label={`${stats.warn} warn`} variant="warn" />}
           </>
         }
         right={
           messages.length > 0 ? (
             <Button
               onClick={(e) => {
-                e.stopPropagation();
-                onClear();
+                e.stopPropagation()
+                onClear()
               }}
               variant="secondary"
               size="xs"
@@ -130,10 +121,10 @@ export const Console = React.memo(function Console({
             </div>
           ) : (
             messages.map((m, idx) => {
-              if (!m || !m.args) return null;
-              let fullText = m.args.join(' ');
+              if (!m || !m.args) return null
+              let fullText = m.args.join(' ')
               if (stripAnsiEnabled) {
-                fullText = stripAnsi(fullText);
+                fullText = stripAnsi(fullText)
               }
 
               return (
@@ -153,12 +144,12 @@ export const Console = React.memo(function Console({
                     {fullText}
                   </pre>
                 </div>
-              );
+              )
             })
           )}
           <div ref={bottomRef} className="h-4 w-full" />
         </div>
       )}
     </div>
-  );
-});
+  )
+})
