@@ -1,15 +1,36 @@
 import { WebContainer, type WebContainerProcess } from '@webcontainer/api';
 import { playgroundStore } from './state-manager';
+import { RegexPatterns } from './regex';
 
-export type EnvironmentStatus = 'idle' | 'booting' | 'preparing' | 'ready' | 'error';
-export type CompilerStatus = 'Idle' | 'Preparing' | 'Running' | 'Compiling' | 'Ready' | 'Error';
+export type EnvironmentStatus =
+  | 'idle'
+  | 'booting'
+  | 'preparing'
+  | 'ready'
+  | 'error';
+export type CompilerStatus =
+  | 'Idle'
+  | 'Preparing'
+  | 'Running'
+  | 'Compiling'
+  | 'Ready'
+  | 'Error';
 
-export const SYSTEM_DEPS = ['typescript', 'esbuild', 'prettier', 'lodash-es', '@types/lodash-es', '@types/node'];
+export const SYSTEM_DEPS = [
+  'typescript',
+  'esbuild',
+  'prettier',
+  'lodash-es',
+  '@types/lodash-es',
+  '@types/node',
+];
 
 export class WebContainerService {
   private instance: WebContainer | null = null;
   private bootPromise: Promise<WebContainer> | null = null;
-  private logCallbacks: Set<(log: { type: string; message: string; timestamp: number }) => void> = new Set();
+  private logCallbacks: Set<
+    (log: { type: string; message: string; timestamp: number }) => void
+  > = new Set();
 
   public serverUrl: string | null = null;
 
@@ -35,14 +56,18 @@ export class WebContainerService {
     return this.bootPromise;
   }
 
-  onLog(cb: (log: { type: string; message: string; timestamp: number }) => void) {
+  onLog(
+    cb: (log: { type: string; message: string; timestamp: number }) => void,
+  ) {
     this.logCallbacks.add(cb);
     return () => this.logCallbacks.delete(cb);
   }
 
   emitLog(type: string, message: string) {
     if (!message) return;
-    this.logCallbacks.forEach(cb => cb({ type, message, timestamp: Date.now() }));
+    this.logCallbacks.forEach((cb) =>
+      cb({ type, message, timestamp: Date.now() }),
+    );
   }
 
   async enqueue<T>(task: (instance: WebContainer) => Promise<T>): Promise<T> {
@@ -70,8 +95,9 @@ export class WebContainerService {
   async exportSnapshot(): Promise<Uint8Array> {
     const instance = await this.getInstance();
     this.emitLog('info', 'Exporting environment snapshot...');
-    // Use binary format to avoid JSON serialization issues and reduce size
-    const snapshot = await instance.export('.', { format: 'binary' }) as Uint8Array;
+    const snapshot = (await instance.export('.', {
+      format: 'binary',
+    })) as Uint8Array;
     this.emitLog('info', 'Snapshot exported.');
     return snapshot;
   }
@@ -95,76 +121,90 @@ export class WebContainerService {
   async getEnvReady() {
     return new Promise<void>((resolve) => {
       const check = () => {
-        if (playgroundStore.getState().lifecycle === "ready") resolve();
+        if (playgroundStore.getState().lifecycle === 'ready') resolve();
         else setTimeout(check, 100);
       };
       check();
     });
   }
 
-  async spawnManaged(cmd: string, args: string[], options: { silent?: boolean, onLog?: (line: string) => void } = {}): Promise<WebContainerProcess> {
+  async spawnManaged(
+    cmd: string,
+    args: string[],
+    options: { silent?: boolean; onLog?: (line: string) => void } = {},
+  ): Promise<WebContainerProcess> {
     const instance = await this.getInstance();
     const proc = await instance.spawn(cmd, args);
-
-    const reader = proc.output.getReader();
-    const decoder = new TextDecoder();
-    let currentLineBuffer = '';
-
-    (async () => {
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          let chunk = value;
-          if (value instanceof Uint8Array) {
-             chunk = decoder.decode(value, { stream: true });
-          }
-
-          currentLineBuffer += chunk;
-          const lines = currentLineBuffer.split(/\r?\n|\r/);
-
-          const last = lines[lines.length - 1];
-          const hasIncompleteAnsi = /[\u001b\u009b][\[\]()#;?]*[0-9;]*$/.test(last);
-
-          if (!hasIncompleteAnsi) {
-            currentLineBuffer = lines.pop() || '';
-            for (const line of lines) {
-               const simplified = line.replace(/\s{5,}/g, '    ');
-               if (!options.silent) this.emitLog('info', simplified);
-               options.onLog?.(simplified);
-            }
-          } else {
-            const completeLines = lines.slice(0, -1);
-            currentLineBuffer = lines[lines.length - 1];
-            for (const line of completeLines) {
-               const simplified = line.replace(/\s{5,}/g, '    ');
-               if (!options.silent) this.emitLog('info', simplified);
-               options.onLog?.(simplified);
-            }
-          }
-        }
-        if (currentLineBuffer) {
-          if (!options.silent) this.emitLog('info', currentLineBuffer);
-          options.onLog?.(currentLineBuffer);
-        }
-      } catch (err: any) {
-        console.warn('[WC Service] Stream read error:', err.message);
-      } finally {
-        reader.releaseLock();
-      }
-    })();
-
+    this.processStream(proc.output.getReader(), options);
     return proc;
   }
 
-  async readDirRecursive(dir: string, filter?: (path: string) => boolean): Promise<Record<string, string>> {
+  private async processStream(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+    options: { silent?: boolean; onLog?: (line: string) => void },
+  ) {
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        // value should be Uint8Array, but some environments might pass something else
+        if (value instanceof Uint8Array || value instanceof ArrayBuffer) {
+           buffer += decoder.decode(value, { stream: true });
+        } else if (typeof value === 'string') {
+           buffer += value;
+        } else {
+           // Fallback for unexpected types
+           try {
+             buffer += decoder.decode(value as any, { stream: true });
+           } catch (e) {
+             console.warn('[WC Service] Failed to decode value:', value);
+           }
+        }
+
+        const lines = buffer.split(RegexPatterns.NEWLINE);
+
+        // If the last line is an incomplete ANSI sequence, keep it in the buffer
+        buffer = RegexPatterns.INCOMPLETE_ANSI.test(lines[lines.length - 1])
+          ? lines.pop()!
+          : lines.pop() || '';
+
+        for (const line of lines) {
+          const simplified = line.replace(
+            RegexPatterns.EXCESSIVE_WHITESPACE,
+            '    ',
+          );
+          if (!options.silent) this.emitLog('info', simplified);
+          options.onLog?.(simplified);
+        }
+      }
+
+      if (buffer) {
+        if (!options.silent) this.emitLog('info', buffer);
+        options.onLog?.(buffer);
+      }
+    } catch (err: any) {
+      console.warn('[WC Service] Stream read error:', err.message);
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
+  async readDirRecursive(
+    dir: string,
+    filter?: (path: string) => boolean,
+  ): Promise<Record<string, string>> {
     const instance = await this.getInstance();
     const results: Record<string, string> = {};
 
     const read = async (currentPath: string) => {
       try {
-        const entries = await instance.fs.readdir(currentPath, { withFileTypes: true });
+        const entries = await instance.fs.readdir(currentPath, {
+          withFileTypes: true,
+        });
         for (const entry of entries) {
           const fullPath = `${currentPath}/${entry.name}`;
           if (entry.isDirectory()) {

@@ -13,7 +13,7 @@ export class PlaygroundDatabase extends Dexie {
   constructor() {
     super('PlaygroundDatabase');
     this.version(1).stores({
-      snapshots: '++id, name, timestamp'
+      snapshots: '++id, name, timestamp',
     });
   }
 
@@ -21,7 +21,7 @@ export class PlaygroundDatabase extends Dexie {
     await this.snapshots.put({
       name,
       data,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 
@@ -31,7 +31,7 @@ export class PlaygroundDatabase extends Dexie {
       .equals(name)
       .reverse()
       .sortBy('timestamp')
-      .then(results => results[0]);
+      .then((results) => results[0]);
   }
 }
 

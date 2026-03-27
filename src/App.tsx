@@ -1,23 +1,25 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
-import { isDarkMode } from './lib/theme';
-import { CodeEditor, type CodeEditorHandle } from './components/CodeEditor';
-import { Console } from './components/Console';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { Header } from './components/Header';
 import { StatusBar } from './components/StatusBar';
+import { Console } from './components/Console';
 import { SettingsModal } from './components/SettingsModal';
 import { PackageManager } from './components/PackageManager';
 import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
+import { CodeEditor, type CodeEditorHandle } from './components/CodeEditor';
 import { formatAllFiles } from './lib/formatter';
+import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
 import { useResizePanel } from './hooks/useResizePanel';
 import { useSwipeTabs } from './hooks/useSwipeTabs';
 import { shareSnippet } from './lib/api';
 import { useConsoleManager } from './hooks/useConsoleManager';
+import { TypeInfoBar, type TypeInfo } from './components/ui/TypeInfoBar';
 import { useCompilerManager } from './hooks/useCompilerManager';
 import { usePackageManager } from './hooks/usePackageManager';
 import { useWebContainer } from './hooks/useWebContainer';
 import { playgroundStore } from './lib/state-manager';
 import { usePlaygroundStore } from './hooks/usePlaygroundStore';
 import { TABS, type TabType, DEFAULT_TSCONFIG } from './lib/constants';
+import { isDarkMode } from './lib/theme';
 
 const DEFAULT_TS = `// TypeScript Playground
 // Powered by Node.js, Prettier and WebContainers! ✨
@@ -38,22 +40,33 @@ console.log("Mapped:", map([1, 2, 3], x => x * 2));
 `;
 
 export function App() {
-  const { theme, lineWrap, stripAnsi, isReady, tscStatus, esbuildStatus, lifecycle, packageManagerStatus } = usePlaygroundStore();
+  const {
+    theme,
+    lineWrap,
+    stripAnsi,
+    isReady,
+    tscStatus,
+    esbuildStatus,
+    lifecycle,
+    packageManagerStatus,
+  } = usePlaygroundStore();
 
   const [tsCode, setTsCode] = useState(DEFAULT_TS);
   const [jsCode, setJsCode] = useState('');
   const [dtsCode, setDtsCode] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('ts');
   const [tsConfigString, setTsConfigString] = useState(
-    () => localStorage.getItem('tsplay_tsconfig') || DEFAULT_TSCONFIG
+    () => localStorage.getItem('tsplay_tsconfig') || DEFAULT_TSCONFIG,
   );
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [isFormatting, setFormatting] = useState(false);
+  const [formatSuccess, setFormatSuccess] = useState(false);
+  const [shareSuccess, setShareSuccess] = useState(false);
   const [copied, setCopied] = useState(false);
   const [jsDirty, setJsDirty] = useState(false);
-  const [typeInfo, setTypeInfo] = useState('');
+  const [typeInfo, setTypeInfo] = useState<TypeInfo | null>(null);
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
   const [pmOpen, setPmOpen] = useState(false);
 
@@ -62,31 +75,36 @@ export function App() {
   const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } =
     useConsoleManager();
 
-  const handleArtifactsChange = useCallback((js: string, dts: string) => {
-    // If JS is dirty, we don't overwrite it with auto-emitted code
-    if (js) {
+  const handleArtifactsChange = useCallback(
+    (js: string, dts: string) => {
+      // If JS is dirty, we don't overwrite it with auto-emitted code
+      if (js) {
         setJsCode((prev) => (jsDirty ? prev : js));
-    }
-    if (dts) setDtsCode(dts);
-  }, [jsDirty]);
+      }
+      if (dts) setDtsCode(dts);
+    },
+    [jsDirty],
+  );
 
   const { externalTypings } = useWebContainer(
     tsConfigString,
     tsCode,
     addMessage,
-    handleArtifactsChange
+    handleArtifactsChange,
   );
 
   const { tsCursorPos, installedPackages } = usePackageManager(tsCode, addMessage);
 
   const statusText = useMemo(() => {
     const parts = [];
-    if (tscStatus === 'Running' || tscStatus === 'Compiling') parts.push('TS...');
+    if (tscStatus === 'Running' || tscStatus === 'Compiling')
+      parts.push('TS...');
     else if (tscStatus === 'Ready') parts.push('TS Ready');
     else if (tscStatus === 'Preparing') parts.push('TS Prep');
     else if (tscStatus === 'Error') parts.push('TS Error');
 
-    if (esbuildStatus === 'Running' || esbuildStatus === 'Compiling') parts.push('JS...');
+    if (esbuildStatus === 'Running' || esbuildStatus === 'Compiling')
+      parts.push('JS...');
     else if (esbuildStatus === 'Ready') parts.push('JS Ready');
     else if (esbuildStatus === 'Preparing') parts.push('JS Prep');
     else if (esbuildStatus === 'Error') parts.push('JS Error');
@@ -98,7 +116,11 @@ export function App() {
 
   const handleRun = useCallback(async () => {
     if (jsDirty) {
-      if (!confirm('The JavaScript code has been modified. Running will overwrite your changes with the latest compiled code. Continue?')) {
+      if (
+        !confirm(
+          'The JavaScript code has been modified. Running will overwrite your changes with the latest compiled code. Continue?',
+        )
+      ) {
         return;
       }
       setJsDirty(false);
@@ -128,6 +150,8 @@ export function App() {
     try {
       const fTs = await formatAllFiles(tsCode, '', '');
       setTsCode(fTs.tsCode);
+      setFormatSuccess(true);
+      setTimeout(() => setFormatSuccess(false), 1500);
     } catch (err) {
       console.error('Format failed:', err);
     } finally {
@@ -141,6 +165,8 @@ export function App() {
       const url = await shareSnippet(tsCode, tsConfigString);
       await navigator.clipboard.writeText(url);
       addMessage('info', ['Share URL copied to clipboard!']);
+      setShareSuccess(true);
+      setTimeout(() => setShareSuccess(false), 1500);
     } catch (err) {
       addMessage('error', [
         'Failed to share snippet: ' + (err as Error).message,
@@ -151,8 +177,8 @@ export function App() {
   }, [tsCode, tsConfigString, addMessage]);
 
   const handleSaveTsConfig = (val: string) => {
-     setTsConfigString(val);
-     localStorage.setItem('tsplay_tsconfig', val);
+    setTsConfigString(val);
+    localStorage.setItem('tsplay_tsconfig', val);
   };
 
   const swipeHandlers = useSwipeTabs(TABS, activeTab, (tab) => setActiveTab(tab as TabType));
@@ -160,16 +186,15 @@ export function App() {
   const { panelHeight, isResizing, handleResizeStart } = useResizePanel(11.25);
 
   return (
-    <div {...swipeHandlers}
-      className={`h-[100dvh] flex flex-col bg-crust text-text transition-colors duration-300 ${isDarkMode(theme) ? 'dark' : ''}`}
+    <div
+      className={`h-[100dvh] flex flex-col bg-crust text-text transition-all duration-300 ${isDarkMode(theme) ? 'dark' : ''} theme-${theme}`}
     >
       <Header
-        onShare={handleShare}
-        onFormat={handleFormat}
+        handleShare={handleShare}
+        handleFormat={handleFormat}
         handleCopyAll={handleCopyAll}
         copied={copied}
         handleDeleteAll={handleDeleteAll}
-        onSettings={() => setIsSettingsOpen(true)}
         doRun={handleRun}
         stopCode={stopCode}
         sharing={isSharing}
@@ -178,10 +203,21 @@ export function App() {
         activeTab={activeTab}
         setActiveTab={(t) => setActiveTab(t as TabType)}
         themeMode={theme}
-        setThemeMode={(t) => playgroundStore.setState({ theme: typeof t === 'function' ? t(theme) : t })}
-        compilerStatus={isReady ? 'ready' : (lifecycle === 'error' || tscStatus === 'Error' || esbuildStatus === 'Error' ? 'error' : 'loading')}
-        formatSuccess={false}
-        shareSuccess={false}
+        setThemeMode={(t) => {
+          const nextTheme = typeof t === 'function' ? t(theme) : t;
+          playgroundStore.setState({ theme: nextTheme });
+        }}
+        compilerStatus={
+          isReady
+            ? 'ready'
+            : lifecycle === 'error' ||
+                tscStatus === 'Error' ||
+                esbuildStatus === 'Error'
+              ? 'error'
+              : 'loading'
+        }
+        formatSuccess={formatSuccess}
+        shareSuccess={shareSuccess}
       />
 
       <StatusBar
@@ -241,11 +277,13 @@ export function App() {
         </div>
 
         {/* Type Info Bar */}
-        <div className="flex items-center justify-between px-4 py-1.5 bg-mantle border-t border-surface0/50 text-xxs font-mono text-overlay1 shrink-0">
-          <div className="truncate flex-1">
-             {typeInfo && <span className="text-mauve">{typeInfo}</span>}
-          </div>
-          <div className="ml-4 shrink-0 opacity-70">
+        <div className="relative flex flex-col shrink-0">
+          <TypeInfoBar
+            typeInfo={typeInfo}
+            language={activeTab === 'ts' ? 'typescript' : 'javascript'}
+            themeMode={theme}
+          />
+          <div className="absolute right-4 top-1.5 text-xxs font-mono text-overlay1 opacity-50 pointer-events-none">
             Ln {cursorPos.line}, Col {cursorPos.col}
           </div>
         </div>
@@ -256,24 +294,21 @@ export function App() {
           onTouchStart={handleResizeStart}
           className="h-1.5 w-full bg-surface0/30 hover:bg-mauve/40 cursor-ns-resize transition-colors duration-200 z-50 flex items-center justify-center relative"
         >
-           <div className="w-8 h-0.5 bg-overlay0/20 rounded-full" />
+          <div className="w-8 h-0.5 bg-overlay0/20 rounded-full" />
         </div>
 
-        <div style={{ height: `${panelHeight}rem` }} className="flex flex-col bg-mantle overflow-hidden">
-            <PackageManager
-              packages={installedPackages}
-              isOpen={pmOpen}
-              onToggle={() => setPmOpen(!pmOpen)}
-              contentHeight={pmOpen ? panelHeight : 0}
-            />
-            <Console
-              messages={messages}
-              onClear={clearMessages}
-              isOpen={consoleOpen}
-              onToggle={toggleConsole}
-              contentHeight={consoleOpen ? panelHeight : 0}
-              stripAnsiEnabled={stripAnsi}
-            />
+        <div
+          style={{ height: `${panelHeight}rem` }}
+          className="flex flex-col bg-mantle overflow-hidden"
+        >
+          <Console
+            messages={messages}
+            onClear={clearMessages}
+            isOpen={consoleOpen}
+            onToggle={toggleConsole}
+            contentHeight={panelHeight}
+            stripAnsiEnabled={stripAnsi}
+          />
         </div>
       </main>
 

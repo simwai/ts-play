@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { ConsoleMessage } from '../components/Console';
+import { RegexPatterns } from '../lib/regex';
 
 export function useConsoleManager() {
   const [messages, setMessages] = useState<ConsoleMessage[]>([]);
@@ -25,8 +26,12 @@ export function useConsoleManager() {
       const formatted = args.map((a) => {
         if (a instanceof Error) return a.stack || a.message;
         if (typeof a === 'string') {
-           // Strip large repeating whitespace but keep tabs/newlines
-           return a.replace(/ {10,}/g, (match) => '          ' + (match.length - 10) + ' spaces ');
+          // Strip problematic characters but keep basic ANSI and layout
+          // Strip large repeating whitespace but keep tabs/newlines
+          return a.replace(
+            RegexPatterns.EXCESSIVE_SPACES,
+            (match) => '          ' + (match.length - 10) + ' spaces ',
+          );
         }
         try {
           return JSON.stringify(a, null, 2);
@@ -36,15 +41,19 @@ export function useConsoleManager() {
       });
 
       try {
-        const newMessage: ConsoleMessage = { type, args: formatted, ts: Date.now() };
+        const newMessage: ConsoleMessage = {
+          type,
+          args: formatted,
+          ts: Date.now(),
+        };
         messagesRef.current = [...messagesRef.current, newMessage].slice(-200);
         setMessages([...messagesRef.current]);
       } catch (err) {
         // Fallback
-        const win = window as any;
-        if (win.__ORIG_CONSOLE__?.error) {
-           win.__ORIG_CONSOLE__.error('Failed to update messages:', err);
-        }
+        (window as any).__ORIG_CONSOLE__?.error(
+          'Failed to update messages:',
+          err,
+        );
       }
     },
     [],

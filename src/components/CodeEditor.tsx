@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import Editor, { useMonaco, type OnMount } from '@monaco-editor/react';
 import { cn } from '../lib/utils';
+import { RegexPatterns } from '../lib/regex';
 import {
   mocha,
   latte,
@@ -13,7 +14,7 @@ type CodeEditorProps = {
   value: string;
   onChange?: (value: string) => void;
   onCursorChange?: (offset: number) => void;
-  onTypeInfoChange?: (info: string) => void;
+  onTypeInfoChange?: (info: any) => void;
   onCursorPosChange?: (pos: { line: number; col: number }) => void;
   language?: 'typescript' | 'javascript' | 'json';
   readOnly?: boolean;
@@ -72,8 +73,10 @@ export const CodeEditor = React.memo(
     }));
 
     const modelUri = useMemo(() => {
-       if (!path) return undefined;
-       return monaco?.Uri.parse(`file:///${path.replace(/^\//, '')}`);
+      if (!path) return undefined;
+      return monaco?.Uri.parse(
+        `file:///${path.replace(RegexPatterns.LEADING_SLASH, '')}`,
+      );
     }, [monaco, path]);
 
     useEffect(() => {
@@ -92,23 +95,33 @@ export const CodeEditor = React.memo(
         const jsDefaults = monaco.languages.typescript.javascriptDefaults;
         const jsonDefaults = monaco.languages.json.jsonDefaults;
 
-        tsDefaults.setDiagnosticsOptions({ noSemanticValidation: disableDiagnostics, noSyntaxValidation: disableDiagnostics });
-        jsDefaults.setDiagnosticsOptions({ noSemanticValidation: disableDiagnostics, noSyntaxValidation: disableDiagnostics });
-        jsonDefaults.setDiagnosticsOptions({ validate: !disableDiagnostics, allowComments: true });
+        tsDefaults.setDiagnosticsOptions({
+          noSemanticValidation: disableDiagnostics,
+          noSyntaxValidation: disableDiagnostics,
+        });
+        jsDefaults.setDiagnosticsOptions({
+          noSemanticValidation: disableDiagnostics,
+          noSyntaxValidation: disableDiagnostics,
+        });
+        jsonDefaults.setDiagnosticsOptions({
+          validate: !disableDiagnostics,
+          allowComments: true,
+        });
 
         if (extraLibs) {
-           const libs = Object.entries(extraLibs).map(([p, content]) => ({
-             content,
-             filePath: `file:///${p.replace(/^\//, '')}`,
-           }));
-           tsDefaults.setExtraLibs(libs);
-           jsDefaults.setExtraLibs(libs);
+          const libs = Object.entries(extraLibs).map(([p, content]) => ({
+            content,
+            filePath: `file:///${p.replace(RegexPatterns.LEADING_SLASH, '')}`,
+          }));
+          tsDefaults.setExtraLibs(libs);
+          jsDefaults.setExtraLibs(libs);
         }
 
         const options = {
           target: monaco.languages.typescript.ScriptTarget.ESNext,
           allowNonTsExtensions: true,
-          moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+          moduleResolution:
+            monaco.languages.typescript.ModuleResolutionKind.NodeJs,
           module: monaco.languages.typescript.ModuleKind.ESNext,
           noEmit: true,
           esModuleInterop: true,
@@ -118,7 +131,7 @@ export const CodeEditor = React.memo(
           typeRoots: ['node_modules/@types'],
           baseUrl: '.',
           paths: {
-            '*': ['node_modules/*']
+            '*': ['node_modules/*'],
           },
         };
         tsDefaults.setCompilerOptions(options);
@@ -148,49 +161,110 @@ export const CodeEditor = React.memo(
         if (!model) return;
 
         onCursorChange?.(model.getOffsetAt(e.position));
-        onCursorPosChange?.({ line: e.position.lineNumber, col: e.position.column });
+        onCursorPosChange?.({
+          line: e.position.lineNumber,
+          col: e.position.column,
+        });
 
-        if (!typeInfoCallbackRef.current || (language !== 'typescript' && language !== 'javascript')) return;
+        if (
+          !typeInfoCallbackRef.current ||
+          (language !== 'typescript' && language !== 'javascript')
+        ) {
+          typeInfoCallbackRef.current?.(null);
+          return;
+        }
         try {
           const isTS = language === 'typescript';
           const getter = await (isTS
             ? monaco.languages.typescript.getTypeScriptWorker()
             : monaco.languages.typescript.getJavaScriptWorker());
           const worker = await getter(model.uri);
-          const info = await worker.getQuickInfoAtPosition(model.uri.toString(), model.getOffsetAt(e.position));
-          typeInfoCallbackRef.current(info?.displayParts?.map((p: any) => p.text).join('') || '');
+          const info = await worker.getQuickInfoAtPosition(
+            model.uri.toString(),
+            model.getOffsetAt(e.position),
+          );
+
+          if (!info) {
+            typeInfoCallbackRef.current(null);
+            return;
+          }
+
+          const typeAnnotation =
+            info.displayParts?.map((p: any) => p.text).join('') || '';
+          const name =
+            info.displayParts?.find((p: any) =>
+              [
+                'propertyName',
+                'className',
+                'functionName',
+                'methodName',
+                'interfaceName',
+                'enumName',
+                'moduleName',
+                'typeParameterName',
+                'parameterName',
+                'localName',
+                'aliasName',
+              ].includes(p.kind),
+            )?.text || '';
+          const jsDoc =
+            info.documentation?.map((p: any) => p.text).join('\n') || '';
+
+          typeInfoCallbackRef.current({
+            name,
+            kind: info.kind,
+            typeAnnotation,
+            jsDoc,
+            signature: typeAnnotation,
+          });
         } catch {
-          typeInfoCallbackRef.current?.('');
+          typeInfoCallbackRef.current?.(null);
         }
       });
     };
 
-    const options = useMemo(() => ({
-      fontSize: fontSizeOverride || 12,
-      lineHeight: (fontSizeOverride || 12) * 1.5,
-      fontFamily: FONT_STACK,
-      fontLigatures: true,
-      readOnly,
-      minimap: { enabled: false },
-      scrollBeyondLastLine: false,
-      automaticLayout: true,
-      tabSize: 2,
-      wordWrap: lineWrap ? ('on' as const) : ('off' as const),
-      padding: { top: 8, bottom: 8 },
-      fixedOverflowWidgets: true,
-      links: false,
-      contextmenu: false,
-      theme: themeMode,
-      suggest: { enabled: !disableAutocomplete },
-      hover: { enabled: !hideTypeInfo },
-      renderLineHighlight: 'all' as const,
-      bracketPairColorization: { enabled: true },
-      guides: { indentation: true },
-      scrollbar: { vertical: hideGutter ? 'hidden' as const : 'auto' as const },
-    }), [fontSizeOverride, readOnly, hideGutter, lineWrap, disableAutocomplete, hideTypeInfo, themeMode]);
+    const options = useMemo(
+      () => ({
+        fontSize: fontSizeOverride || 12,
+        lineHeight: (fontSizeOverride || 12) * 1.5,
+        fontFamily: FONT_STACK,
+        fontLigatures: true,
+        readOnly,
+        minimap: { enabled: false },
+        scrollBeyondLastLine: false,
+        automaticLayout: true,
+        tabSize: 2,
+        wordWrap: lineWrap ? ('on' as const) : ('off' as const),
+        padding: { top: 8, bottom: 8 },
+        fixedOverflowWidgets: true,
+        links: false,
+        contextmenu: false,
+        theme: themeMode,
+        suggest: { enabled: !disableAutocomplete },
+        hover: { enabled: !hideTypeInfo },
+        renderLineHighlight: 'all' as const,
+        bracketPairColorization: { enabled: true },
+        guides: { indentation: true },
+        scrollbar: {
+          vertical: hideGutter ? ('hidden' as const) : ('auto' as const),
+        },
+      }),
+      [
+        fontSizeOverride,
+        readOnly,
+        hideGutter,
+        lineWrap,
+        disableAutocomplete,
+        hideTypeInfo,
+        themeMode,
+      ],
+    );
 
     return (
-      <div data-testid="code-editor-container" className={cn('code-editor w-full h-full flex flex-col', className)}>
+      <div
+        data-testid="code-editor-container"
+        className={cn('code-editor w-full h-full flex flex-col', className)}
+      >
         <Editor
           height="100%"
           language={language}
