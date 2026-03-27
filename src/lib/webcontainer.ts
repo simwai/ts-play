@@ -1,6 +1,6 @@
 import { WebContainer, type WebContainerProcess } from '@webcontainer/api';
 import { playgroundStore } from './state-manager';
-import { RegexPatterns, toRegExp } from './regex';
+import { RegexPatterns } from './regex';
 
 export type EnvironmentStatus =
   | 'idle'
@@ -95,7 +95,6 @@ export class WebContainerService {
   async exportSnapshot(): Promise<Uint8Array> {
     const instance = await this.getInstance();
     this.emitLog('info', 'Exporting environment snapshot...');
-    // Use binary format to avoid JSON serialization issues and reduce size
     const snapshot = (await instance.export('.', {
       format: 'binary',
     })) as Uint8Array;
@@ -136,57 +135,49 @@ export class WebContainerService {
   ): Promise<WebContainerProcess> {
     const instance = await this.getInstance();
     const proc = await instance.spawn(cmd, args);
-
-    const reader = proc.output.getReader();
-    const decoder = new TextDecoder();
-    let currentLineBuffer = '';
-
-    (async () => {
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          let chunk = value;
-          if (value instanceof Uint8Array) {
-            chunk = decoder.decode(value, { stream: true });
-          }
-
-          currentLineBuffer += chunk;
-          const lines = currentLineBuffer.split(toRegExp(RegexPatterns.NEWLINE));
-
-          const last = lines[lines.length - 1];
-          const hasIncompleteAnsi = toRegExp(RegexPatterns.INCOMPLETE_ANSI).test(last);
-
-          if (!hasIncompleteAnsi) {
-            currentLineBuffer = lines.pop() || '';
-            for (const line of lines) {
-               const simplified = line.replace(toRegExp(RegexPatterns.EXCESSIVE_WHITESPACE), '    ');
-               if (!options.silent) this.emitLog('info', simplified);
-               options.onLog?.(simplified);
-            }
-          } else {
-            const completeLines = lines.slice(0, -1);
-            currentLineBuffer = lines[lines.length - 1];
-            for (const line of completeLines) {
-               const simplified = line.replace(toRegExp(RegexPatterns.EXCESSIVE_WHITESPACE), '    ');
-               if (!options.silent) this.emitLog('info', simplified);
-               options.onLog?.(simplified);
-            }
-          }
-        }
-        if (currentLineBuffer) {
-          if (!options.silent) this.emitLog('info', currentLineBuffer);
-          options.onLog?.(currentLineBuffer);
-        }
-      } catch (err: any) {
-        console.warn('[WC Service] Stream read error:', err.message);
-      } finally {
-        reader.releaseLock();
-      }
-    })();
-
+    this.processStream(proc.output.getReader(), options);
     return proc;
+  }
+
+  private async processStream(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+    options: { silent?: boolean; onLog?: (line: string) => void },
+  ) {
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split(RegexPatterns.NEWLINE);
+
+        // If the last line is an incomplete ANSI sequence, keep it in the buffer
+        buffer = RegexPatterns.INCOMPLETE_ANSI.test(lines[lines.length - 1])
+          ? lines.pop()!
+          : lines.pop() || '';
+
+        for (const line of lines) {
+          const simplified = line.replace(
+            RegexPatterns.EXCESSIVE_WHITESPACE,
+            '    ',
+          );
+          if (!options.silent) this.emitLog('info', simplified);
+          options.onLog?.(simplified);
+        }
+      }
+
+      if (buffer) {
+        if (!options.silent) this.emitLog('info', buffer);
+        options.onLog?.(buffer);
+      }
+    } catch (err: any) {
+      console.warn('[WC Service] Stream read error:', err.message);
+    } finally {
+      reader.releaseLock();
+    }
   }
 
   async readDirRecursive(
@@ -207,7 +198,6 @@ export class WebContainerService {
             await read(fullPath);
           } else if (!filter || filter(fullPath)) {
             const content = await instance.fs.readFile(fullPath, 'utf8');
-            // Keep the full path relative to the root for Monaco
             const monacoPath = fullPath.startsWith('./')
               ? fullPath.slice(2)
               : fullPath;
