@@ -151,7 +151,10 @@ export class WebContainerService {
         const { done, value } = await reader.read();
         if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
+        buffer +=
+          value instanceof Uint8Array
+            ? decoder.decode(value, { stream: true })
+            : (value as unknown as string);
         const lines = buffer.split(RegexPatterns.NEWLINE);
 
         // If the last line is an incomplete ANSI sequence, keep it in the buffer

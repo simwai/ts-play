@@ -87,7 +87,7 @@ export function usePackageManager(
           let output = '';
           const proc = await webContainerService.spawnManaged(
             'node',
-            ['__detect_imports.cjs', tsCode],
+            ['__detect_imports.cjs'],
             {
               silent: true,
               onLog: (line) => {
@@ -95,6 +95,10 @@ export function usePackageManager(
               },
             },
           );
+          const writer = proc.input.getWriter();
+          await writer.write(tsCode);
+          await writer.close();
+
           await proc.exit;
 
           const trimmed = output.trim();
@@ -159,6 +163,7 @@ export function usePackageManager(
               'uninstall',
               ...removed,
             ]);
+
             await proc.exit;
           }
           if (added.length > 0) {
@@ -171,6 +176,7 @@ export function usePackageManager(
               '--no-progress',
               ...added,
             ]);
+
             await proc.exit;
           }
         } catch (error) {
