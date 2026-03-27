@@ -151,10 +151,20 @@ export class WebContainerService {
         const { done, value } = await reader.read();
         if (done) break;
 
-        buffer +=
-          value instanceof Uint8Array
-            ? decoder.decode(value, { stream: true })
-            : (value as unknown as string);
+        // value should be Uint8Array, but some environments might pass something else
+        if (value instanceof Uint8Array || value instanceof ArrayBuffer) {
+           buffer += decoder.decode(value, { stream: true });
+        } else if (typeof value === 'string') {
+           buffer += value;
+        } else {
+           // Fallback for unexpected types
+           try {
+             buffer += decoder.decode(value as any, { stream: true });
+           } catch (e) {
+             console.warn('[WC Service] Failed to decode value:', value);
+           }
+        }
+
         const lines = buffer.split(RegexPatterns.NEWLINE);
 
         // If the last line is an incomplete ANSI sequence, keep it in the buffer
