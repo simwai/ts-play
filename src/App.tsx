@@ -30,7 +30,7 @@ interface User {
 }
 
 function greet(user: User): string {
-  return \`Hello, ${user.name}!\`;
+  return \`Hello, \${user.name}!\`;
 }
 
 console.log(greet({ name: "Alice", age: 30 }));

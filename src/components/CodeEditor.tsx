@@ -1,5 +1,7 @@
-import Editor, { useMonaco, type OnMount } from '@monaco-editor/react'
-import React, { useEffect, useRef, useMemo } from 'react'
+import React, { useEffect, useRef, useMemo } from 'react';
+import Editor, { useMonaco, type OnMount, type BeforeMount } from '@monaco-editor/react';
+import { cn } from '../lib/utils';
+import { RegexPatterns } from '../lib/regex';
 import {
   githubDark,
   githubLight,
@@ -66,6 +68,15 @@ export const CodeEditor = React.memo(
 
     const monaco = useMonaco()
     const editorRef = useRef<any>(null)
+
+    const handleBeforeMount: BeforeMount = (monaco) => {
+      monaco.editor.defineTheme("mocha", mocha);
+      monaco.editor.defineTheme("latte", latte);
+      monaco.editor.defineTheme("githubDark", githubDark);
+      monaco.editor.defineTheme("githubLight", githubLight);
+      monaco.editor.defineTheme("monokai", monokai);
+      monaco.editor.defineTheme("shadesOfPurple", shadesOfPurple);
+    };
 
     React.useImperativeHandle(ref, () => ({
       undo: () => editorRef.current?.trigger('keyboard', 'undo', null),
@@ -236,7 +247,6 @@ export const CodeEditor = React.memo(
         fixedOverflowWidgets: true,
         links: false,
         contextmenu: false,
-        theme: themeMode,
         suggest: { enabled: !disableAutocomplete },
         hover: { enabled: !hideTypeInfo },
         renderLineHighlight: 'all' as const,
@@ -267,6 +277,7 @@ export const CodeEditor = React.memo(
           language={language}
           value={value}
           onChange={(v) => onChange?.(v || '')}
+          beforeMount={handleBeforeMount}
           onMount={handleEditorDidMount}
           path={path}
           options={options}
