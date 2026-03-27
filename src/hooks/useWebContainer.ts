@@ -272,9 +272,9 @@ export function useWebContainer(
 
   const startTsc = async () => {
     await webContainerService.spawnManaged(
-      'npx',
+      'node',
       [
-        'tsc',
+        'node_modules/typescript/lib/tsc.js',
         '--watch',
         '--declaration',
         '--emitDeclarationOnly',
