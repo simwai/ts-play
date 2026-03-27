@@ -4,18 +4,15 @@ export type ThemeMode =
   | 'githubDark'
   | 'githubLight'
   | 'monokai'
-  | 'shikiDark'
-  | 'shikiLight'
   | 'shadesOfPurple';
 
 export const DARK_THEMES: ThemeMode[] = [
   'mocha',
   'githubDark',
   'monokai',
-  'shikiDark',
   'shadesOfPurple',
 ];
-export const LIGHT_THEMES: ThemeMode[] = ['latte', 'githubLight', 'shikiLight'];
+export const LIGHT_THEMES: ThemeMode[] = ['latte', 'githubLight'];
 
 export const THEME_LABELS: Record<ThemeMode, string> = {
   mocha: 'Catppuccin Mocha',
@@ -23,8 +20,6 @@ export const THEME_LABELS: Record<ThemeMode, string> = {
   githubDark: 'GitHub Dark',
   githubLight: 'GitHub Light',
   monokai: 'Monokai',
-  shikiDark: 'Shiki Dark',
-  shikiLight: 'Shiki Light',
   shadesOfPurple: 'Shades of Purple',
 };
 

@@ -153,55 +153,9 @@ export const monokai: editor.IStandaloneThemeData = {
   },
 };
 
-export const shikiDark: editor.IStandaloneThemeData = {
-  base: 'vs-dark',
-  inherit: true,
-  rules: [
-    { token: 'comment', foreground: '6a737d', fontStyle: 'italic' },
-    { token: 'keyword', foreground: 'd73a49' },
-    { token: 'string', foreground: '032f62' },
-    { token: 'number', foreground: '005cc5' },
-    { token: 'type', foreground: '6f42c1' },
-    { token: 'class', foreground: '6f42c1' },
-    { token: 'function', foreground: '6f42c1' },
-    { token: 'variable', foreground: 'e1e4e8' },
-    { token: 'constant', foreground: '005cc5' },
-    { token: 'operator', foreground: 'd73a49' },
-  ],
-  colors: {
-    'editor.background': '#24292e',
-    'editor.foreground': '#e1e4e8',
-    'editor.lineHighlightBackground': '#2b3036',
-    'editor.selectionBackground': '#3392FF44',
-    'editorLineNumber.foreground': '#444d56',
-    'editorLineNumber.activeForeground': '#e1e4e8',
-  },
-};
 
-export const shikiLight: editor.IStandaloneThemeData = {
-  base: 'vs',
-  inherit: true,
-  rules: [
-    { token: 'comment', foreground: '6a737d', fontStyle: 'italic' },
-    { token: 'keyword', foreground: 'd73a49' },
-    { token: 'string', foreground: '032f62' },
-    { token: 'number', foreground: '005cc5' },
-    { token: 'type', foreground: '6f42c1' },
-    { token: 'class', foreground: '6f42c1' },
-    { token: 'function', foreground: '6f42c1' },
-    { token: 'variable', foreground: '24292e' },
-    { token: 'constant', foreground: '005cc5' },
-    { token: 'operator', foreground: 'd73a49' },
-  ],
-  colors: {
-    'editor.background': '#ffffff',
-    'editor.foreground': '#24292e',
-    'editor.lineHighlightBackground': '#f6f8fa',
-    'editor.selectionBackground': '#0366d625',
-    'editorLineNumber.foreground': '#1b1f234d',
-    'editorLineNumber.activeForeground': '#24292e',
-  },
-};
+
+
 
 export const shadesOfPurple: editor.IStandaloneThemeData = {
   base: 'vs-dark',
