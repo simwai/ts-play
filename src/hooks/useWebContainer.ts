@@ -4,7 +4,7 @@ import { playgroundStore } from '../lib/state-manager';
 import { usePlaygroundStore } from './usePlaygroundStore';
 import type { ConsoleMessage } from '../components/Console';
 import { db } from '../lib/db';
-import { RegexPatterns, toRegExp } from '../lib/regex';
+import { RegexPatterns } from '../lib/regex';
 
 const DETECT_IMPORTS_SCRIPT = `
 const fs = require('fs');

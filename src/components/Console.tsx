@@ -3,7 +3,7 @@ import { Eraser } from 'lucide-react';
 import { Badge } from './ui/Badge';
 import { Button } from './ui/Button';
 import { PanelHeader } from './ui/PanelHeader';
-import { RegexPatterns, toRegExp } from '../lib/regex';
+import { RegexPatterns } from '../lib/regex';
 
 export type ConsoleMessage = {
   type: 'log' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'dir';
@@ -48,7 +48,7 @@ function typeColorClass(type: ConsoleMessage['type']): string {
 
 // Uncle Bob: Clear, focused utility for stripping ANSI sequences
 function stripAnsi(text: string): string {
-  const ansiRegex = toRegExp(RegexPatterns.ANSI_ESCAPE);
+  const ansiRegex = RegexPatterns.ANSI_ESCAPE;
   return text.replace(ansiRegex, '');
 }
 
@@ -92,8 +92,12 @@ export const Console = React.memo(function Console({
         left={
           <>
             {messages.length > 0 && <Badge label={String(messages.length)} />}
-            {stats.err > 0 && <Badge label={`${stats.err} err`} variant="error" />}
-            {stats.warn > 0 && <Badge label={`${stats.warn} warn`} variant="warn" />}
+            {stats.err > 0 && (
+              <Badge label={`${stats.err} err`} variant="error" />
+            )}
+            {stats.warn > 0 && (
+              <Badge label={`${stats.warn} warn`} variant="warn" />
+            )}
           </>
         }
         right={

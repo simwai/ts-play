@@ -6,6 +6,20 @@ vi.mock('@webcontainer/api', () => ({
     boot: vi.fn().mockResolvedValue({
       export: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3])),
       on: vi.fn(),
+      spawn: vi.fn().mockResolvedValue({
+        output: {
+          getReader: vi.fn().mockReturnValue({
+            read: vi
+              .fn()
+              .mockResolvedValueOnce({
+                value: new TextEncoder().encode('hello\nworld'),
+                done: false,
+              })
+              .mockResolvedValueOnce({ done: true }),
+            releaseLock: vi.fn(),
+          }),
+        },
+      }),
     }),
   },
 }));
@@ -27,5 +41,18 @@ describe('WebContainerService', () => {
     expect(exportSpy).toHaveBeenCalledWith('.', { format: 'binary' });
     expect(result).toBeInstanceOf(Uint8Array);
     expect(result).toEqual(new Uint8Array([1, 2, 3]));
+  });
+
+  it('spawnManaged should process stream and emit logs', async () => {
+    const logs: string[] = [];
+    service.onLog((log) => logs.push(log.message));
+
+    await service.spawnManaged('echo', ['hello']);
+
+    // Give it a tick to process the async stream
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(logs).toContain('hello');
+    expect(logs).toContain('world');
   });
 });
