@@ -1,148 +1,131 @@
-import { useState, useEffect } from 'react';
 import {
-  X,
-  Save,
-  RotateCcw,
+  AlertCircle,
   Box,
   Cpu,
   FileJson,
   Layers,
   Monitor,
-  AlertCircle,
   PackageCheck,
-} from 'lucide-react';
-import { Button } from './ui/Button';
-import { IconButton } from './ui/IconButton';
-import { Badge } from './ui/Badge';
-import { CodeEditor } from './CodeEditor';
-import { webContainerService } from '../lib/webcontainer';
-import { playgroundStore } from '../lib/state-manager';
-import { usePlaygroundStore } from '../hooks/usePlaygroundStore';
-import {
-  type ThemeMode,
-  DARK_THEMES,
-  LIGHT_THEMES,
-  isDarkMode, THEME_LABELS,
-} from '../lib/theme';
-import { DEFAULT_TSCONFIG } from '../lib/constants';
-import { RegexPatterns } from '../lib/regex';
+  RotateCcw,
+  Save,
+  X,
+} from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { usePlaygroundStore } from '../hooks/usePlaygroundStore'
+import { DEFAULT_TSCONFIG } from '../lib/constants'
+import { playgroundStore } from '../lib/state-manager'
+import { DARK_THEMES, LIGHT_THEMES, THEME_LABELS, type ThemeMode, isDarkMode } from '../lib/theme'
+import { webContainerService } from '../lib/webcontainer'
+import { CodeEditor } from './CodeEditor'
+import { Badge } from './ui/Badge'
+import { Button } from './ui/Button'
+import { IconButton } from './ui/IconButton'
 
 type SettingsModalProps = {
-  isOpen: boolean;
-  onClose: () => void;
-  tsConfigString: string;
-  onSave: (val: string) => void;
-};
+  isOpen: boolean
+  onClose: () => void
+  tsConfigString: string
+  onSave: (val: string) => void
+}
 
-export function SettingsModal({
-  isOpen,
-  onClose,
-  tsConfigString,
-  onSave,
-}: SettingsModalProps) {
-  const { theme, stripAnsi, lineWrap, inlineDeps, packageManagerStatus } =
-    usePlaygroundStore();
-  const [temporaryTsConfig, setTemporaryTsConfig] = useState(tsConfigString);
-  const [isSaving, setIsSaving] = useState(false);
-  const [configError, setConfigError] = useState<string | null>(null);
+export function SettingsModal({ isOpen, onClose, tsConfigString, onSave }: SettingsModalProps) {
+  const { theme, stripAnsi, lineWrap, inlineDeps, packageManagerStatus } = usePlaygroundStore()
+  const [temporaryTsConfig, setTemporaryTsConfig] = useState(tsConfigString)
+  const [isSaving, setIsSaving] = useState(false)
+  const [configError, setConfigError] = useState<string | null>(null)
 
   useEffect(() => {
     if (isOpen) {
-      setTemporaryTsConfig(tsConfigString);
-      setConfigError(null);
+      setTemporaryTsConfig(tsConfigString)
+      setConfigError(null)
     }
-  }, [isOpen, tsConfigString]);
+  }, [isOpen, tsConfigString])
 
   const validateConfig = async (config: string): Promise<{ valid: boolean; error?: string }> => {
     const timeoutPromise = new Promise<{ valid: boolean; error?: string }>((resolve) => {
-      setTimeout(() => resolve({ valid: false, error: 'Validation timed out' }), 5000);
-    });
+      setTimeout(() => resolve({ valid: false, error: 'Validation timed out' }), 5000)
+    })
 
     const executionPromise = (async () => {
       try {
         const result = await webContainerService.enqueue(async () => {
-          let output = '';
-          const proc = await webContainerService.spawnManaged(
-            'node',
-            ['__validate_config.cjs'],
-            {
-              silent: true,
-              onLog: (line) => {
-                output += line;
-              },
+          let output = ''
+          const proc = await webContainerService.spawnManaged('node', ['__validate_config.cjs'], {
+            silent: true,
+            onLog: (line) => {
+              output += line
             },
-          );
+          })
 
           try {
-            const writer = proc.input.getWriter();
-            await writer.write(config);
-            await writer.close();
+            const writer = proc.input.getWriter()
+            await writer.write(config)
+            await writer.close()
 
             const exitCode = await Promise.race([
               proc.exit,
               new Promise<number>((_, reject) =>
                 setTimeout(() => reject(new Error('Process hang')), 4000),
               ),
-            ]);
+            ])
 
             if (exitCode !== 0 && !output) {
               return {
                 valid: false,
                 error: `Validation process exited with code ${exitCode}`,
-              };
+              }
             }
           } catch (e) {
-            proc.kill();
-            return { valid: false, error: (e as Error).message };
+            proc.kill()
+            return { valid: false, error: (e as Error).message }
           }
 
           try {
-            const trimmedOutput = output.trim();
-            if (!trimmedOutput)
-              return { valid: false, error: 'No output from validation script' };
+            const trimmedOutput = output.trim()
+            if (!trimmedOutput) return { valid: false, error: 'No output from validation script' }
             return JSON.parse(trimmedOutput) as {
-              valid: boolean;
-              error?: string;
-            };
+              valid: boolean
+              error?: string
+            }
           } catch (e) {
             return {
               valid: false,
               error: 'Failed to parse validation output: ' + output,
-            };
+            }
           }
-        });
-        return result;
+        })
+        return result
       } catch (e) {
-        return { valid: false, error: (e as Error).message };
+        return { valid: false, error: (e as Error).message }
       }
-    })();
+    })()
 
-    return Promise.race([timeoutPromise, executionPromise]);
-  };
+    return Promise.race([timeoutPromise, executionPromise])
+  }
 
   const handleSave = async () => {
-    setIsSaving(true);
-    const result = await validateConfig(temporaryTsConfig);
+    setIsSaving(true)
+    const result = await validateConfig(temporaryTsConfig)
     if (result.valid) {
-      onSave(temporaryTsConfig);
-      onClose();
+      onSave(temporaryTsConfig)
+      onClose()
     } else {
-      setConfigError(result.error || 'Invalid tsconfig.json');
+      setConfigError(result.error || 'Invalid tsconfig.json')
     }
-    setIsSaving(false);
-  };
+    setIsSaving(false)
+  }
 
   const handleReset = () => {
     if (confirm('Reset tsconfig.json to defaults?')) {
-      setTemporaryTsConfig(DEFAULT_TSCONFIG);
-      setConfigError(null);
+      setTemporaryTsConfig(DEFAULT_TSCONFIG)
+      setConfigError(null)
     }
-  };
+  }
 
-  const currentIsDark = isDarkMode(theme);
-  const themeOptions = currentIsDark ? DARK_THEMES : LIGHT_THEMES;
+  const currentIsDark = isDarkMode(theme)
+  const themeOptions = currentIsDark ? DARK_THEMES : LIGHT_THEMES
 
-  if (!isOpen) return null;
+  if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-crust/80 backdrop-blur-sm animate-in fade-in duration-200">
@@ -151,9 +134,7 @@ export function SettingsModal({
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface0 bg-mantle/50">
           <div className="flex items-center gap-3">
             <Cpu aria-hidden="true" className="text-mauve" size={20} />
-            <h2 className="text-lg font-bold tracking-tight text-text">
-              System Settings
-            </h2>
+            <h2 className="text-lg font-bold tracking-tight text-text">System Settings</h2>
           </div>
           <IconButton onClick={onClose} title="Close" size="sm" variant="ghost">
             <X aria-hidden="true" size={20} />
@@ -177,7 +158,8 @@ export function SettingsModal({
                   Editor Theme
                 </label>
                 <select
-                  id="editor-theme" aria-label="Select Editor Theme"
+                  id="editor-theme"
+                  aria-label="Select Editor Theme"
                   value={theme}
                   onChange={(e) =>
                     playgroundStore.setState({
@@ -200,7 +182,8 @@ export function SettingsModal({
                 <label className="flex items-center gap-3 cursor-pointer group">
                   <div className="relative flex items-center">
                     <input
-                      id="strip-ansi" aria-label="Strip ANSI Escapes"
+                      id="strip-ansi"
+                      aria-label="Strip ANSI Escapes"
                       type="checkbox"
                       checked={stripAnsi}
                       onChange={(e) =>
@@ -220,12 +203,11 @@ export function SettingsModal({
                 <label className="flex items-center gap-3 cursor-pointer group">
                   <div className="relative flex items-center">
                     <input
-                      id="line-wrap" aria-label="Soft Line Wrap"
+                      id="line-wrap"
+                      aria-label="Soft Line Wrap"
                       type="checkbox"
                       checked={lineWrap}
-                      onChange={(e) =>
-                        playgroundStore.setState({ lineWrap: e.target.checked })
-                      }
+                      onChange={(e) => playgroundStore.setState({ lineWrap: e.target.checked })}
                       className="sr-only peer"
                     />
                     <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-mauve peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-mantle"></div>
@@ -249,12 +231,11 @@ export function SettingsModal({
               <label className="flex items-center gap-3 cursor-pointer group">
                 <div className="relative flex items-center">
                   <input
-                    id="inline-deps" aria-label="Inline Dependencies"
+                    id="inline-deps"
+                    aria-label="Inline Dependencies"
                     type="checkbox"
                     checked={inlineDeps}
-                    onChange={(e) =>
-                      playgroundStore.setState({ inlineDeps: e.target.checked })
-                    }
+                    onChange={(e) => playgroundStore.setState({ inlineDeps: e.target.checked })}
                     className="sr-only peer"
                   />
                   <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-mauve peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-mantle"></div>
@@ -316,13 +297,7 @@ export function SettingsModal({
               </div>
               <div className="flex items-center justify-between text-xs font-mono">
                 <span className="text-overlay1">PM Status</span>
-                <span
-                  className={
-                    packageManagerStatus === 'idle'
-                      ? 'text-green'
-                      : 'text-yellow'
-                  }
-                >
+                <span className={packageManagerStatus === 'idle' ? 'text-green' : 'text-yellow'}>
                   {packageManagerStatus.toUpperCase()}
                 </span>
               </div>
@@ -366,8 +341,8 @@ export function SettingsModal({
         <div className="px-6 py-4 border-t border-surface0 bg-mantle flex flex-col items-center gap-2 relative overflow-hidden shrink-0">
           <div className="absolute inset-0 opacity-5 bg-gradient-to-r from-mauve via-pink to-mauve animate-gradient-x pointer-events-none" />
           <p className="text-xs text-overlay1 relative z-10">
-            Made with 💜 by <span className="font-bold text-mauve">simwai</span>{' '}
-            feat. jules and aider
+            Made with 💜 by <span className="font-bold text-mauve">simwai</span> feat. jules and
+            aider
           </p>
           <a
             href="https://github.com/simwai/ts-play"
@@ -380,5 +355,5 @@ export function SettingsModal({
         </div>
       </div>
     </div>
-  );
+  )
 }

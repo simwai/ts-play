@@ -1,20 +1,20 @@
-import Dexie, { type Table } from 'dexie';
+import Dexie, { type Table } from 'dexie'
 
 export interface Snapshot {
-  id?: number;
-  name: string;
-  data: Uint8Array;
-  timestamp: number;
+  id?: number
+  name: string
+  data: Uint8Array
+  timestamp: number
 }
 
 export class PlaygroundDatabase extends Dexie {
-  snapshots!: Table<Snapshot>;
+  snapshots!: Table<Snapshot>
 
   constructor() {
-    super('PlaygroundDatabase');
+    super('PlaygroundDatabase')
     this.version(1).stores({
       snapshots: '++id, name, timestamp',
-    });
+    })
   }
 
   async saveSnapshot(name: string, data: Uint8Array) {
@@ -22,7 +22,7 @@ export class PlaygroundDatabase extends Dexie {
       name,
       data,
       timestamp: Date.now(),
-    });
+    })
   }
 
   async getLatestSnapshot(name: string): Promise<Snapshot | undefined> {
@@ -31,8 +31,8 @@ export class PlaygroundDatabase extends Dexie {
       .equals(name)
       .reverse()
       .sortBy('timestamp')
-      .then((results) => results[0]);
+      .then((results) => results[0])
   }
 }
 
-export const db = new PlaygroundDatabase();
+export const db = new PlaygroundDatabase()

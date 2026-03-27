@@ -1,27 +1,26 @@
-import { useState, useCallback, useMemo, useRef } from 'react';
-import { Header } from './components/Header';
-import { StatusBar } from './components/StatusBar';
-import { Console } from './components/Console';
-import { SettingsModal } from './components/SettingsModal';
-import { PackageManager } from './components/PackageManager';
-import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
-import { CodeEditor, type CodeEditorHandle } from './components/CodeEditor';
-import { formatAllFiles } from './lib/formatter';
-import { useResizePanel } from './hooks/useResizePanel';
-import { useSwipeTabs } from './hooks/useSwipeTabs';
-import { shareSnippet } from './lib/api';
-import { useConsoleManager } from './hooks/useConsoleManager';
-import { TypeInfoBar, type TypeInfo } from './components/ui/TypeInfoBar';
-import { useCompilerManager } from './hooks/useCompilerManager';
-import { usePackageManager } from './hooks/usePackageManager';
-import { useWebContainer } from './hooks/useWebContainer';
-import { playgroundStore } from './lib/state-manager';
-import { usePlaygroundStore } from './hooks/usePlaygroundStore';
-import { TABS, type TabType, DEFAULT_TSCONFIG } from './lib/constants';
-import { isDarkMode } from './lib/theme';
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { CodeEditor, type CodeEditorHandle } from './components/CodeEditor'
+import { Console } from './components/Console'
+import { Header } from './components/Header'
+import { SettingsModal } from './components/SettingsModal'
+import { StatusBar } from './components/StatusBar'
+import { type TypeInfo, TypeInfoBar } from './components/ui/TypeInfoBar'
+import { useCompilerManager } from './hooks/useCompilerManager'
+import { useConsoleManager } from './hooks/useConsoleManager'
+import { usePackageManager } from './hooks/usePackageManager'
+import { usePlaygroundStore } from './hooks/usePlaygroundStore'
+import { useResizePanel } from './hooks/useResizePanel'
+import { useSwipeTabs } from './hooks/useSwipeTabs'
+import { useVirtualKeyboard } from './hooks/useVirtualKeyboard'
+import { useWebContainer } from './hooks/useWebContainer'
+import { shareSnippet } from './lib/api'
+import { DEFAULT_TSCONFIG, TABS, type TabType } from './lib/constants'
+import { formatAllFiles } from './lib/formatter'
+import { playgroundStore } from './lib/state-manager'
+import { isDarkMode } from './lib/theme'
 
 const DEFAULT_TS = `// TypeScript Playground
-// Powered by Node.js, Prettier and WebContainers! ✨
+// Powered by Node.js, Biome and WebContainers! ✨
 
 import { map } from 'lodash-es';
 
@@ -36,7 +35,7 @@ function greet(user: User): string {
 
 console.log(greet({ name: "Alice", age: 30 }));
 console.log("Mapped:", map([1, 2, 3], x => x * 2));
-`;
+`
 
 export function App() {
   const {
@@ -48,70 +47,67 @@ export function App() {
     esbuildStatus,
     lifecycle,
     packageManagerStatus,
-  } = usePlaygroundStore();
+  } = usePlaygroundStore()
 
-  const [tsCode, setTsCode] = useState(DEFAULT_TS);
-  const [jsCode, setJsCode] = useState('');
-  const [dtsCode, setDtsCode] = useState('');
-  const [activeTab, setActiveTab] = useState<TabType>('ts');
+  const [tsCode, setTsCode] = useState(DEFAULT_TS)
+  const [jsCode, setJsCode] = useState('')
+  const [dtsCode, setDtsCode] = useState('')
+  const [activeTab, setActiveTab] = useState<TabType>('ts')
   const [tsConfigString, setTsConfigString] = useState(
     () => localStorage.getItem('tsplay_tsconfig') || DEFAULT_TSCONFIG,
-  );
+  )
 
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isSharing, setIsSharing] = useState(false);
-  const [isFormatting, setFormatting] = useState(false);
-  const [formatSuccess, setFormatSuccess] = useState(false);
-  const [shareSuccess, setShareSuccess] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [jsDirty, setJsDirty] = useState(false);
-  const [typeInfo, setTypeInfo] = useState<TypeInfo | null>(null);
-  const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
-  const [pmOpen, setPmOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isSharing, setIsSharing] = useState(false)
+  const [isFormatting, setFormatting] = useState(false)
+  const [formatSuccess, setFormatSuccess] = useState(false)
+  const [shareSuccess, setShareSuccess] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [jsDirty, setJsDirty] = useState(false)
+  const [typeInfo, setTypeInfo] = useState<TypeInfo | null>(null)
+  const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 })
+  const [pmOpen, setPmOpen] = useState(false)
 
-  const editorRef = useRef<CodeEditorHandle>(null);
+  const editorRef = useRef<CodeEditorHandle>(null)
 
-  const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } =
-    useConsoleManager();
+  const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } = useConsoleManager()
 
   const handleArtifactsChange = useCallback(
     (js: string, dts: string) => {
       // If JS is dirty, we don't overwrite it with auto-emitted code
       if (js) {
-        setJsCode((prev) => (jsDirty ? prev : js));
+        setJsCode((prev) => (jsDirty ? prev : js))
       }
-      if (dts) setDtsCode(dts);
+      if (dts) setDtsCode(dts)
     },
     [jsDirty],
-  );
+  )
 
   const { externalTypings } = useWebContainer(
     tsConfigString,
     tsCode,
     addMessage,
     handleArtifactsChange,
-  );
+  )
 
-  const { tsCursorPos, installedPackages } = usePackageManager(tsCode, addMessage);
+  const { tsCursorPos, installedPackages } = usePackageManager(tsCode, addMessage)
 
   const statusText = useMemo(() => {
-    const parts = [];
-    if (tscStatus === 'Running' || tscStatus === 'Compiling')
-      parts.push('TS...');
-    else if (tscStatus === 'Ready') parts.push('TS Ready');
-    else if (tscStatus === 'Preparing') parts.push('TS Prep');
-    else if (tscStatus === 'Error') parts.push('TS Error');
+    const parts = []
+    if (tscStatus === 'Running' || tscStatus === 'Compiling') parts.push('TS...')
+    else if (tscStatus === 'Ready') parts.push('TS Ready')
+    else if (tscStatus === 'Preparing') parts.push('TS Prep')
+    else if (tscStatus === 'Error') parts.push('TS Error')
 
-    if (esbuildStatus === 'Running' || esbuildStatus === 'Compiling')
-      parts.push('JS...');
-    else if (esbuildStatus === 'Ready') parts.push('JS Ready');
-    else if (esbuildStatus === 'Preparing') parts.push('JS Prep');
-    else if (esbuildStatus === 'Error') parts.push('JS Error');
+    if (esbuildStatus === 'Running' || esbuildStatus === 'Compiling') parts.push('JS...')
+    else if (esbuildStatus === 'Ready') parts.push('JS Ready')
+    else if (esbuildStatus === 'Preparing') parts.push('JS Prep')
+    else if (esbuildStatus === 'Error') parts.push('JS Error')
 
-    return parts.join(' | ') || 'Idle';
-  }, [tscStatus, esbuildStatus]);
+    return parts.join(' | ') || 'Idle'
+  }, [tscStatus, esbuildStatus])
 
-  const { runCode, stopCode, isRunning } = useCompilerManager();
+  const { runCode, stopCode, isRunning } = useCompilerManager()
 
   const handleRun = useCallback(async () => {
     if (jsDirty) {
@@ -120,69 +116,66 @@ export function App() {
           'The JavaScript code has been modified. Running will overwrite your changes with the latest compiled code. Continue?',
         )
       ) {
-        return;
+        return
       }
-      setJsDirty(false);
+      setJsDirty(false)
     }
-    runCode();
-  }, [jsDirty, runCode]);
+    runCode()
+  }, [jsDirty, runCode])
 
   const handleCopyAll = useCallback(() => {
-    const code =
-      activeTab === 'ts' ? tsCode : activeTab === 'js' ? jsCode : dtsCode;
+    const code = activeTab === 'ts' ? tsCode : activeTab === 'js' ? jsCode : dtsCode
     navigator.clipboard.writeText(code).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  }, [activeTab, tsCode, jsCode, dtsCode]);
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }, [activeTab, tsCode, jsCode, dtsCode])
 
   const handleDeleteAll = useCallback(() => {
-    if (activeTab === 'ts') setTsCode('');
+    if (activeTab === 'ts') setTsCode('')
     else if (activeTab === 'js') {
-      setJsCode('');
-      setJsDirty(false);
-    } else setDtsCode('');
-  }, [activeTab]);
+      setJsCode('')
+      setJsDirty(false)
+    } else setDtsCode('')
+  }, [activeTab])
 
   const handleFormat = useCallback(async () => {
-    setFormatting(true);
+    setFormatting(true)
     try {
-      const fTs = await formatAllFiles(tsCode, '', '');
-      setTsCode(fTs.tsCode);
-      setFormatSuccess(true);
-      setTimeout(() => setFormatSuccess(false), 1500);
+      const fTs = await formatAllFiles(tsCode, '', '')
+      setTsCode(fTs.tsCode)
+      setFormatSuccess(true)
+      setTimeout(() => setFormatSuccess(false), 1500)
     } catch (err) {
-      console.error('Format failed:', err);
+      addMessage('error', [`Format failed: ${(err as Error).message}`])
     } finally {
-      setFormatting(false);
+      setFormatting(false)
     }
-  }, [tsCode]);
+  }, [tsCode])
 
   const handleShare = useCallback(async () => {
-    setIsSharing(true);
+    setIsSharing(true)
     try {
-      const url = await shareSnippet(tsCode, tsConfigString);
-      await navigator.clipboard.writeText(url);
-      addMessage('info', ['Share URL copied to clipboard!']);
-      setShareSuccess(true);
-      setTimeout(() => setShareSuccess(false), 1500);
+      const url = await shareSnippet(tsCode, tsConfigString)
+      await navigator.clipboard.writeText(url)
+      addMessage('info', ['Share URL copied to clipboard!'])
+      setShareSuccess(true)
+      setTimeout(() => setShareSuccess(false), 1500)
     } catch (err) {
-      addMessage('error', [
-        'Failed to share snippet: ' + (err as Error).message,
-      ]);
+      addMessage('error', ['Failed to share snippet: ' + (err as Error).message])
     } finally {
-      setIsSharing(false);
+      setIsSharing(false)
     }
-  }, [tsCode, tsConfigString, addMessage]);
+  }, [tsCode, tsConfigString, addMessage])
 
   const handleSaveTsConfig = (val: string) => {
-    setTsConfigString(val);
-    localStorage.setItem('tsplay_tsconfig', val);
-  };
+    setTsConfigString(val)
+    localStorage.setItem('tsplay_tsconfig', val)
+  }
 
-  const swipeHandlers = useSwipeTabs(TABS, activeTab, (tab) => setActiveTab(tab as TabType));
-  const { compactForKeyboard, isMobileLike } = useVirtualKeyboard();
-  const { panelHeight, isResizing, handleResizeStart } = useResizePanel(11.25);
+  const swipeHandlers = useSwipeTabs(TABS, activeTab, (tab) => setActiveTab(tab as TabType))
+  const { compactForKeyboard, isMobileLike } = useVirtualKeyboard()
+  const { panelHeight, isResizing, handleResizeStart } = useResizePanel(11.25)
 
   return (
     <div
@@ -203,15 +196,13 @@ export function App() {
         setActiveTab={(t) => setActiveTab(t as TabType)}
         themeMode={theme}
         setThemeMode={(t) => {
-          const nextTheme = typeof t === 'function' ? t(theme) : t;
-          playgroundStore.setState({ theme: nextTheme });
+          const nextTheme = typeof t === 'function' ? t(theme) : t
+          playgroundStore.setState({ theme: nextTheme })
         }}
         compilerStatus={
           isReady
             ? 'ready'
-            : lifecycle === 'error' ||
-                tscStatus === 'Error' ||
-                esbuildStatus === 'Error'
+            : lifecycle === 'error' || tscStatus === 'Error' || esbuildStatus === 'Error'
               ? 'error'
               : 'loading'
         }
@@ -235,38 +226,22 @@ export function App() {
           <CodeEditor
             ref={editorRef}
             language={
-              activeTab === 'ts'
-                ? 'typescript'
-                : activeTab === 'js'
-                  ? 'javascript'
-                  : 'typescript'
+              activeTab === 'ts' ? 'typescript' : activeTab === 'js' ? 'javascript' : 'typescript'
             }
-            value={
-              activeTab === 'ts'
-                ? tsCode
-                : activeTab === 'js'
-                  ? jsCode
-                  : dtsCode
-            }
+            value={activeTab === 'ts' ? tsCode : activeTab === 'js' ? jsCode : dtsCode}
             onChange={(val) => {
-              if (activeTab === 'ts') setTsCode(val);
+              if (activeTab === 'ts') setTsCode(val)
               else if (activeTab === 'js') {
-                setJsCode(val);
-                setJsDirty(true);
-              } else setDtsCode(val);
+                setJsCode(val)
+                setJsDirty(true)
+              } else setDtsCode(val)
             }}
             onCursorChange={(offset) => {
-              if (activeTab === 'ts') tsCursorPos.current = offset;
+              if (activeTab === 'ts') tsCursorPos.current = offset
             }}
             onTypeInfoChange={setTypeInfo}
             onCursorPosChange={setCursorPos}
-            path={
-              activeTab === 'ts'
-                ? 'index.ts'
-                : activeTab === 'js'
-                  ? 'index.js'
-                  : 'index.d.ts'
-            }
+            path={activeTab === 'ts' ? 'index.ts' : activeTab === 'js' ? 'index.js' : 'index.d.ts'}
             lineWrap={lineWrap}
             themeMode={theme}
             readOnly={activeTab === 'dts'}
@@ -318,5 +293,5 @@ export function App() {
         onSave={handleSaveTsConfig}
       />
     </div>
-  );
+  )
 }

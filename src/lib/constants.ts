@@ -1,5 +1,5 @@
-export const TABS = ['ts', 'js', 'dts'] as const;
-export type TabType = (typeof TABS)[number];
+export const TABS = ['ts', 'js', 'dts'] as const
+export type TabType = (typeof TABS)[number]
 
 export const DEFAULT_TSCONFIG = `{
   "compilerOptions": {
@@ -26,4 +26,4 @@ export const DEFAULT_TSCONFIG = `{
     "noImplicitOverride": true
   },
   "include": ["index.ts"]
-}`;
+}`

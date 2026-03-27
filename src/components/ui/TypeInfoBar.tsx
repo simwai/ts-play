@@ -1,33 +1,33 @@
-import React, { useEffect, useState } from 'react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-import { useMonaco } from '@monaco-editor/react';
-import { RegexPatterns } from '../../lib/regex';
+import { useMonaco } from '@monaco-editor/react'
+import { type ClassValue, clsx } from 'clsx'
+import React, { useEffect, useState } from 'react'
+import { twMerge } from 'tailwind-merge'
+import { RegexPatterns } from '../../lib/regex'
 
 function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
+  return twMerge(clsx(inputs))
 }
 
 export type TypeInfo = {
-  name: string;
-  kind: string;
-  typeAnnotation: string;
-  jsDoc?: string;
-  signature?: string;
-};
+  name: string
+  kind: string
+  typeAnnotation: string
+  jsDoc?: string
+  signature?: string
+}
 
 type TypeInfoBarProps = {
-  typeInfo: TypeInfo | null;
-  language: 'typescript' | 'javascript';
-  themeMode?: string;
-};
+  typeInfo: TypeInfo | null
+  language: 'typescript' | 'javascript'
+  themeMode?: string
+}
 
 function renderWithLinksAndHighlight(text: string) {
-  const regex = RegexPatterns.MARKDOWN_LINKS_OR_CODE;
-  const parts = text.split(regex);
+  const regex = RegexPatterns.MARKDOWN_LINKS_OR_CODE
+  const parts = text.split(regex)
 
   return parts.map((part, i) => {
-    const mdMatch = RegexPatterns.MARKDOWN_LINK.exec(part);
+    const mdMatch = RegexPatterns.MARKDOWN_LINK.exec(part)
     if (mdMatch) {
       return (
         <a
@@ -40,10 +40,10 @@ function renderWithLinksAndHighlight(text: string) {
         >
           {mdMatch[1]}
         </a>
-      );
+      )
     }
 
-    const urlMatch = RegexPatterns.URL.exec(part);
+    const urlMatch = RegexPatterns.URL.exec(part)
     if (urlMatch) {
       return (
         <a
@@ -56,7 +56,7 @@ function renderWithLinksAndHighlight(text: string) {
         >
           {urlMatch[1]}
         </a>
-      );
+      )
     }
 
     if (part.startsWith('`') && part.endsWith('`')) {
@@ -64,54 +64,43 @@ function renderWithLinksAndHighlight(text: string) {
         <code key={i} className="bg-surface0 px-1 rounded-sm text-mauve">
           {part.slice(1, -1)}
         </code>
-      );
+      )
     }
 
-    return <React.Fragment key={i}>{part}</React.Fragment>;
-  });
+    return <React.Fragment key={i}>{part}</React.Fragment>
+  })
 }
 
-export function TypeInfoBar({
-  typeInfo,
-  language,
-  themeMode = 'mocha',
-}: TypeInfoBarProps) {
-  const monaco = useMonaco();
-  const [highlightedType, setHighlightedType] = useState('');
-  const [highlightedSig, setHighlightedSig] = useState('');
+export function TypeInfoBar({ typeInfo, language, themeMode = 'mocha' }: TypeInfoBarProps) {
+  const monaco = useMonaco()
+  const [highlightedType, setHighlightedType] = useState('')
+  const [highlightedSig, setHighlightedSig] = useState('')
 
   useEffect(() => {
     if (!monaco || !typeInfo) {
-      setHighlightedType('');
-      setHighlightedSig('');
-      return;
+      setHighlightedType('')
+      setHighlightedSig('')
+      return
     }
 
     const colorize = async () => {
-      const typeHtml = await monaco.editor.colorize(
-        typeInfo.typeAnnotation,
-        'typescript',
-        { tabSize: 2 },
-      );
-      setHighlightedType(typeHtml);
+      const typeHtml = await monaco.editor.colorize(typeInfo.typeAnnotation, 'typescript', {
+        tabSize: 2,
+      })
+      setHighlightedType(typeHtml)
 
-      if (
-        typeInfo.signature &&
-        typeInfo.signature !== typeInfo.typeAnnotation
-      ) {
-        const sigHtml = await monaco.editor.colorize(
-          typeInfo.signature,
-          'typescript',
-          { tabSize: 2 },
-        );
-        setHighlightedSig(sigHtml);
+      if (typeInfo.signature && typeInfo.signature !== typeInfo.typeAnnotation) {
+        const sigHtml = await monaco.editor.colorize(typeInfo.signature, 'typescript', {
+          tabSize: 2,
+        })
+        setHighlightedSig(sigHtml)
       } else {
-        setHighlightedSig('');
+        setHighlightedSig('')
       }
-    };
+    }
 
-    colorize();
-  }, [monaco, typeInfo]);
+    colorize()
+  }, [monaco, typeInfo])
 
   if (!typeInfo) {
     return (
@@ -120,12 +109,12 @@ export function TypeInfoBar({
           ? 'Move cursor over a symbol for type info'
           : 'JavaScript output'}
       </div>
-    );
+    )
   }
 
-  const kc = kindColorClass(typeInfo.kind);
-  const kcBg = kindBgClass(typeInfo.kind);
-  const kcBorder = kindBorderClass(typeInfo.kind);
+  const kc = kindColorClass(typeInfo.kind)
+  const kcBg = kindBgClass(typeInfo.kind)
+  const kcBorder = kindBorderClass(typeInfo.kind)
 
   return (
     <div className="flex flex-col bg-mantle border-t border-surface0/50 px-4 py-2 text-xxs md:text-xs font-mono shrink-0 max-h-48 overflow-y-auto animate-in slide-in-from-bottom-2 duration-200">
@@ -164,74 +153,74 @@ export function TypeInfoBar({
         </div>
       )}
     </div>
-  );
+  )
 }
 
 function kindColorClass(kind: string): string {
   switch (kind) {
     case 'function':
-      return 'text-blue';
+      return 'text-blue'
     case 'type':
-      return 'text-yellow';
+      return 'text-yellow'
     case 'interface':
-      return 'text-teal';
+      return 'text-teal'
     case 'class':
-      return 'text-green';
+      return 'text-green'
     case 'parameter':
-      return 'text-maroon';
+      return 'text-maroon'
     case 'property':
-      return 'text-sapphire';
+      return 'text-sapphire'
     case 'keyword':
-      return 'text-mauve';
+      return 'text-mauve'
     case 'builtin':
-      return 'text-peach';
+      return 'text-peach'
     default:
-      return 'text-lavender';
+      return 'text-lavender'
   }
 }
 
 function kindBgClass(kind: string): string {
   switch (kind) {
     case 'function':
-      return 'bg-blue/10';
+      return 'bg-blue/10'
     case 'type':
-      return 'bg-yellow/10';
+      return 'bg-yellow/10'
     case 'interface':
-      return 'bg-teal/10';
+      return 'bg-teal/10'
     case 'class':
-      return 'bg-green/10';
+      return 'bg-green/10'
     case 'parameter':
-      return 'bg-maroon/10';
+      return 'bg-maroon/10'
     case 'property':
-      return 'bg-sapphire/10';
+      return 'bg-sapphire/10'
     case 'keyword':
-      return 'bg-mauve/10';
+      return 'bg-mauve/10'
     case 'builtin':
-      return 'bg-peach/10';
+      return 'bg-peach/10'
     default:
-      return 'bg-lavender/10';
+      return 'bg-lavender/10'
   }
 }
 
 function kindBorderClass(kind: string): string {
   switch (kind) {
     case 'function':
-      return 'border-blue/20';
+      return 'border-blue/20'
     case 'type':
-      return 'border-yellow/20';
+      return 'border-yellow/20'
     case 'interface':
-      return 'border-teal/20';
+      return 'border-teal/20'
     case 'class':
-      return 'border-green/20';
+      return 'border-green/20'
     case 'parameter':
-      return 'border-maroon/20';
+      return 'border-maroon/20'
     case 'property':
-      return 'border-sapphire/20';
+      return 'border-sapphire/20'
     case 'keyword':
-      return 'border-mauve/20';
+      return 'border-mauve/20'
     case 'builtin':
-      return 'border-peach/20';
+      return 'border-peach/20'
     default:
-      return 'border-lavender/20';
+      return 'border-lavender/20'
   }
 }

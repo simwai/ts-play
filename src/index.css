@@ -1,9 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Victor+Mono:ital,wght@0,100..700;1,100..700&display=swap');
-@import 'tailwindcss';
+@import url("https://fonts.googleapis.com/css2?family=Victor+Mono:ital,wght@0,100..700;1,100..700&display=swap");
+@import "tailwindcss";
 
 @font-face {
-  font-family: 'Graffonti';
-  src: url('/fonts/graffonti.ttf') format('truetype');
+  font-family: "Graffonti";
+  src: url("/fonts/graffonti.ttf") format("truetype");
   font-weight: normal;
   font-style: normal;
   font-display: swap;
@@ -40,9 +40,8 @@
   --color-lavender: var(--lavender);
 
   /* Custom Fonts */
-  --font-mono:
-    'JetBrains Mono', 'Victor Mono', 'Fira Code', 'Cascadia Code', monospace;
-  --font-graffonti: 'Graffonti', sans-serif;
+  --font-mono: "JetBrains Mono", "Victor Mono", "Fira Code", "Cascadia Code", monospace;
+  --font-graffonti: "Graffonti", sans-serif;
 
   /* Custom Font Sizes */
   --text-xxs: 0.6875rem; /* 11px */
@@ -293,7 +292,7 @@
   .italic,
   .mtki,
   .mtk-italic {
-    font-family: 'JetBrains Mono', monospace !important;
+    font-family: "JetBrains Mono", monospace !important;
     font-style: italic;
   }
 
