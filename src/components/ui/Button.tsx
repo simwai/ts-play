@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, useState, useRef } from 'react';
+import { type CSSProperties, type ReactNode, useRef, useState } from 'react';
 import { cn } from '../../lib/utils';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';

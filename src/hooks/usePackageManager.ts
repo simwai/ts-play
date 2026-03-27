@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { webContainerService, SYSTEM_DEPS } from '../lib/webcontainer';
-import { playgroundStore } from '../lib/state-manager';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ConsoleMessage } from '../components/Console';
+import { playgroundStore } from '../lib/state-manager';
+import { SYSTEM_DEPS, webContainerService } from '../lib/webcontainer';
 import type { PackageManagerStatus } from '../types/status';
 
 const BUILTIN_MODULES = new Set([

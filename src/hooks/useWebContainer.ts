@@ -1,10 +1,10 @@
-import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
-import { webContainerService, SYSTEM_DEPS } from '../lib/webcontainer';
-import { playgroundStore } from '../lib/state-manager';
-import { usePlaygroundStore } from './usePlaygroundStore';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ConsoleMessage } from '../components/Console';
 import { db } from '../lib/db';
 import { RegexPatterns, toRegExp } from '../lib/regex';
+import { playgroundStore } from '../lib/state-manager';
+import { SYSTEM_DEPS, webContainerService } from '../lib/webcontainer';
+import { usePlaygroundStore } from './usePlaygroundStore';
 
 const DETECT_IMPORTS_SCRIPT = `
 const fs = require('fs');
@@ -146,7 +146,7 @@ export function useWebContainer(
         'package.json',
         JSON.stringify(pkgJson, null, 2),
       );
-    } catch (e) {
+    } catch (_e) {
       webContainerService.emitLog(
         'info',
         '⚠️ Snapshot loading failed, performing full mount & install...',
@@ -348,7 +348,7 @@ export function useWebContainer(
             } else {
               throw new Error('Emission incomplete');
             }
-          } catch (e) {
+          } catch (_e) {
             if (retries < 60) {
               retries++;
               setTimeout(checkEmit, 1000);

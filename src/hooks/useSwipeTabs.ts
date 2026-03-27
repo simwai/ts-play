@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 
 function isEditorTarget(target: EventTarget | undefined | null) {
   if (!(target instanceof Element)) return false;

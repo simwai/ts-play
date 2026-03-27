@@ -1,31 +1,31 @@
-import { useState, useEffect } from 'react';
 import {
-  X,
-  Save,
-  RotateCcw,
+  AlertCircle,
   Box,
   Cpu,
   FileJson,
   Layers,
   Monitor,
-  AlertCircle,
   PackageCheck,
+  RotateCcw,
+  Save,
+  X,
 } from 'lucide-react';
-import { Button } from './ui/Button';
-import { IconButton } from './ui/IconButton';
-import { Badge } from './ui/Badge';
-import { CodeEditor } from './CodeEditor';
-import { webContainerService } from '../lib/webcontainer';
-import { playgroundStore } from '../lib/state-manager';
+import { useEffect, useState } from 'react';
 import { usePlaygroundStore } from '../hooks/usePlaygroundStore';
-import {
-  type ThemeMode,
-  DARK_THEMES,
-  LIGHT_THEMES,
-  isDarkMode,
-} from '../lib/theme';
 import { DEFAULT_TSCONFIG } from '../lib/constants';
 import { RegexPatterns, toRegExp } from '../lib/regex';
+import { playgroundStore } from '../lib/state-manager';
+import {
+  DARK_THEMES,
+  isDarkMode,
+  LIGHT_THEMES,
+  type ThemeMode,
+} from '../lib/theme';
+import { webContainerService } from '../lib/webcontainer';
+import { CodeEditor } from './CodeEditor';
+import { Badge } from './ui/Badge';
+import { Button } from './ui/Button';
+import { IconButton } from './ui/IconButton';
 
 type SettingsModalProps = {
   isOpen: boolean;
@@ -146,11 +146,17 @@ export function SettingsModal({
                   }
                   className="w-full bg-crust border border-surface0 text-text rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-mauve transition-all"
                 >
-                  <option value="mocha">Mocha</option>
-                  <option value="latte">Latte</option>
-                  <option value="githubDark">GitHub Dark</option>
-                  <option value="githubLight">GitHub Light</option>
-                  <option value="monokai">Monokai</option>
+                  {themeOptions.map((t) => (
+                    <option key={t} value={t}>
+                      {t.charAt(0).toUpperCase() +
+                        t
+                          .slice(1)
+                          .replace(
+                            toRegExp(RegexPatterns.CAPITAL_LETTERS),
+                            ' ',
+                          )}
+                    </option>
+                  ))}
                 </select>
                 <p className="text-xxs text-overlay0 italic">
                   Only showing {currentIsDark ? 'dark' : 'light'} themes.

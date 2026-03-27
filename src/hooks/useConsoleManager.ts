@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ConsoleMessage } from '../components/Console';
 import { RegexPatterns, toRegExp } from '../lib/regex';
 
@@ -29,7 +29,7 @@ export function useConsoleManager() {
           // Strip large repeating whitespace but keep tabs/newlines
           return a.replace(
             toRegExp(RegexPatterns.EXCESSIVE_SPACES),
-            (match) => '          ' + (match.length - 10) + ' spaces ',
+            (match) => `          ${match.length - 10} spaces `,
           );
         }
         try {

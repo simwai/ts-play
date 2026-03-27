@@ -1,9 +1,9 @@
-import React, { useRef, useEffect, useMemo } from 'react';
 import { Eraser } from 'lucide-react';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { RegexPatterns, toRegExp } from '../lib/regex';
 import { Badge } from './ui/Badge';
 import { Button } from './ui/Button';
 import { PanelHeader } from './ui/PanelHeader';
-import { RegexPatterns, toRegExp } from '../lib/regex';
 
 export type ConsoleMessage = {
   type: 'log' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'dir';
@@ -130,7 +130,7 @@ export const Console = React.memo(function Console({
             </div>
           ) : (
             messages.map((m, idx) => {
-              if (!m || !m.args) return null;
+              if (!m?.args) return null;
               let fullText = m.args.join(' ');
               if (stripAnsiEnabled) {
                 fullText = stripAnsi(fullText);

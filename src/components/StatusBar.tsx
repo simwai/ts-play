@@ -1,8 +1,8 @@
-import { Undo2, Redo2, Settings } from 'lucide-react';
-import { IconButton } from './ui/IconButton';
-import type { TabType } from '../lib/constants';
+import { Redo2, Settings, Undo2 } from 'lucide-react';
 import type { PackageManagerStatus } from '../hooks/usePackageManager';
 import { usePlaygroundStore } from '../hooks/usePlaygroundStore';
+import type { TabType } from '../lib/constants';
+import { IconButton } from './ui/IconButton';
 
 type StatusBarProps = {
   statusText: string;

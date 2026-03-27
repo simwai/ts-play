@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
-import { useCompilerManager } from './useCompilerManager';
+import { act, renderHook } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { webContainerService } from '../lib/webcontainer';
+import { useCompilerManager } from './useCompilerManager';
 
 vi.mock('../lib/webcontainer', () => ({
   webContainerService: {

@@ -1,12 +1,12 @@
 import { WebContainer, type WebContainerProcess } from '@webcontainer/api';
-import { playgroundStore } from './state-manager';
+import type { CompilerStatus, EnvironmentStatus } from '../types/status';
 import { RegexPatterns, toRegExp } from './regex';
-import type { EnvironmentStatus, CompilerStatus } from '../types/status';
+import { playgroundStore } from './state-manager';
 
 export const SYSTEM_DEPS = [
   'typescript',
   'esbuild',
-  'prettier',
+  '@biomejs/biome',
   'lodash-es',
   '@types/lodash-es',
   '@types/node',

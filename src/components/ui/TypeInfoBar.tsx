@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
 import { useMonaco } from '@monaco-editor/react';
+import { type ClassValue, clsx } from 'clsx';
+import React, { useEffect, useState } from 'react';
+import { twMerge } from 'tailwind-merge';
 import { RegexPatterns, toRegExp } from '../../lib/regex';
 
 function cn(...inputs: ClassValue[]) {

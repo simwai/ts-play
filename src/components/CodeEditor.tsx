@@ -1,14 +1,14 @@
-import React, { useEffect, useRef, useMemo } from 'react';
-import Editor, { useMonaco, type OnMount } from '@monaco-editor/react';
-import { cn } from '../lib/utils';
-import { RegexPatterns, toRegExp } from '../lib/regex';
+import Editor, { type OnMount, useMonaco } from '@monaco-editor/react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import {
-  mocha,
-  latte,
   githubDark,
   githubLight,
+  latte,
+  mocha,
   monokai,
 } from '../lib/monaco-themes';
+import { RegexPatterns, toRegExp } from '../lib/regex';
+import { cn } from '../lib/utils';
 
 type CodeEditorProps = {
   value: string;

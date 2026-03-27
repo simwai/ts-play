@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 function stripAnsi(text: string): string {
-  const ansiRegex = /[\u001b\u009b][\[\]()#;?]*[0-9;]*[a-zA-Z]/g;
+  const ansiRegex = /[\u001b\u009b][[\]()#;?]*[0-9;]*[a-zA-Z]/g;
   return text.replace(ansiRegex, '');
 }
 

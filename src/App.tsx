@@ -1,23 +1,23 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
-import { isDarkMode } from './lib/theme';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { CodeEditor, type CodeEditorHandle } from './components/CodeEditor';
 import { Console } from './components/Console';
 import { Header } from './components/Header';
-import { StatusBar } from './components/StatusBar';
 import { SettingsModal } from './components/SettingsModal';
-import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
-import { formatAllFiles } from './lib/formatter';
+import { StatusBar } from './components/StatusBar';
+import { type TypeInfo, TypeInfoBar } from './components/ui/TypeInfoBar';
+import { useCompilerManager } from './hooks/useCompilerManager';
+import { useConsoleManager } from './hooks/useConsoleManager';
+import { usePackageManager } from './hooks/usePackageManager';
+import { usePlaygroundStore } from './hooks/usePlaygroundStore';
 import { useResizePanel } from './hooks/useResizePanel';
 import { useSwipeTabs } from './hooks/useSwipeTabs';
-import { shareSnippet } from './lib/api';
-import { useConsoleManager } from './hooks/useConsoleManager';
-import { TypeInfoBar, type TypeInfo } from './components/ui/TypeInfoBar';
-import { useCompilerManager } from './hooks/useCompilerManager';
-import { usePackageManager } from './hooks/usePackageManager';
+import { useVirtualKeyboard } from './hooks/useVirtualKeyboard';
 import { useWebContainer } from './hooks/useWebContainer';
+import { shareSnippet } from './lib/api';
+import { DEFAULT_TSCONFIG, TABS, type TabType } from './lib/constants';
+import { formatAllFiles } from './lib/formatter';
 import { playgroundStore } from './lib/state-manager';
-import { usePlaygroundStore } from './hooks/usePlaygroundStore';
-import { TABS, type TabType, DEFAULT_TSCONFIG } from './lib/constants';
+import { isDarkMode } from './lib/theme';
 
 const DEFAULT_TS = `// TypeScript Playground
 // Powered by Node.js, Prettier and WebContainers! ✨
@@ -160,7 +160,7 @@ export function App() {
       addMessage('info', ['Share URL copied to clipboard!']);
     } catch (err) {
       addMessage('error', [
-        'Failed to share snippet: ' + (err as Error).message,
+        `Failed to share snippet: ${(err as Error).message}`,
       ]);
     } finally {
       setIsSharing(false);

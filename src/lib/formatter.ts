@@ -1,7 +1,7 @@
 import { webContainerService } from './webcontainer';
 
 /**
- * Orchestrates the formatting of all playground files using Prettier
+ * Orchestrates the formatting of all playground files using Biome
  * running within the WebContainer environment.
  */
 export async function formatAllFiles(
@@ -12,13 +12,13 @@ export async function formatAllFiles(
   // Write the current TS code to a temporary file in the container
   await webContainerService.writeFile('temp.ts', tsCode);
 
-  // Wait for the environment to be ready (Prettier must be installed)
+  // Wait for the environment to be ready (Biome must be installed)
   await webContainerService.getEnvReady();
 
-  // Execute Prettier within the container
+  // Execute Biome within the container
   const proc = await webContainerService.spawnManaged(
     'npx',
-    ['prettier', '--write', 'temp.ts'],
+    ['@biomejs/biome', 'format', '--write', 'temp.ts'],
     { silent: true },
   );
   const exitCode = await (proc as any).exit;

@@ -7,12 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "format": "prettier -w .",
+    "format": "biome format --write .",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "prepare": "husky",
-    "analyze": "knip && madge --circular --extensions ts,tsx src/",
-    "check-quality": "knip && madge --circular --extensions ts,tsx src/"
+    "check-quality": "biome check --write --no-errors-on-unmatched . && knip && madge --circular --extensions ts,tsx src/"
   },
   "engines": {
     "node": ">=20.19.0 <21 || >=22.12.0"
@@ -25,12 +24,12 @@
     "husky": "^9.1.7",
     "lucide-react": "^0.577.0",
     "monaco-editor": "^0.55.1",
-    "prettier": "^3.8.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "tailwind-merge": "3.4.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/vite": "4.1.17",
     "@testing-library/react": "^16.2.0",

@@ -1,24 +1,24 @@
 import {
-  Sun,
-  Moon,
-  Copy,
   Check,
+  Copy,
+  Loader2,
+  Moon,
+  Play,
+  Share2,
+  Square,
+  Sun,
   Trash2,
   Wand2,
-  Loader2,
-  Play,
-  Square,
-  Share2,
 } from 'lucide-react';
-import { IconButton } from './ui/IconButton';
-import { Button } from './ui/Button';
-import {
-  type ThemeMode,
-  DARK_THEMES,
-  LIGHT_THEMES,
-  isDarkMode,
-} from '../lib/theme';
 import { TABS, type TabType } from '../lib/constants';
+import {
+  DARK_THEMES,
+  isDarkMode,
+  LIGHT_THEMES,
+  type ThemeMode,
+} from '../lib/theme';
+import { Button } from './ui/Button';
+import { IconButton } from './ui/IconButton';
 
 type HeaderProps = {
   activeTab: TabType;
