@@ -211,9 +211,8 @@ export class WebContainerService {
             await read(fullPath);
           } else if (!filter || filter(fullPath)) {
             const content = await instance.fs.readFile(fullPath, 'utf8');
-            const monacoPath = fullPath.startsWith('./')
-              ? fullPath.slice(2)
-              : fullPath;
+            // Keep the full path relative to the root for Monaco
+            const monacoPath = fullPath.startsWith('./') ? fullPath.slice(2) : fullPath;
             results[monacoPath] = content;
           }
         }
