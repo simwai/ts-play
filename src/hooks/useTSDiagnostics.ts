@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { workerClient } from '../lib/workerClient'
 import type { TSDiagnostic } from '../lib/types'
-}
 
 const EMPTY_LIBS = {}
 

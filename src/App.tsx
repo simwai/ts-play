@@ -214,7 +214,10 @@ export function App() {
           playgroundStore.addToast('info', 'Loaded embedded share link.')
         })
         .catch((error) => {
-          playgroundStore.addToast('error', `Failed to load embedded link: ${error.message}`)
+          playgroundStore.addToast(
+            'error',
+            `Failed to load embedded link: ${error.message}`
+          )
         })
       return
     }
@@ -226,16 +229,25 @@ export function App() {
           if (data.success) {
             setTsCode(data.tsCode)
             if (data.jsCode) setJsCode(data.jsCode)
-            playgroundStore.addToast('success', `Loaded shared snippet (${data.remainingDays} days left)`)
+            playgroundStore.addToast(
+              'success',
+              `Loaded shared snippet (${data.remainingDays} days left)`
+            )
             const url = new URL(globalThis.location.href)
             url.searchParams.delete('share')
             globalThis.history.replaceState({}, '', url.toString())
             return
           }
-          playgroundStore.addToast('error', `Failed to load shared snippet: ${data.error}`)
+          playgroundStore.addToast(
+            'error',
+            `Failed to load shared snippet: ${data.error}`
+          )
         })
         .catch((error) => {
-          playgroundStore.addToast('error', `Failed to load shared snippet: ${error.message}`)
+          playgroundStore.addToast(
+            'error',
+            `Failed to load shared snippet: ${error.message}`
+          )
         })
     }
   }, [setTsCode, setJsCode])
@@ -293,16 +305,25 @@ export function App() {
         setJsCode(fJs)
         setDtsCode(fDts)
         if (errors.length > 0) {
-          playgroundStore.addToast('error', `Format issues: ${errors.join(', ')}`)
+          playgroundStore.addToast(
+            'error',
+            `Format issues: ${errors.join(', ')}`
+          )
         } else {
           setFormatSuccess(true)
-          playgroundStore.addToast('success', 'All files formatted with Prettier')
+          playgroundStore.addToast(
+            'success',
+            'All files formatted with Prettier'
+          )
           setTimeout(() => {
             setFormatSuccess(false)
           }, 1500)
         }
       } catch (error) {
-        playgroundStore.addToast('error', `Format failed: ${(error as Error).message}`)
+        playgroundStore.addToast(
+          'error',
+          `Format failed: ${(error as Error).message}`
+        )
       } finally {
         setFormatting(false)
       }
@@ -337,19 +358,15 @@ export function App() {
             playgroundStore.addToast('success', 'Compilation successful')
           },
           (error) => {
-            playgroundStore.addToast('error', `Compilation failed: ${error.message}`)
+            playgroundStore.addToast(
+              'error',
+              `Compilation failed: ${error.message}`
+            )
           }
         )
       })
     },
-    [
-      jsDirty,
-      runCode,
-      clearMessages,
-      setJsCode,
-      setDtsCode,
-      installQueue,
-    ]
+    [jsDirty, runCode, clearMessages, setJsCode, setDtsCode, installQueue]
   )
 
   const handleShare = useCallback(async () => {
@@ -369,7 +386,10 @@ export function App() {
           url.hash = ''
           await navigator.clipboard.writeText(url.toString())
           setShareSuccess(true)
-          playgroundStore.addToast('success', `Share link copied! Expires in ${result.ttlDays} days`)
+          playgroundStore.addToast(
+            'success',
+            `Share link copied! Expires in ${result.ttlDays} days`
+          )
         } else {
           const url = new URL(globalThis.location.href)
           url.searchParams.delete('share')
@@ -377,14 +397,20 @@ export function App() {
           url.hash = `code=${result.token}`
           await navigator.clipboard.writeText(url.toString())
           setShareSuccess(true)
-          playgroundStore.addToast('info', 'Copied embedded compressed link (PHP share unavailable)')
+          playgroundStore.addToast(
+            'info',
+            'Copied embedded compressed link (PHP share unavailable)'
+          )
         }
 
         setTimeout(() => {
           setShareSuccess(false)
         }, 2000)
       } catch (error) {
-        playgroundStore.addToast('error', `Failed to share: ${(error as Error).message}`)
+        playgroundStore.addToast(
+          'error',
+          `Failed to share: ${(error as Error).message}`
+        )
       } finally {
         setSharing(false)
       }

@@ -14,9 +14,9 @@ export function Toast({ id, type, message, onClose }: ToastProps) {
   }, [id, onClose])
 
   const icons = {
-    success: <CheckCircle2 className="w-5 h-5 text-green" />,
-    info: <Info className="w-5 h-5 text-blue" />,
-    error: <AlertCircle className="w-5 h-5 text-red" />,
+    success: <CheckCircle2 className='w-5 h-5 text-green' />,
+    info: <Info className='w-5 h-5 text-blue' />,
+    error: <AlertCircle className='w-5 h-5 text-red' />,
   }
 
   const borderColors = {
@@ -32,24 +32,36 @@ export function Toast({ id, type, message, onClose }: ToastProps) {
         borderColors[type]
       )}
     >
-      <div className="shrink-0">{icons[type]}</div>
-      <p className="text-sm font-medium text-text">{message}</p>
+      <div className='shrink-0'>{icons[type]}</div>
+      <p className='text-sm font-medium text-text'>{message}</p>
       <button
         onClick={() => onClose(id)}
-        className="ml-auto text-overlay0 hover:text-text transition-colors"
+        className='ml-auto text-overlay0 hover:text-text transition-colors'
       >
-        <X className="w-4 h-4" />
+        <X className='w-4 h-4' />
       </button>
     </div>
   )
 }
 
-export function ToastContainer({ toasts, onClose }: { toasts: ToastMessage[], onClose: (id: string) => void }) {
+export function ToastContainer({
+  toasts,
+  onClose,
+}: {
+  toasts: ToastMessage[]
+  onClose: (id: string) => void
+}) {
   return (
-    <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
+    <div className='fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none'>
       {toasts.map((toast) => (
-        <div key={toast.id} className="pointer-events-auto">
-          <Toast {...toast} onClose={onClose} />
+        <div
+          key={toast.id}
+          className='pointer-events-auto'
+        >
+          <Toast
+            {...toast}
+            onClose={onClose}
+          />
         </div>
       ))}
     </div>

@@ -1,5 +1,10 @@
 import { type ThemeMode } from './theme'
-import { type CompilerStatus, type PackageManagerStatus, type ToastMessage, type ToastType } from './types'
+import {
+  type CompilerStatus,
+  type PackageManagerStatus,
+  type ToastMessage,
+  type ToastType,
+} from './types'
 
 export interface PlaygroundState {
   theme: ThemeMode
@@ -36,7 +41,11 @@ class PlaygroundStore {
     return this.state
   }
 
-  setState(update: Partial<PlaygroundState> | ((prev: PlaygroundState) => Partial<PlaygroundState>)) {
+  setState(
+    update:
+      | Partial<PlaygroundState>
+      | ((prev: PlaygroundState) => Partial<PlaygroundState>)
+  ) {
     const nextState = typeof update === 'function' ? update(this.state) : update
     this.state = { ...this.state, ...nextState }
     this.listeners.forEach((l) => l(this.state))

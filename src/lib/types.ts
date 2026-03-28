@@ -25,7 +25,12 @@ export type ConsoleMessage = {
   args: any[]
 }
 
-export type CompilerStatus = 'loading' | 'ready' | 'error' | 'compiling' | 'running'
+export type CompilerStatus =
+  | 'loading'
+  | 'ready'
+  | 'error'
+  | 'compiling'
+  | 'running'
 export type PackageManagerStatus = 'idle' | 'installing' | 'syncing' | 'error'
 
 export type ToastType = 'success' | 'info' | 'error'
