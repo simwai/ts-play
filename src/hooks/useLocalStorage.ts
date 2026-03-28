@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export function useLocalStorage(key: string, initialValue: string) {
   const [value, setValue] = useState<string>(() => {

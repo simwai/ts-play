@@ -1,198 +1,55 @@
 import { WebContainer, type WebContainerProcess } from '@webcontainer/api'
-import { RegexPatterns } from './regex'
-import { playgroundStore } from './state-manager'
 
-export type EnvironmentStatus = 'idle' | 'booting' | 'preparing' | 'ready' | 'error'
-export type CompilerStatus = 'Idle' | 'Preparing' | 'Running' | 'Compiling' | 'Ready' | 'Error'
+let webcontainerInstance: WebContainer | undefined
+let bootPromise: Promise<WebContainer> | undefined
 
-export const SYSTEM_DEPS = [
-  'typescript',
-  'esbuild',
-  '@biomejs/biome',
-  'lodash-es',
-  '@types/lodash-es',
-  '@types/node',
-]
-
-export class WebContainerService {
-  private instance: WebContainer | null = null
-  private bootPromise: Promise<WebContainer> | null = null
-  private logCallbacks: Set<(log: { type: string; message: string; timestamp: number }) => void> =
-    new Set()
-
-  public serverUrl: string | null = null
-
-  async getInstance(): Promise<WebContainer> {
-    if (this.instance) return this.instance
-    if (this.bootPromise) return this.bootPromise
-
-    this.bootPromise = (async () => {
-      playgroundStore.setState({ lifecycle: 'booting' })
-      this.emitLog('info', 'Booting WebContainer...')
-      const instance = await WebContainer.boot()
-      this.instance = instance
-      this.emitLog('info', 'WebContainer booted.')
-
-      instance.on('server-ready', (port, url) => {
-        this.serverUrl = url
-        this.emitLog('info', `Server ready: ${url} (port ${port})`)
-      })
-
-      return instance
-    })()
-
-    return this.bootPromise
+export async function getWebContainer(): Promise<WebContainer> {
+  if (webcontainerInstance) {
+    return webcontainerInstance
   }
 
-  onLog(cb: (log: { type: string; message: string; timestamp: number }) => void) {
-    this.logCallbacks.add(cb)
-    return () => this.logCallbacks.delete(cb)
-  }
+  bootPromise ||= WebContainer.boot().then((instance) => {
+    webcontainerInstance = instance
+    return instance
+  })
 
-  emitLog(type: string, message: string) {
-    if (!message) return
-    this.logCallbacks.forEach((cb) => cb({ type, message, timestamp: Date.now() }))
-  }
+  return bootPromise
+}
 
-  async enqueue<T>(task: (instance: WebContainer) => Promise<T>): Promise<T> {
-    return playgroundStore.enqueue(async () => {
-      const instance = await this.getInstance()
-      return task(instance)
-    })
-  }
+export async function writeFiles(files: Record<string, string>) {
+  const instance = await getWebContainer()
 
-  async mount(files: any) {
-    const instance = await this.getInstance()
-    await instance.mount(files)
-  }
-
-  async mountSnapshot(url: string) {
-    this.emitLog('info', `Fetching snapshot from ${url}...`)
-    const res = await fetch(url)
-    if (!res.ok) throw new Error(`Snapshot fetch failed: ${res.status}`)
-    const buffer = await res.arrayBuffer()
-    const instance = await this.getInstance()
-    await instance.mount(new Uint8Array(buffer))
-    this.emitLog('info', 'Snapshot mounted successfully.')
-  }
-
-  async exportSnapshot(): Promise<Uint8Array> {
-    const instance = await this.getInstance()
-    this.emitLog('info', 'Exporting environment snapshot...')
-    const snapshot = (await instance.export('.', {
-      format: 'binary',
-    })) as Uint8Array
-    this.emitLog('info', 'Snapshot exported.')
-    return snapshot
-  }
-
-  async mountRawSnapshot(data: Uint8Array) {
-    const instance = await this.getInstance()
-    await instance.mount(data)
-    this.emitLog('info', 'Local snapshot mounted.')
-  }
-
-  async writeFile(path: string, content: string) {
-    const instance = await this.getInstance()
-    await instance.fs.writeFile(path, content)
-  }
-
-  async readFile(path: string) {
-    const instance = await this.getInstance()
-    return instance.fs.readFile(path, 'utf8')
-  }
-
-  async getEnvReady() {
-    return new Promise<void>((resolve) => {
-      const check = () => {
-        if (playgroundStore.getState().lifecycle === 'ready') resolve()
-        else setTimeout(check, 100)
-      }
-      check()
-    })
-  }
-
-  async spawnManaged(
-    cmd: string,
-    args: string[],
-    options: { silent?: boolean; onLog?: (line: string) => void } = {},
-  ): Promise<WebContainerProcess> {
-    const instance = await this.getInstance()
-    const proc = await instance.spawn(cmd, args)
-    this.processStream(proc.output.getReader(), options)
-    return proc
-  }
-
-  private async processStream(
-    reader: ReadableStreamDefaultReader<Uint8Array | string>,
-    options: { silent?: boolean; onLog?: (line: string) => void },
-  ) {
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        if (typeof value === 'string') {
-          buffer += value;
-        } else if (value) {
-          buffer += decoder.decode(value, { stream: true });
-        }
-        const lines = buffer.split(RegexPatterns.NEWLINE);
-
-        // If the last line is an incomplete ANSI sequence, keep it in the buffer
-        buffer = RegexPatterns.INCOMPLETE_ANSI.test(lines[lines.length - 1])
-          ? lines.pop()!
-          : lines.pop() || ''
-
-        for (const line of lines) {
-          const simplified = line.replace(RegexPatterns.EXCESSIVE_WHITESPACE, '    ')
-          if (!options.silent) this.emitLog('info', simplified)
-          options.onLog?.(simplified)
-        }
-      }
-
-      if (buffer) {
-        if (!options.silent) this.emitLog('info', buffer)
-        options.onLog?.(buffer)
-      }
-    } catch (err: any) {
-      console.warn('[WC Service] Stream read error:', err.message)
-    } finally {
-      reader.releaseLock()
-    }
-  }
-
-  async readDirRecursive(
-    dir: string,
-    filter?: (path: string) => boolean,
-  ): Promise<Record<string, string>> {
-    const instance = await this.getInstance()
-    const results: Record<string, string> = {}
-
-    const read = async (currentPath: string) => {
-      try {
-        const entries = await instance.fs.readdir(currentPath, {
-          withFileTypes: true,
-        })
-        for (const entry of entries) {
-          const fullPath = `${currentPath}/${entry.name}`
-          if (entry.isDirectory()) {
-            await read(fullPath)
-          } else if (!filter || filter(fullPath)) {
-            const content = await instance.fs.readFile(fullPath, 'utf8')
-            const monacoPath = fullPath.startsWith('./') ? fullPath.slice(2) : fullPath
-            results[monacoPath] = content
-          }
-        }
-      } catch {}
-    }
-
-    await read(dir)
-    return results
+  for (const [path, contents] of Object.entries(files)) {
+    // Basic path normalization to avoid "directory doesn't exist" errors for root files
+    await instance.fs.writeFile(path, contents)
   }
 }
 
-export const webContainerService = new WebContainerService()
+export async function readFile(path: string): Promise<string> {
+  const instance = await getWebContainer()
+  try {
+    const content = await instance.fs.readFile(path, 'utf8')
+    return content
+  } catch {
+    return ''
+  }
+}
+
+export async function runCommand(
+  cmd: string,
+  args: string[],
+  onOutput: (data: string) => void
+): Promise<{ exit: Promise<number>; process: WebContainerProcess }> {
+  const instance = await getWebContainer()
+  const process = await instance.spawn(cmd, args)
+
+  process.output.pipeTo(
+    new WritableStream({
+      write(data) {
+        onOutput(data)
+      },
+    })
+  )
+
+  return { exit: process.exit, process }
+}

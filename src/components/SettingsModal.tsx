@@ -1,354 +1,238 @@
-import {
-  AlertCircle,
-  Box,
-  Cpu,
-  FileJson,
-  Layers,
-  Monitor,
-  PackageCheck,
-  RotateCcw,
-  Save,
-  X,
-} from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { usePlaygroundStore } from '../hooks/usePlaygroundStore'
-import { DEFAULT_TSCONFIG } from '../lib/constants'
-import { playgroundStore } from '../lib/state-manager'
-import { DARK_THEMES, LIGHT_THEMES, THEME_LABELS, type ThemeMode, isDarkMode } from '../lib/theme'
-import { webContainerService } from '../lib/webcontainer'
-import { CodeEditor } from './CodeEditor'
-import { Badge } from './ui/Badge'
+import { useState, useEffect } from 'react'
 import { Button } from './ui/Button'
 import { IconButton } from './ui/IconButton'
+import { workerClient } from '../lib/workerClient'
+import { formatJson } from '../lib/formatter'
+import { DEFAULT_TSCONFIG } from '../lib/constants'
+import { CodeEditor } from './CodeEditor'
 
 type SettingsModalProps = {
   isOpen: boolean
   onClose: () => void
   tsConfigString: string
-  onSave: (val: string) => void
+  onSave: (newConfig: string) => void
+  trueColorEnabled: boolean
+  setTrueColorEnabled: (val: boolean) => void
+  lineWrap: boolean
+  setLineWrap: (val: boolean) => void
+  packageManagerStatus: string
 }
 
-export function SettingsModal({ isOpen, onClose, tsConfigString, onSave }: SettingsModalProps) {
-  const { theme, stripAnsi, lineWrap, inlineDeps, packageManagerStatus } = usePlaygroundStore()
+function fixLooseJson(code: string): string {
+  return code.replace(/([a-zA-Z_$][\w$]*)\s*:/g, (match, key, offset, str) => {
+    let i = offset - 1
+    while (i >= 0 && /\s/.test(str[i])) i--
+    if (str[i] === '"' || str[i] === "'") return match
+    return `"${key}":`
+  })
+}
+
+export function SettingsModal({
+  isOpen,
+  onClose,
+  tsConfigString,
+  onSave,
+  trueColorEnabled,
+  setTrueColorEnabled,
+  lineWrap,
+  setLineWrap,
+  packageManagerStatus,
+}: SettingsModalProps) {
   const [temporaryTsConfig, setTemporaryTsConfig] = useState(tsConfigString)
-  const [isSaving, setIsSaving] = useState(false)
-  const [configError, setConfigError] = useState<string | null>(null)
+  const [isValid, setIsValid] = useState(true)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [isFormatting, setIsFormatting] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
       setTemporaryTsConfig(tsConfigString)
-      setConfigError(null)
+      setIsValid(true)
+      setErrorMsg(null)
     }
   }, [isOpen, tsConfigString])
 
-  const validateConfig = async (config: string): Promise<{ valid: boolean; error?: string }> => {
-    const timeoutPromise = new Promise<{ valid: boolean; error?: string }>((resolve) => {
-      setTimeout(() => resolve({ valid: false, error: 'Validation timed out' }), 5000)
-    })
-
-    const executionPromise = (async () => {
+  useEffect(() => {
+    if (!isOpen) return
+    const timer = setTimeout(async () => {
       try {
-        const result = await webContainerService.enqueue(async () => {
-          let output = ''
-          const proc = await webContainerService.spawnManaged('node', ['__validate_config.cjs'], {
-            silent: true,
-            onLog: (line) => {
-              output += line
-            },
-          })
-
-          try {
-            const writer = proc.input.getWriter()
-            await writer.write(config)
-            await writer.close()
-
-            const exitCode = await Promise.race([
-              proc.exit,
-              new Promise<number>((_, reject) =>
-                setTimeout(() => reject(new Error('Process hang')), 4000),
-              ),
-            ])
-
-            if (exitCode !== 0 && !output) {
-              return {
-                valid: false,
-                error: `Validation process exited with code ${exitCode}`,
-              }
-            }
-          } catch (e) {
-            proc.kill()
-            return { valid: false, error: (e as Error).message }
-          }
-
-          try {
-            const trimmedOutput = output.trim()
-            if (!trimmedOutput) return { valid: false, error: 'No output from validation script' }
-            return JSON.parse(trimmedOutput) as {
-              valid: boolean
-              error?: string
-            }
-          } catch (e) {
-            return {
-              valid: false,
-              error: 'Failed to parse validation output: ' + output,
+        const res = await workerClient.validateConfig(temporaryTsConfig)
+        if (!res.valid) {
+          const fixed = fixLooseJson(temporaryTsConfig)
+          if (fixed !== temporaryTsConfig) {
+            const fixedRes = await workerClient.validateConfig(fixed)
+            if (fixedRes.valid) {
+              setIsValid(true)
+              setErrorMsg(
+                'Syntax will be auto-formatted on save (e.g., adding missing quotes).'
+              )
+              return
             }
           }
-        })
-        return result
-      } catch (e) {
-        return { valid: false, error: (e as Error).message }
+        }
+        setIsValid(res.valid)
+        setErrorMsg(res.error || null)
+      } catch {
+        setIsValid(false)
+        setErrorMsg('Validation failed')
       }
-    })()
-
-    return Promise.race([timeoutPromise, executionPromise])
-  }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [temporaryTsConfig, isOpen])
 
   const handleSave = async () => {
-    setIsSaving(true)
-    const result = await validateConfig(temporaryTsConfig)
-    if (result.valid) {
-      onSave(temporaryTsConfig)
+    if (!isValid) return
+    setIsFormatting(true)
+    try {
+      let toSave = temporaryTsConfig
+      const res = await workerClient.validateConfig(toSave)
+      if (!res.valid) {
+        const fixed = fixLooseJson(toSave)
+        const fixedRes = await workerClient.validateConfig(fixed)
+        if (fixedRes.valid) toSave = fixed
+      }
+      const formatted = await formatJson(toSave)
+      onSave(fixLooseJson(formatted))
+    } catch {
+      onSave(fixLooseJson(temporaryTsConfig))
+    } finally {
+      setIsFormatting(false)
       onClose()
-    } else {
-      setConfigError(result.error || 'Invalid tsconfig.json')
-    }
-    setIsSaving(false)
-  }
-
-  const handleReset = () => {
-    if (confirm('Reset tsconfig.json to defaults?')) {
-      setTemporaryTsConfig(DEFAULT_TSCONFIG)
-      setConfigError(null)
     }
   }
-
-  const currentIsDark = isDarkMode(theme)
-  const themeOptions = currentIsDark ? DARK_THEMES : LIGHT_THEMES
 
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-crust/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-mantle border border-surface0 w-full max-w-2xl rounded-xl shadow-2xl flex flex-col max-h-[90dvh] overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface0 bg-mantle/50">
-          <div className="flex items-center gap-3">
-            <Cpu aria-hidden="true" className="text-mauve" size={20} />
-            <h2 className="text-lg font-bold tracking-tight text-text">System Settings</h2>
-          </div>
-          <IconButton onClick={onClose} title="Close" size="sm" variant="ghost">
-            <X aria-hidden="true" size={20} />
+    <div className='fixed inset-0 z-50 flex items-center justify-center bg-crust/80 backdrop-blur-sm p-4'>
+      <div
+        className='bg-mantle border border-surface1 rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[90dvh]'
+        data-testid='settings-modal'
+      >
+        <div className='flex items-center justify-between px-6 py-4 border-b border-surface0 bg-base shrink-0'>
+          <h2 className='text-base font-bold text-text'>Settings</h2>
+          <IconButton
+            onClick={onClose}
+            size='sm'
+            variant='ghost'
+            className='-mr-2'
+            data-testid='settings-cancel-button'
+          >
+            <span className='text-xl leading-none'>&times;</span>
           </IconButton>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-8">
-          {/* Appearance */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 text-mauve font-semibold">
-              <Monitor aria-hidden="true" size={18} />
-              <h3>Appearance</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label
-                  htmlFor="editor-theme"
-                  className="text-xs font-mono text-overlay1 uppercase tracking-wider"
-                >
-                  Editor Theme
-                </label>
-                <select
-                  id="editor-theme"
-                  aria-label="Select Editor Theme"
-                  value={theme}
-                  onChange={(e) =>
-                    playgroundStore.setState({
-                      theme: e.target.value as ThemeMode,
-                    })
-                  }
-                  className="w-full bg-crust border border-surface0 text-text rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-mauve transition-all"
-                >
-                  {themeOptions.map((t) => (
-                    <option key={t} value={t}>
-                      {THEME_LABELS[t]}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xxs text-overlay0 italic">
-                  Only showing {currentIsDark ? 'dark' : 'light'} themes.
-                </p>
-              </div>
-              <div className="flex flex-col justify-end space-y-3">
-                <label className="flex items-center gap-3 cursor-pointer group">
-                  <div className="relative flex items-center">
-                    <input
-                      id="strip-ansi"
-                      aria-label="Strip ANSI Escapes"
-                      type="checkbox"
-                      checked={stripAnsi}
-                      onChange={(e) =>
-                        playgroundStore.setState({
-                          stripAnsi: e.target.checked,
-                        })
-                      }
-                      className="sr-only peer"
-                    />
-                    <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-mauve peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-mantle"></div>
-                    <div className="absolute left-1 w-3 h-3 bg-white peer-checked:bg-crust rounded-full transition-transform peer-checked:translate-x-5"></div>
-                  </div>
-                  <span className="text-sm text-overlay1 group-hover:text-text transition-colors">
-                    Strip ANSI Escapes
-                  </span>
-                </label>
-                <label className="flex items-center gap-3 cursor-pointer group">
-                  <div className="relative flex items-center">
-                    <input
-                      id="line-wrap"
-                      aria-label="Soft Line Wrap"
-                      type="checkbox"
-                      checked={lineWrap}
-                      onChange={(e) => playgroundStore.setState({ lineWrap: e.target.checked })}
-                      className="sr-only peer"
-                    />
-                    <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-mauve peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-mantle"></div>
-                    <div className="absolute left-1 w-3 h-3 bg-white peer-checked:bg-crust rounded-full transition-transform peer-checked:translate-x-5"></div>
-                  </div>
-                  <span className="text-sm text-overlay1 group-hover:text-text transition-colors">
-                    Soft Line Wrap
-                  </span>
-                </label>
-              </div>
-            </div>
-          </section>
-
-          {/* Compilation & Dependencies */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 text-mauve font-semibold">
-              <PackageCheck aria-hidden="true" size={18} />
-              <h3>Compilation & Bundling</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <div className="relative flex items-center">
-                  <input
-                    id="inline-deps"
-                    aria-label="Inline Dependencies"
-                    type="checkbox"
-                    checked={inlineDeps}
-                    onChange={(e) => playgroundStore.setState({ inlineDeps: e.target.checked })}
-                    className="sr-only peer"
-                  />
-                  <div className="w-10 h-5 bg-surface0 rounded-full peer peer-checked:bg-mauve transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-mauve peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-mantle"></div>
-                  <div className="absolute left-1 w-3 h-3 bg-white peer-checked:bg-crust rounded-full transition-transform peer-checked:translate-x-5"></div>
-                </div>
-                <div>
-                  <span className="text-sm text-overlay1 group-hover:text-text transition-colors block">
-                    Inline Dependencies
-                  </span>
-                  <span className="text-4xs text-overlay0 uppercase font-mono tracking-tighter">
-                    BUNDLE node_modules into output
-                  </span>
-                </div>
+        <div className='p-6 flex flex-col gap-6 overflow-y-auto min-h-0'>
+          <div className='flex flex-col gap-4'>
+            <div className='flex flex-col gap-2'>
+              <label className='text-sm font-bold text-subtext0'>
+                TypeScript Version
               </label>
+              <select
+                disabled
+                className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none opacity-60 cursor-not-allowed'
+              >
+                <option>5.9.3 (Default)</option>
+              </select>
+              <span className='text-xs text-overlay0'>
+                Version switching is not yet supported.
+              </span>
             </div>
-          </section>
 
-          {/* TSConfig Editor */}
-          <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-mauve font-semibold">
-                <FileJson aria-hidden="true" size={18} />
-                <h3>Compiler Configuration</h3>
-              </div>
-              <Badge label="tsconfig.json" />
+            <div className='flex items-center justify-between'>
+              <label className='text-sm font-bold text-subtext0'>
+                Interpret ANSI Escapes
+              </label>
+              <input
+                type='checkbox'
+                checked={trueColorEnabled}
+                onChange={(e) => setTrueColorEnabled(e.target.checked)}
+                className='w-5 h-5 accent-mauve cursor-pointer'
+                data-testid='settings-ansi-toggle'
+              />
             </div>
-            <div className="h-64 border border-surface0 rounded-lg overflow-hidden bg-crust relative">
+
+            <div className='flex items-center justify-between'>
+              <label className='text-sm font-bold text-subtext0'>
+                Line Wrapping
+              </label>
+              <input
+                type='checkbox'
+                checked={lineWrap}
+                onChange={(e) => setLineWrap(e.target.checked)}
+                className='w-5 h-5 accent-mauve cursor-pointer'
+                data-testid='settings-wrap-toggle'
+              />
+            </div>
+          </div>
+
+          <div className='flex flex-col gap-2'>
+            <label className='text-sm font-bold text-subtext0'>
+              tsconfig.json
+            </label>
+            <div className='border border-surface1 rounded-md overflow-hidden bg-base focus-within:border-mauve transition-colors h-48 md:h-64 shrink-0'>
               <CodeEditor
-                language="json"
+                language='json'
                 value={temporaryTsConfig}
                 onChange={setTemporaryTsConfig}
-                fontSizeOverride={12}
                 hideGutter={false}
-                disableAutocomplete
-                themeMode={theme}
-                path="tsconfig.json"
+                hideTypeInfo={true}
+                fontSizeOverride={12}
+                disableAutocomplete={true}
+                disableDiagnostics={true}
+                disableShortcuts={true}
+                lineWrap={lineWrap}
               />
-              {configError && (
-                <div className="absolute bottom-0 inset-x-0 bg-red/10 border-t border-red/20 p-2 flex items-center gap-2 text-xxs text-red animate-in slide-in-from-bottom-2">
-                  <AlertCircle aria-hidden="true" size={12} className="shrink-0" />
-                  <span className="truncate">{configError}</span>
-                </div>
-              )}
             </div>
-          </section>
-
-          {/* Environment Info */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 text-mauve font-semibold">
-              <Layers aria-hidden="true" size={18} />
-              <h3>Environment</h3>
-            </div>
-            <div className="p-4 bg-crust border border-surface0 rounded-lg space-y-3">
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-overlay1">Runtime</span>
-                <span className="text-mauve flex items-center gap-1.5">
-                  <Box aria-hidden="true" size={12} /> WebContainer
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-overlay1">PM Status</span>
-                <span className={packageManagerStatus === 'idle' ? 'text-green' : 'text-yellow'}>
-                  {packageManagerStatus.toUpperCase()}
-                </span>
-              </div>
-            </div>
-          </section>
+            {errorMsg && (
+              <span
+                className={`text-xs whitespace-pre-wrap ${isValid ? 'text-yellow' : 'text-red'}`}
+              >
+                {errorMsg}
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-surface0 bg-mantle flex items-center justify-between shrink-0">
+        <div className='flex items-center justify-between gap-3 px-6 py-4 border-t border-surface0 bg-base shrink-0'>
           <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleReset}
-            className="text-overlay1 hover:text-red hover:bg-red/5"
+            onClick={() => setTemporaryTsConfig(DEFAULT_TSCONFIG)}
+            variant='danger'
+            className='text-red hover:bg-red/10'
           >
-            <RotateCcw aria-hidden="true" size={16} />
-            Reset Defaults
+            Reset to Default
           </Button>
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={onClose}>
+          <div className='flex gap-3'>
+            <Button
+              onClick={onClose}
+              variant='secondary'
+              data-testid='settings-cancel-button'
+            >
               Cancel
             </Button>
             <Button
               onClick={handleSave}
-              disabled={isSaving}
-              className="bg-mauve hover:bg-mauve/90 text-crust font-bold min-w-[100px]"
+              variant='primary'
+              disabled={!isValid || isFormatting}
+              data-testid='settings-save-button'
             >
-              {isSaving ? (
-                <div className="w-4 h-4 border-2 border-crust border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <>
-                  <Save aria-hidden="true" size={16} />
-                  Save Changes
-                </>
-              )}
+              {isFormatting ? 'Saving...' : 'Save Changes'}
             </Button>
           </div>
         </div>
 
-        {/* Credits */}
-        <div className="px-6 py-4 border-t border-surface0 bg-mantle flex flex-col items-center gap-2 relative overflow-hidden shrink-0">
-          <div className="absolute inset-0 opacity-5 bg-gradient-to-r from-mauve via-pink to-mauve animate-gradient-x pointer-events-none" />
-          <p className="text-xs text-overlay1 relative z-10">
-            Made with 💜 by <span className="font-bold text-mauve">simwai</span> feat. jules and
-            aider
+        <div className='px-6 py-4 border-t border-surface0 bg-mantle flex flex-col items-center gap-2 shrink-0'>
+          <p className='text-xs text-subtext0 text-center'>
+            Made with 💜 by
+            <br />
+            <span className='font-graffonti text-2xl bg-lit-gradient animate-lit-gradient leading-relaxed'>
+              simwai
+            </span>
           </p>
           <a
-            href="https://github.com/simwai/ts-play"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xxs text-mauve hover:underline relative z-10 opacity-70 transition-opacity hover:opacity-100"
+            href='https://github.com/simwai/ts-play'
+            target='_blank'
+            rel='noopener noreferrer'
+            className='text-xs text-mauve hover:underline'
           >
             GitHub Repository
           </a>

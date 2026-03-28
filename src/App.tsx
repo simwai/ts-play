@@ -1,296 +1,562 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
-import { CodeEditor, type CodeEditorHandle } from './components/CodeEditor'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { type ThemeMode } from './lib/theme'
+import { CodeEditor, type CodeEditorRef } from './components/CodeEditor'
 import { Console } from './components/Console'
+import { OverrideModal } from './components/Modal'
+import { PackageManager } from './components/PackageManager'
 import { Header } from './components/Header'
-import { SettingsModal } from './components/SettingsModal'
 import { StatusBar } from './components/StatusBar'
-import { type TypeInfo, TypeInfoBar } from './components/ui/TypeInfoBar'
-import { useCompilerManager } from './hooks/useCompilerManager'
-import { useConsoleManager } from './hooks/useConsoleManager'
-import { usePackageManager } from './hooks/usePackageManager'
-import { usePlaygroundStore } from './hooks/usePlaygroundStore'
+import { SettingsModal } from './components/SettingsModal'
+import { decodeSharePayload } from './lib/shareCodec'
+import { useVirtualKeyboard } from './hooks/useVirtualKeyboard'
+import { formatAllFiles } from './lib/formatter'
+import { workerClient } from './lib/workerClient'
+import { getWebContainer } from './lib/webcontainer'
+import { useLocalStorage } from './hooks/useLocalStorage'
 import { useResizePanel } from './hooks/useResizePanel'
 import { useSwipeTabs } from './hooks/useSwipeTabs'
-import { useVirtualKeyboard } from './hooks/useVirtualKeyboard'
-import { useWebContainer } from './hooks/useWebContainer'
-import { shareSnippet } from './lib/api'
-import { DEFAULT_TSCONFIG, TABS, type TabType } from './lib/constants'
-import { formatAllFiles } from './lib/formatter'
-import { playgroundStore } from './lib/state-manager'
-import { isDarkMode } from './lib/theme'
+import { shareSnippet, loadSharedSnippet } from './lib/api'
+import { useConsoleManager } from './hooks/useConsoleManager'
+import { useCompilerManager } from './hooks/useCompilerManager'
+import { usePackageManager } from './hooks/usePackageManager'
+import { TABS, type TabType, DEFAULT_TSCONFIG } from './lib/constants'
 
 const DEFAULT_TS = `// TypeScript Playground
-// Powered by Node.js, Biome and WebContainers! ✨
-
-import { map } from 'lodash-es';
+// Long-press any word on mobile to see type info ✨
 
 interface User {
   name: string;
   age: number;
+  email?: string;
 }
 
+/**
+ * Greets a user with a personalised message.
+ * @param user The user to greet
+ */
 function greet(user: User): string {
-  return \`Hello, \${user.name}!\`;
+  return \`Hello, \${user.name}! You are \${user.age} years old.\`;
 }
 
-console.log(greet({ name: "Alice", age: 30 }));
-console.log("Mapped:", map([1, 2, 3], x => x * 2));
+const alice: User = {
+  name: "Alice",
+  age: 30,
+  email: "alice@example.com",
+};
+
+const message = greet(alice);
+console.log(message);
+
+// Generics
+function identity<T>(value: T): T {
+  return value;
+}
+
+const result = identity<number>(42);
+console.log("Identity:", result);
+
+// Async / await
+async function fetchData(url: string): Promise<string> {
+  const response = await fetch(url);
+  return response.text();
+}
+
+console.log("Type:", typeof fetchData);
 `
 
 export function App() {
-  const {
-    theme,
-    lineWrap,
-    stripAnsi,
-    isReady,
-    tscStatus,
-    esbuildStatus,
-    lifecycle,
-    packageManagerStatus,
-  } = usePlaygroundStore()
+  const [themeMode, setThemeMode] = useState<ThemeMode>('mocha')
 
-  const [tsCode, setTsCode] = useState(DEFAULT_TS)
-  const [jsCode, setJsCode] = useState('')
-  const [dtsCode, setDtsCode] = useState('')
-  const [activeTab, setActiveTab] = useState<TabType>('ts')
-  const [tsConfigString, setTsConfigString] = useState(
-    () => localStorage.getItem('tsplay_tsconfig') || DEFAULT_TSCONFIG,
-  )
-
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [isSharing, setIsSharing] = useState(false)
-  const [isFormatting, setFormatting] = useState(false)
-  const [formatSuccess, setFormatSuccess] = useState(false)
-  const [shareSuccess, setShareSuccess] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const [jsDirty, setJsDirty] = useState(false)
-  const [typeInfo, setTypeInfo] = useState<TypeInfo | null>(null)
-  const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 })
-  const [pmOpen, setPmOpen] = useState(false)
-
-  const editorRef = useRef<CodeEditorHandle>(null)
-
-  const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } = useConsoleManager()
-
-  const handleArtifactsChange = useCallback(
-    (js: string, dts: string) => {
-      // If JS is dirty, we don't overwrite it with auto-emitted code
-      if (js) {
-        setJsCode((prev) => (jsDirty ? prev : js))
-      }
-      if (dts) setDtsCode(dts)
-    },
-    [jsDirty],
-  )
-
-  const { externalTypings } = useWebContainer(
-    tsConfigString,
-    tsCode,
-    addMessage,
-    handleArtifactsChange,
-  )
-
-  const { tsCursorPos, installedPackages } = usePackageManager(tsCode, addMessage)
-
-  const statusText = useMemo(() => {
-    const parts = []
-    if (tscStatus === 'Running' || tscStatus === 'Compiling') parts.push('TS...')
-    else if (tscStatus === 'Ready') parts.push('TS Ready')
-    else if (tscStatus === 'Preparing') parts.push('TS Prep')
-    else if (tscStatus === 'Error') parts.push('TS Error')
-
-    if (esbuildStatus === 'Running' || esbuildStatus === 'Compiling') parts.push('JS...')
-    else if (esbuildStatus === 'Ready') parts.push('JS Ready')
-    else if (esbuildStatus === 'Preparing') parts.push('JS Prep')
-    else if (esbuildStatus === 'Error') parts.push('JS Error')
-
-    return parts.join(' | ') || 'Idle'
-  }, [tscStatus, esbuildStatus])
-
-  const { runCode, stopCode, isRunning } = useCompilerManager()
-
-  const handleRun = useCallback(async () => {
-    if (jsDirty) {
-      if (
-        !confirm(
-          'The JavaScript code has been modified. Running will overwrite your changes with the latest compiled code. Continue?',
-        )
-      ) {
-        return
-      }
-      setJsDirty(false)
+  // Toggle dark mode class on HTML element
+  useEffect(() => {
+    if (themeMode === 'mocha') {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
     }
-    runCode()
-  }, [jsDirty, runCode])
+  }, [themeMode])
+
+  // Initialize state from localStorage or fallback to defaults
+  const [tsCode, setTsCode] = useLocalStorage('tsplay_ts', DEFAULT_TS)
+  const [jsCode, setJsCode] = useLocalStorage(
+    'tsplay_js',
+    '// Press Run to compile TypeScript →'
+  )
+  const [dtsCode, setDtsCode] = useLocalStorage(
+    'tsplay_dts',
+    '// .d.ts declarations will appear here'
+  )
+  const [tsConfigString, setTsConfigString] = useLocalStorage(
+    'tsplay_tsconfig',
+    DEFAULT_TSCONFIG
+  )
+  const [trueColorEnabled, setTrueColorEnabled] = useLocalStorage(
+    'tsplay_truecolor',
+    true
+  )
+  const [lineWrap, setLineWrap] = useLocalStorage('tsplay_linewrap', true)
+
+  const [activeTab, setActiveTab] = useState<TabType>('ts')
+
+  // Editor Refs for Undo/Redo
+  const tsEditorRef = useRef<CodeEditorRef>(null)
+  const jsEditorRef = useRef<CodeEditorRef>(null)
+  const dtsEditorRef = useRef<CodeEditorRef>(null)
+
+  // Send tsconfig to worker whenever it changes
+  useEffect(() => {
+    workerClient.updateConfig(tsConfigString).catch(console.error)
+  }, [tsConfigString])
+
+  const [jsDirty, setJsDirty] = useState(false)
+  const [showModal, setShowModal] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+
+  const [packageManagerOpen, setPackageManagerOpen] = useState(false)
+  const { keyboardOpen, keyboardHeight, isMobileLike } = useVirtualKeyboard()
+  const compactForKeyboard = keyboardOpen && isMobileLike
+
+  const { panelHeight, isResizing, handleResizeStart } = useResizePanel()
+  const { swipeRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeTabs(
+    activeTab,
+    setActiveTab,
+    TABS,
+    compactForKeyboard
+  )
+
+  const [copied, setCopied] = useState(false)
+  const [sharing, setSharing] = useState(false)
+  const [shareSuccess, setShareSuccess] = useState(false)
+  const [formatting, setFormatting] = useState(false)
+  const [formatSuccess, setFormatSuccess] = useState(false)
+
+  // Custom Hooks
+  const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } =
+    useConsoleManager()
+  const { compilerStatus, isRunning, runCode, stopCode } = useCompilerManager(
+    tsCode,
+    addMessage
+  )
+  const {
+    installedPackages,
+    packageTypings,
+    tsCursorPos,
+    checkImports,
+    installQueue,
+    status,
+  } = usePackageManager(tsCode, addMessage)
+
+  // Global Keyboard Shortcuts (Tab Switching)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isInput =
+        document.activeElement?.tagName === 'TEXTAREA' ||
+        document.activeElement?.tagName === 'INPUT'
+
+      // Switch tabs with ArrowLeft/ArrowRight.
+      // If focused in an editor, require Alt key to prevent breaking text navigation.
+      if (
+        (e.key === 'ArrowLeft' || e.key === 'ArrowRight') &&
+        (!isInput || e.altKey)
+      ) {
+        e.preventDefault()
+        setActiveTab((previous) => {
+          const idx = TABS.indexOf(previous)
+          if (e.key === 'ArrowLeft') {
+            return TABS[(idx - 1 + TABS.length) % TABS.length]
+          }
+
+          return TABS[(idx + 1) % TABS.length]
+        })
+      }
+    }
+
+    globalThis.addEventListener('keydown', handleKeyDown)
+    return () => {
+      globalThis.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
+
+  // Initialize base package.json for WebContainer
+  useEffect(() => {
+    getWebContainer().then(async (instance) => {
+      try {
+        await instance.fs.readFile('package.json', 'utf8')
+      } catch {
+        await instance.fs.writeFile(
+          'package.json',
+          JSON.stringify({ name: 'playground', type: 'module' }, null, 2)
+        )
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    const parameters = new URLSearchParams(globalThis.location.search)
+    const embedded =
+      parameters.get('code') || globalThis.location.hash.replace(/^#code=/, '')
+    if (embedded) {
+      decodeSharePayload(embedded)
+        .then((payload) => {
+          setTsCode(payload.tsCode || '')
+          setJsCode(payload.jsCode || '')
+          addMessage('info', [
+            'Loaded embedded share link (client-side, no server storage).',
+          ])
+        })
+        .catch((error) => {
+          addMessage('error', [
+            `Failed to load embedded share link: ${error.message}`,
+          ])
+        })
+      return
+    }
+
+    const shareId = parameters.get('share')
+    if (shareId) {
+      loadSharedSnippet(shareId)
+        .then((data) => {
+          if (data.success) {
+            setTsCode(data.tsCode)
+            if (data.jsCode) setJsCode(data.jsCode)
+            addMessage('info', [
+              `✓ Loaded shared snippet (${data.remainingDays} days remaining)`,
+            ])
+            const url = new URL(globalThis.location.href)
+            url.searchParams.delete('share')
+            globalThis.history.replaceState({}, '', url.toString())
+            return
+          }
+
+          addMessage('error', [`Failed to load shared snippet: ${data.error}`])
+        })
+        .catch((error) => {
+          addMessage('error', [
+            `Failed to load shared snippet: ${error.message}`,
+          ])
+        })
+    }
+  }, [addMessage, setTsCode, setJsCode])
 
   const handleCopyAll = useCallback(() => {
-    const code = activeTab === 'ts' ? tsCode : activeTab === 'js' ? jsCode : dtsCode
-    navigator.clipboard.writeText(code).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    })
+    const code =
+      activeTab === 'ts' ? tsCode : activeTab === 'js' ? jsCode : dtsCode
+    navigator.clipboard
+      .writeText(code)
+      .then(() => {
+        setCopied(true)
+        setTimeout(() => {
+          setCopied(false)
+        }, 1500)
+      })
+      .catch(() => {
+        const ta = document.createElement('textarea')
+        ta.value = code
+        document.body.append(ta)
+        ta.select()
+        document.execCommand('copy')
+        ta.remove()
+        setCopied(true)
+        setTimeout(() => {
+          setCopied(false)
+        }, 1500)
+      })
   }, [activeTab, tsCode, jsCode, dtsCode])
 
   const handleDeleteAll = useCallback(() => {
-    if (activeTab === 'ts') setTsCode('')
-    else if (activeTab === 'js') {
+    if (activeTab === 'ts') {
+      setTsCode('')
+    } else if (activeTab === 'js') {
       setJsCode('')
       setJsDirty(false)
-    } else setDtsCode('')
-  }, [activeTab])
+    } else {
+      setDtsCode('')
+    }
+  }, [activeTab, setTsCode, setJsCode, setDtsCode])
 
   const handleFormat = useCallback(async () => {
     setFormatting(true)
     try {
-      const fTs = await formatAllFiles(tsCode, '', '')
-      setTsCode(fTs.tsCode)
-      setFormatSuccess(true)
-      setTimeout(() => setFormatSuccess(false), 1500)
-    } catch (err) {
-      addMessage('error', [`Format failed: ${(err as Error).message}`])
+      const {
+        tsCode: fTs,
+        jsCode: fJs,
+        dtsCode: fDts,
+        errors,
+      } = await formatAllFiles(tsCode, jsCode, dtsCode)
+      setTsCode(fTs)
+      setJsCode(fJs)
+      setDtsCode(fDts)
+      if (errors.length > 0) {
+        addMessage('warn', [`Format had issues: ${errors.join(', ')}`])
+      } else {
+        setFormatSuccess(true)
+        addMessage('info', ['✓ All files formatted with Prettier'])
+        setTimeout(() => {
+          setFormatSuccess(false)
+        }, 1500)
+      }
+    } catch (error) {
+      addMessage('error', [`Format failed: ${(error as Error).message}`])
     } finally {
       setFormatting(false)
     }
-  }, [tsCode])
+  }, [tsCode, jsCode, dtsCode, addMessage, setTsCode, setJsCode, setDtsCode])
+
+  const handleJsChange = useCallback(
+    (v: string) => {
+      setJsCode(v)
+      setJsDirty(true)
+    },
+    [setJsCode]
+  )
+
+  const doRun = useCallback(
+    async (skipDirtyCheck = false) => {
+      if (!skipDirtyCheck && jsDirty) {
+        setShowModal(true)
+        return
+      }
+
+      setShowModal(false)
+      clearMessages()
+
+      runCode(
+        installQueue.current,
+        (js, dts) => {
+          setJsCode(js)
+          setDtsCode(dts)
+          setJsDirty(false)
+        },
+        (error) => {
+          addMessage('error', [`Compilation error: ${error.message}`])
+        }
+      )
+    },
+    [
+      jsDirty,
+      runCode,
+      clearMessages,
+      addMessage,
+      setJsCode,
+      setDtsCode,
+      installQueue,
+    ]
+  )
 
   const handleShare = useCallback(async () => {
-    setIsSharing(true)
+    setSharing(true)
     try {
-      const url = await shareSnippet(tsCode, tsConfigString)
-      await navigator.clipboard.writeText(url)
-      addMessage('info', ['Share URL copied to clipboard!'])
-      setShareSuccess(true)
-      setTimeout(() => setShareSuccess(false), 1500)
-    } catch (err) {
-      addMessage('error', ['Failed to share snippet: ' + (err as Error).message])
+      const result = await shareSnippet({
+        tsCode,
+        jsCode,
+        packages: installedPackages,
+      })
+
+      if (result.type === 'server') {
+        const url = new URL(globalThis.location.href)
+        url.searchParams.set('share', result.id)
+        url.searchParams.delete('code')
+        url.hash = ''
+        await navigator.clipboard.writeText(url.toString())
+        setShareSuccess(true)
+        addMessage('info', [
+          `✓ Share link copied! Expires in ${result.ttlDays} days`,
+        ])
+      } else {
+        const url = new URL(globalThis.location.href)
+        url.searchParams.delete('share')
+        url.searchParams.delete('code')
+        url.hash = `code=${result.token}`
+        await navigator.clipboard.writeText(url.toString())
+        setShareSuccess(true)
+        addMessage('warn', [
+          `PHP share unavailable: ${result.error?.message}`,
+          'Copied embedded compressed link instead. It is stored in the URL itself and has no 7-day TTL.',
+        ])
+      }
+
+      setTimeout(() => {
+        setShareSuccess(false)
+      }, 2000)
+    } catch (error) {
+      addMessage('error', [`Failed to share: ${(error as Error).message}`])
     } finally {
-      setIsSharing(false)
+      setSharing(false)
     }
-  }, [tsCode, tsConfigString, addMessage])
+  }, [tsCode, jsCode, installedPackages, addMessage])
 
-  const handleSaveTsConfig = (val: string) => {
-    setTsConfigString(val)
-    localStorage.setItem('tsplay_tsconfig', val)
-  }
+  const handleUndo = useCallback(() => {
+    if (activeTab === 'ts') tsEditorRef.current?.undo()
+    else if (activeTab === 'js') jsEditorRef.current?.undo()
+    else if (activeTab === 'dts') dtsEditorRef.current?.undo()
+  }, [activeTab])
 
-  const swipeHandlers = useSwipeTabs(TABS, activeTab, (tab) => setActiveTab(tab as TabType))
-  const { compactForKeyboard, isMobileLike } = useVirtualKeyboard()
-  const { panelHeight, isResizing, handleResizeStart } = useResizePanel(11.25)
+  const handleRedo = useCallback(() => {
+    if (activeTab === 'ts') tsEditorRef.current?.redo()
+    else if (activeTab === 'js') jsEditorRef.current?.redo()
+    else if (activeTab === 'dts') dtsEditorRef.current?.redo()
+  }, [activeTab])
+
+  const onTsCursorChange = useCallback(
+    (pos: number) => {
+      tsCursorPos.current = pos
+      checkImports()
+    },
+    [checkImports]
+  )
 
   return (
-    <div
-      className={`h-[100dvh] flex flex-col bg-crust text-text transition-all duration-300 ${isDarkMode(theme) ? 'dark' : ''} theme-${theme}`}
-    >
+    <div className='flex flex-col h-[100dvh] bg-base text-text font-sans overflow-hidden'>
       <Header
-        handleShare={handleShare}
-        handleFormat={handleFormat}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        themeMode={themeMode}
+        setThemeMode={setThemeMode}
         handleCopyAll={handleCopyAll}
         copied={copied}
         handleDeleteAll={handleDeleteAll}
-        doRun={handleRun}
-        stopCode={stopCode}
-        sharing={isSharing}
-        formatting={isFormatting}
-        isRunning={isRunning}
-        activeTab={activeTab}
-        setActiveTab={(t) => setActiveTab(t as TabType)}
-        themeMode={theme}
-        setThemeMode={(t) => {
-          const nextTheme = typeof t === 'function' ? t(theme) : t
-          playgroundStore.setState({ theme: nextTheme })
-        }}
-        compilerStatus={
-          isReady
-            ? 'ready'
-            : lifecycle === 'error' || tscStatus === 'Error' || esbuildStatus === 'Error'
-              ? 'error'
-              : 'loading'
-        }
+        handleFormat={handleFormat}
+        formatting={formatting}
         formatSuccess={formatSuccess}
+        doRun={doRun}
+        isRunning={isRunning}
+        compilerStatus={compilerStatus}
+        handleShare={handleShare}
+        sharing={sharing}
         shareSuccess={shareSuccess}
+        stopCode={stopCode}
       />
 
       <StatusBar
-        statusText={statusText}
+        compilerStatus={compilerStatus}
         activeTab={activeTab}
         jsDirty={jsDirty}
-        handleUndo={() => editorRef.current?.undo()}
-        handleRedo={() => editorRef.current?.redo()}
-        onOpenSettings={() => setIsSettingsOpen(true)}
+        handleUndo={handleUndo}
+        handleRedo={handleRedo}
+        onOpenSettings={() => {
+          setShowSettings(true)
+        }}
         compactForKeyboard={compactForKeyboard}
-        packageManagerStatus={packageManagerStatus}
+        lineWrap={lineWrap}
+        setLineWrap={setLineWrap}
+        packageManagerStatus={status}
       />
 
-      <main className="flex-1 flex flex-col overflow-hidden relative border-t border-surface0/50">
-        <div className="flex-1 overflow-hidden">
-          <CodeEditor
-            ref={editorRef}
-            language={
-              activeTab === 'ts' ? 'typescript' : activeTab === 'js' ? 'javascript' : 'typescript'
-            }
-            value={activeTab === 'ts' ? tsCode : activeTab === 'js' ? jsCode : dtsCode}
-            onChange={(val) => {
-              if (activeTab === 'ts') setTsCode(val)
-              else if (activeTab === 'js') {
-                setJsCode(val)
-                setJsDirty(true)
-              } else setDtsCode(val)
-            }}
-            onCursorChange={(offset) => {
-              if (activeTab === 'ts') tsCursorPos.current = offset
-            }}
-            onTypeInfoChange={setTypeInfo}
-            onCursorPosChange={setCursorPos}
-            path={activeTab === 'ts' ? 'index.ts' : activeTab === 'js' ? 'index.js' : 'index.d.ts'}
-            lineWrap={lineWrap}
-            themeMode={theme}
-            readOnly={activeTab === 'dts'}
-            extraLibs={externalTypings}
-            isMobileLike={isMobileLike}
-          />
-        </div>
-
-        {/* Type Info Bar */}
-        <div className="relative flex flex-col shrink-0">
-          <TypeInfoBar
-            typeInfo={typeInfo}
-            language={activeTab === 'ts' ? 'typescript' : 'javascript'}
-            themeMode={theme}
-          />
-          <div className="absolute right-4 top-1.5 text-xxs font-mono text-overlay1 opacity-50 pointer-events-none">
-            Ln {cursorPos.line}, Col {cursorPos.col}
+      {/* ── Editors ── */}
+      <div
+        ref={swipeRef}
+        className='flex-1 overflow-hidden relative min-h-0'
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        {/* Slider track */}
+        <div
+          className='flex w-[300%] h-full transition-transform duration-300 ease-in-out will-change-transform'
+          style={{
+            transform:
+              activeTab === 'ts'
+                ? 'translateX(0)'
+                : activeTab === 'js'
+                  ? 'translateX(-33.333%)'
+                  : 'translateX(-66.666%)',
+          }}
+        >
+          {/* TS Editor */}
+          <div className='w-[33.333%] h-full shrink-0'>
+            <CodeEditor
+              ref={tsEditorRef}
+              value={tsCode}
+              onChange={setTsCode}
+              onCursorChange={onTsCursorChange}
+              language='typescript'
+              extraLibs={packageTypings}
+              isMobileLike={isMobileLike}
+            />
+          </div>
+          {/* JS Editor */}
+          <div className='w-[33.333%] h-full shrink-0'>
+            <CodeEditor
+              ref={jsEditorRef}
+              value={jsCode}
+              onChange={handleJsChange}
+              language='javascript'
+              isMobileLike={isMobileLike}
+            />
+          </div>
+          {/* DTS Editor */}
+          <div className='w-[33.333%] h-full shrink-0'>
+            <CodeEditor
+              ref={dtsEditorRef}
+              value={dtsCode}
+              onChange={setDtsCode}
+              language='typescript'
+              readOnly={true}
+              isMobileLike={isMobileLike}
+            />
           </div>
         </div>
+      </div>
 
-        {/* Resizer */}
+      {/* ── Resize Divider ── */}
+      {!compactForKeyboard && (consoleOpen || packageManagerOpen) && (
         <div
           onMouseDown={handleResizeStart}
           onTouchStart={handleResizeStart}
-          className="h-1.5 w-full bg-surface0/30 hover:bg-mauve/40 cursor-ns-resize transition-colors duration-200 z-50 flex items-center justify-center relative"
+          className={`h-2 border-b border-surface1 cursor-ns-resize flex items-center justify-center shrink-0 transition-colors duration-160 relative ${isResizing ? 'bg-peach' : 'bg-surface0'}`}
+          title='Drag to resize'
         >
-          <div className="w-8 h-0.5 bg-overlay0/20 rounded-full" />
+          <div className='w-10 h-1 bg-overlay0 rounded-sm opacity-50' />
         </div>
+      )}
 
-        <div
-          style={{ height: `${panelHeight}rem` }}
-          className="flex flex-col bg-mantle overflow-hidden"
-        >
+      {/* ── Console & Package Manager Section ── */}
+      {!compactForKeyboard && (
+        <div className='overflow-hidden flex flex-col shrink-0 bg-base'>
+          {/* ── Console ── */}
           <Console
             messages={messages}
             onClear={clearMessages}
             isOpen={consoleOpen}
             onToggle={toggleConsole}
             contentHeight={panelHeight}
-            stripAnsiEnabled={stripAnsi}
+            trueColorEnabled={trueColorEnabled}
+          />
+
+          {/* ── Package Manager ── */}
+          <PackageManager
+            packages={installedPackages}
+            isOpen={packageManagerOpen}
+            onToggle={() => {
+              setPackageManagerOpen((o) => !o)
+            }}
+            contentHeight={panelHeight}
           />
         </div>
-      </main>
+      )}
+
+      {/* ── Override modal ── */}
+      {showModal && (
+        <OverrideModal
+          onConfirm={async () => doRun(true)}
+          onCancel={() => {
+            setShowModal(false)
+          }}
+        />
+      )}
 
       <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
+        isOpen={showSettings}
+        onClose={() => {
+          setShowSettings(false)
+        }}
         tsConfigString={tsConfigString}
-        onSave={handleSaveTsConfig}
+        onSave={setTsConfigString}
+        trueColorEnabled={trueColorEnabled}
+        setTrueColorEnabled={setTrueColorEnabled}
+        lineWrap={lineWrap}
+        setLineWrap={setLineWrap}
+        packageManagerStatus={status}
       />
     </div>
   )

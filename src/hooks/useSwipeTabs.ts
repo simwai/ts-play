@@ -1,7 +1,7 @@
-import { useCallback, useRef } from 'react'
+import { useRef, useCallback } from 'react'
 
 function isEditorTarget(target: EventTarget | undefined | null) {
-  if (!(target instanceof Element)) return false
+  if (!(target instanceof HTMLElement)) return false
   return Boolean(target.closest('[data-testid="code-editor-container"]'))
 }
 
@@ -9,7 +9,7 @@ export function useSwipeTabs<T extends string>(
   activeTab: T,
   setActiveTab: (tab: T) => void,
   tabs: readonly T[],
-  disabled: boolean,
+  disabled: boolean
 ) {
   const swipeRef = useRef<HTMLDivElement>(null)
   const touchStartX = useRef(0)
@@ -24,7 +24,7 @@ export function useSwipeTabs<T extends string>(
       touchStartY.current = e.touches[0].clientY
       swiping.current = false
     },
-    [disabled],
+    [disabled]
   )
 
   const onTouchMove = useCallback(
@@ -39,7 +39,7 @@ export function useSwipeTabs<T extends string>(
 
       if (swiping.current) e.preventDefault()
     },
-    [disabled],
+    [disabled]
   )
 
   const onTouchEnd = useCallback(
@@ -64,7 +64,7 @@ export function useSwipeTabs<T extends string>(
 
       swiping.current = false
     },
-    [activeTab, disabled, setActiveTab, tabs],
+    [activeTab, disabled, setActiveTab, tabs]
   )
 
   return { swipeRef, onTouchStart, onTouchMove, onTouchEnd }

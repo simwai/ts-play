@@ -1,9 +1,9 @@
-import { Eraser } from 'lucide-react'
 import React, { useRef, useEffect, useMemo } from 'react'
-import { RegexPatterns } from '../lib/regex'
+import { Eraser } from 'lucide-react'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
 import { PanelHeader } from './ui/PanelHeader'
+import Ansi from 'ansi-to-html'
 
 export type ConsoleMessage = {
   type: 'log' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'dir'
@@ -16,11 +16,13 @@ type Props = {
   onClear: () => void
   isOpen: boolean
   onToggle: () => void
-  contentHeight: number
-  stripAnsiEnabled?: boolean
+  contentHeight: number // Now in rem
+  trueColorEnabled?: boolean
 }
 
-function typeVariant(type: ConsoleMessage['type']): 'error' | 'warn' | 'info' | 'default' {
+function typeVariant(
+  type: ConsoleMessage['type']
+): 'error' | 'warn' | 'info' | 'default' {
   if (type === 'error') return 'error'
   if (type === 'warn' || type === 'trace') return 'warn'
   if (type === 'info' || type === 'debug' || type === 'dir') return 'info'
@@ -44,51 +46,63 @@ function typeColorClass(type: ConsoleMessage['type']): string {
   return 'text-text'
 }
 
-// Uncle Bob: Clear, focused utility for stripping ANSI sequences
-function stripAnsi(text: string): string {
-  const ansiRegex = RegexPatterns.ANSI_ESCAPE
-  return text.replace(ansiRegex, '')
-}
-
 export const Console = React.memo(function Console({
   messages,
   onClear,
   isOpen,
   onToggle,
   contentHeight,
-  stripAnsiEnabled = false,
+  trueColorEnabled = true,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (isOpen) {
-      requestAnimationFrame(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'auto' })
-      })
-    }
-  }, [messages.length, isOpen])
+  // Create Ansi converter with truecolor support if enabled
+  const ansiConvert = useMemo(
+    () =>
+      new Ansi({
+        newline: false,
+        escapeHtml: true,
+        stream: false,
+        colors: trueColorEnabled
+          ? undefined
+          : {
+              // Standard 16 colors fallback if needed
+            },
+      }),
+    [trueColorEnabled]
+  )
 
-  const stats = useMemo(() => {
-    let err = 0
-    let wrn = 0
-    for (const m of messages) {
-      if (m.type === 'error') err++
-      if (m.type === 'warn') wrn++
-    }
-    return { err, wrn }
-  }, [messages])
+  useEffect(() => {
+    if (isOpen) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, isOpen])
+
+  const errors = messages.filter((m) => m.type === 'error').length
+  const warns = messages.filter((m) => m.type === 'warn').length
 
   return (
-    <div className="flex flex-col h-full bg-mantle shrink-0" data-testid="console-container">
+    <div
+      className='flex flex-col border-t border-surface0 bg-mantle shrink-0'
+      data-testid='console-container'
+    >
       <PanelHeader
-        label="Console"
+        label='Console'
         isOpen={isOpen}
         onToggle={onToggle}
         left={
           <>
             {messages.length > 0 && <Badge label={String(messages.length)} />}
-            {stats.err > 0 && <Badge label={`${stats.err} err`} variant="error" />}
-            {stats.warn > 0 && <Badge label={`${stats.warn} warn`} variant="warn" />}
+            {errors > 0 && (
+              <Badge
+                label={`${errors} err`}
+                variant='error'
+              />
+            )}
+            {warns > 0 && (
+              <Badge
+                label={`${warns} warn`}
+                variant='warn'
+              />
+            )}
           </>
         }
         right={
@@ -98,10 +112,11 @@ export const Console = React.memo(function Console({
                 e.stopPropagation()
                 onClear()
               }}
-              variant="secondary"
-              size="xs"
-              title="Clear console"
-              data-testid="console-clear-button"
+              variant='secondary'
+              size='xs'
+              title='Clear console'
+              data-testid='console-clear-button'
+              tooltipAlign='right'
             >
               <Eraser size={12} />
               Clear
@@ -112,42 +127,55 @@ export const Console = React.memo(function Console({
 
       {isOpen && (
         <div
-          className="overflow-y-auto overflow-x-hidden border-t border-surface0 flex-1"
+          className='overflow-y-auto overflow-x-hidden border-t border-surface0'
           style={{ height: `${contentHeight}rem` }}
         >
           {messages.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-overlay0 text-xxs md:text-xs italic font-mono">
+            <div className='flex items-center justify-center h-full text-overlay0 text-xxs md:text-xs italic font-mono'>
               No output yet — press Run to execute
             </div>
           ) : (
             messages.map((m, idx) => {
-              if (!m || !m.args) return null
-              let fullText = m.args.join(' ')
-              if (stripAnsiEnabled) {
-                fullText = stripAnsi(fullText)
-              }
+              const fullText = m.args.join(' ')
+              const hasAnsi =
+                trueColorEnabled && /[\u001b\u009b]/.test(fullText)
 
               return (
                 <div
                   key={`${m.ts}-${idx}`}
-                  data-testid="console-line"
-                  className={`flex items-start gap-3 px-4 py-1.5 border-b border-surface0/20 ${m.type === 'error' ? 'bg-red/5' : m.type === 'warn' ? 'bg-yellow/5' : ''}`}
+                  data-testid='console-message'
+                  className={`flex items-start gap-2.5 px-3 py-1.5 border-b border-surface0/40 ${
+                    m.type === 'error'
+                      ? 'bg-red/5'
+                      : m.type === 'warn'
+                        ? 'bg-yellow/5'
+                        : 'bg-transparent'
+                  }`}
                 >
                   <Badge
                     label={typeLabel(m.type)}
                     variant={typeVariant(m.type)}
-                    className="mt-0.5"
+                    className='mt-0.5'
                   />
-                  <pre
-                    className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}
-                  >
-                    {fullText}
-                  </pre>
+                  {hasAnsi ? (
+                    <div
+                      className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono`}
+                      dangerouslySetInnerHTML={{
+                        __html: ansiConvert.toHtml(fullText),
+                      }}
+                    />
+                  ) : (
+                    <pre
+                      className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}
+                    >
+                      {fullText}
+                    </pre>
+                  )}
                 </div>
               )
             })
           )}
-          <div ref={bottomRef} className="h-4 w-full" />
+          <div ref={bottomRef} />
         </div>
       )}
     </div>

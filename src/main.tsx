@@ -6,5 +6,5 @@ import { App } from './App'
 createRoot(document.querySelector('#root')!).render(
   <StrictMode>
     <App />
-  </StrictMode>,
+  </StrictMode>
 )
