@@ -20,6 +20,9 @@ import { useConsoleManager } from './hooks/useConsoleManager'
 import { useCompilerManager } from './hooks/useCompilerManager'
 import { usePackageManager } from './hooks/usePackageManager'
 import { TABS, type TabType, DEFAULT_TSCONFIG } from './lib/constants'
+import { playgroundStore } from './lib/state-manager'
+import { ToastContainer } from './components/ui/Toast'
+import type { ToastMessage } from './lib/types'
 
 const DEFAULT_TS = `// TypeScript Playground
 // Long-press any word on mobile to see type info ✨
@@ -66,6 +69,14 @@ console.log("Type:", typeof fetchData);
 
 export function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('mocha')
+  const [toasts, setToasts] = useState<ToastMessage[]>([])
+
+  // Sync toasts from store
+  useEffect(() => {
+    return playgroundStore.subscribe((state) => {
+      setToasts(state.toasts)
+    })
+  }, [])
 
   // Toggle dark mode class on HTML element
   useEffect(() => {
@@ -200,14 +211,10 @@ export function App() {
         .then((payload) => {
           setTsCode(payload.tsCode || '')
           setJsCode(payload.jsCode || '')
-          addMessage('info', [
-            'Loaded embedded share link (client-side, no server storage).',
-          ])
+          playgroundStore.addToast('info', 'Loaded embedded share link.')
         })
         .catch((error) => {
-          addMessage('error', [
-            `Failed to load embedded share link: ${error.message}`,
-          ])
+          playgroundStore.addToast('error', `Failed to load embedded link: ${error.message}`)
         })
       return
     }
@@ -219,24 +226,19 @@ export function App() {
           if (data.success) {
             setTsCode(data.tsCode)
             if (data.jsCode) setJsCode(data.jsCode)
-            addMessage('info', [
-              `✓ Loaded shared snippet (${data.remainingDays} days remaining)`,
-            ])
+            playgroundStore.addToast('success', `Loaded shared snippet (${data.remainingDays} days left)`)
             const url = new URL(globalThis.location.href)
             url.searchParams.delete('share')
             globalThis.history.replaceState({}, '', url.toString())
             return
           }
-
-          addMessage('error', [`Failed to load shared snippet: ${data.error}`])
+          playgroundStore.addToast('error', `Failed to load shared snippet: ${data.error}`)
         })
         .catch((error) => {
-          addMessage('error', [
-            `Failed to load shared snippet: ${error.message}`,
-          ])
+          playgroundStore.addToast('error', `Failed to load shared snippet: ${error.message}`)
         })
     }
-  }, [addMessage, setTsCode, setJsCode])
+  }, [setTsCode, setJsCode])
 
   const handleCopyAll = useCallback(() => {
     const code =
@@ -245,6 +247,7 @@ export function App() {
       .writeText(code)
       .then(() => {
         setCopied(true)
+        playgroundStore.addToast('info', 'Copied to clipboard')
         setTimeout(() => {
           setCopied(false)
         }, 1500)
@@ -257,6 +260,7 @@ export function App() {
         document.execCommand('copy')
         ta.remove()
         setCopied(true)
+        playgroundStore.addToast('info', 'Copied to clipboard')
         setTimeout(() => {
           setCopied(false)
         }, 1500)
@@ -272,35 +276,38 @@ export function App() {
     } else {
       setDtsCode('')
     }
+    playgroundStore.addToast('info', 'Cleared current editor')
   }, [activeTab, setTsCode, setJsCode, setDtsCode])
 
   const handleFormat = useCallback(async () => {
     setFormatting(true)
-    try {
-      const {
-        tsCode: fTs,
-        jsCode: fJs,
-        dtsCode: fDts,
-        errors,
-      } = await formatAllFiles(tsCode, jsCode, dtsCode)
-      setTsCode(fTs)
-      setJsCode(fJs)
-      setDtsCode(fDts)
-      if (errors.length > 0) {
-        addMessage('warn', [`Format had issues: ${errors.join(', ')}`])
-      } else {
-        setFormatSuccess(true)
-        addMessage('info', ['✓ All files formatted with Prettier'])
-        setTimeout(() => {
-          setFormatSuccess(false)
-        }, 1500)
+    playgroundStore.enqueue('Format', async () => {
+      try {
+        const {
+          tsCode: fTs,
+          jsCode: fJs,
+          dtsCode: fDts,
+          errors,
+        } = await formatAllFiles(tsCode, jsCode, dtsCode)
+        setTsCode(fTs)
+        setJsCode(fJs)
+        setDtsCode(fDts)
+        if (errors.length > 0) {
+          playgroundStore.addToast('error', `Format issues: ${errors.join(', ')}`)
+        } else {
+          setFormatSuccess(true)
+          playgroundStore.addToast('success', 'All files formatted with Prettier')
+          setTimeout(() => {
+            setFormatSuccess(false)
+          }, 1500)
+        }
+      } catch (error) {
+        playgroundStore.addToast('error', `Format failed: ${(error as Error).message}`)
+      } finally {
+        setFormatting(false)
       }
-    } catch (error) {
-      addMessage('error', [`Format failed: ${(error as Error).message}`])
-    } finally {
-      setFormatting(false)
-    }
-  }, [tsCode, jsCode, dtsCode, addMessage, setTsCode, setJsCode, setDtsCode])
+    })
+  }, [tsCode, jsCode, dtsCode, setTsCode, setJsCode, setDtsCode])
 
   const handleJsChange = useCallback(
     (v: string) => {
@@ -320,23 +327,25 @@ export function App() {
       setShowModal(false)
       clearMessages()
 
-      runCode(
-        installQueue.current,
-        (js, dts) => {
-          setJsCode(js)
-          setDtsCode(dts)
-          setJsDirty(false)
-        },
-        (error) => {
-          addMessage('error', [`Compilation error: ${error.message}`])
-        }
-      )
+      playgroundStore.enqueue('Run', async () => {
+        runCode(
+          installQueue.current,
+          (js, dts) => {
+            setJsCode(js)
+            setDtsCode(dts)
+            setJsDirty(false)
+            playgroundStore.addToast('success', 'Compilation successful')
+          },
+          (error) => {
+            playgroundStore.addToast('error', `Compilation failed: ${error.message}`)
+          }
+        )
+      })
     },
     [
       jsDirty,
       runCode,
       clearMessages,
-      addMessage,
       setJsCode,
       setDtsCode,
       installQueue,
@@ -345,45 +354,42 @@ export function App() {
 
   const handleShare = useCallback(async () => {
     setSharing(true)
-    try {
-      const result = await shareSnippet({
-        tsCode,
-        jsCode,
-        packages: installedPackages,
-      })
+    playgroundStore.enqueue('Share', async () => {
+      try {
+        const result = await shareSnippet({
+          tsCode,
+          jsCode,
+          packages: installedPackages,
+        })
 
-      if (result.type === 'server') {
-        const url = new URL(globalThis.location.href)
-        url.searchParams.set('share', result.id)
-        url.searchParams.delete('code')
-        url.hash = ''
-        await navigator.clipboard.writeText(url.toString())
-        setShareSuccess(true)
-        addMessage('info', [
-          `✓ Share link copied! Expires in ${result.ttlDays} days`,
-        ])
-      } else {
-        const url = new URL(globalThis.location.href)
-        url.searchParams.delete('share')
-        url.searchParams.delete('code')
-        url.hash = `code=${result.token}`
-        await navigator.clipboard.writeText(url.toString())
-        setShareSuccess(true)
-        addMessage('warn', [
-          `PHP share unavailable: ${result.error?.message}`,
-          'Copied embedded compressed link instead. It is stored in the URL itself and has no 7-day TTL.',
-        ])
+        if (result.type === 'server') {
+          const url = new URL(globalThis.location.href)
+          url.searchParams.set('share', result.id)
+          url.searchParams.delete('code')
+          url.hash = ''
+          await navigator.clipboard.writeText(url.toString())
+          setShareSuccess(true)
+          playgroundStore.addToast('success', `Share link copied! Expires in ${result.ttlDays} days`)
+        } else {
+          const url = new URL(globalThis.location.href)
+          url.searchParams.delete('share')
+          url.searchParams.delete('code')
+          url.hash = `code=${result.token}`
+          await navigator.clipboard.writeText(url.toString())
+          setShareSuccess(true)
+          playgroundStore.addToast('info', 'Copied embedded compressed link (PHP share unavailable)')
+        }
+
+        setTimeout(() => {
+          setShareSuccess(false)
+        }, 2000)
+      } catch (error) {
+        playgroundStore.addToast('error', `Failed to share: ${(error as Error).message}`)
+      } finally {
+        setSharing(false)
       }
-
-      setTimeout(() => {
-        setShareSuccess(false)
-      }, 2000)
-    } catch (error) {
-      addMessage('error', [`Failed to share: ${(error as Error).message}`])
-    } finally {
-      setSharing(false)
-    }
-  }, [tsCode, jsCode, installedPackages, addMessage])
+    })
+  }, [tsCode, jsCode, installedPackages])
 
   const handleUndo = useCallback(() => {
     if (activeTab === 'ts') tsEditorRef.current?.undo()
@@ -557,6 +563,11 @@ export function App() {
         lineWrap={lineWrap}
         setLineWrap={setLineWrap}
         packageManagerStatus={status}
+      />
+
+      <ToastContainer
+        toasts={toasts}
+        onClose={(id) => playgroundStore.removeToast(id)}
       />
     </div>
   )

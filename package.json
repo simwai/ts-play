@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "format": "prettier -w .",
+    "check-quality": "knip && madge --circular --extensions ts,tsx src/",
     "prepare": "husky"
   },
   "engines": {
@@ -40,6 +41,8 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.1.1",
     "autoprefixer": "^10.4.19",
+    "knip": "^6.1.0",
+    "madge": "^8.0.0",
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3",
     "vite": "7.2.4",
