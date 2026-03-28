@@ -13,11 +13,11 @@ function getApiCandidates(path: string) {
   return [...new Set(candidates)]
 }
 
-export function getApiUrl(path: string) {
+function getApiUrl(path: string) {
   return new URL(path.replace(/^\//, ''), document.baseURI).toString()
 }
 
-export async function fetchApiJson(path: string, init?: RequestInit) {
+async function fetchApiJson(path: string, init?: RequestInit) {
   const candidates = getApiCandidates(path)
   let lastError: Error | undefined = undefined
 
@@ -64,7 +64,7 @@ export async function fetchApiJson(path: string, init?: RequestInit) {
   )
 }
 
-export async function parseJsonResponse(res: Response) {
+async function parseJsonResponse(res: Response) {
   const text = await res.text()
   let data: any
   try {
@@ -85,7 +85,7 @@ export async function parseJsonResponse(res: Response) {
   return data
 }
 
-export type SharePayload = {
+type SharePayload = {
   tsCode: string
   jsCode: string
   packages: InstalledPackage[]

@@ -2,16 +2,14 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { workerClient } from '../lib/workerClient'
 import { loadPrettier } from '../lib/formatter'
 import { writeFiles, runCommand } from '../lib/webcontainer'
-import type { ConsoleMessage } from '../components/Console'
+import type { CompilerStatus } from '../lib/types'
 import type { WebContainerProcess } from '@webcontainer/api'
 
 export function useCompilerManager(
   tsCode: string,
-  addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void
+  addMessage: (type: any, args: unknown[]) => void
 ) {
-  const [compilerStatus, setCompilerStatus] = useState<
-    'loading' | 'ready' | 'error'
-  >('loading')
+  const [compilerStatus, setCompilerStatus] = useState<CompilerStatus>('loading')
   const [isRunning, setIsRunning] = useState(false)
   const currentProcess = useRef<WebContainerProcess | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -57,6 +55,7 @@ export function useCompilerManager(
     ) => {
       if (isRunning) return
       setIsRunning(true)
+      setCompilerStatus('compiling')
 
       try {
         const compiled = await workerClient.compile(tsCode)
@@ -79,6 +78,7 @@ export function useCompilerManager(
           console.warn('Proceeding despite background task warning:', e.message)
         })
 
+        setCompilerStatus('running')
         addMessage('info', ['Executing via Node.js...'])
         const { exit, process } = await runCommand(
           'node',
@@ -97,6 +97,7 @@ export function useCompilerManager(
             currentProcess.current = null
             addMessage('error', ['Execution timed out after 5 minutes.'])
             setIsRunning(false)
+            setCompilerStatus('ready')
           }
         }, 300000)
 
@@ -116,6 +117,7 @@ export function useCompilerManager(
         onError(error as Error)
       } finally {
         setIsRunning(false)
+        setCompilerStatus('ready')
       }
     },
     [tsCode, addMessage, isRunning]

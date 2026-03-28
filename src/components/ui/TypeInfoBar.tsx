@@ -1,6 +1,6 @@
 import React from 'react'
-import { type TypeInfo } from '../../hooks/useTypeInfo'
-import { type TSDiagnostic } from '../../hooks/useTSDiagnostics'
+import { type TypeInfo } from '../../lib/types'
+import { type TSDiagnostic } from '../../lib/types'
 import { buildHtml, escapeHtml } from '../../lib/editor-utils'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'

@@ -3,6 +3,43 @@ import { WebContainer, type WebContainerProcess } from '@webcontainer/api'
 let webcontainerInstance: WebContainer | undefined
 let bootPromise: Promise<WebContainer> | undefined
 
+class OperationQueue {
+  private queue: (() => Promise<any>)[] = []
+  private isProcessing = false
+
+  async add<T>(operation: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      this.queue.push(async () => {
+        try {
+          const result = await operation()
+          resolve(result)
+        } catch (error) {
+          reject(error)
+        }
+      })
+      this.startProcessing()
+    })
+  }
+
+  private async startProcessing() {
+    if (this.isProcessing) return
+    this.isProcessing = true
+    while (this.queue.length > 0) {
+      const operation = this.queue.shift()
+      if (operation) {
+        try {
+          await operation()
+        } catch (e) {
+          console.error('Queue operation failed:', e)
+        }
+      }
+    }
+    this.isProcessing = false
+  }
+}
+
+export const operationQueue = new OperationQueue()
+
 export async function getWebContainer(): Promise<WebContainer> {
   if (webcontainerInstance) {
     return webcontainerInstance
@@ -17,15 +54,15 @@ export async function getWebContainer(): Promise<WebContainer> {
 }
 
 export async function writeFiles(files: Record<string, string>) {
-  const instance = await getWebContainer()
-
-  for (const [path, contents] of Object.entries(files)) {
-    // Basic path normalization to avoid "directory doesn't exist" errors for root files
-    await instance.fs.writeFile(path, contents)
-  }
+  return operationQueue.add(async () => {
+    const instance = await getWebContainer()
+    for (const [path, contents] of Object.entries(files)) {
+      await instance.fs.writeFile(path, contents)
+    }
+  })
 }
 
-export async function readFile(path: string): Promise<string> {
+async function readFile(path: string): Promise<string> {
   const instance = await getWebContainer()
   try {
     const content = await instance.fs.readFile(path, 'utf8')

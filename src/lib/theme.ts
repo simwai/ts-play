@@ -1,6 +1,6 @@
 export type ThemeMode = 'latte' | 'mocha'
 
-export const getSyntaxColors = () => ({
+const getSyntaxColors = () => ({
   keyword: 'var(--mauve)',
   string: 'var(--green)',
   number: 'var(--peach)',

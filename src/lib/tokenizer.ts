@@ -15,7 +15,7 @@ export type TokenType =
   | 'parameter'
   | 'plain'
 
-export type Token = {
+type Token = {
   type: TokenType
   value: string
   index: number // Char index in original string

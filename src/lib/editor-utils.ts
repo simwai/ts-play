@@ -1,4 +1,4 @@
-import type { TSDiagnostic } from '../hooks/useTSDiagnostics'
+import type { TSDiagnostic } from './types'
 import { tokenize, type TokenType } from './tokenizer'
 
 export function escapeHtml(text: string): string {
@@ -47,7 +47,7 @@ export function buildHtml(code: string): string {
   return html
 }
 
-export function buildSquiggles(
+function buildSquiggles(
   code: string,
   diagnostics: TSDiagnostic[]
 ): string {
