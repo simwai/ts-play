@@ -170,15 +170,6 @@
     @apply bg-crust text-text m-0 overflow-hidden;
   }
 
-  /* Force JetBrains Mono for italics strictly */
-  i,
-  em,
-  .italic,
-  .mtk-italic {
-    font-family: 'JetBrains Mono', monospace !important;
-    font-style: italic;
-  }
-
   /* Custom Scrollbar & Resizer */
   ::-webkit-scrollbar {
     width: 6px;
@@ -217,8 +208,6 @@
 
 .code-editor textarea {
   -webkit-text-fill-color: transparent !important;
-  overflow-wrap: break-word !important;
-  word-break: break-word !important;
 }
 
 .code-editor pre,
