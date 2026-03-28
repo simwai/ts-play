@@ -1,13 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { workerClient } from '../lib/workerClient'
-
-export type TSDiagnostic = {
-  start: number
-  length: number
-  message: string
-  category: 'error' | 'warning'
-  line: number
-  character: number
+import type { TSDiagnostic } from '../lib/types'
 }
 
 const EMPTY_LIBS = {}

@@ -5,6 +5,8 @@ import { workerClient } from '../lib/workerClient'
 import { formatJson } from '../lib/formatter'
 import { DEFAULT_TSCONFIG } from '../lib/constants'
 import { CodeEditor } from './CodeEditor'
+import { playgroundStore } from '../lib/state-manager'
+import { operationQueue } from '../lib/webcontainer'
 
 type SettingsModalProps = {
   isOpen: boolean
@@ -41,7 +43,6 @@ export function SettingsModal({
   const [temporaryTsConfig, setTemporaryTsConfig] = useState(tsConfigString)
   const [isValid, setIsValid] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [isFormatting, setIsFormatting] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -81,23 +82,31 @@ export function SettingsModal({
 
   const handleSave = async () => {
     if (!isValid) return
-    setIsFormatting(true)
-    try {
-      let toSave = temporaryTsConfig
-      const res = await workerClient.validateConfig(toSave)
-      if (!res.valid) {
-        const fixed = fixLooseJson(toSave)
-        const fixedRes = await workerClient.validateConfig(fixed)
-        if (fixedRes.valid) toSave = fixed
+
+    // Close immediately as requested
+    onClose()
+
+    // Queue validation and save
+    playgroundStore.enqueue('Update TSConfig', async () => {
+      try {
+        let toSave = temporaryTsConfig
+        const res = await workerClient.validateConfig(toSave)
+        if (!res.valid) {
+          const fixed = fixLooseJson(toSave)
+          const fixedRes = await workerClient.validateConfig(fixed)
+          if (fixedRes.valid) toSave = fixed
+        }
+        const formatted = await formatJson(toSave)
+        const finalConfig = fixLooseJson(formatted)
+
+        await operationQueue.add(async () => {
+          onSave(finalConfig)
+        })
+        playgroundStore.addToast('success', 'TSConfig updated successfully')
+      } catch (error) {
+        playgroundStore.addToast('error', `Failed to save TSConfig: ${(error as Error).message}`)
       }
-      const formatted = await formatJson(toSave)
-      onSave(fixLooseJson(formatted))
-    } catch {
-      onSave(fixLooseJson(temporaryTsConfig))
-    } finally {
-      setIsFormatting(false)
-      onClose()
-    }
+    })
   }
 
   if (!isOpen) return null
@@ -127,19 +136,22 @@ export function SettingsModal({
               <label className='text-sm font-bold text-subtext0'>
                 TypeScript Version
               </label>
-              <select
-                disabled
-                className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none opacity-60 cursor-not-allowed'
-              >
-                <option>5.9.3 (Default)</option>
-              </select>
+              <div className='flex gap-2 items-center'>
+                <select
+                  disabled
+                  className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none opacity-60 cursor-not-allowed flex-1'
+                >
+                  <option>5.9.3 (Default)</option>
+                </select>
+                <span className='text-xs text-mauve font-medium'>STABLE</span>
+              </div>
               <span className='text-xs text-overlay0'>
                 Version switching is not yet supported.
               </span>
             </div>
 
-            <div className='flex items-center justify-between'>
-              <label className='text-sm font-bold text-subtext0'>
+            <div className='flex items-center justify-between group'>
+              <label className='text-sm font-bold text-subtext0 group-hover:text-text transition-colors'>
                 Interpret ANSI Escapes
               </label>
               <input
@@ -151,8 +163,8 @@ export function SettingsModal({
               />
             </div>
 
-            <div className='flex items-center justify-between'>
-              <label className='text-sm font-bold text-subtext0'>
+            <div className='flex items-center justify-between group'>
+              <label className='text-sm font-bold text-subtext0 group-hover:text-text transition-colors'>
                 Line Wrapping
               </label>
               <input
@@ -184,11 +196,13 @@ export function SettingsModal({
               />
             </div>
             {errorMsg && (
-              <span
-                className={`text-xs whitespace-pre-wrap ${isValid ? 'text-yellow' : 'text-red'}`}
-              >
-                {errorMsg}
-              </span>
+              <div className={cn(
+                'px-3 py-2 rounded-md text-xs border flex gap-2',
+                isValid ? 'bg-yellow/10 border-yellow/30 text-yellow' : 'bg-red/10 border-red/30 text-red'
+              )}>
+                <div className='shrink-0 font-bold'>{isValid ? '⚠️' : '❌'}</div>
+                <span className='whitespace-pre-wrap'>{errorMsg}</span>
+              </div>
             )}
           </div>
         </div>
@@ -212,10 +226,10 @@ export function SettingsModal({
             <Button
               onClick={handleSave}
               variant='primary'
-              disabled={!isValid || isFormatting}
+              disabled={!isValid}
               data-testid='settings-save-button'
             >
-              {isFormatting ? 'Saving...' : 'Save Changes'}
+              Save Changes
             </Button>
           </div>
         </div>
@@ -227,6 +241,8 @@ export function SettingsModal({
             <span className='font-graffonti text-2xl bg-lit-gradient animate-lit-gradient leading-relaxed'>
               simwai
             </span>
+            <br />
+            <span className='opacity-50 text-[10px] uppercase tracking-widest'>feat. jules & aider</span>
           </p>
           <a
             href='https://github.com/simwai/ts-play'
@@ -240,4 +256,8 @@ export function SettingsModal({
       </div>
     </div>
   )
+}
+
+function cn(...classes: (string | boolean | undefined)[]) {
+  return classes.filter(Boolean).join(' ')
 }

@@ -1,15 +1,6 @@
 import { useCallback } from 'react'
 import { workerClient } from '../lib/workerClient'
-
-export type TypeInfo = {
-  name: string
-  kind: string
-  typeAnnotation: string
-  signature?: string
-  jsDoc?: string
-  detail?: string
-}
-
+import type { TypeInfo } from '../lib/types'
 export function useTypeInfo() {
   const getTypeInfo = useCallback(
     async (code: string, offset: number): Promise<TypeInfo | undefined> => {

@@ -1,5 +1,4 @@
-import type { TSDiagnostic } from '../hooks/useTSDiagnostics'
-import type { TypeInfo } from '../hooks/useTypeInfo'
+import type { TSDiagnostic, TypeInfo } from './types'
 
 class WorkerClient {
   private worker: Worker | undefined
