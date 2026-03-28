@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ConsoleMessage } from '../components/Console'
-import { playgroundStore } from '../lib/state-manager'
+import { type PackageManagerStatus, playgroundStore } from '../lib/state-manager'
 import { SYSTEM_DEPS, webContainerService } from '../lib/webcontainer'
 
 const BUILTIN_MODULES = new Set([
@@ -47,7 +47,6 @@ const BUILTIN_MODULES = new Set([
   'zlib',
 ])
 
-export type PackageManagerStatus = 'idle' | 'installing' | 'uninstalling' | 'syncing' | 'error'
 
 export function usePackageManager(
   tsCode: string,

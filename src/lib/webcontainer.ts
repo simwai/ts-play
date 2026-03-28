@@ -1,9 +1,7 @@
 import { WebContainer, type WebContainerProcess } from '@webcontainer/api'
 import { RegexPatterns } from './regex'
-import { playgroundStore } from './state-manager'
+import { type CompilerStatus, type EnvironmentStatus, playgroundStore } from './state-manager'
 
-export type EnvironmentStatus = 'idle' | 'booting' | 'preparing' | 'ready' | 'error'
-export type CompilerStatus = 'Idle' | 'Preparing' | 'Running' | 'Compiling' | 'Ready' | 'Error'
 
 export const SYSTEM_DEPS = [
   'typescript',

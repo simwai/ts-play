@@ -1,7 +1,5 @@
-import React, { useEffect, useRef, useMemo } from 'react';
-import Editor, { useMonaco, type OnMount, type BeforeMount } from '@monaco-editor/react';
-import { cn } from '../lib/utils';
-import { RegexPatterns } from '../lib/regex';
+import Editor, { type BeforeMount, type OnMount, useMonaco } from '@monaco-editor/react'
+import { forwardRef, useEffect, useMemo, useRef, useImperativeHandle } from 'react'
 import {
   githubDark,
   githubLight,
@@ -10,8 +8,12 @@ import {
   monokai,
   shadesOfPurple,
 } from '../lib/monaco-themes'
-import { RegexPatterns } from '../lib/regex'
-import { cn } from '../lib/utils'
+import { type ThemeMode, isDarkMode } from '../lib/theme'
+
+export type CodeEditorHandle = {
+  undo: () => void
+  redo: () => void
+}
 
 type CodeEditorProps = {
   value: string
@@ -21,269 +23,167 @@ type CodeEditorProps = {
   onCursorPosChange?: (pos: { line: number; col: number }) => void
   language?: 'typescript' | 'javascript' | 'json'
   readOnly?: boolean
+  hideGutter?: boolean
+  fontSizeOverride?: number
+  disableAutocomplete?: boolean
+  themeMode?: ThemeMode
+  path?: string
+  lineWrap?: boolean
   extraLibs?: Record<string, string>
   isMobileLike?: boolean
-  className?: string
-  fontSizeOverride?: number
-  hideGutter?: boolean
-  disableAutocomplete?: boolean
-  disableDiagnostics?: boolean
-  lineWrap?: boolean
-  hideTypeInfo?: boolean
-  themeMode?: string
-  path?: string
 }
 
-export type CodeEditorHandle = {
-  undo: () => void
-  redo: () => void
-  focus: () => void
-}
+export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(({
+  value,
+  onChange,
+  onCursorChange,
+  onTypeInfoChange,
+  onCursorPosChange,
+  language = 'typescript',
+  readOnly = false,
+  hideGutter = false,
+  fontSizeOverride,
+  disableAutocomplete = false,
+  themeMode = 'mocha',
+  path = 'file:///index.ts',
+  lineWrap = true,
+  extraLibs = {},
+  isMobileLike = false,
+}, ref) => {
+  const editorRef = useRef<any>(null)
+  const monaco = useMonaco()
 
-let themesRegistered = false
-const FONT_STACK = "'JetBrains Mono', 'Victor Mono', 'Fira Code', monospace"
+  useImperativeHandle(ref, () => ({
+    undo: () => editorRef.current?.trigger('keyboard', 'undo', null),
+    redo: () => editorRef.current?.trigger('keyboard', 'redo', null),
+  }))
 
-export const CodeEditor = React.memo(
-  React.forwardRef<CodeEditorHandle, CodeEditorProps>((props, ref) => {
-    const {
-      value,
-      onChange,
-      onCursorChange,
-      onTypeInfoChange,
-      onCursorPosChange,
-      language = 'typescript',
-      readOnly = false,
-      extraLibs,
-      isMobileLike,
-      className,
-      fontSizeOverride,
-      hideGutter = false,
-      disableAutocomplete = false,
-      disableDiagnostics = false,
-      lineWrap = false,
-      hideTypeInfo = false,
-      themeMode = 'mocha',
-      path,
-    } = props
+  const handleBeforeMount: BeforeMount = (monaco) => {
+    monaco.editor.defineTheme('github-dark', githubDark as any)
+    monaco.editor.defineTheme('github-light', githubLight as any)
+    monaco.editor.defineTheme('latte', latte as any)
+    monaco.editor.defineTheme('mocha', mocha as any)
+    monaco.editor.defineTheme('monokai', monokai as any)
+    monaco.editor.defineTheme('shades-of-purple', shadesOfPurple as any)
 
-    const monaco = useMonaco()
-    const editorRef = useRef<any>(null)
+    monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+      target: monaco.languages.typescript.ScriptTarget.ESNext,
+      allowNonTsExtensions: true,
+      moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+      module: monaco.languages.typescript.ModuleKind.CommonJS,
+      noEmit: true,
+      esModuleInterop: true,
+      jsx: monaco.languages.typescript.JsxEmit.React,
+      reactNamespace: 'React',
+      allowJs: true,
+      typeRoots: ['node_modules/@types'],
+    })
+  }
 
-    const handleBeforeMount: BeforeMount = (monaco) => {
-      monaco.editor.defineTheme("mocha", mocha);
-      monaco.editor.defineTheme("latte", latte);
-      monaco.editor.defineTheme("githubDark", githubDark);
-      monaco.editor.defineTheme("githubLight", githubLight);
-      monaco.editor.defineTheme("monokai", monokai);
-      monaco.editor.defineTheme("shadesOfPurple", shadesOfPurple);
-    };
+  const handleEditorMount: OnMount = (editor, monaco) => {
+    editorRef.current = editor
 
-    React.useImperativeHandle(ref, () => ({
-      undo: () => editorRef.current?.trigger('keyboard', 'undo', null),
-      redo: () => editorRef.current?.trigger('keyboard', 'redo', null),
-      focus: () => editorRef.current?.focus(),
-    }))
+    editor.onDidChangeCursorPosition((e) => {
+      const model = editor.getModel()
+      if (model) {
+        const offset = model.getOffsetAt(e.position)
+        onCursorChange?.(offset)
+        onCursorPosChange?.({ line: e.position.lineNumber, col: e.position.column })
+      }
+    })
 
-    const modelUri = useMemo(() => {
-      if (!path) return undefined
-      return monaco?.Uri.parse(`file:///${path.replace(RegexPatterns.LEADING_SLASH, '')}`)
-    }, [monaco, path])
+    editor.onDidChangeCursorPosition(async (e) => {
+      const model = editor.getModel()
+      if (!model || !onTypeInfoChange) return
 
-    useEffect(() => {
-      if (!monaco) return
       try {
-        if (!themesRegistered) {
-          monaco.editor.defineTheme('mocha', mocha)
-          monaco.editor.defineTheme('latte', latte)
-          monaco.editor.defineTheme('githubDark', githubDark)
-          monaco.editor.defineTheme('githubLight', githubLight)
-          monaco.editor.defineTheme('monokai', monokai)
-          monaco.editor.defineTheme('shadesOfPurple', shadesOfPurple)
-          themesRegistered = true
-        }
+        const worker = await monaco.languages.typescript.getTypeScriptWorker()
+        const client = await worker(model.uri)
+        const offset = model.getOffsetAt(e.position)
 
-        const tsDefaults = monaco.languages.typescript.typescriptDefaults
-        const jsDefaults = monaco.languages.typescript.javascriptDefaults
-        const jsonDefaults = monaco.languages.json.jsonDefaults
+        const info = await client.getQuickInfoAtPosition(model.uri.toString(), offset)
+        if (info) {
+          const displayParts = info.displayParts || []
+          const documentation = info.documentation || []
+          const text = displayParts.map((p) => p.text).join('')
 
-        tsDefaults.setDiagnosticsOptions({
-          noSemanticValidation: disableDiagnostics,
-          noSyntaxValidation: disableDiagnostics,
-        })
-        jsDefaults.setDiagnosticsOptions({
-          noSemanticValidation: disableDiagnostics,
-          noSyntaxValidation: disableDiagnostics,
-        })
-        jsonDefaults.setDiagnosticsOptions({
-          validate: !disableDiagnostics,
-          allowComments: true,
-        })
+          const nameMatch = text.match(/^(?:const|let|var|function|class|interface|type|enum)\s+([^\s:(]+)/)
+          const name = nameMatch ? nameMatch[1] : ''
 
-        if (extraLibs) {
-          const libs = Object.entries(extraLibs).map(([p, content]) => ({
-            content,
-            filePath: `file:///${p.replace(RegexPatterns.LEADING_SLASH, '')}`,
-          }))
-          tsDefaults.setExtraLibs(libs)
-          jsDefaults.setExtraLibs(libs)
-        }
-
-        const options = {
-          target: monaco.languages.typescript.ScriptTarget.ESNext,
-          allowNonTsExtensions: true,
-          moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-          module: monaco.languages.typescript.ModuleKind.ESNext,
-          noEmit: true,
-          esModuleInterop: true,
-          jsx: monaco.languages.typescript.JsxEmit.ReactJSX,
-          allowJs: true,
-          isolatedModules: true,
-          typeRoots: ['node_modules/@types'],
-          baseUrl: '.',
-          paths: {
-            '*': ['node_modules/*'],
-          },
-        }
-        tsDefaults.setCompilerOptions(options)
-        jsDefaults.setCompilerOptions(options as any)
-      } catch (err) {
-        console.error('Monaco Setup Error:', err)
-      }
-    }, [monaco, extraLibs, disableDiagnostics])
-
-    useEffect(() => {
-      if (!monaco || !modelUri) return
-      const model = monaco.editor.getModel(modelUri)
-      if (model && model.getLanguageId() !== language) {
-        monaco.editor.setModelLanguage(model, language)
-      }
-    }, [monaco, modelUri, language])
-
-    const typeInfoCallbackRef = useRef(onTypeInfoChange)
-    useEffect(() => {
-      typeInfoCallbackRef.current = onTypeInfoChange
-    }, [onTypeInfoChange])
-
-    const handleEditorDidMount: OnMount = (editor) => {
-      editorRef.current = editor
-      editor.onDidChangeCursorPosition(async (e: any) => {
-        const model = editor.getModel()
-        if (!model) return
-
-        onCursorChange?.(model.getOffsetAt(e.position))
-        onCursorPosChange?.({
-          line: e.position.lineNumber,
-          col: e.position.column,
-        })
-
-        if (
-          !typeInfoCallbackRef.current ||
-          (language !== 'typescript' && language !== 'javascript')
-        ) {
-          typeInfoCallbackRef.current?.(null)
-          return
-        }
-        try {
-          const isTS = language === 'typescript'
-          const getter = await (isTS
-            ? monaco.languages.typescript.getTypeScriptWorker()
-            : monaco.languages.typescript.getJavaScriptWorker())
-          const worker = await getter(model.uri)
-          const info = await worker.getQuickInfoAtPosition(
-            model.uri.toString(),
-            model.getOffsetAt(e.position),
-          )
-
-          if (!info) {
-            typeInfoCallbackRef.current(null)
-            return
-          }
-
-          const typeAnnotation = info.displayParts?.map((p: any) => p.text).join('') || ''
-          const name =
-            info.displayParts?.find((p: any) =>
-              [
-                'propertyName',
-                'className',
-                'functionName',
-                'methodName',
-                'interfaceName',
-                'enumName',
-                'moduleName',
-                'typeParameterName',
-                'parameterName',
-                'localName',
-                'aliasName',
-              ].includes(p.kind),
-            )?.text || ''
-          const jsDoc = info.documentation?.map((p: any) => p.text).join('\n') || ''
-
-          typeInfoCallbackRef.current({
+          onTypeInfoChange({
             name,
             kind: info.kind,
-            typeAnnotation,
-            jsDoc,
-            signature: typeAnnotation,
+            type: text,
+            documentation: documentation.map((d) => d.text).join('\n'),
           })
-        } catch {
-          typeInfoCallbackRef.current?.(null)
+        } else {
+          onTypeInfoChange(null)
         }
-      })
+      } catch {
+        onTypeInfoChange(null)
+      }
+    })
+  }
+
+  useEffect(() => {
+    if (monaco) {
+      const libs = Object.entries(extraLibs).map(([key, content]) => ({
+        content,
+        filePath: key.startsWith('file://') ? key : `file:///node_modules/@types/${key}/index.d.ts`,
+      }))
+      monaco.languages.typescript.typescriptDefaults.setExtraLibs(libs as any)
     }
+  }, [monaco, extraLibs])
 
-    const options = useMemo(
-      () => ({
-        fontSize: fontSizeOverride || 12,
-        lineHeight: (fontSizeOverride || 12) * 1.5,
-        fontFamily: FONT_STACK,
-        fontLigatures: true,
-        readOnly,
-        minimap: { enabled: false },
-        scrollBeyondLastLine: false,
-        automaticLayout: true,
-        tabSize: 2,
-        wordWrap: lineWrap ? ('on' as const) : ('off' as const),
-        padding: { top: 8, bottom: 8 },
-        fixedOverflowWidgets: true,
-        links: false,
-        contextmenu: false,
-        suggest: { enabled: !disableAutocomplete },
-        hover: { enabled: !hideTypeInfo },
-        renderLineHighlight: 'all' as const,
-        bracketPairColorization: { enabled: true },
-        guides: { indentation: true },
-        scrollbar: {
-          vertical: hideGutter ? ('hidden' as const) : ('auto' as const),
-        },
-      }),
-      [
-        fontSizeOverride,
-        readOnly,
-        hideGutter,
-        lineWrap,
-        disableAutocomplete,
-        hideTypeInfo,
-        themeMode,
-      ],
-    )
+  const options = useMemo(
+    () => ({
+      minimap: { enabled: false },
+      fontSize: fontSizeOverride || (isMobileLike ? 12 : 14),
+      fontFamily: "'Fira Code', 'Cascadia Code', Consolas, monospace",
+      fontLigatures: true,
+      cursorBlinking: 'smooth' as const,
+      cursorSmoothCaretAnimation: 'on' as const,
+      smoothScrolling: true,
+      contextmenu: !isMobileLike,
+      readOnly,
+      lineNumbers: hideGutter ? ('off' as const) : ('on' as const),
+      glyphMargin: !hideGutter,
+      folding: !hideGutter,
+      lineDecorationsWidth: hideGutter ? 0 : 10,
+      lineNumbersMinChars: hideGutter ? 0 : 3,
+      scrollbar: {
+        vertical: 'visible' as const,
+        horizontal: 'visible' as const,
+        useShadows: false,
+        verticalScrollbarSize: 10,
+        horizontalScrollbarSize: 10,
+      },
+      overviewRulerLanes: 0,
+      hideCursorInOverviewRuler: true,
+      renderLineHighlight: 'all' as const,
+      suggestOnTriggerCharacters: !disableAutocomplete,
+      wordWrap: lineWrap ? ('on' as const) : ('off' as const),
+      padding: { top: 16, bottom: 16 },
+      fixedOverflowWidgets: true,
+    }),
+    [readOnly, hideGutter, fontSizeOverride, disableAutocomplete, lineWrap, isMobileLike],
+  )
 
-    return (
-      <div
-        data-testid="code-editor-container"
-        className={cn('code-editor w-full h-full flex flex-col', className)}
-      >
-        <Editor
-          height="100%"
-          language={language}
-          value={value}
-          onChange={(v) => onChange?.(v || '')}
-          beforeMount={handleBeforeMount}
-          onMount={handleEditorDidMount}
-          path={path}
-          options={options}
-          theme={themeMode}
-        />
-      </div>
-    )
-  }),
-)
+  return (
+    <div className="w-full h-full relative group">
+      <Editor
+        height="100%"
+        language={language}
+        value={value}
+        onChange={(v) => onChange?.(v || '')}
+        onMount={handleEditorMount}
+        beforeMount={handleBeforeMount}
+        theme={themeMode === 'mocha' ? 'mocha' : isDarkMode(themeMode) ? 'github-dark' : 'github-light'}
+        options={options}
+        path={path}
+      />
+    </div>
+  )
+})
+
+CodeEditor.displayName = 'CodeEditor'
