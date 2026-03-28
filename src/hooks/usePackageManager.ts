@@ -47,7 +47,6 @@ const BUILTIN_MODULES = new Set([
   'zlib',
 ])
 
-
 export function usePackageManager(
   tsCode: string,
   addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void,

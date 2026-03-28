@@ -1,7 +1,7 @@
 import { Redo2, Settings, Undo2 } from 'lucide-react'
-import { type PackageManagerStatus } from '../lib/state-manager'
 import { usePlaygroundStore } from '../hooks/usePlaygroundStore'
 import type { TabType } from '../lib/constants'
+import type { PackageManagerStatus } from '../lib/state-manager'
 import { IconButton } from './ui/IconButton'
 
 type StatusBarProps = {

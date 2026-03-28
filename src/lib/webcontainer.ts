@@ -1,7 +1,6 @@
 import { WebContainer, type WebContainerProcess } from '@webcontainer/api'
 import { RegexPatterns } from './regex'
-import { type CompilerStatus, type EnvironmentStatus, playgroundStore } from './state-manager'
-
+import { playgroundStore } from './state-manager'
 
 export const SYSTEM_DEPS = [
   'typescript',
@@ -134,11 +133,11 @@ export class WebContainerService {
         if (done) break
 
         if (typeof value === 'string') {
-          buffer += value;
+          buffer += value
         } else if (value) {
-          buffer += decoder.decode(value, { stream: true });
+          buffer += decoder.decode(value, { stream: true })
         }
-        const lines = buffer.split(RegexPatterns.NEWLINE);
+        const lines = buffer.split(RegexPatterns.NEWLINE)
 
         // If the last line is an incomplete ANSI sequence, keep it in the buffer
         buffer = RegexPatterns.INCOMPLETE_ANSI.test(lines[lines.length - 1])
