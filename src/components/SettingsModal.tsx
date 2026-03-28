@@ -114,81 +114,78 @@ export function SettingsModal({
   return (
     <div className='fixed inset-0 z-50 flex items-center justify-center bg-crust/80 backdrop-blur-sm p-4'>
       <div
-        className='bg-mantle border border-surface1 rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[90dvh]'
+        className='bg-mantle border border-surface1 rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[95dvh]'
         data-testid='settings-modal'
       >
-        <div className='flex items-center justify-between px-6 py-4 border-b border-surface0 bg-base shrink-0'>
-          <h2 className='text-base font-bold text-text'>Settings</h2>
+        <div className='flex items-center justify-between px-4 py-2 border-b border-surface0 bg-base shrink-0'>
+          <h2 className='text-[10px] font-black text-text uppercase tracking-[0.15em] opacity-80'>Settings</h2>
           <IconButton
             onClick={onClose}
             size='sm'
             variant='ghost'
-            className='-mr-2'
+            className='-mr-1.5 h-6 w-6 opacity-60 hover:opacity-100 transition-opacity'
             data-testid='settings-cancel-button'
           >
-            <span className='text-xl leading-none'>&times;</span>
+            <span className='text-base leading-none'>&times;</span>
           </IconButton>
         </div>
 
-        <div className='p-6 flex flex-col gap-6 overflow-y-auto min-h-0'>
-          <div className='flex flex-col gap-4'>
-            <div className='flex flex-col gap-2'>
-              <label className='text-sm font-bold text-subtext0'>
+        <div className='p-4 flex flex-col gap-4 overflow-y-auto min-h-0'>
+          <div className='flex flex-col gap-3'>
+            <div className='flex flex-col gap-1'>
+              <label className='text-[10px] font-black text-subtext0 uppercase tracking-wider'>
                 TypeScript Version
               </label>
               <div className='flex gap-2 items-center'>
                 <select
                   disabled
-                  className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none opacity-60 cursor-not-allowed flex-1'
+                  className='bg-surface0 border border-surface1 rounded px-2 py-1 text-[11px] text-text outline-none opacity-60 cursor-not-allowed flex-1'
                 >
                   <option>5.9.3 (Default)</option>
                 </select>
-                <span className='text-xs text-mauve font-medium'>STABLE</span>
+                <span className='text-[9px] text-mauve font-black border border-mauve/20 px-1.5 py-0.5 rounded uppercase tracking-tighter'>STABLE</span>
               </div>
-              <span className='text-xs text-overlay0'>
-                Version switching is not yet supported.
-              </span>
             </div>
 
-            <div className='flex items-center justify-between group'>
-              <label className='text-sm font-bold text-subtext0 group-hover:text-text transition-colors'>
+            <div className='flex items-center justify-between group py-0.5'>
+              <label className='text-[11px] font-bold text-subtext0 group-hover:text-text transition-colors'>
                 Interpret ANSI Escapes
               </label>
               <input
                 type='checkbox'
                 checked={trueColorEnabled}
                 onChange={(e) => setTrueColorEnabled(e.target.checked)}
-                className='w-5 h-5 accent-mauve cursor-pointer'
+                className='w-4 h-4 accent-mauve cursor-pointer'
                 data-testid='settings-ansi-toggle'
               />
             </div>
 
-            <div className='flex items-center justify-between group'>
-              <label className='text-sm font-bold text-subtext0 group-hover:text-text transition-colors'>
+            <div className='flex items-center justify-between group py-0.5'>
+              <label className='text-[11px] font-bold text-subtext0 group-hover:text-text transition-colors'>
                 Line Wrapping
               </label>
               <input
                 type='checkbox'
                 checked={lineWrap}
                 onChange={(e) => setLineWrap(e.target.checked)}
-                className='w-5 h-5 accent-mauve cursor-pointer'
+                className='w-4 h-4 accent-mauve cursor-pointer'
                 data-testid='settings-wrap-toggle'
               />
             </div>
           </div>
 
-          <div className='flex flex-col gap-2'>
-            <label className='text-sm font-bold text-subtext0'>
+          <div className='flex flex-col gap-1'>
+            <label className='text-[10px] font-black text-subtext0 uppercase tracking-wider'>
               tsconfig.json
             </label>
-            <div className='border border-surface1 rounded-md overflow-hidden bg-base focus-within:border-mauve transition-colors h-48 md:h-64 shrink-0'>
+            <div className='border border-surface1 rounded-md overflow-hidden bg-base focus-within:border-mauve transition-colors h-36 md:h-48 shrink-0'>
               <CodeEditor
                 language='json'
                 value={temporaryTsConfig}
                 onChange={setTemporaryTsConfig}
                 hideGutter={false}
                 hideTypeInfo={true}
-                fontSizeOverride={12}
+                fontSizeOverride={11}
                 disableAutocomplete={true}
                 disableDiagnostics={true}
                 disableShortcuts={true}
@@ -197,28 +194,31 @@ export function SettingsModal({
             </div>
             {errorMsg && (
               <div className={cn(
-                'px-3 py-2 rounded-md text-xs border flex gap-2',
-                isValid ? 'bg-yellow/10 border-yellow/30 text-yellow' : 'bg-red/10 border-red/30 text-red'
+                'px-2 py-1 rounded-md text-[9px] border flex gap-1.5',
+                isValid ? 'bg-yellow/10 border-yellow/20 text-yellow' : 'bg-red/10 border-red/20 text-red'
               )}>
                 <div className='shrink-0 font-bold'>{isValid ? '⚠️' : '❌'}</div>
-                <span className='whitespace-pre-wrap'>{errorMsg}</span>
+                <span className='whitespace-pre-wrap leading-tight'>{errorMsg}</span>
               </div>
             )}
           </div>
         </div>
 
-        <div className='flex items-center justify-between gap-3 px-6 py-4 border-t border-surface0 bg-base shrink-0'>
+        <div className='flex items-center justify-between gap-3 px-4 py-2.5 border-t border-surface0 bg-base shrink-0'>
           <Button
             onClick={() => setTemporaryTsConfig(DEFAULT_TSCONFIG)}
             variant='danger'
-            className='text-red hover:bg-red/10'
+            size='xs'
+            className='text-[9px] uppercase font-black tracking-widest'
           >
-            Reset to Default
+            Reset
           </Button>
-          <div className='flex gap-3'>
+          <div className='flex gap-2'>
             <Button
               onClick={onClose}
               variant='secondary'
+              size='xs'
+              className='text-[9px] uppercase font-black tracking-widest px-4'
               data-testid='settings-cancel-button'
             >
               Cancel
@@ -226,32 +226,34 @@ export function SettingsModal({
             <Button
               onClick={handleSave}
               variant='primary'
+              size='xs'
+              className='text-[9px] uppercase font-black tracking-widest px-4'
               disabled={!isValid}
               data-testid='settings-save-button'
             >
-              Save Changes
+              Save
             </Button>
           </div>
         </div>
 
-        <div className='px-6 py-4 border-t border-surface0 bg-mantle flex flex-col items-center gap-2 shrink-0'>
-          <p className='text-xs text-subtext0 text-center'>
-            Made with 💜 by
-            <br />
-            <span className='font-graffonti text-2xl bg-lit-gradient animate-lit-gradient leading-relaxed'>
+        <div className='px-4 py-2 border-t border-surface0 bg-mantle flex flex-row items-center justify-between gap-4 shrink-0'>
+          <div className='flex flex-col'>
+            <span className='opacity-40 text-[8px] uppercase tracking-[0.2em] font-black'>Created by</span>
+            <span className='font-graffonti text-base bg-lit-gradient animate-lit-gradient bg-clip-text text-transparent leading-none'>
               simwai
             </span>
-            <br />
-            <span className='opacity-50 text-[10px] uppercase tracking-widest'>feat. jules & aider</span>
-          </p>
-          <a
-            href='https://github.com/simwai/ts-play'
-            target='_blank'
-            rel='noopener noreferrer'
-            className='text-xs text-mauve hover:underline'
-          >
-            GitHub Repository
-          </a>
+          </div>
+          <div className='flex flex-col items-end text-right'>
+            <span className='opacity-40 text-[7.5px] uppercase tracking-widest font-black'>feat. jules & aider</span>
+            <a
+              href='https://github.com/simwai/ts-play'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='text-[9px] text-mauve hover:underline font-bold'
+            >
+              GitHub
+            </a>
+          </div>
         </div>
       </div>
     </div>

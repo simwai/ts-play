@@ -53,8 +53,10 @@ function getSharedStyles(
     whiteSpace: lineWrap ? 'pre-wrap' : 'pre',
     wordBreak: lineWrap ? 'break-all' : 'normal',
     overflowWrap: lineWrap ? 'anywhere' : 'normal',
-    fontFamily: 'inherit',
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
     tabSize: 2,
+    border: 'none',
+    outline: 'none',
   }
 }
 
@@ -503,7 +505,7 @@ export const CodeEditor = React.memo(forwardRef<CodeEditorRef, CodeEditorProps>(
               wrap={lineWrap ? 'soft' : 'off'}
               data-gramm='false'
               className={cn(
-                'absolute inset-0 bg-transparent border-none outline-none resize-none z-20',
+                'absolute inset-0 bg-transparent border-none outline-none resize-none z-20 overflow-hidden',
                 !isMobileLike
                   ? 'caret-transparent selection:bg-transparent'
                   : 'caret-lavender'
