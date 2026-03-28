@@ -30,5 +30,8 @@ snippets/*.json
 
 # PHP
 *.php.bak
+
+# Misc
+tsconfig.tsbuildinfo
 .aider*
 *.old
