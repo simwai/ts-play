@@ -9,7 +9,8 @@ export function useCompilerManager(
   tsCode: string,
   addMessage: (type: any, args: unknown[]) => void
 ) {
-  const [compilerStatus, setCompilerStatus] = useState<CompilerStatus>('loading')
+  const [compilerStatus, setCompilerStatus] =
+    useState<CompilerStatus>('loading')
   const [isRunning, setIsRunning] = useState(false)
   const currentProcess = useRef<WebContainerProcess | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)

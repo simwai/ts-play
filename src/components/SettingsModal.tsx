@@ -104,7 +104,10 @@ export function SettingsModal({
         })
         playgroundStore.addToast('success', 'TSConfig updated successfully')
       } catch (error) {
-        playgroundStore.addToast('error', `Failed to save TSConfig: ${(error as Error).message}`)
+        playgroundStore.addToast(
+          'error',
+          `Failed to save TSConfig: ${(error as Error).message}`
+        )
       }
     })
   }
@@ -117,7 +120,7 @@ export function SettingsModal({
         className='bg-mantle border border-surface1 rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[90dvh]'
         data-testid='settings-modal'
       >
-        <div className='flex items-center justify-between px-6 py-4 border-b border-surface0 bg-base shrink-0'>
+        <div className='flex items-center justify-between px-5 py-3 border-b border-surface0 bg-base shrink-0'>
           <h2 className='text-base font-bold text-text'>Settings</h2>
           <IconButton
             onClick={onClose}
@@ -130,7 +133,7 @@ export function SettingsModal({
           </IconButton>
         </div>
 
-        <div className='p-6 flex flex-col gap-6 overflow-y-auto min-h-0'>
+        <div className='px-5 py-4 flex flex-col gap-6 overflow-y-auto min-h-0'>
           <div className='flex flex-col gap-4'>
             <div className='flex flex-col gap-2'>
               <label className='text-sm font-bold text-subtext0'>
@@ -196,21 +199,28 @@ export function SettingsModal({
               />
             </div>
             {errorMsg && (
-              <div className={cn(
-                'px-3 py-2 rounded-md text-xs border flex gap-2',
-                isValid ? 'bg-yellow/10 border-yellow/30 text-yellow' : 'bg-red/10 border-red/30 text-red'
-              )}>
-                <div className='shrink-0 font-bold'>{isValid ? '⚠️' : '❌'}</div>
+              <div
+                className={cn(
+                  'px-3 py-2 rounded-md text-xs border flex gap-2',
+                  isValid
+                    ? 'bg-yellow/10 border-yellow/30 text-yellow'
+                    : 'bg-red/10 border-red/30 text-red'
+                )}
+              >
+                <div className='shrink-0 font-bold'>
+                  {isValid ? '⚠️' : '❌'}
+                </div>
                 <span className='whitespace-pre-wrap'>{errorMsg}</span>
               </div>
             )}
           </div>
         </div>
 
-        <div className='flex items-center justify-between gap-3 px-6 py-4 border-t border-surface0 bg-base shrink-0'>
+        <div className='flex items-center justify-between gap-3 px-5 py-3 border-t border-surface0 bg-base shrink-0'>
           <Button
             onClick={() => setTemporaryTsConfig(DEFAULT_TSCONFIG)}
             variant='danger'
+            size='sm'
             className='text-red hover:bg-red/10'
           >
             Reset to Default
@@ -219,6 +229,7 @@ export function SettingsModal({
             <Button
               onClick={onClose}
               variant='secondary'
+              size='sm'
               data-testid='settings-cancel-button'
             >
               Cancel
@@ -226,6 +237,7 @@ export function SettingsModal({
             <Button
               onClick={handleSave}
               variant='primary'
+              size='sm'
               disabled={!isValid}
               data-testid='settings-save-button'
             >
@@ -234,15 +246,17 @@ export function SettingsModal({
           </div>
         </div>
 
-        <div className='px-6 py-4 border-t border-surface0 bg-mantle flex flex-col items-center gap-2 shrink-0'>
+        <div className='px-5 py-2 border-t border-surface0 bg-mantle flex flex-col items-center gap-1 shrink-0'>
           <p className='text-xs text-subtext0 text-center'>
             Made with 💜 by
             <br />
-            <span className='font-graffonti text-2xl bg-lit-gradient animate-lit-gradient leading-relaxed'>
+            <span className='font-graffonti text-xl bg-lit-gradient animate-lit-gradient leading-relaxed'>
               simwai
             </span>
             <br />
-            <span className='opacity-50 text-[10px] uppercase tracking-widest'>feat. jules & aider</span>
+            <span className='opacity-50 text-[10px] uppercase tracking-widest'>
+              feat. jules & aider
+            </span>
           </p>
           <a
             href='https://github.com/simwai/ts-play'

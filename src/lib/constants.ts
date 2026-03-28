@@ -10,6 +10,7 @@ export const DEFAULT_TSCONFIG = `{
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "jsx": "react"
   }
 }`
