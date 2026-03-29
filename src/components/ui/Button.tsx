@@ -15,6 +15,7 @@ type ButtonProps = {
   style?: CSSProperties
   type?: 'button' | 'submit' | 'reset'
   className?: string
+  'data-testid'?: string
 }
 
 const sizeClasses: Record<Size, string> = {
@@ -35,6 +36,7 @@ export function Button({
   style,
   type = 'button',
   className,
+  'data-testid': testId,
 }: ButtonProps) {
   const [pressed, setPressed] = useState(false)
   const [showTooltip, setShowTooltip] = useState(false)
@@ -75,6 +77,7 @@ export function Button({
 
   return (
     <button
+      data-testid={testId}
       type={type}
       onClick={handleClick}
       disabled={disabled}
