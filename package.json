@@ -9,12 +9,15 @@
     "preview": "vite preview",
     "format": "prettier -w .",
     "check-quality": "knip && madge --circular --extensions ts,tsx src/",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test:browser": "vitest --config=vitest.browser.config.ts"
   },
   "engines": {
     "node": ">=20.19.0 <21 || >=22.12.0"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "@sindresorhus/tsconfig": "^8.1.0",
     "@typescript/ata": "^0.9.8",
     "@webcontainer/api": "^1.6.1",
     "ansi-to-html": "^0.7.2",
@@ -40,12 +43,15 @@
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.1.1",
+    "@vitest/browser-playwright": "^4.1.2",
     "autoprefixer": "^10.4.19",
     "knip": "^6.1.0",
     "madge": "^8.0.0",
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3",
     "vite": "7.2.4",
-    "vite-plugin-singlefile": "2.3.0"
+    "vite-plugin-singlefile": "2.3.0",
+    "vitest": "^4.1.2",
+    "vitest-browser-react": "^2.1.0"
   }
 }
