@@ -22,7 +22,8 @@ import { usePackageManager } from './hooks/usePackageManager'
 import { TABS, type TabType, DEFAULT_TSCONFIG } from './lib/constants'
 import { playgroundStore } from './lib/state-manager'
 import { ToastContainer } from './components/ui/Toast'
-import type { ToastMessage } from './lib/types'
+import { TypeInfoBar } from './components/ui/TypeInfoBar'
+import type { ToastMessage, TypeInfo } from './lib/types'
 
 const DEFAULT_TS = `// TypeScript Playground
 // Long-press any word on mobile to see type info ✨
@@ -140,6 +141,9 @@ export function App() {
   const [shareSuccess, setShareSuccess] = useState(false)
   const [formatting, setFormatting] = useState(false)
   const [formatSuccess, setFormatSuccess] = useState(false)
+
+  const [typeInfo, setTypeInfo] = useState<TypeInfo | null>(null)
+  const [cursorPos, setCursorPos] = useState<{ line: number; col: number } | null>(null)
 
   // Custom Hooks
   const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } =
@@ -501,6 +505,8 @@ export function App() {
               value={tsCode}
               onChange={setTsCode}
               onCursorChange={onTsCursorChange}
+              onCursorPosChange={setCursorPos}
+              onTypeInfoChange={setTypeInfo}
               language='typescript'
               extraLibs={packageTypings}
               isMobileLike={isMobileLike}
@@ -512,6 +518,7 @@ export function App() {
               ref={jsEditorRef}
               value={jsCode}
               onChange={handleJsChange}
+              onCursorPosChange={setCursorPos}
               language='javascript'
               isMobileLike={isMobileLike}
             />
@@ -522,6 +529,7 @@ export function App() {
               ref={dtsEditorRef}
               value={dtsCode}
               onChange={setDtsCode}
+              onCursorPosChange={setCursorPos}
               language='typescript'
               readOnly={true}
               isMobileLike={isMobileLike}
@@ -529,6 +537,13 @@ export function App() {
           </div>
         </div>
       </div>
+
+      {/* ── Type Info Bar ── */}
+      <TypeInfoBar
+        typeInfo={typeInfo}
+        cursorPos={cursorPos}
+        language={activeTab === 'js' ? 'javascript' : 'typescript'}
+      />
 
       {/* ── Resize Divider ── */}
       {!compactForKeyboard && (consoleOpen || packageManagerOpen) && (

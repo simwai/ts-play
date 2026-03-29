@@ -18,6 +18,7 @@ export type TypeInfo = {
 
 type TypeInfoBarProps = {
   typeInfo: TypeInfo | null;
+  cursorPos: { line: number; col: number } | null;
   language: 'typescript' | 'javascript';
   themeMode?: string;
 };
@@ -71,7 +72,7 @@ function renderWithLinksAndHighlight(text: string) {
   });
 }
 
-export function TypeInfoBar({ typeInfo, language, themeMode = 'mocha' }: TypeInfoBarProps) {
+export function TypeInfoBar({ typeInfo, cursorPos, language, themeMode = 'mocha' }: TypeInfoBarProps) {
   const monaco = useMonaco();
   const [highlightedType, setHighlightedType] = useState('');
   const [highlightedSig, setHighlightedSig] = useState('');
@@ -98,10 +99,22 @@ export function TypeInfoBar({ typeInfo, language, themeMode = 'mocha' }: TypeInf
     colorize();
   }, [monaco, typeInfo]);
 
+  const renderCursorPos = () => {
+    if (!cursorPos) return null;
+    return (
+      <span className="text-overlay0 ml-auto shrink-0 select-none">
+        Ln {cursorPos.line}, Col {cursorPos.col}
+      </span>
+    );
+  };
+
   if (!typeInfo) {
     return (
       <div className="flex items-center px-4 py-1.5 bg-mantle border-t border-surface0/50 text-xxs font-mono text-overlay1 shrink-0 italic">
-        {language === 'typescript' ? 'Move cursor over a symbol for type info' : 'JavaScript output'}
+        <span className="truncate">
+          {language === 'typescript' ? 'Move cursor over a symbol for type info' : 'JavaScript output'}
+        </span>
+        {renderCursorPos()}
       </div>
     );
   }
@@ -127,6 +140,7 @@ export function TypeInfoBar({ typeInfo, language, themeMode = 'mocha' }: TypeInf
           className="whitespace-pre-wrap break-all flex-1 min-w-0 inline-block align-baseline"
           dangerouslySetInnerHTML={{ __html: highlightedType || typeInfo.typeAnnotation }}
         />
+        {renderCursorPos()}
       </div>
 
       {typeInfo.jsDoc && (
