@@ -53,12 +53,8 @@ function getSharedStyles(
     whiteSpace: lineWrap ? 'pre-wrap' : 'pre',
     wordBreak: lineWrap ? 'break-all' : 'normal',
     overflowWrap: lineWrap ? 'anywhere' : 'normal',
-    fontFamily: 'var(--font-mono)',
+    fontFamily: 'inherit',
     tabSize: 2,
-    boxSizing: 'border-box',
-    margin: 0,
-    border: 0,
-    outline: 'none',
   }
 }
 
@@ -102,7 +98,7 @@ export const CodeEditor = React.memo(
       left: 0,
     })
 
-    // Custom Cursor & Selection State (Desktop only)
+    // Custom Cursor & Selection State
     const [selection, setSelection] = useState({ start: 0, end: 0 })
     const [isFocused, setIsFocused] = useState(false)
     const [cursorCoords, setCursorCoords] = useState({ top: 0, left: 0 })
@@ -148,21 +144,69 @@ export const CodeEditor = React.memo(
     )
 
     const updateCursorPosition = useCallback(() => {
-      if (!textInputRef.current) return
+      if (
+        !textInputRef.current ||
+        !codeDisplayRef.current ||
+        !editorWrapperRef.current
+      )
+        return
       const start = textInputRef.current.selectionStart
       const end = textInputRef.current.selectionEnd
       setSelection({ start, end })
 
-      const textBeforeSelection = value.substring(0, start)
-      const linesBefore = textBeforeSelection.split('\n')
-      const lIdx = linesBefore.length - 1
-      const currentLineTextBeforeCursor = linesBefore[lIdx]
+      // Find coordinates using Range API for accuracy (especially with wrapping)
+      const lines = value.substring(0, start).split('\n')
+      const lineIdx = lines.length - 1
+      const lineOffset = lines[lineIdx].length
 
-      const top = lIdx * lineHeight + EDITOR_PADDING_TOP
-      const left =
-        measureTextWidth(currentLineTextBeforeCursor) + horizontalPadding
+      const lineDiv = codeDisplayRef.current.children[lineIdx] as HTMLElement
+      if (!lineDiv) return
 
-      setCursorCoords({ top, left })
+      const range = document.createRange()
+      let charCount = 0
+      let targetNode: Node | null = null
+      let targetOffset = 0
+
+      const walker = document.createTreeWalker(lineDiv, NodeFilter.SHOW_TEXT)
+      let node: Node | null
+      while ((node = walker.nextNode())) {
+        const len = node.textContent?.length || 0
+        if (charCount + len >= lineOffset) {
+          targetNode = node
+          targetOffset = lineOffset - charCount
+          break
+        }
+        charCount += len
+      }
+
+      let finalTop = 0
+      let finalLeft = 0
+      let rangeSuccess = false
+
+      if (targetNode) {
+        try {
+          range.setStart(targetNode, targetOffset)
+          range.setEnd(targetNode, targetOffset)
+          const rects = range.getClientRects()
+          const parentRect = editorWrapperRef.current.getBoundingClientRect()
+
+          if (rects.length > 0 && parentRect) {
+            finalTop = rects[0].top - parentRect.top
+            finalLeft = rects[0].left - parentRect.left
+            rangeSuccess = true
+          }
+        } catch (e) {
+          // Fallback
+        }
+      }
+
+      if (!rangeSuccess) {
+        // Fallback to simple calculation
+        finalTop = lineIdx * lineHeight + EDITOR_PADDING_TOP
+        finalLeft = measureTextWidth(lines[lineIdx]) + horizontalPadding
+      }
+
+      setCursorCoords({ top: finalTop, left: finalLeft })
       onCursorChange?.(start)
     }, [value, lineHeight, horizontalPadding, measureTextWidth, onCursorChange])
 
@@ -232,7 +276,7 @@ export const CodeEditor = React.memo(
         const start = textarea.selectionStart
         const textBefore = value.substring(0, start)
 
-        const lastWordMatch = textBefore.match(/[\\w$]+$/)
+        const lastWordMatch = textBefore.match(/[\w$]+$/)
         const lastWord = lastWordMatch ? lastWordMatch[0] : ''
         const replaceStart = start - lastWord.length
 
@@ -404,6 +448,11 @@ export const CodeEditor = React.memo(
       [baseFontSize, lineHeight, horizontalPadding, lineWrap]
     )
 
+    // Trigger coordinate update when value or wrap changes
+    useEffect(() => {
+      updateCursorPosition()
+    }, [value, lineWrap, updateCursorPosition])
+
     return (
       <div
         data-testid='code-editor-container'
@@ -462,12 +511,21 @@ export const CodeEditor = React.memo(
                 <div
                   className='absolute left-0 right-0 bg-mauve/10 pointer-events-none'
                   style={{
-                    top:
-                      (value.substring(0, selection.start).split('\n').length -
-                        1) *
-                        lineHeight +
-                      EDITOR_PADDING_TOP,
+                    top: cursorCoords.top,
                     height: lineHeight,
+                  }}
+                />
+              )}
+
+              {/* Custom Cursor */}
+              {!readOnly && isFocused && selection.start === selection.end && (
+                <div
+                  className='absolute w-[2px] bg-lavender z-30 pointer-events-none transition-[top,left] duration-75'
+                  style={{
+                    top: cursorCoords.top,
+                    left: cursorCoords.left,
+                    height: lineHeight,
+                    boxShadow: '0 0 4px var(--color-lavender)',
                   }}
                 />
               )}
@@ -509,10 +567,7 @@ export const CodeEditor = React.memo(
                 wrap={lineWrap ? 'soft' : 'off'}
                 data-gramm='false'
                 className={cn(
-                  'absolute inset-0 bg-transparent border-none outline-none resize-none z-20',
-                  !isMobileLike
-                    ? 'caret-transparent selection:bg-transparent'
-                    : 'caret-lavender'
+                  'absolute inset-0 bg-transparent border-none outline-none resize-none z-20 caret-transparent selection:bg-lavender/30'
                 )}
                 style={{
                   ...sharedStyles,
