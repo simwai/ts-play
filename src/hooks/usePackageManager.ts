@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { workerClient } from '../lib/workerClient'
-import { runCommand, getWebContainer } from '../lib/webcontainer'
 import { setupTypeAcquisition } from '@typescript/ata'
+import { workerClient } from '../lib/workerClient'
+import { runCommand } from '../lib/webcontainer'
 import type { InstalledPackage } from '../components/PackageManager'
 import type { ConsoleMessage } from '../components/Console'
 import * as TS from 'typescript'
+import type { PackageManagerStatus } from '../lib/state-manager'
 
 const BUILTIN_MODULES = new Set([
   'assert',
@@ -49,13 +50,6 @@ const BUILTIN_MODULES = new Set([
   'worker_threads',
   'zlib',
 ])
-
-export type PackageManagerStatus =
-  | 'idle'
-  | 'installing'
-  | 'uninstalling'
-  | 'syncing'
-  | 'error'
 
 export function usePackageManager(
   tsCode: string,

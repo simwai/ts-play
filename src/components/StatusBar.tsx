@@ -1,6 +1,6 @@
 import { Undo2, Redo2, Settings, WrapText } from 'lucide-react'
-import { IconButton } from './ui/IconButton'
 import type { TabType } from '../lib/constants'
+import { IconButton } from './ui/IconButton'
 import type { PackageManagerStatus } from '../hooks/usePackageManager'
 
 type StatusBarProps = {

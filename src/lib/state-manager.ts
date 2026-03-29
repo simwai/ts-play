@@ -1,10 +1,23 @@
-import { type ThemeMode } from './theme'
-import {
-  type CompilerStatus,
-  type PackageManagerStatus,
-  type ToastMessage,
-  type ToastType,
-} from './types'
+export type PackageManagerStatus =
+  | 'idle'
+  | 'installing'
+  | 'uninstalling'
+  | 'syncing'
+  | 'error'
+export type EnvironmentStatus =
+  | 'idle'
+  | 'booting'
+  | 'preparing'
+  | 'ready'
+  | 'error'
+export type CompilerStatus =
+  | 'Idle'
+  | 'Preparing'
+  | 'Running'
+  | 'Compiling'
+  | 'Ready'
+  | 'Error'
+import type { ThemeMode } from './theme'
 
 export interface PlaygroundState {
   theme: ThemeMode
