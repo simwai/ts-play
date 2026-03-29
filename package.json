@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "format": "prettier -w .",
     "check-quality": "knip && madge --circular --extensions ts,tsx src/",
+    "test": "vitest run",
     "prepare": "husky"
   },
   "engines": {
@@ -34,18 +35,27 @@
     "not dead"
   ],
   "devDependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "@tailwindcss/postcss": "4.1.17",
     "@tailwindcss/vite": "4.1.17",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.2.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^22.0.0",
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.1.1",
+    "@vitest/browser": "^4.1.2",
+    "@vitest/browser-playwright": "^4.1.2",
     "autoprefixer": "^10.4.19",
     "knip": "^6.1.0",
     "madge": "^8.0.0",
+    "playwright": "^1.58.2",
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3",
     "vite": "7.2.4",
-    "vite-plugin-singlefile": "2.3.0"
+    "vite-plugin-singlefile": "2.3.0",
+    "vitest": "^4.1.2",
+    "vitest-browser-react": "^2.1.0"
   }
 }

@@ -1,10 +1,10 @@
 import { Undo2, Redo2, Settings, WrapText } from 'lucide-react'
 import type { TabType } from '../lib/constants'
 import { IconButton } from './ui/IconButton'
-import type { PackageManagerStatus } from '../hooks/usePackageManager'
+import type { PackageManagerStatus } from '../lib/types'
 
 type StatusBarProps = {
-  compilerStatus: 'loading' | 'ready' | 'error'
+  compilerStatus: string
   activeTab: TabType
   jsDirty: boolean
   handleUndo: () => void
@@ -28,29 +28,33 @@ export function StatusBar({
   setLineWrap,
   packageManagerStatus,
 }: StatusBarProps) {
+  const lowerStatus = compilerStatus.toLowerCase()
   const statusLabel =
-    compilerStatus === 'loading'
+    lowerStatus === 'loading'
       ? '⏳ Loading…'
-      : compilerStatus === 'error'
+      : lowerStatus === 'error'
         ? '✗ No compiler'
-        : '✓ TS ready'
+        : lowerStatus === 'compiling'
+          ? '⚙️ Compiling...'
+          : lowerStatus === 'running'
+            ? '🚀 Running...'
+            : '✓ TS ready'
+
   const statusColorClass =
-    compilerStatus === 'ready'
+    lowerStatus === 'ready' || lowerStatus === 'idle'
       ? 'text-green'
-      : compilerStatus === 'error'
+      : lowerStatus === 'error'
         ? 'text-red'
         : 'text-yellow'
 
   const pmLabel =
     packageManagerStatus === 'installing'
       ? 'Installing...'
-      : packageManagerStatus === 'uninstalling'
-        ? 'Uninstalling...'
-        : packageManagerStatus === 'syncing'
-          ? 'Syncing...'
-          : packageManagerStatus === 'error'
-            ? 'PM Error'
-            : ''
+      : packageManagerStatus === 'syncing'
+        ? 'Syncing...'
+        : packageManagerStatus === 'error'
+          ? 'PM Error'
+          : ''
 
   return (
     <div

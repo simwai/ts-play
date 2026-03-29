@@ -1,4 +1,17 @@
-export type ThemeMode = 'latte' | 'mocha'
+export type ThemeMode = 'mocha' | 'latte' | 'monokai' | 'shades-of-purple' | 'github-dark' | 'github-light';
+
+export const THEME_LABELS: Record<ThemeMode, string> = {
+  mocha: 'Catppuccin Mocha',
+  latte: 'Catppuccin Latte',
+  monokai: 'Monokai',
+  'shades-of-purple': 'Shades of Purple',
+  'github-dark': 'GitHub Dark',
+  'github-light': 'GitHub Light',
+};
+
+export function isDarkMode(theme: ThemeMode): boolean {
+  return theme === 'mocha' || theme === 'monokai' || theme === 'shades-of-purple' || theme === 'github-dark';
+}
 
 export const getSyntaxColors = () => ({
   keyword: 'var(--mauve)',
