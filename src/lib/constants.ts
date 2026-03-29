@@ -11,6 +11,6 @@ export const DEFAULT_TSCONFIG = `{
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "jsx": "react"
+    "jsx": "react-jsx"
   }
 }`

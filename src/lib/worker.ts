@@ -27,7 +27,7 @@ let compilerOptions: TS.CompilerOptions = {
   esModuleInterop: true,
   strict: true,
   skipLibCheck: true,
-  jsx: TS.JsxEmit.React,
+  jsx: TS.JsxEmit.ReactJSX,
   noImplicitAny: false,
   baseUrl: '/',
   paths: {
