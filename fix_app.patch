@@ -1,0 +1,89 @@
+<<<<<<< SEARCH
+          {/* TS Editor */}
+          <div className='w-[33.333%] h-full shrink-0'>
+            <CodeEditor
+              path="file:///index.d.ts"
+              path="file:///index.js"
+              path="file:///index.ts"
+              ref={tsEditorRef}
+              value={tsCode}
+              onChange={setTsCode}
+              onCursorChange={onTsCursorChange}
+              onCursorPosChange={setCursorPos}
+              onTypeInfoChange={setTypeInfo}
+              language='typescript'
+              extraLibs={packageTypings}
+              isMobileLike={isMobileLike}
+            />
+          </div>
+          {/* JS Editor */}
+          <div className='w-[33.333%] h-full shrink-0'>
+            <CodeEditor
+              path="file:///index.d.ts"
+              path="file:///index.js"
+              path="file:///index.ts"
+              ref={jsEditorRef}
+              value={jsCode}
+              onChange={handleJsChange}
+              onCursorPosChange={setCursorPos}
+              language='javascript'
+              isMobileLike={isMobileLike}
+            />
+          </div>
+          {/* DTS Editor */}
+          <div className='w-[33.333%] h-full shrink-0'>
+            <CodeEditor
+              path="file:///index.d.ts"
+              path="file:///index.js"
+              path="file:///index.ts"
+              ref={dtsEditorRef}
+              value={dtsCode}
+              onChange={setDtsCode}
+              onCursorPosChange={setCursorPos}
+              language='typescript'
+              readOnly={true}
+              isMobileLike={isMobileLike}
+            />
+          </div>
+=======
+          {/* TS Editor */}
+          <div className='w-[33.333%] h-full shrink-0'>
+            <CodeEditor
+              path="file:///index.ts"
+              ref={tsEditorRef}
+              value={tsCode}
+              onChange={setTsCode}
+              onCursorChange={onTsCursorChange}
+              onCursorPosChange={setCursorPos}
+              onTypeInfoChange={setTypeInfo}
+              language='typescript'
+              extraLibs={packageTypings}
+              isMobileLike={isMobileLike}
+            />
+          </div>
+          {/* JS Editor */}
+          <div className='w-[33.333%] h-full shrink-0'>
+            <CodeEditor
+              path="file:///index.js"
+              ref={jsEditorRef}
+              value={jsCode}
+              onChange={handleJsChange}
+              onCursorPosChange={setCursorPos}
+              language='javascript'
+              isMobileLike={isMobileLike}
+            />
+          </div>
+          {/* DTS Editor */}
+          <div className='w-[33.333%] h-full shrink-0'>
+            <CodeEditor
+              path="file:///index.d.ts"
+              ref={dtsEditorRef}
+              value={dtsCode}
+              onChange={setDtsCode}
+              onCursorPosChange={setCursorPos}
+              language='typescript'
+              readOnly={true}
+              isMobileLike={isMobileLike}
+            />
+          </div>
+>>>>>>> REPLACE

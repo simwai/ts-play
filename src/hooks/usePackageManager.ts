@@ -5,7 +5,7 @@ import { runCommand } from '../lib/webcontainer'
 import type { InstalledPackage } from '../components/PackageManager'
 import type { ConsoleMessage } from '../components/Console'
 import * as TS from 'typescript'
-import type { PackageManagerStatus } from '../lib/state-manager'
+import type { PackageManagerStatus } from '../lib/types'
 
 const BUILTIN_MODULES = new Set([
   'assert',

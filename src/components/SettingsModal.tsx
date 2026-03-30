@@ -99,9 +99,7 @@ export function SettingsModal({
         const formatted = await formatJson(toSave)
         const finalConfig = fixLooseJson(formatted)
 
-        await operationQueue.add(async () => {
-          onSave(finalConfig)
-        })
+        onSave(finalConfig)
         playgroundStore.addToast('success', 'TSConfig updated successfully')
       } catch (error) {
         playgroundStore.addToast(
@@ -186,6 +184,7 @@ export function SettingsModal({
             </label>
             <div className='border border-surface1 rounded-md overflow-hidden bg-base focus-within:border-mauve transition-colors h-48 md:h-64 shrink-0'>
               <CodeEditor
+                path="file:///tsconfig.json"
                 language='json'
                 value={temporaryTsConfig}
                 onChange={setTemporaryTsConfig}

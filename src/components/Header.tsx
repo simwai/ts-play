@@ -1,3 +1,4 @@
+import type { CompilerStatus } from "../lib/types"
 import {
   Sun,
   Moon,
@@ -28,7 +29,7 @@ type HeaderProps = {
   formatSuccess: boolean
   doRun: (skipDirtyCheck?: boolean) => void
   isRunning: boolean
-  compilerStatus: 'loading' | 'ready' | 'error'
+  compilerStatus: CompilerStatus
   handleShare: () => void
   sharing: boolean
   shareSuccess: boolean
