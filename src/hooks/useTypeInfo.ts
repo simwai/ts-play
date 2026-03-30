@@ -5,7 +5,7 @@ export function useTypeInfo() {
   const getTypeInfo = useCallback(
     async (code: string, offset: number): Promise<TypeInfo | undefined> => {
       try {
-        await workerClient.updateFile('main.ts', code)
+        await workerClient.updateFile('/main.ts', code)
         return await workerClient.getTypeInfo(offset)
       } catch {
         return

@@ -7,6 +7,7 @@ import { DEFAULT_TSCONFIG } from '../lib/constants'
 import { CodeEditor } from './CodeEditor'
 import { playgroundStore } from '../lib/state-manager'
 import { Github } from 'lucide-react'
+import { THEME_LABELS, type ThemeMode } from '../lib/theme'
 
 type SettingsModalProps = {
   isOpen: boolean
@@ -18,6 +19,8 @@ type SettingsModalProps = {
   lineWrap: boolean
   setLineWrap: (val: boolean) => void
   packageManagerStatus: string
+  themeMode: ThemeMode
+  setThemeMode: (theme: ThemeMode) => void
 }
 
 function fixLooseJson(code: string): string {
@@ -39,6 +42,8 @@ export function SettingsModal({
   lineWrap,
   setLineWrap,
   packageManagerStatus,
+  themeMode,
+  setThemeMode,
 }: SettingsModalProps) {
   const [temporaryTsConfig, setTemporaryTsConfig] = useState(tsConfigString)
   const [isValid, setIsValid] = useState(true)
@@ -83,10 +88,8 @@ export function SettingsModal({
   const handleSave = async () => {
     if (!isValid) return
 
-    // Close immediately as requested
     onClose()
 
-    // Queue validation and save
     playgroundStore.enqueue('Update TSConfig', async () => {
       try {
         let toSave = temporaryTsConfig
@@ -133,6 +136,23 @@ export function SettingsModal({
 
         <div className='px-5 py-4 flex flex-col gap-6 overflow-y-auto min-h-0'>
           <div className='flex flex-col gap-4'>
+            <div className='flex flex-col gap-2'>
+              <label className='text-sm font-bold text-subtext0'>
+                Syntax Theme
+              </label>
+              <select
+                value={themeMode}
+                onChange={(e) => setThemeMode(e.target.value as ThemeMode)}
+                className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none focus:border-mauve transition-colors'
+              >
+                {Object.entries(THEME_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className='flex flex-col gap-2'>
               <label className='text-sm font-bold text-subtext0'>
                 TypeScript Version

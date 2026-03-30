@@ -129,10 +129,25 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
             const documentation = info.documentation || []
             const text = displayParts.map((p) => p.text).join('')
 
-            const nameMatch = text.match(
-              /^(?:const|let|var|function|class|interface|type|enum)\s+([^\s:(]+)/
+            const SYMBOL_KINDS = new Set([
+              'localName',
+              'variableName',
+              'parameterName',
+              'methodName',
+              'functionName',
+              'className',
+              'interfaceName',
+              'aliasName',
+              'propertyName',
+              'enumName',
+              'enumMemberName',
+              'moduleName',
+              'typeParameterName',
+            ])
+            const symbolPart = displayParts.find((p) =>
+              SYMBOL_KINDS.has(p.kind)
             )
-            const name = nameMatch ? nameMatch[1] : ''
+            const name = symbolPart ? symbolPart.text : ''
 
             onTypeInfoChange({
               name,
@@ -211,13 +226,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
           onChange={(v) => onChange?.(v || '')}
           onMount={handleEditorMount}
           beforeMount={handleBeforeMount}
-          theme={
-            themeMode === 'mocha'
-              ? 'mocha'
-              : isDarkMode(themeMode)
-                ? 'github-dark'
-                : 'github-light'
-          }
+          theme={themeMode}
           options={options}
           path={path}
         />

@@ -25,7 +25,7 @@ export function useTSDiagnostics(
       if (code.length > 20_000) return
 
       try {
-        await workerClient.updateFile('main.ts', code)
+        await workerClient.updateFile('/main.ts', code)
 
         // Performance optimization: Only send the huge node_modules object
         // to the worker if it actually changed (after an npm install)
