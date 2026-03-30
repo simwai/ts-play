@@ -446,8 +446,7 @@ export function App() {
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        themeMode={themeMode}
-        setThemeMode={setThemeMode}
+        themeMode={themeMode} setThemeMode={setThemeMode}
         handleCopyAll={handleCopyAll}
         copied={copied}
         handleDeleteAll={handleDeleteAll}
@@ -510,7 +509,7 @@ export function App() {
               onTypeInfoChange={setTypeInfo}
               language='typescript'
               extraLibs={packageTypings}
-              isMobileLike={isMobileLike}
+              isMobileLike={isMobileLike} themeMode={themeMode}
             />
           </div>
           {/* JS Editor */}
@@ -522,7 +521,7 @@ export function App() {
               onChange={handleJsChange}
               onCursorPosChange={setCursorPos}
               language='javascript'
-              isMobileLike={isMobileLike}
+              isMobileLike={isMobileLike} themeMode={themeMode}
             />
           </div>
           {/* DTS Editor */}
@@ -535,7 +534,7 @@ export function App() {
               onCursorPosChange={setCursorPos}
               language='typescript'
               readOnly={true}
-              isMobileLike={isMobileLike}
+              isMobileLike={isMobileLike} themeMode={themeMode}
             />
           </div>
         </div>

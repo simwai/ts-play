@@ -28,6 +28,7 @@ let compilerOptions: TS.CompilerOptions = {
   strict: true,
   skipLibCheck: true,
   jsx: TS.JsxEmit.ReactJSX,
+  declaration: true,
   noImplicitAny: false,
   baseUrl: '/',
   paths: {
@@ -53,7 +54,7 @@ async function initializeLanguageService() {
     getScriptVersion: (fileName) => {
       const normalized = fileName.startsWith('/') ? fileName : '/' + fileName
       if (normalized === '/main.ts')
-        return String(virtualFiles['main.ts']?.version ?? 0)
+        return String(virtualFiles['/main.ts']?.version ?? 0)
       if (
         externalPackageDefinitions[normalized] ||
         externalPackageDefinitions[normalized.substring(1)]
@@ -66,7 +67,7 @@ async function initializeLanguageService() {
       const normalized = fileName.startsWith('/') ? fileName : '/' + fileName
 
       if (normalized === '/main.ts') {
-        content = virtualFiles['main.ts']?.content
+        content = virtualFiles['/main.ts']?.content
       } else if (defaultLibraryFiles[normalized.substring(1)]) {
         content = defaultLibraryFiles[normalized.substring(1)]
       } else {
@@ -98,7 +99,7 @@ async function initializeLanguageService() {
         externalPackageDefinitions[normalized.substring(1)] ||
         defaultLibraryFiles[normalized.substring(1)] ||
         (normalized === '/main.ts'
-          ? virtualFiles['main.ts']?.content
+          ? virtualFiles['/main.ts']?.content
           : undefined)
       )
     },
@@ -162,10 +163,11 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       }
 
       case 'UPDATE_FILE': {
-        const { content, filename = 'main.ts' } = payload
-        const fileState = virtualFiles[filename]
+        const { content, filename = '/main.ts' } = payload
+        const normalized = filename.startsWith('/') ? filename : '/' + filename
+        const fileState = virtualFiles[normalized]
         if (!fileState || fileState.content !== content) {
-          virtualFiles[filename] = {
+          virtualFiles[normalized] = {
             version: (fileState?.version || 0) + 1,
             content,
           }
@@ -177,7 +179,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       case 'UPDATE_EXTRA_LIBS': {
         externalPackageDefinitions = payload.libs
         externalPackageVersion += 1
-        if (virtualFiles['main.ts']) virtualFiles['main.ts'].version += 1
+        if (virtualFiles['/main.ts']) virtualFiles['/main.ts'].version += 1
         result = true
         break
       }
@@ -199,7 +201,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
             '/'
           )
           compilerOptions = { ...compilerOptions, ...options }
-          if (virtualFiles['main.ts']) virtualFiles['main.ts'].version += 1
+          if (virtualFiles['/main.ts']) virtualFiles['/main.ts'].version += 1
         }
         result = true
         break
@@ -228,8 +230,8 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
           break
         }
         const all = [
-          ...languageService.getSyntacticDiagnostics('main.ts'),
-          ...languageService.getSemanticDiagnostics('main.ts'),
+          ...languageService.getSyntacticDiagnostics('/main.ts'),
+          ...languageService.getSemanticDiagnostics('/main.ts'),
         ]
         result = all.map((d) => {
           let message = ''
@@ -268,7 +270,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
           break
         }
         const info = languageService.getQuickInfoAtPosition(
-          'main.ts',
+          '/main.ts',
           payload.offset
         )
         if (!info) {
@@ -294,9 +296,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
         const symbolPart = info.displayParts.find((p) =>
           SYMBOL_KINDS.has(p.kind)
         )
-        const name = symbolPart
-          ? symbolPart.text
-          : TS.displayPartsToString(info.displayParts)
+        const name = symbolPart ? symbolPart.text : ''
 
         const typeAnnotation = TS.displayPartsToString(info.displayParts)
         let jsDoc = info.documentation
@@ -328,7 +328,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
           break
         }
         const completions = languageService.getCompletionsAtPosition(
-          'main.ts',
+          '/main.ts',
           payload.offset,
           undefined
         )
@@ -343,6 +343,12 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       }
 
       case 'COMPILE': {
+        // Sync virtual file first
+        virtualFiles['/main.ts'] = {
+          version: (virtualFiles['/main.ts']?.version || 0) + 1,
+          content: payload.code
+        }
+
         const compiled = await esbuild.build({
           bundle: false,
           format: 'esm',
@@ -351,12 +357,24 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
           stdin: {
             contents: payload.code,
             loader: 'ts',
-            sourcefile: 'main.ts',
+            sourcefile: '/main.ts',
           },
         })
+
+        let dts = ""
+        if (languageService) {
+           const output = languageService.getEmitOutput('/main.ts', true)
+           const dtsFile = output.outputFiles.find(f => f.name.endsWith('.d.ts'))
+           if (dtsFile) dts = dtsFile.text
+        }
+
+        if (!dts) {
+          dts = generateAmbientDeclarations(payload.code)
+        }
+
         result = {
           js: compiled.outputFiles?.[0]?.text || '',
-          dts: generateAmbientDeclarations(payload.code),
+          dts,
         }
         break
       }

@@ -119,6 +119,7 @@ export function TypeInfoBar({ typeInfo, cursorPos, language, themeMode = 'mocha'
     );
   }
 
+  const kindLabel = getKindLabel(typeInfo.kind);
   const kc = kindColorClass(typeInfo.kind);
   const kcBg = kindBgClass(typeInfo.kind);
   const kcBorder = kindBorderClass(typeInfo.kind);
@@ -126,14 +127,16 @@ export function TypeInfoBar({ typeInfo, cursorPos, language, themeMode = 'mocha'
   return (
     <div className="flex flex-col bg-mantle border-t border-surface0/50 px-4 py-2 text-xxs md:text-xs font-mono shrink-0 max-h-48 overflow-y-auto animate-in slide-in-from-bottom-2 duration-200">
       <div className="flex items-baseline gap-2 flex-wrap leading-relaxed">
-        <span
-          className={cn(
-            'text-[10px] font-bold tracking-wider uppercase rounded-md px-1.5 py-0.5 shrink-0 leading-tight border transition-colors',
-            kc, kcBg, kcBorder
-          )}
-        >
-          {typeInfo.kind}
-        </span>
+        {kindLabel && (
+          <span
+            className={cn(
+              'text-[10px] font-bold tracking-wider uppercase rounded-md px-1.5 py-0.5 shrink-0 leading-tight border transition-colors',
+              kc, kcBg, kcBorder
+            )}
+          >
+            {kindLabel}
+          </span>
+        )}
         <span className="text-text font-semibold shrink-0">{typeInfo.name || (typeInfo.kind === 'keyword' ? '' : 'unknown')}</span>
         <span className="text-overlay0 shrink-0">:</span>
         <div
@@ -158,44 +161,103 @@ export function TypeInfoBar({ typeInfo, cursorPos, language, themeMode = 'mocha'
   );
 }
 
+function getKindLabel(kind: string): string {
+  switch (kind) {
+    case 'var':
+    case 'let':
+    case 'const':
+    case 'variable': return 'var';
+    case 'function':
+    case 'local function': return 'func';
+    case 'method':
+    case 'constructor': return 'method';
+    case 'property':
+    case 'getter':
+    case 'setter': return 'prop';
+    case 'class': return 'class';
+    case 'interface': return 'intf';
+    case 'type':
+    case 'alias': return 'type';
+    case 'enum': return 'enum';
+    case 'module': return 'module';
+    case 'parameter': return 'param';
+    case 'keyword': return 'key';
+    case 'string':
+    case 'number':
+    case 'boolean':
+    case 'primitive': return 'prim';
+    default: return kind ? kind.substring(0, 4) : '';
+  }
+}
+
 function kindColorClass(kind: string): string {
   switch (kind) {
-    case 'function': return 'text-blue';
-    case 'type': return 'text-yellow';
-    case 'interface': return 'text-teal';
+    case 'function':
+    case 'local function':
+    case 'method':
+    case 'constructor': return 'text-blue';
+    case 'type':
+    case 'interface':
+    case 'alias': return 'text-yellow';
     case 'class': return 'text-green';
     case 'parameter': return 'text-maroon';
-    case 'property': return 'text-sapphire';
+    case 'property':
+    case 'getter':
+    case 'setter': return 'text-sapphire';
     case 'keyword': return 'text-mauve';
     case 'builtin': return 'text-peach';
-    default: return 'text-lavender';
+    case 'var':
+    case 'let':
+    case 'const':
+    case 'variable': return 'text-lavender';
+    default: return 'text-overlay1';
   }
 }
 
 function kindBgClass(kind: string): string {
   switch (kind) {
-    case 'function': return 'bg-blue/10';
-    case 'type': return 'bg-yellow/10';
-    case 'interface': return 'bg-teal/10';
+    case 'function':
+    case 'local function':
+    case 'method':
+    case 'constructor': return 'bg-blue/10';
+    case 'type':
+    case 'interface':
+    case 'alias': return 'bg-yellow/10';
     case 'class': return 'bg-green/10';
     case 'parameter': return 'bg-maroon/10';
-    case 'property': return 'bg-sapphire/10';
+    case 'property':
+    case 'getter':
+    case 'setter': return 'bg-sapphire/10';
     case 'keyword': return 'bg-mauve/10';
     case 'builtin': return 'bg-peach/10';
-    default: return 'bg-lavender/10';
+    case 'var':
+    case 'let':
+    case 'const':
+    case 'variable': return 'bg-lavender/10';
+    default: return 'bg-overlay1/10';
   }
 }
 
 function kindBorderClass(kind: string): string {
   switch (kind) {
-    case 'function': return 'border-blue/20';
-    case 'type': return 'border-yellow/20';
-    case 'interface': return 'border-teal/20';
+    case 'function':
+    case 'local function':
+    case 'method':
+    case 'constructor': return 'border-blue/20';
+    case 'type':
+    case 'interface':
+    case 'alias': return 'border-yellow/20';
     case 'class': return 'border-green/20';
     case 'parameter': return 'border-maroon/20';
-    case 'property': return 'border-sapphire/20';
+    case 'property':
+    case 'getter':
+    case 'setter': return 'border-sapphire/20';
     case 'keyword': return 'border-mauve/20';
     case 'builtin': return 'border-peach/20';
-    default: return 'border-lavender/20';
+    case 'var':
+    case 'let':
+    case 'const':
+    case 'variable': return 'border-lavender/20';
+    default: return 'border-overlay1/20';
   }
 }
