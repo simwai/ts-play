@@ -488,14 +488,14 @@ export function App() {
       >
         {/* Slider track */}
         <div
-          className='flex w-[300%] h-full transition-transform duration-300 ease-in-out will-change-transform'
+          className='flex w-[300%] h-full transition-[left] duration-300 ease-in-out relative'
           style={{
-            transform:
+            left:
               activeTab === 'ts'
-                ? 'translateX(0)'
+                ? '0'
                 : activeTab === 'js'
-                  ? 'translateX(-33.333%)'
-                  : 'translateX(-66.666%)',
+                  ? '-100%'
+                  : '-200%',
           }}
         >
           {/* TS Editor */}

@@ -165,7 +165,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       () => ({
         minimap: { enabled: false },
         fontSize: fontSizeOverride || (isMobileLike ? 12 : 14),
-        fontFamily: "'Fira Code', 'Cascadia Code', Consolas, monospace",
+        fontFamily: "'JetBrains Mono', 'Victor Mono', 'Fira Code', 'Cascadia Code', monospace",
         fontLigatures: true,
         cursorBlinking: 'smooth' as const,
         cursorSmoothCaretAnimation: 'on' as const,
