@@ -1,0 +1,15 @@
+<<<<<<< SEARCH
+        const formatted = await formatJson(toSave)
+        const finalConfig = fixLooseJson(formatted)
+
+        await operationQueue.add(async () => {
+          onSave(finalConfig)
+        })
+        playgroundStore.addToast('success', 'TSConfig updated successfully')
+=======
+        const formatted = await formatJson(toSave)
+        const finalConfig = fixLooseJson(formatted)
+
+        onSave(finalConfig)
+        playgroundStore.addToast('success', 'TSConfig updated successfully')
+>>>>>>> REPLACE

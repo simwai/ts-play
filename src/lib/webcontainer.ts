@@ -2,15 +2,6 @@ import { WebContainer, type WebContainerProcess } from '@webcontainer/api'
 import { playgroundStore } from './state-manager'
 import { RegexPatterns, toRegExp } from './regex'
 
-export type EnvironmentStatus = 'idle' | 'booting' | 'preparing' | 'ready' | 'error'
-export type CompilerStatus =
-  | 'Idle'
-  | 'Preparing'
-  | 'Running'
-  | 'Compiling'
-  | 'Ready'
-  | 'Error'
-
 export const SYSTEM_DEPS = [
   'typescript',
   'esbuild',
@@ -34,7 +25,7 @@ export class WebContainerService {
     if (this.bootPromise) return this.bootPromise
 
     this.bootPromise = (async () => {
-      playgroundStore.setState({ lifecycle: 'booting' })
+      playgroundStore.setState({ compilerStatus: 'loading' })
       this.emitLog('info', 'Booting WebContainer...')
       const instance = await WebContainer.boot()
       this.instance = instance
@@ -65,8 +56,8 @@ export class WebContainerService {
     )
   }
 
-  async enqueue<T>(task: (instance: WebContainer) => Promise<T>): Promise<T> {
-    return playgroundStore.enqueue(async () => {
+  async enqueue<T>(actionName: string, task: (instance: WebContainer) => Promise<T>): Promise<T> {
+    return playgroundStore.enqueue(actionName, async () => {
       const instance = await this.getInstance()
       return task(instance)
     })
@@ -90,7 +81,6 @@ export class WebContainerService {
   async exportSnapshot(): Promise<Uint8Array> {
     const instance = await this.getInstance()
     this.emitLog('info', 'Exporting environment snapshot...')
-    // Use binary format to avoid JSON serialization issues and reduce size
     const snapshot = (await instance.export('.', {
       format: 'binary',
     })) as Uint8Array
@@ -116,7 +106,6 @@ export class WebContainerService {
         try {
           await instance.fs.mkdir(currentPath, { recursive: true })
         } catch {
-          // Directory might already exist
         }
       }
     }
@@ -133,16 +122,6 @@ export class WebContainerService {
   async readFile(path: string) {
     const instance = await this.getInstance()
     return instance.fs.readFile(path, 'utf8')
-  }
-
-  async getEnvReady() {
-    return new Promise<void>((resolve) => {
-      const check = () => {
-        if (playgroundStore.getState().lifecycle === 'ready') resolve()
-        else setTimeout(check, 100)
-      }
-      check()
-    })
   }
 
   async spawnManaged(
@@ -231,7 +210,6 @@ export class WebContainerService {
             await read(fullPath)
           } else if (!filter || filter(fullPath)) {
             const content = await instance.fs.readFile(fullPath, 'utf8')
-            // Keep the full path relative to the root for Monaco
             const monacoPath = fullPath.startsWith('./')
               ? fullPath.slice(2)
               : fullPath
@@ -248,9 +226,8 @@ export class WebContainerService {
 
 export const webContainerService = new WebContainerService()
 
-// For backward compatibility during migration
 export const getWebContainer = () => webContainerService.getInstance()
 export const writeFiles = (files: Record<string, string>) => webContainerService.writeFiles(files)
 export const readFile = (path: string) => webContainerService.readFile(path)
 export const runCommand = (cmd: string, args: string[], onOutput: (d: string) => void) => webContainerService.spawnManaged(cmd, args, { onLog: onOutput })
-export const operationQueue = { add: <T>(task: () => Promise<T>) => playgroundStore.enqueue(task) }
+export const operationQueue = { add: <T>(task: () => Promise<T>) => playgroundStore.enqueue('Background Task', task) }

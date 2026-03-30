@@ -1,23 +1,5 @@
-export type PackageManagerStatus =
-  | 'idle'
-  | 'installing'
-  | 'uninstalling'
-  | 'syncing'
-  | 'error'
-export type EnvironmentStatus =
-  | 'idle'
-  | 'booting'
-  | 'preparing'
-  | 'ready'
-  | 'error'
-export type CompilerStatus =
-  | 'Idle'
-  | 'Preparing'
-  | 'Running'
-  | 'Compiling'
-  | 'Ready'
-  | 'Error'
 import type { ThemeMode } from './theme'
+import type { ToastType, ToastMessage, PackageManagerStatus, CompilerStatus } from './types'
 
 export interface PlaygroundState {
   theme: ThemeMode
@@ -49,6 +31,7 @@ class PlaygroundStore {
   }
 
   private listeners = new Set<Listener>()
+  private queue: Promise<void> = Promise.resolve()
 
   getState() {
     return this.state
@@ -83,9 +66,19 @@ class PlaygroundStore {
     }))
   }
 
-  enqueue(actionName: string, action: () => Promise<void>) {
-    this.addToast('info', `Action queued: ${actionName}`)
-    return action()
+  enqueue<T>(actionName: string, action: () => Promise<T>): Promise<T> {
+    const toastId = this.addToast('info', `Action queued: ${actionName}`)
+
+    const promise = this.queue.then(async () => {
+      try {
+        return await action()
+      } finally {
+        this.removeToast(toastId)
+      }
+    })
+
+    this.queue = promise.then(() => {}).catch(() => {})
+    return promise
   }
 }
 

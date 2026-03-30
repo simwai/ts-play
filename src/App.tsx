@@ -501,6 +501,7 @@ export function App() {
           {/* TS Editor */}
           <div className='w-[33.333%] h-full shrink-0'>
             <CodeEditor
+              path="file:///index.ts"
               ref={tsEditorRef}
               value={tsCode}
               onChange={setTsCode}
@@ -515,6 +516,7 @@ export function App() {
           {/* JS Editor */}
           <div className='w-[33.333%] h-full shrink-0'>
             <CodeEditor
+              path="file:///index.js"
               ref={jsEditorRef}
               value={jsCode}
               onChange={handleJsChange}
@@ -526,6 +528,7 @@ export function App() {
           {/* DTS Editor */}
           <div className='w-[33.333%] h-full shrink-0'>
             <CodeEditor
+              path="file:///index.d.ts"
               ref={dtsEditorRef}
               value={dtsCode}
               onChange={setDtsCode}
