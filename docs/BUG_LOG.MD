@@ -1,3 +1,5 @@
+<!-- AGENT PROMPT: Please update this file after every message if it is relevant. Continuous updates ensure that the documentation accurately reflects the current state of the codebase, project specification, and architectural principles. -->
+
 # Complex Bug Log
 
 ## 2025-05-22: Type Info Bar "Empty Box" and Inaccurate Info

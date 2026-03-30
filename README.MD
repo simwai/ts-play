@@ -1,3 +1,5 @@
+<!-- AGENT PROMPT: Please update this file after every message if it is relevant. Continuous updates ensure that the documentation accurately reflects the current state of the codebase, project specification, and architectural principles. -->
+
 # TypeScript Playground
 
 A powerful, browser-based TypeScript development environment.
