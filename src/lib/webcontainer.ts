@@ -2,7 +2,12 @@ import { WebContainer, type WebContainerProcess } from '@webcontainer/api'
 import { playgroundStore } from './state-manager'
 import { RegexPatterns, toRegExp } from './regex'
 
-export type EnvironmentStatus = 'idle' | 'booting' | 'preparing' | 'ready' | 'error'
+export type EnvironmentStatus =
+  | 'idle'
+  | 'booting'
+  | 'preparing'
+  | 'ready'
+  | 'error'
 export type CompilerStatus =
   | 'Idle'
   | 'Preparing'
@@ -172,9 +177,9 @@ export class WebContainerService {
           const lines = currentLineBuffer.split(toRegExp(RegexPatterns.NEWLINE))
 
           const last = lines[lines.length - 1]
-          const hasIncompleteAnsi = toRegExp(RegexPatterns.INCOMPLETE_ANSI).test(
-            last
-          )
+          const hasIncompleteAnsi = toRegExp(
+            RegexPatterns.INCOMPLETE_ANSI
+          ).test(last)
 
           if (!hasIncompleteAnsi) {
             currentLineBuffer = lines.pop() || ''
@@ -250,7 +255,14 @@ export const webContainerService = new WebContainerService()
 
 // For backward compatibility during migration
 export const getWebContainer = () => webContainerService.getInstance()
-export const writeFiles = (files: Record<string, string>) => webContainerService.writeFiles(files)
+export const writeFiles = (files: Record<string, string>) =>
+  webContainerService.writeFiles(files)
 export const readFile = (path: string) => webContainerService.readFile(path)
-export const runCommand = (cmd: string, args: string[], onOutput: (d: string) => void) => webContainerService.spawnManaged(cmd, args, { onLog: onOutput })
-export const operationQueue = { add: <T>(task: () => Promise<T>) => playgroundStore.enqueue(task) }
+export const runCommand = (
+  cmd: string,
+  args: string[],
+  onOutput: (d: string) => void
+) => webContainerService.spawnManaged(cmd, args, { onLog: onOutput })
+export const operationQueue = {
+  add: <T>(task: () => Promise<T>) => playgroundStore.enqueue(task),
+}

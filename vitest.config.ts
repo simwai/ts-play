@@ -13,7 +13,11 @@ export default defineConfig({
           browser: 'chromium',
           provider: playwright({
             launchOptions: {
-              args: ['--no-sandbox', '--disable-setuid-sandbox', '--headless=new'],
+              args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--headless=new',
+              ],
             },
           }),
         },
