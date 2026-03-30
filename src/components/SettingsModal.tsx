@@ -6,7 +6,7 @@ import { formatJson } from '../lib/formatter'
 import { DEFAULT_TSCONFIG } from '../lib/constants'
 import { CodeEditor } from './CodeEditor'
 import { playgroundStore } from '../lib/state-manager'
-import { operationQueue } from '../lib/webcontainer'
+import { Github } from 'lucide-react'
 
 type SettingsModalProps = {
   isOpen: boolean
@@ -245,26 +245,27 @@ export function SettingsModal({
           </div>
         </div>
 
-        <div className='px-5 py-2 border-t border-surface0 bg-mantle flex flex-col items-center gap-1 shrink-0'>
-          <p className='text-xs text-subtext0 text-center'>
-            Made with 💜 by
-            <br />
-            <span className='font-graffonti text-xl bg-lit-gradient animate-lit-gradient leading-relaxed'>
-              simwai
-            </span>
-            <br />
-            <span className='opacity-50 text-[10px] uppercase tracking-widest'>
-              feat. jules & aider
-            </span>
+        <div className='px-5 py-3 border-t border-surface0 bg-mantle flex flex-col items-center gap-2 shrink-0'>
+          <div className='flex items-center gap-2'>
+            <p className='text-xs text-subtext0'>
+              Made with 💜 by
+              <span className='ml-1 font-graffonti text-xl bg-lit-gradient animate-lit-gradient leading-relaxed'>
+                simwai
+              </span>
+            </p>
+            <a
+              href='https://github.com/simwai/ts-play'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='text-subtext0 hover:text-mauve transition-colors'
+              aria-label='GitHub Repository'
+            >
+              <Github size={16} />
+            </a>
+          </div>
+          <p className='text-[10px] text-overlay0 uppercase tracking-[0.2em]'>
+            TypeScript Playground
           </p>
-          <a
-            href='https://github.com/simwai/ts-play'
-            target='_blank'
-            rel='noopener noreferrer'
-            className='text-xs text-mauve hover:underline'
-          >
-            GitHub Repository
-          </a>
         </div>
       </div>
     </div>
