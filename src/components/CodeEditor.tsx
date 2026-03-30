@@ -1,3 +1,4 @@
+import { type TypeInfo } from '../lib/types'
 import Editor, {
   type BeforeMount,
   type OnMount,
@@ -20,7 +21,7 @@ import {
 } from '../lib/monaco-themes'
 import { type ThemeMode, isDarkMode } from '../lib/theme'
 
-export type CodeEditorHandle = {
+export type CodeEditorRef = {
   undo: () => void
   redo: () => void
 }
@@ -29,6 +30,8 @@ type CodeEditorProps = {
   value: string
   onChange?: (value: string) => void
   onCursorChange?: (offset: number) => void
+  onCursorPosChange?: (pos: { line: number; col: number }) => void
+  onTypeInfoChange?: (info: TypeInfo | null) => void
   language?: 'typescript' | 'javascript' | 'json'
   readOnly?: boolean
   hideGutter?: boolean
@@ -41,12 +44,14 @@ type CodeEditorProps = {
   isMobileLike?: boolean
 }
 
-export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
+export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
   (
     {
       value,
       onChange,
       onCursorChange,
+      onCursorPosChange,
+      onTypeInfoChange,
       language = 'typescript',
       readOnly = false,
       hideGutter = false,
@@ -132,8 +137,8 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
             onTypeInfoChange({
               name,
               kind: info.kind,
-              type: text,
-              documentation: documentation.map((d) => d.text).join('\n'),
+              typeAnnotation: text,
+              jsDoc: documentation.map((d) => d.text).join('\n'),
             })
           } else {
             onTypeInfoChange(null)

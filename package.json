@@ -10,7 +10,7 @@
     "format": "prettier -w .",
     "check-quality": "knip && madge --circular --extensions ts,tsx src/",
     "prepare": "husky",
-    "test:browser": "vitest --config=vitest.browser.config.ts"
+    "test": "vitest --run"
   },
   "engines": {
     "node": ">=20.19.0 <21 || >=22.12.0"
