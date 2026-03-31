@@ -24,6 +24,7 @@ import { type ThemeMode } from '../lib/theme'
 export type CodeEditorRef = {
   undo: () => void
   redo: () => void
+  jumpTo: (line: number, col: number) => void
 }
 
 type CodeEditorProps = {
@@ -77,6 +78,13 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
     useImperativeHandle(ref, () => ({
       undo: () => editorRef.current?.trigger('keyboard', 'undo', null),
       redo: () => editorRef.current?.trigger('keyboard', 'redo', null),
+      jumpTo: (line, col) => {
+        if (editorRef.current) {
+          editorRef.current.revealPositionInCenter({ lineNumber: line, column: col })
+          editorRef.current.setPosition({ lineNumber: line, column: col })
+          editorRef.current.focus()
+        }
+      }
     }))
 
     const handleBeforeMount: BeforeMount = (monaco) => {
