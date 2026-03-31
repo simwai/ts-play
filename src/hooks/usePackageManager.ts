@@ -94,18 +94,23 @@ export function usePackageManager(
 
   const syncTypingsFromContainer = useCallback(async () => {
     try {
-      // Sync d.ts AND package.json files for module resolution
+      // Crawl node_modules for d.ts and package.json files
       const types = await webContainerService.readDirRecursive(
         'node_modules',
         (path) => path.endsWith('.d.ts') || path.endsWith('package.json'),
-        20
+        30
       )
 
       if (Object.keys(types).length > 0) {
-        setPackageTypings((prev) => ({
-          ...prev,
-          ...types,
-        }))
+        setPackageTypings((prev) => {
+          // Create a fresh map starting with existing types (like ATA or user-defined)
+          // and overwrite with container types for maximum accuracy.
+          const next = { ...prev }
+          for (const [path, content] of Object.entries(types)) {
+            next[path] = content
+          }
+          return next
+        })
       }
     } catch (error) {
       console.warn('[Package Manager] Container typing sync failed:', error)
@@ -152,7 +157,7 @@ export function usePackageManager(
       } catch (error) {
         console.error('Failed to detect imports:', error)
       }
-    }, 2500) // Debounce to 2.5s
+    }, 2500)
   }, [tsCode])
 
   useEffect(() => {
@@ -203,11 +208,8 @@ export function usePackageManager(
   }, [tsCode])
 
   useEffect(() => {
-    // Reconciliation logic
     const currentTargetNames = new Set(installedPackages.map((p) => p.name))
     const previouslyProcessedNames = previousPkgsRef.current
-
-    // Don't uninstall SYSTEM_DEPS
     const systemDepsSet = new Set(SYSTEM_DEPS)
 
     const toAdd = [...currentTargetNames].filter(
@@ -226,7 +228,6 @@ export function usePackageManager(
 
     const performChanges = async () => {
       try {
-        // 1. Resolve @types for new packages
         const finalInstallList: string[] = []
         for (const pkg of toAdd) {
           const pkgExists = await cachedCheckNpmPackage(pkg)
@@ -247,7 +248,6 @@ export function usePackageManager(
           }
         }
 
-        // 2. Perform Uninstall
         if (toRemove.length > 0) {
           const typesToRemove = toRemove.map(getTypesPackageName)
           const allToRemove = [...toRemove, ...typesToRemove]
@@ -262,7 +262,6 @@ export function usePackageManager(
           await syncTypingsFromContainer()
         }
 
-        // 3. Perform Install
         if (finalInstallList.length > 0) {
           setStatus('installing')
           addMessage('info', [

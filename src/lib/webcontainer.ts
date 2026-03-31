@@ -194,7 +194,7 @@ export class WebContainerService {
   async readDirRecursive(
     dir: string,
     filter?: (path: string) => boolean,
-    maxDepth = 20
+    maxDepth = 30
   ): Promise<Record<string, string>> {
     const instance = await this.getInstance()
     const results: Record<string, string> = {}
@@ -209,7 +209,6 @@ export class WebContainerService {
         for (const entry of entries) {
           const fullPath = currentPath + '/' + entry.name
 
-          // Skip common high-volume/hidden folders for performance
           if (
             entry.name === '.git' ||
             entry.name === '.husky' ||
@@ -221,11 +220,11 @@ export class WebContainerService {
             await read(fullPath, depth + 1)
           } else if (!filter || filter(fullPath)) {
             const content = await instance.fs.readFile(fullPath, 'utf8')
-            // Ensure path starts with / for host-worker consistency
-            const monacoPath = fullPath.startsWith('/')
+            // Monaco path normalization: always absolute from root
+            const absolutePath = fullPath.startsWith('/')
               ? fullPath
               : '/' + fullPath
-            results[monacoPath] = content
+            results[absolutePath] = content
           }
         }
       } catch {}
