@@ -111,6 +111,7 @@ export function App() {
     true
   )
   const [lineWrap, setLineWrap] = useLocalStorage('tsplay_linewrap', true)
+  const [showNodeWarnings, setShowNodeWarnings] = useLocalStorage('tsplay_node_warnings', true)
 
   const [activeTab, setActiveTab] = useState<TabType>('ts')
 
@@ -384,7 +385,11 @@ export function App() {
   )
 
   return (
-    <div className='flex flex-col h-[100dvh] bg-base text-text font-sans overflow-hidden'>
+    <div
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      ref={swipeRef} className='flex flex-col h-[100dvh] bg-base text-text font-sans overflow-hidden'>
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -421,11 +426,12 @@ export function App() {
 
       {/* ── Editors ── */}
       <div
-        ref={swipeRef}
+
+        data-testid="swipe-container"
         className='flex-1 overflow-hidden relative min-h-0'
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
+
+
+
       >
         {/* Slider track */}
         <div
@@ -512,6 +518,7 @@ export function App() {
             onToggle={toggleConsole}
             contentHeight={panelHeight}
             trueColorEnabled={trueColorEnabled}
+            showNodeWarnings={showNodeWarnings}
           />
 
           {/* ── Package Manager ── */}
