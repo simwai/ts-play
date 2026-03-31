@@ -135,6 +135,8 @@ export class WebContainerService {
     const reader = proc.output.getReader()
     const decoder = new TextDecoder()
     let currentLineBuffer = ''
+    let lineCountSinceYield = 0
+    const MAX_LINES_PER_YIELD = 15
 
     ;(async () => {
       try {
@@ -155,27 +157,30 @@ export class WebContainerService {
             last
           )
 
-          if (!hasIncompleteAnsi) {
-            currentLineBuffer = lines.pop() || ''
-            for (const line of lines) {
+          const processLines = async (linesToProc: string[]) => {
+            for (const line of linesToProc) {
               const simplified = line.replace(
                 toRegExp(RegexPatterns.EXCESSIVE_WHITESPACE),
                 '    '
               )
               if (!options.silent) this.emitLog('info', simplified)
               options.onLog?.(simplified)
+
+              lineCountSinceYield++
+              if (lineCountSinceYield >= MAX_LINES_PER_YIELD) {
+                lineCountSinceYield = 0
+                await new Promise(resolve => setTimeout(resolve, 0))
+              }
             }
+          }
+
+          if (!hasIncompleteAnsi) {
+            currentLineBuffer = lines.pop() || ''
+            await processLines(lines)
           } else {
             const completeLines = lines.slice(0, -1)
             currentLineBuffer = lines[lines.length - 1]
-            for (const line of completeLines) {
-              const simplified = line.replace(
-                toRegExp(RegexPatterns.EXCESSIVE_WHITESPACE),
-                '    '
-              )
-              if (!options.silent) this.emitLog('info', simplified)
-              options.onLog?.(simplified)
-            }
+            await processLines(completeLines)
           }
         }
         if (currentLineBuffer) {

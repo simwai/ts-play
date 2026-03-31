@@ -1,9 +1,24 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import type { ConsoleMessage } from '../components/Console'
 
 export function useConsoleManager() {
   const [messages, setMessages] = useState<ConsoleMessage[]>([])
   const [consoleOpen, setConsoleOpen] = useState(true)
+
+  const bufferRef = useRef<ConsoleMessage[]>([])
+  const flushTimeoutRef = useRef<number | null>(null)
+
+  const flushBuffer = useCallback(() => {
+    if (bufferRef.current.length === 0) return
+
+    const newMessages = [...bufferRef.current]
+    bufferRef.current = []
+    flushTimeoutRef.current = null
+
+    setMessages((previous) =>
+      [...previous, ...newMessages].slice(-500)
+    )
+  }, [])
 
   const addMessage = useCallback(
     (type: ConsoleMessage['type'], args: unknown[]) => {
@@ -26,14 +41,22 @@ export function useConsoleManager() {
           return String(a)
         }
       })
-      setMessages((previous) =>
-        [...previous, { type, args: formatted, ts: Date.now() }].slice(-500)
-      )
+
+      bufferRef.current.push({ type, args: formatted, ts: Date.now() })
+
+      if (!flushTimeoutRef.current) {
+        flushTimeoutRef.current = window.setTimeout(flushBuffer, 16) as unknown as number
+      }
     },
-    []
+    [flushBuffer]
   )
 
   const clearMessages = useCallback(() => {
+    bufferRef.current = []
+    if (flushTimeoutRef.current) {
+      clearTimeout(flushTimeoutRef.current)
+      flushTimeoutRef.current = null
+    }
     setMessages([])
   }, [])
 
@@ -97,6 +120,10 @@ export function useConsoleManager() {
       console.debug = origDebug
       console.trace = origTrace
       console.dir = origDir
+
+      if (flushTimeoutRef.current) {
+        clearTimeout(flushTimeoutRef.current)
+      }
     }
   }, [addMessage])
 

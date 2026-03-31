@@ -78,7 +78,7 @@ export function TypeInfoBar({ typeInfo, cursorPos, language, themeMode = 'mocha'
   const [highlightedSig, setHighlightedSig] = useState('');
 
   useEffect(() => {
-    if (!monaco || !typeInfo) {
+    if (!monaco || !monaco.editor || !typeInfo) {
       setHighlightedType('');
       setHighlightedSig('');
       return;
@@ -102,7 +102,7 @@ export function TypeInfoBar({ typeInfo, cursorPos, language, themeMode = 'mocha'
   const renderCursorPos = () => {
     if (!cursorPos) return null;
     return (
-      <span className="text-overlay0 ml-auto shrink-0 select-none">
+      <span className="text-overlay0 ml-auto shrink-0 select-none text-[10px] md:text-xxs font-mono">
         Ln {cursorPos.line}, Col {cursorPos.col}
       </span>
     );
@@ -110,7 +110,7 @@ export function TypeInfoBar({ typeInfo, cursorPos, language, themeMode = 'mocha'
 
   if (!typeInfo) {
     return (
-      <div className="flex items-center px-4 py-1.5 bg-mantle border-t border-surface0/50 text-xxs font-mono text-overlay1 shrink-0 italic">
+      <div className="flex items-center px-3 md:px-4 py-1.5 bg-mantle border-t border-surface0/50 text-[10px] md:text-xxs font-mono text-overlay1 shrink-0 italic h-8 md:h-9">
         <span className="truncate">
           {language === 'typescript' ? 'Move cursor over a symbol for type info' : 'JavaScript output'}
         </span>
@@ -125,38 +125,45 @@ export function TypeInfoBar({ typeInfo, cursorPos, language, themeMode = 'mocha'
   const kcBorder = kindBorderClass(typeInfo.kind);
 
   return (
-    <div className="flex flex-col bg-mantle border-t border-surface0/50 px-4 py-2 text-xxs md:text-xs font-mono shrink-0 max-h-48 overflow-y-auto animate-in slide-in-from-bottom-2 duration-200">
-      <div className="flex items-baseline gap-2 flex-wrap leading-relaxed">
+    <div className="flex flex-col bg-mantle border-t border-surface0/50 px-3 md:px-4 py-1.5 md:py-2 font-mono shrink-0 max-h-48 overflow-hidden animate-in slide-in-from-bottom-2 duration-200">
+      <div className="flex items-center gap-2 mb-1 shrink-0">
         {kindLabel && (
           <span
             className={cn(
-              'text-[10px] font-bold tracking-wider uppercase rounded-md px-1.5 py-0.5 shrink-0 leading-tight border transition-colors',
+              'text-[9px] md:text-[10px] font-bold tracking-wider uppercase rounded px-1.5 py-0.5 leading-tight border transition-colors shrink-0',
               kc, kcBg, kcBorder
             )}
           >
             {kindLabel}
           </span>
         )}
-        <span className="text-text font-semibold shrink-0">{typeInfo.name || (typeInfo.kind === 'keyword' ? '' : 'unknown')}</span>
-        <span className="text-overlay0 shrink-0">:</span>
-        <div
-          className="whitespace-pre-wrap break-all flex-1 min-w-0 inline-block align-baseline"
-          dangerouslySetInnerHTML={{ __html: highlightedType || typeInfo.typeAnnotation }}
-        />
+        <span className="text-text font-semibold text-xxs md:text-xs truncate max-w-[40%] md:max-w-none">{typeInfo.name || (typeInfo.kind === 'keyword' ? '' : 'unknown')}</span>
         {renderCursorPos()}
       </div>
 
-      {typeInfo.jsDoc && (
-        <div className="mt-1.5 text-overlay1 italic whitespace-pre-wrap break-all leading-relaxed pl-2 border-l-2 border-surface1">
-          {renderWithLinksAndHighlight(typeInfo.jsDoc)}
-        </div>
-      )}
+      <div className="overflow-y-auto min-h-0 flex-1 scrollbar-hide">
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-start gap-1">
+            <span className="text-overlay0 shrink-0 mt-0.5 text-xxs md:text-xs">:</span>
+            <div
+              className="whitespace-pre-wrap break-all text-xxs md:text-xs leading-relaxed flex-1 text-subtext1"
+              dangerouslySetInnerHTML={{ __html: highlightedType || typeInfo.typeAnnotation }}
+            />
+          </div>
 
-      {highlightedSig && (
-        <div className="mt-1.5 text-overlay1 whitespace-pre-wrap break-all leading-relaxed opacity-80">
-          <div dangerouslySetInnerHTML={{ __html: highlightedSig }} />
+          {typeInfo.jsDoc && (
+            <div className="text-overlay1 italic whitespace-pre-wrap break-all leading-relaxed pl-2 border-l-2 border-surface1 text-[10px] md:text-xxs">
+              {renderWithLinksAndHighlight(typeInfo.jsDoc)}
+            </div>
+          )}
+
+          {highlightedSig && (
+            <div className="text-overlay1 whitespace-pre-wrap break-all leading-relaxed opacity-80 text-[10px] md:text-xxs">
+              <div dangerouslySetInnerHTML={{ __html: highlightedSig }} />
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

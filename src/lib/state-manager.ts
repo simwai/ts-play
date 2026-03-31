@@ -9,6 +9,7 @@ export interface PlaygroundState {
   tsConfigString: string
   trueColorEnabled: boolean
   lineWrap: boolean
+  showNodeWarnings: boolean
   compilerStatus: CompilerStatus
   packageManagerStatus: PackageManagerStatus
   toasts: ToastMessage[]
@@ -25,6 +26,7 @@ class PlaygroundStore {
     tsConfigString: '',
     trueColorEnabled: true,
     lineWrap: true,
+    showNodeWarnings: true,
     compilerStatus: 'loading',
     packageManagerStatus: 'idle',
     toasts: [],

@@ -203,6 +203,9 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         hideCursorInOverviewRuler: true,
         renderLineHighlight: 'all' as const,
         suggestOnTriggerCharacters: !disableAutocomplete,
+        hover: { enabled: !isMobileLike },
+        quickSuggestions: !isMobileLike,
+        parameterHints: { enabled: !isMobileLike },
         wordWrap: lineWrap ? ('on' as const) : ('off' as const),
         padding: { top: 16, bottom: 16 },
         fixedOverflowWidgets: true,
@@ -220,7 +223,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
     )
 
     return (
-      <div className='w-full h-full relative group'>
+      <div className='w-full h-full relative group' data-testid='code-editor-container'>
         <Editor
           height='100%'
           language={language}
