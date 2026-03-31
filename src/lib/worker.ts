@@ -9,7 +9,7 @@ let languageService: TS.LanguageService | undefined
 let compilerOptions: TS.CompilerOptions = {
   target: TS.ScriptTarget.ESNext,
   module: TS.ModuleKind.ESNext,
-  moduleResolution: TS.ModuleResolutionKind.Bundler,
+  moduleResolution: TS.ModuleResolutionKind.NodeNext,
   lib: ['lib.esnext.d.ts', 'lib.dom.d.ts'],
   strict: true,
   esModuleInterop: true,

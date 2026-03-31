@@ -36,6 +36,21 @@ export class WebContainerService {
         this.emitLog('info', 'Server ready: ' + url + ' (port ' + port + ')')
       })
 
+      // Initialize with a default package.json to avoid Node.js warnings and set ESM mode
+      await instance.fs.writeFile(
+        'package.json',
+        JSON.stringify(
+          {
+            name: 'ts-play-project',
+            version: '1.0.0',
+            type: 'module',
+            dependencies: {},
+          },
+          null,
+          2
+        )
+      )
+
       return instance
     })()
 
@@ -140,6 +155,7 @@ export class WebContainerService {
 
     ;(async () => {
       try {
+        let linesProcessedSinceYield = 0
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
@@ -157,7 +173,7 @@ export class WebContainerService {
             RegexPatterns.INCOMPLETE_ANSI
           ).test(last)
 
-          const processLines = (linesToProc: string[]) => {
+          const processLines = async (linesToProc: string[]) => {
             for (const line of linesToProc) {
               const simplified = line.replace(
                 toRegExp(RegexPatterns.EXCESSIVE_WHITESPACE),
@@ -165,16 +181,23 @@ export class WebContainerService {
               )
               if (!options.silent) this.emitLog('info', simplified)
               options.onLog?.(simplified)
+
+              linesProcessedSinceYield++
+              // Yield every 50 lines to keep UI responsive
+              if (linesProcessedSinceYield > 50) {
+                await new Promise((resolve) => setTimeout(resolve, 0))
+                linesProcessedSinceYield = 0
+              }
             }
           }
 
           if (!hasIncompleteAnsi) {
             currentLineBuffer = lines.pop() || ''
-            processLines(lines)
+            await processLines(lines)
           } else {
             const completeLines = lines.slice(0, -1)
             currentLineBuffer = lines[lines.length - 1]
-            processLines(completeLines)
+            await processLines(completeLines)
           }
         }
         if (currentLineBuffer) {
