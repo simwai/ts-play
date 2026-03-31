@@ -55,9 +55,8 @@ export const PackageManager = React.memo(function PackageManager({
           <br />
           <br />
           <span className='opacity-70 text-xs'>
-            Type{' '}
-            <code className='text-mauve'>import React from 'react'</code> to
-            see it appear here automatically.
+            Type <code className='text-mauve'>import React from 'react'</code>{' '}
+            to see it appear here automatically.
           </span>
         </div>
       )}

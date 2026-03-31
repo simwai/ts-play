@@ -7,7 +7,7 @@ import type { WebContainerProcess } from '@webcontainer/api'
 
 export function useCompilerManager(
   tsCode: string,
-  addMessage: (type: any, args: unknown[]) => void
+  addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void
 ) {
   const [compilerStatus, setCompilerStatus] =
     useState<CompilerStatus>('loading')
