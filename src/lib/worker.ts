@@ -346,7 +346,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
         // Sync virtual file first
         virtualFiles['/main.ts'] = {
           version: (virtualFiles['/main.ts']?.version || 0) + 1,
-          content: payload.code
+          content: payload.code,
         }
 
         const compiled = await esbuild.build({
@@ -361,11 +361,13 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
           },
         })
 
-        let dts = ""
+        let dts = ''
         if (languageService) {
-           const output = languageService.getEmitOutput('/main.ts', true)
-           const dtsFile = output.outputFiles.find(f => f.name.endsWith('.d.ts'))
-           if (dtsFile) dts = dtsFile.text
+          const output = languageService.getEmitOutput('/main.ts', true)
+          const dtsFile = output.outputFiles.find((f) =>
+            f.name.endsWith('.d.ts')
+          )
+          if (dtsFile) dts = dtsFile.text
         }
 
         if (!dts) {

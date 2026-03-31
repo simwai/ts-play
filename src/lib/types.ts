@@ -33,7 +33,12 @@ export type CompilerStatus =
   | 'ready'
   | 'error'
 
-export type PackageManagerStatus = 'idle' | 'installing' | 'uninstalling' | 'syncing' | 'error'
+export type PackageManagerStatus =
+  | 'idle'
+  | 'installing'
+  | 'uninstalling'
+  | 'syncing'
+  | 'error'
 
 export type ToastType = 'success' | 'info' | 'error'
 

@@ -56,7 +56,10 @@ export class WebContainerService {
     )
   }
 
-  async enqueue<T>(actionName: string, task: (instance: WebContainer) => Promise<T>): Promise<T> {
+  async enqueue<T>(
+    actionName: string,
+    task: (instance: WebContainer) => Promise<T>
+  ): Promise<T> {
     return playgroundStore.enqueue(actionName, async () => {
       const instance = await this.getInstance()
       return task(instance)
@@ -105,8 +108,7 @@ export class WebContainerService {
         currentPath += (currentPath ? '/' : '') + parts[i]
         try {
           await instance.fs.mkdir(currentPath, { recursive: true })
-        } catch {
-        }
+        } catch {}
       }
     }
 
@@ -153,9 +155,9 @@ export class WebContainerService {
           const lines = currentLineBuffer.split(toRegExp(RegexPatterns.NEWLINE))
 
           const last = lines[lines.length - 1]
-          const hasIncompleteAnsi = toRegExp(RegexPatterns.INCOMPLETE_ANSI).test(
-            last
-          )
+          const hasIncompleteAnsi = toRegExp(
+            RegexPatterns.INCOMPLETE_ANSI
+          ).test(last)
 
           const processLines = (linesToProc: string[]) => {
             for (const line of linesToProc) {
@@ -187,8 +189,8 @@ export class WebContainerService {
 
           // If we've processed a lot of chunks, yield control
           if (lineCountSinceYield > 0) {
-             await new Promise(resolve => setTimeout(resolve, 0))
-             lineCountSinceYield = 0
+            await new Promise((resolve) => setTimeout(resolve, 0))
+            lineCountSinceYield = 0
           }
         }
         if (currentLineBuffer) {
@@ -240,7 +242,15 @@ export class WebContainerService {
 export const webContainerService = new WebContainerService()
 
 export const getWebContainer = () => webContainerService.getInstance()
-export const writeFiles = (files: Record<string, string>) => webContainerService.writeFiles(files)
+export const writeFiles = (files: Record<string, string>) =>
+  webContainerService.writeFiles(files)
 export const readFile = (path: string) => webContainerService.readFile(path)
-export const runCommand = (cmd: string, args: string[], onOutput: (d: string) => void) => webContainerService.spawnManaged(cmd, args, { onLog: onOutput })
-export const operationQueue = { add: <T>(task: () => Promise<T>) => playgroundStore.enqueue('Background Task', task) }
+export const runCommand = (
+  cmd: string,
+  args: string[],
+  onOutput: (d: string) => void
+) => webContainerService.spawnManaged(cmd, args, { onLog: onOutput })
+export const operationQueue = {
+  add: <T>(task: () => Promise<T>) =>
+    playgroundStore.enqueue('Background Task', task),
+}

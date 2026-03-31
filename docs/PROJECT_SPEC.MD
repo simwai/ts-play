@@ -3,9 +3,11 @@
 # Project Specification: TypeScript Playground
 
 ## Overview
+
 A web-based TypeScript playground built with React 19, Vite, and @webcontainer/api. It allows users to write, compile, and run TypeScript code directly in the browser using a sandboxed WebContainer environment.
 
 ## Key Features
+
 - **Real-time Compilation**: Powered by \`esbuild-wasm\` and the TypeScript Language Service.
 - **WebContainer Sandbox**: High-fidelity execution environment using \`node\` within the browser.
 - **Monaco Editor Integration**: Rich IDE features including autocomplete, diagnostics, and type information.
@@ -17,11 +19,13 @@ A web-based TypeScript playground built with React 19, Vite, and @webcontainer/a
 - **Sharing**: Compressed URL-based sharing and server-side snippet storage.
 
 ## Architecture
+
 - **WebContainerService**: Centralized management of the WebContainer instance, file system, and process execution.
 - **Worker**: A Web Worker that handles heavy-lifting tasks like TypeScript diagnostics, type information extraction, and esbuild compilation.
 - **PlaygroundStore**: A simple observable state machine (using a custom implementation) for application-wide state management.
 
 ## Tech Stack
+
 - **Frontend**: React 19, Tailwind CSS, Lucide React, Radix UI (implicitly via tailwind/custom components).
 - **Editor**: Monaco Editor (@monaco-editor/react).
 - **Runtime**: @webcontainer/api.
