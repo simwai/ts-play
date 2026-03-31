@@ -194,7 +194,7 @@ export class WebContainerService {
   async readDirRecursive(
     dir: string,
     filter?: (path: string) => boolean,
-    maxDepth = 30
+    maxDepth = 10
   ): Promise<Record<string, string>> {
     const instance = await this.getInstance()
     const results: Record<string, string> = {}
@@ -209,12 +209,8 @@ export class WebContainerService {
         for (const entry of entries) {
           const fullPath = currentPath + '/' + entry.name
 
-          if (
-            entry.name === '.git' ||
-            entry.name === '.husky' ||
-            entry.name === '.bin'
-          )
-            continue
+          // Skip common high-volume/hidden folders for performance
+          if (entry.name === '.git' || entry.name === '.husky') continue
 
           if (entry.isDirectory()) {
             await read(fullPath, depth + 1)
