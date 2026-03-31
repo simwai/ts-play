@@ -1,55 +1,48 @@
 <!-- AGENT PROMPT: Please update this file after every message if it is relevant. Continuous updates ensure that the documentation accurately reflects the current state of the codebase, project specification, and architectural principles. -->
 
-<div style="background-color: #1e1e2e; color: #cdd6f4; padding: 2.5rem; border-radius: 1.5rem; border: 1px solid #cba6f7; font-family: 'JetBrains Mono', monospace; line-height: 1.6;">
+# Architecture: TSPlay
 
-# <span style="color: #cba6f7; font-size: 2.5rem;">✨ Architecture Overview</span>
+A high-performance, browser-native TypeScript development environment.
 
-<p style="color: #94e2d5; font-style: italic; margin-bottom: 2rem;">A high-fidelity, browser-native TypeScript development environment.</p>
+## 🎨 Core Design Principles
 
----
+- **Single-Page Simplicity**: A focused, responsive UI that prioritizes code space.
+- **Worker-First Processing**: Offloading TypeScript Language Service and `esbuild` compilation to a dedicated Web Worker to maintain UI responsiveness.
+- **WebContainer Sandbox**: Utilizing Node.js-in-the-browser for high-fidelity execution and actual `npm` package support.
+- **Themed Experience**: Deep integration with Catppuccin and other popular syntax themes, spanning both the UI and the Monaco editor.
 
-## <span style="color: #fab387;">🏗️ System Design</span>
+## 📦 Package Management & Type Acquisition
 
-TSPlay utilizes a multi-threaded architecture to ensure a fluid user experience even during intensive compilation tasks.
+The playground implements a dual-layer strategy for managing dependencies and types:
 
-### <span style="color: #89b4fa;">1. The UI Thread (React 19)</span>
+### 1. The Reconciliation Loop
 
-- **State Management**: Uses an observable `PlaygroundStore` for real-time reactivity without the overhead of heavy global libraries.
-- **Editor**: Powered by Monaco, with custom logic for real-time type info extraction and cursor-based synchronization.
-- **Sandbox Orchestration**: Manages the WebContainer lifecycle via `WebContainerService`.
+To prevent "process storms" when users type rapidly, the `usePackageManager` hook utilizes a target-state reconciliation loop:
 
-### <span style="color: #89b4fa;">2. The TypeScript Worker</span>
+- **Debounced Detection**: Import statements are detected after a 2500ms settle period.
+- **Batching**: All necessary additions and removals are calculated and executed in single `npm install` or `npm uninstall` commands.
+- **Auto-Discovery**: The system automatically queries the npm registry for corresponding `@types/` packages and installs them alongside the main package.
 
-- **Diagnostics**: Runs the full TS Language Service to provide deep semantic errors.
-- **Compilation**: Leverages `esbuild-wasm` for near-instant JS emission.
-- **Module Resolution**: Implements a virtual filesystem that mirrors the WebContainer's `node_modules`, ensuring perfect parity between what you see and what you run.
+### 2. Dual-Layer Typings
 
----
+Types are provided to the Monaco editor from two sources:
 
-## <span style="color: #fab387;">📦 The Package Reconciliation Engine</span>
+- **ATA (Automatic Type Acquisition)**: Provides immediate, high-level types for the editor's Language Service.
+- **Container Sync**: After `npm` operations, the system recursively reads `.d.ts` files directly from the WebContainer's `node_modules` and injects them into the editor's virtual filesystem for 100% execution-to-editor parity.
 
-The playground implements a robust, state-based reconciliation loop for dependencies:
+## 🚀 Execution Pipeline
 
-- **Debounced Detection**: Wait for 2500ms of user inactivity before analyzing imports.
-- **State Merging**: Collapses multiple addition/removal actions into a single reconciliation task.
-- **Batch Execution**: Spawns a single `npm install` or `npm uninstall` command for all changes, minimizing WebContainer overhead.
-- **Auto-Types Discovery**: Automatically finds and installs `@types/` packages by querying the npm registry.
+1. **Compilation**: Source code is passed to the Worker where `esbuild-wasm` generates JS and the TS Language Service generates `.d.ts` declarations.
+2. **Mounting**: Compiled assets are written to the WebContainer's virtual filesystem.
+3. **Execution**: The WebContainer spawns a `node` process. Output is streamed back to the UI Console with support for ANSI color codes and yielding mechanisms to prevent UI starvation.
 
----
+## 🛠️ Tech Stack Breakdown
 
-## <span style="color: #fab387;">📂 Dual-Layer Type Synchronization</span>
-
-To provide 100% accurate autocomplete and hover info, TSPlay uses two parallel systems:
-
-1. **ATA (Automatic Type Acquisition)**: Queries CDNs to provide immediate types for standard packages during typing.
-2. **WebContainer Sync**: After an install, the system recursively crawls the `node_modules` folder inside the WebContainer, reading `.d.ts` and `package.json` files. These are injected into the editor's virtual filesystem, allowing Monaco to resolve types exactly as Node.js would.
-
----
-
-## <span style="color: #fab387;">⚡ Execution Sandbox</span>
-
-- **Runtime**: @webcontainer/api provides a real Node.js environment in the browser.
-- **Streaming Output**: Logs are streamed from the sandbox to the UI with ANSI support and yielding mechanisms to prevent browser hangs.
-- **FileSystem**: A virtual FS that persists throughout the session, allowing for complex multi-file scenarios.
-
-</div>
+| Layer         | Technology                                |
+| :------------ | :---------------------------------------- |
+| **Framework** | React 19 (ESM)                            |
+| **Styling**   | Tailwind CSS (Catppuccin Palette)         |
+| **Editor**    | Monaco Editor                             |
+| **Bundler**   | esbuild-wasm                              |
+| **Runtime**   | @webcontainer/api                         |
+| **State**     | Custom Observable Store (PlaygroundStore) |
