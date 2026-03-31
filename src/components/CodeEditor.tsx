@@ -80,11 +80,14 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       redo: () => editorRef.current?.trigger('keyboard', 'redo', null),
       jumpTo: (line, col) => {
         if (editorRef.current) {
-          editorRef.current.revealPositionInCenter({ lineNumber: line, column: col })
+          editorRef.current.revealPositionInCenter({
+            lineNumber: line,
+            column: col,
+          })
           editorRef.current.setPosition({ lineNumber: line, column: col })
           editorRef.current.focus()
         }
-      }
+      },
     }))
 
     const handleBeforeMount: BeforeMount = (monaco) => {

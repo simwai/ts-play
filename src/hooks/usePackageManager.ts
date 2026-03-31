@@ -1,11 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { setupTypeAcquisition } from '@typescript/ata'
 import { workerClient } from '../lib/workerClient'
-import { runCommand } from '../lib/webcontainer'
+import {
+  runCommand,
+  SYSTEM_DEPS,
+  webContainerService,
+} from '../lib/webcontainer'
 import type { InstalledPackage } from '../components/PackageManager'
 import type { ConsoleMessage } from '../components/Console'
 import * as TS from 'typescript'
 import type { PackageManagerStatus } from '../lib/types'
+import { checkNpmPackage, getTypesPackageName } from '../lib/api'
 
 const BUILTIN_MODULES = new Set([
   'assert',
@@ -51,9 +56,21 @@ const BUILTIN_MODULES = new Set([
   'zlib',
 ])
 
+const PACKAGE_CHECK_CACHE = new Map<string, boolean>()
+
+async function cachedCheckNpmPackage(pkgName: string): Promise<boolean> {
+  if (PACKAGE_CHECK_CACHE.has(pkgName)) {
+    return PACKAGE_CHECK_CACHE.get(pkgName)!
+  }
+  const exists = await checkNpmPackage(pkgName)
+  PACKAGE_CHECK_CACHE.set(pkgName, exists)
+  return exists
+}
+
 export function usePackageManager(
   tsCode: string,
-  addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void
+  addMessage: (type: ConsoleMessage['type'], args: unknown[]) => void,
+  showNodeWarnings: boolean = true
 ) {
   const [installedPackages, setInstalledPackages] = useState<
     InstalledPackage[]
@@ -74,6 +91,26 @@ export function usePackageManager(
   const checkImportsTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined
   )
+
+  const syncTypingsFromContainer = useCallback(async () => {
+    try {
+      // Sync d.ts AND package.json files for module resolution
+      const types = await webContainerService.readDirRecursive(
+        'node_modules',
+        (path) => path.endsWith('.d.ts') || path.endsWith('package.json'),
+        20
+      )
+
+      if (Object.keys(types).length > 0) {
+        setPackageTypings((prev) => ({
+          ...prev,
+          ...types,
+        }))
+      }
+    } catch (error) {
+      console.warn('[Package Manager] Container typing sync failed:', error)
+    }
+  }, [])
 
   const checkImports = useCallback(() => {
     if (checkImportsTimeout.current) clearTimeout(checkImportsTimeout.current)
@@ -115,7 +152,7 @@ export function usePackageManager(
       } catch (error) {
         console.error('Failed to detect imports:', error)
       }
-    }, 1000)
+    }, 2500) // Debounce to 2.5s
   }, [tsCode])
 
   useEffect(() => {
@@ -166,40 +203,82 @@ export function usePackageManager(
   }, [tsCode])
 
   useEffect(() => {
-    const currentNames = new Set(installedPackages.map((p) => p.name))
-    const previousNames = previousPkgsRef.current
+    // Reconciliation logic
+    const currentTargetNames = new Set(installedPackages.map((p) => p.name))
+    const previouslyProcessedNames = previousPkgsRef.current
 
-    const added = [...currentNames].filter((x) => !previousNames.has(x))
-    const removed = [...previousNames].filter((x) => !currentNames.has(x))
+    // Don't uninstall SYSTEM_DEPS
+    const systemDepsSet = new Set(SYSTEM_DEPS)
 
-    if (added.length === 0 && removed.length === 0) return
+    const toAdd = [...currentTargetNames].filter(
+      (x) => !previouslyProcessedNames.has(x)
+    )
+    const toRemove = [...previouslyProcessedNames].filter(
+      (x) =>
+        !currentTargetNames.has(x) &&
+        !systemDepsSet.has(x) &&
+        !x.startsWith('@types/')
+    )
 
-    previousPkgsRef.current = currentNames
+    if (toAdd.length === 0 && toRemove.length === 0) return
+
+    previousPkgsRef.current = currentTargetNames
 
     const performChanges = async () => {
       try {
-        if (removed.length > 0) {
-          setStatus('uninstalling')
-          addMessage('info', ['npm uninstall ' + removed.join(' ') + '...'])
-          await runCommand('npm', ['uninstall', ...removed], (out) => {
-            const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
-            if (clean && !/^[/\\|\-]$/.test(clean)) addMessage('info', [clean])
-          })
+        // 1. Resolve @types for new packages
+        const finalInstallList: string[] = []
+        for (const pkg of toAdd) {
+          const pkgExists = await cachedCheckNpmPackage(pkg)
+          if (!pkgExists) {
+            if (showNodeWarnings) {
+              addMessage('warn', [
+                `Package "${pkg}" not found on npm registry.`,
+              ])
+            }
+            continue
+          }
+          finalInstallList.push(pkg)
+
+          const typesPkg = getTypesPackageName(pkg)
+          const typesExist = await cachedCheckNpmPackage(typesPkg)
+          if (typesExist) {
+            finalInstallList.push(typesPkg)
+          }
         }
 
-        if (added.length > 0) {
+        // 2. Perform Uninstall
+        if (toRemove.length > 0) {
+          const typesToRemove = toRemove.map(getTypesPackageName)
+          const allToRemove = [...toRemove, ...typesToRemove]
+
+          setStatus('uninstalling')
+          addMessage('info', ['npm uninstall ' + toRemove.join(' ') + '...'])
+          await runCommand('npm', ['uninstall', ...allToRemove], (out) => {
+            const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
+            if (clean && !/^[/\|\-]$/.test(clean)) addMessage('info', [clean])
+          })
+
+          await syncTypingsFromContainer()
+        }
+
+        // 3. Perform Install
+        if (finalInstallList.length > 0) {
           setStatus('installing')
-          addMessage('info', ['npm install ' + added.join(' ') + '...'])
+          addMessage('info', [
+            'npm install ' + finalInstallList.join(' ') + '...',
+          ])
 
           await runCommand(
             'npm',
-            ['install', '--no-progress', ...added],
+            ['install', '--no-progress', ...finalInstallList],
             (out) => {
               const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
-              if (clean && !/^[/\\|\-]$/.test(clean))
-                addMessage('info', [clean])
+              if (clean && !/^[/\|\-]$/.test(clean)) addMessage('info', [clean])
             }
           )
+
+          await syncTypingsFromContainer()
         }
         setStatus('idle')
       } catch (error) {
@@ -212,7 +291,12 @@ export function usePackageManager(
     }
 
     installQueue.current = installQueue.current.then(performChanges)
-  }, [installedPackages, addMessage])
+  }, [
+    installedPackages,
+    addMessage,
+    showNodeWarnings,
+    syncTypingsFromContainer,
+  ])
 
   return {
     installedPackages,

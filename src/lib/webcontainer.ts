@@ -193,32 +193,45 @@ export class WebContainerService {
 
   async readDirRecursive(
     dir: string,
-    filter?: (path: string) => boolean
+    filter?: (path: string) => boolean,
+    maxDepth = 20
   ): Promise<Record<string, string>> {
     const instance = await this.getInstance()
     const results: Record<string, string> = {}
 
-    const read = async (currentPath: string) => {
+    const read = async (currentPath: string, depth: number) => {
+      if (depth > maxDepth) return
+
       try {
         const entries = await instance.fs.readdir(currentPath, {
           withFileTypes: true,
         })
         for (const entry of entries) {
           const fullPath = currentPath + '/' + entry.name
+
+          // Skip common high-volume/hidden folders for performance
+          if (
+            entry.name === '.git' ||
+            entry.name === '.husky' ||
+            entry.name === '.bin'
+          )
+            continue
+
           if (entry.isDirectory()) {
-            await read(fullPath)
+            await read(fullPath, depth + 1)
           } else if (!filter || filter(fullPath)) {
             const content = await instance.fs.readFile(fullPath, 'utf8')
-            const monacoPath = fullPath.startsWith('./')
-              ? fullPath.slice(2)
-              : fullPath
+            // Ensure path starts with / for host-worker consistency
+            const monacoPath = fullPath.startsWith('/')
+              ? fullPath
+              : '/' + fullPath
             results[monacoPath] = content
           }
         }
       } catch {}
     }
 
-    await read(dir)
+    await read(dir, 0)
     return results
   }
 }
