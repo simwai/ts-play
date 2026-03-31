@@ -1,5 +1,10 @@
 import type { ThemeMode } from './theme'
-import type { ToastType, ToastMessage, PackageManagerStatus, CompilerStatus } from './types'
+import type {
+  ToastType,
+  ToastMessage,
+  PackageManagerStatus,
+  CompilerStatus,
+} from './types'
 
 export interface PlaygroundState {
   theme: ThemeMode

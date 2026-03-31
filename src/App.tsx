@@ -79,8 +79,10 @@ export function App() {
 
   // Initialize state from localStorage or fallback to defaults
   const [isDarkMode, setIsDarkMode] = useLocalStorage('tsplay_is_dark', true)
-  const [preferredDarkTheme, setPreferredDarkTheme] = useLocalStorage<ThemeMode>('tsplay_dark_theme', 'mocha')
-  const [preferredLightTheme, setPreferredLightTheme] = useLocalStorage<ThemeMode>('tsplay_light_theme', 'latte')
+  const [preferredDarkTheme, setPreferredDarkTheme] =
+    useLocalStorage<ThemeMode>('tsplay_dark_theme', 'mocha')
+  const [preferredLightTheme, setPreferredLightTheme] =
+    useLocalStorage<ThemeMode>('tsplay_light_theme', 'latte')
 
   const themeMode = isDarkMode ? preferredDarkTheme : preferredLightTheme
 
@@ -111,7 +113,10 @@ export function App() {
     true
   )
   const [lineWrap, setLineWrap] = useLocalStorage('tsplay_linewrap', true)
-  const [showNodeWarnings, setShowNodeWarnings] = useLocalStorage('tsplay_node_warnings', true)
+  const [showNodeWarnings, setShowNodeWarnings] = useLocalStorage(
+    'tsplay_node_warnings',
+    true
+  )
 
   const [activeTab, setActiveTab] = useState<TabType>('ts')
 
@@ -148,7 +153,10 @@ export function App() {
   const [formatSuccess, setFormatSuccess] = useState(false)
 
   const [typeInfo, setTypeInfo] = useState<TypeInfo | null>(null)
-  const [cursorPos, setCursorPos] = useState<{ line: number; col: number } | null>(null)
+  const [cursorPos, setCursorPos] = useState<{
+    line: number
+    col: number
+  } | null>(null)
 
   // Custom Hooks
   const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } =
@@ -205,7 +213,11 @@ export function App() {
       } catch {
         await instance.fs.writeFile(
           'package.json',
-          JSON.stringify({ name: 'playground-project', dependencies: {} }, null, 2)
+          JSON.stringify(
+            { name: 'playground-project', dependencies: {} },
+            null,
+            2
+          )
         )
       }
     })
@@ -221,7 +233,10 @@ export function App() {
       await navigator.clipboard.writeText(content)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-      playgroundStore.addToast('success', `Copied ${activeTab.toUpperCase()} to clipboard`)
+      playgroundStore.addToast(
+        'success',
+        `Copied ${activeTab.toUpperCase()} to clipboard`
+      )
     } catch (err) {
       playgroundStore.addToast('error', 'Failed to copy to clipboard')
     }
@@ -389,11 +404,14 @@ export function App() {
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
-      ref={swipeRef} className='flex flex-col h-[100dvh] bg-base text-text font-sans overflow-hidden'>
+      ref={swipeRef}
+      className='flex flex-col h-[100dvh] bg-base text-text font-sans overflow-hidden'
+    >
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode}
+        isDarkMode={isDarkMode}
+        setIsDarkMode={setIsDarkMode}
         handleCopyAll={handleCopyAll}
         copied={copied}
         handleDeleteAll={handleDeleteAll}
@@ -426,29 +444,21 @@ export function App() {
 
       {/* ── Editors ── */}
       <div
-
-        data-testid="swipe-container"
+        data-testid='swipe-container'
         className='flex-1 overflow-hidden relative min-h-0'
-
-
-
       >
         {/* Slider track */}
         <div
           className='flex w-[300%] h-full transition-[left] duration-300 ease-in-out relative'
           style={{
             left:
-              activeTab === 'ts'
-                ? '0'
-                : activeTab === 'js'
-                  ? '-100%'
-                  : '-200%',
+              activeTab === 'ts' ? '0' : activeTab === 'js' ? '-100%' : '-200%',
           }}
         >
           {/* TS Editor */}
           <div className='w-[33.333%] h-full shrink-0'>
             <CodeEditor
-              path="file:///index.ts"
+              path='file:///index.ts'
               ref={tsEditorRef}
               value={tsCode}
               onChange={setTsCode}
@@ -457,32 +467,35 @@ export function App() {
               onTypeInfoChange={setTypeInfo}
               language='typescript'
               extraLibs={packageTypings}
-              isMobileLike={isMobileLike} themeMode={themeMode}
+              isMobileLike={isMobileLike}
+              themeMode={themeMode}
             />
           </div>
           {/* JS Editor */}
           <div className='w-[33.333%] h-full shrink-0'>
             <CodeEditor
-              path="file:///index.js"
+              path='file:///index.js'
               ref={jsEditorRef}
               value={jsCode}
               onChange={handleJsChange}
               onCursorPosChange={setCursorPos}
               language='javascript'
-              isMobileLike={isMobileLike} themeMode={themeMode}
+              isMobileLike={isMobileLike}
+              themeMode={themeMode}
             />
           </div>
           {/* DTS Editor */}
           <div className='w-[33.333%] h-full shrink-0'>
             <CodeEditor
-              path="file:///index.d.ts"
+              path='file:///index.d.ts'
               ref={dtsEditorRef}
               value={dtsCode}
               onChange={setDtsCode}
               onCursorPosChange={setCursorPos}
               language='typescript'
               readOnly={true}
-              isMobileLike={isMobileLike} themeMode={themeMode}
+              isMobileLike={isMobileLike}
+              themeMode={themeMode}
             />
           </div>
         </div>

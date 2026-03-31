@@ -7,7 +7,12 @@ import { formatJson } from '../lib/formatter'
 import { workerClient } from '../lib/workerClient'
 import { playgroundStore } from '../lib/state-manager'
 import { Github } from 'lucide-react'
-import { THEME_LABELS, type ThemeMode, DARK_THEMES, LIGHT_THEMES } from '../lib/theme'
+import {
+  THEME_LABELS,
+  type ThemeMode,
+  DARK_THEMES,
+  LIGHT_THEMES,
+} from '../lib/theme'
 
 type SettingsModalProps = {
   isOpen: boolean
@@ -162,7 +167,10 @@ export function SettingsModal({
                   className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none focus:border-mauve transition-colors'
                 >
                   {availableThemes.map((value) => (
-                    <option key={value} value={value}>
+                    <option
+                      key={value}
+                      value={value}
+                    >
                       {THEME_LABELS[value]}
                     </option>
                   ))}
@@ -233,7 +241,7 @@ export function SettingsModal({
               </label>
               <div className='border border-surface1 rounded-md overflow-hidden bg-base focus-within:border-mauve transition-colors h-48 md:h-64 shrink-0'>
                 <CodeEditor
-                  path="file:///tsconfig.json"
+                  path='file:///tsconfig.json'
                   language='json'
                   value={temporaryTsConfig}
                   onChange={setTemporaryTsConfig}

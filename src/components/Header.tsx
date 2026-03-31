@@ -1,4 +1,4 @@
-import type { CompilerStatus } from "../lib/types"
+import type { CompilerStatus } from '../lib/types'
 import {
   Sun,
   Moon,
@@ -89,11 +89,7 @@ export function Header({
           onClick={() => {
             setIsDarkMode(!isDarkMode)
           }}
-          title={
-            isDarkMode
-              ? 'Switch to light mode'
-              : 'Switch to dark mode'
-          }
+          title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           tooltipAlign='right'
           variant='surface'
           size='sm'

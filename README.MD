@@ -5,6 +5,7 @@
 A powerful, browser-based TypeScript development environment.
 
 ## Features
+
 - 🚀 **Fast**: Near-instant feedback with esbuild.
 - 📦 **NPM Support**: Install any package from npm.
 - 🛠️ **Full TS Support**: Diagnostics, autocomplete, and hover info.
@@ -12,14 +13,17 @@ A powerful, browser-based TypeScript development environment.
 - 🔗 **Shareable**: Easily share your code snippets.
 
 ## Development
+
 ```bash
 npm install
 npm run d""ev
 ```
 
 ## Documentation
+
 - [Project Specification](./docs/PROJECT_SPEC.md)
 - [Bug Log](./docs/BUG_LOG.md)
 
 ## License
+
 MIT

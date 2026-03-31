@@ -87,20 +87,27 @@ export const Console = React.memo(function Console({
   const filteredMessages = useMemo(() => {
     return messages.filter((m) => {
       // Node.js warnings filter
-      if (!showNodeWarnings && m.args.some(arg => arg.startsWith('(node:'))) {
+      if (!showNodeWarnings && m.args.some((arg) => arg.startsWith('(node:'))) {
         return false
       }
 
       if (filter === 'all') return true
       if (filter === 'log') return m.type === 'log'
-      if (filter === 'info') return m.type === 'info' || m.type === 'debug' || m.type === 'dir'
+      if (filter === 'info')
+        return m.type === 'info' || m.type === 'debug' || m.type === 'dir'
       if (filter === 'warn') return m.type === 'warn' || m.type === 'trace'
       if (filter === 'error') return m.type === 'error'
       return true
     })
   }, [messages, filter, showNodeWarnings])
 
-  const FilterButton = ({ type, label }: { type: FilterType, label: string }) => (
+  const FilterButton = ({
+    type,
+    label,
+  }: {
+    type: FilterType
+    label: string
+  }) => (
     <button
       onClick={(e) => {
         e.stopPropagation()
@@ -128,11 +135,26 @@ export const Console = React.memo(function Console({
         left={
           <div className='flex items-center gap-2'>
             <div className='flex bg-surface0 rounded px-1 py-0.5 gap-1 shrink-0'>
-              <FilterButton type='all' label='All' />
-              <FilterButton type='log' label='Log' />
-              <FilterButton type='info' label='Info' />
-              <FilterButton type='warn' label='Warn' />
-              <FilterButton type='error' label='Err' />
+              <FilterButton
+                type='all'
+                label='All'
+              />
+              <FilterButton
+                type='log'
+                label='Log'
+              />
+              <FilterButton
+                type='info'
+                label='Info'
+              />
+              <FilterButton
+                type='warn'
+                label='Warn'
+              />
+              <FilterButton
+                type='error'
+                label='Err'
+              />
             </div>
             {messages.length > 0 && <Badge label={String(messages.length)} />}
             {errors > 0 && (
@@ -176,7 +198,9 @@ export const Console = React.memo(function Console({
         >
           {filteredMessages.length === 0 ? (
             <div className='flex items-center justify-center h-full text-overlay0 text-xxs md:text-xs italic font-mono'>
-              {messages.length === 0 ? 'No output yet — press Run to execute' : 'No matches for selected filter'}
+              {messages.length === 0
+                ? 'No output yet — press Run to execute'
+                : 'No matches for selected filter'}
             </div>
           ) : (
             filteredMessages.map((m, idx) => {

@@ -1,0 +1,29 @@
+# Project Principles: TypeScript Playground
+
+## Memory Management & Performance
+- **Batch Console Output**: To prevent UI thread starvation and browser crashes (black screens) during high-volume terminal logging, use the yielding mechanism in `WebContainerService.processStream`.
+- **IndexedDB for Snapshots**: Use `dexie` for IndexedDB storage. Environment snapshots are exported as `binary` (Uint8Array) using `WebContainer.export('.', { format: 'binary' })` to avoid JSON serialization errors on complex filesystems.
+- **Console History Limit**: Limit message history in the console to 200 entries and collapse repeating whitespace blocks (e.g., 10+ spaces) to maintain rendering performance.
+
+## State & Data Flow
+- **Sequential Task Execution**: Use the sequential promise chain in `PlaygroundStore.enqueue` for automatic dependency management and user actions (Run, Format, Share) to maintain environment integrity and avoid race conditions.
+- **Functional State Updates**: `PlaygroundStore.setState` supports functional state updates: `(prev: PlaygroundState) => Partial<PlaygroundState>`.
+- **LocalStorage Typing**: Use `useLocalStorage` for persisting user preferences. Ensure that if the initial value is a string, it stays a string (it should skip JSON parsing) to avoid accidental conversion of JSON strings (like tsconfig) into objects.
+
+## Component Architecture
+- **Monaco Editor Isolation**: Isolate Monaco models by assigning unique `path` props to `CodeEditor` instances (e.g., `file:///index.ts`, `file:///index.js`, `file:///tsconfig.json`) to prevent unintended state sharing.
+- **Mobile Accessibility**:
+    - Restricted horizontal swipe gestures for tab switching to non-editor areas (Header, StatusBar, TypeInfoBar).
+    - Disable Monaco's built-in `hover` and suggestion tooltips on mobile to enable native smartphone context menus and prevent interception of long-press events.
+    - Set `domReadOnly: isMobileLike` and `contextmenu: !isMobileLike` in `CodeEditor.tsx`.
+- **Type Info Bar**: Redesigned for mobile with a compact layout, scrollable type annotations, and human-readable mappings for `ScriptElementKind`.
+
+## TypeScript & Compilation
+- **Unified TS Target**: `DEFAULT_TSCONFIG` and default `compilerOptions` should specify `"jsx": "react-jsx"` for modern React JSX transform.
+- **Language Service Consistency**: Use absolute paths starting with '/' (e.g., '/main.ts') consistently across the host, `languageService` calls, and `workerClient` updates.
+- **Robust Symbol Extraction**: Use `displayParts.find(p => SYMBOL_KINDS.has(p.kind))` for symbol name extraction from Language Service `QuickInfo` data.
+
+## Documentation & Standards
+- **Standardized Headers**: All markdown files MUST include the agent prompt header: `<!-- AGENT PROMPT: Please update this file after every message if it is relevant... -->`.
+- **Filename Convention**: Markdown filenames follow `UPPER_CASE_SNAKE_CASE.MD` (e.g., `PROJECT_SPEC.MD`, `README.MD`).
+- **Update Documentation Regularly**: Update `README.MD`, `docs/PROJECT_SPEC.MD`, and `docs/BUG_LOG.MD` after significant changes to reflect the current state of the codebase.

@@ -42,6 +42,9 @@ type CodeEditorProps = {
   lineWrap?: boolean
   extraLibs?: Record<string, string>
   isMobileLike?: boolean
+  hideTypeInfo?: boolean
+  disableDiagnostics?: boolean
+  disableShortcuts?: boolean
 }
 
 export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
@@ -62,6 +65,9 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       lineWrap = true,
       extraLibs = {},
       isMobileLike = false,
+      hideTypeInfo = false,
+      disableDiagnostics = false,
+      disableShortcuts = false,
     },
     ref
   ) => {
@@ -113,7 +119,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
 
       editor.onDidChangeCursorPosition(async (e) => {
         const model = editor.getModel()
-        if (!model || !onTypeInfoChange) return
+        if (!model || !onTypeInfoChange || hideTypeInfo) return
 
         try {
           const worker = await monaco.languages.typescript.getTypeScriptWorker()
@@ -176,11 +182,29 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       }
     }, [monaco, extraLibs])
 
+    // Toggle diagnostics
+    useEffect(() => {
+      if (!monaco) return
+
+      if (language === 'typescript') {
+        monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+          noSemanticValidation: disableDiagnostics,
+          noSyntaxValidation: disableDiagnostics,
+        })
+      } else if (language === 'json') {
+        monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+          validate: !disableDiagnostics,
+          allowComments: true,
+        })
+      }
+    }, [monaco, disableDiagnostics, language])
+
     const options = useMemo(
       () => ({
         minimap: { enabled: false },
         fontSize: fontSizeOverride || (isMobileLike ? 12 : 14),
-        fontFamily: "'JetBrains Mono', 'Victor Mono', 'Fira Code', 'Cascadia Code', monospace",
+        fontFamily:
+          "'JetBrains Mono', 'Victor Mono', 'Fira Code', 'Cascadia Code', monospace",
         fontLigatures: true,
         cursorBlinking: 'smooth' as const,
         cursorSmoothCaretAnimation: 'on' as const,
