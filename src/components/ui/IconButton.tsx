@@ -13,6 +13,7 @@ type IconButtonProps = {
   size?: Size
   style?: CSSProperties
   className?: string
+  'data-testid'?: string
 }
 
 const sizeClasses: Record<Size, string> = {
@@ -32,6 +33,7 @@ export function IconButton({
   size = 'md',
   style,
   className,
+  'data-testid': testId,
 }: IconButtonProps) {
   const [pressed, setPressed] = useState(false)
   const [showTooltip, setShowTooltip] = useState(false)
@@ -75,6 +77,7 @@ export function IconButton({
       onClick={handleClick}
       disabled={disabled}
       aria-label={title}
+      data-testid={testId}
       onMouseLeave={() => setPressed(false)}
       onMouseDown={() => setPressed(true)}
       onMouseUp={() => setPressed(false)}

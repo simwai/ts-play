@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
-import { Button } from './ui/Button'
 import { IconButton } from './ui/IconButton'
-import { workerClient } from '../lib/workerClient'
-import { formatJson } from '../lib/formatter'
-import { DEFAULT_TSCONFIG } from '../lib/constants'
+import { Button } from './ui/Button'
 import { CodeEditor } from './CodeEditor'
+import { DEFAULT_TSCONFIG } from '../lib/constants'
+import { formatJson } from '../lib/formatter'
+import { workerClient } from '../lib/workerClient'
 import { playgroundStore } from '../lib/state-manager'
 import { Github } from 'lucide-react'
-import { THEME_LABELS, type ThemeMode } from '../lib/theme'
+import { THEME_LABELS, type ThemeMode, DARK_THEMES, LIGHT_THEMES } from '../lib/theme'
 
 type SettingsModalProps = {
   isOpen: boolean
@@ -19,8 +19,11 @@ type SettingsModalProps = {
   lineWrap: boolean
   setLineWrap: (val: boolean) => void
   packageManagerStatus: string
-  themeMode: ThemeMode
-  setThemeMode: (theme: ThemeMode) => void
+  isDarkMode: boolean
+  preferredDarkTheme: ThemeMode
+  setPreferredDarkTheme: (theme: ThemeMode) => void
+  preferredLightTheme: ThemeMode
+  setPreferredLightTheme: (theme: ThemeMode) => void
 }
 
 function fixLooseJson(code: string): string {
@@ -42,8 +45,11 @@ export function SettingsModal({
   lineWrap,
   setLineWrap,
   packageManagerStatus,
-  themeMode,
-  setThemeMode,
+  isDarkMode,
+  preferredDarkTheme,
+  setPreferredDarkTheme,
+  preferredLightTheme,
+  setPreferredLightTheme,
 }: SettingsModalProps) {
   const [temporaryTsConfig, setTemporaryTsConfig] = useState(tsConfigString)
   const [isValid, setIsValid] = useState(true)
@@ -115,6 +121,10 @@ export function SettingsModal({
 
   if (!isOpen) return null
 
+  const availableThemes = isDarkMode ? DARK_THEMES : LIGHT_THEMES
+  const currentTheme = isDarkMode ? preferredDarkTheme : preferredLightTheme
+  const setTheme = isDarkMode ? setPreferredDarkTheme : setPreferredLightTheme
+
   return (
     <div className='fixed inset-0 z-50 flex items-center justify-center bg-crust/80 backdrop-blur-sm p-4'>
       <div
@@ -141,13 +151,13 @@ export function SettingsModal({
                 Syntax Theme
               </label>
               <select
-                value={themeMode}
-                onChange={(e) => setThemeMode(e.target.value as ThemeMode)}
+                value={currentTheme}
+                onChange={(e) => setTheme(e.target.value as ThemeMode)}
                 className='bg-surface0 border border-surface1 rounded-md px-3 py-2 text-sm text-text outline-none focus:border-mauve transition-colors'
               >
-                {Object.entries(THEME_LABELS).map(([value, label]) => (
+                {availableThemes.map((value) => (
                   <option key={value} value={value}>
-                    {label}
+                    {THEME_LABELS[value]}
                   </option>
                 ))}
               </select>
@@ -215,6 +225,7 @@ export function SettingsModal({
                 disableDiagnostics={true}
                 disableShortcuts={true}
                 lineWrap={lineWrap}
+                themeMode={currentTheme}
               />
             </div>
             {errorMsg && (
