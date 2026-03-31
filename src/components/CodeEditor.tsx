@@ -203,6 +203,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         hideCursorInOverviewRuler: true,
         renderLineHighlight: 'all' as const,
         suggestOnTriggerCharacters: !disableAutocomplete,
+        hover: { enabled: !isMobileLike },
         wordWrap: lineWrap ? ('on' as const) : ('off' as const),
         padding: { top: 16, bottom: 16 },
         fixedOverflowWidgets: true,

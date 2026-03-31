@@ -1,24 +1,18 @@
-# Code Review Request
+# Code Review Request: Mobile Optimization & Bug Fixes
 
-I have implemented several fixes and improvements:
+## Overview
+This PR addresses several mobile-specific UX issues and improves application stability.
 
-1. **TSConfig Validation & Persistence:**
-   - Updated Prettier's JSON formatter to use `trailingComma: 'none'` to ensure `tsconfig.json` compatibility with the TypeScript parser.
-   - Refined the `SettingsModal` to correctly handle formatted JSON during the save process and ensure state persistence.
+## Key Changes
+1.  **Mobile Context Menu**: Disabled Monaco's internal hover and context menu on mobile to allow the native browser menu (for copy/paste/share) to appear.
+2.  **Horizontal Scrolling**: Fixed a bug where horizontal scrolling in the editor was blocked by the tab-switching swipe gesture. Swipe detection is now restricted to non-editor areas.
+3.  **UI Thread Protection**: Added yielding to the WebContainer output stream processing to prevent browser crashes (black screens) caused by high-volume terminal output.
+4.  **Console Enhancements**: Added message filtering (All, Log, Info, Warn, Error) and a toggle to show/hide Node.js warnings.
+5.  **Settings Modal Redesign**: Improved mobile ergonomics with a scrollable content area and fixed header/footer.
+6.  **Type Info Bar Redesign**: Optimized the layout for small screens, ensuring large type signatures don't break the UI.
 
-2. **Settings Modal Redesign:**
-   - Restructured the footer into two compact rows.
-   - Removed the "feat. jules & aider" line.
-   - Integrated the Lucide GitHub icon next to the "simwai" credit.
-   - Tightened the layout for a cleaner, more modern look.
-
-3. **Monaco Autocomplete Fix:**
-   - Replaced CSS `transform: translateX()` with the `left` property for tab sliding. This resolves the "containing block" issue where transforms would incorrectly offset Monaco's fixed-position autocomplete and hover widgets.
-   - Aligned Monaco's font family with the app's global theme (JetBrains Mono, Victor Mono).
-
-4. **Code Quality:**
-   - Cleaned up duplicate keys in Monaco editor options.
-   - Verified changes with unit and E2E tests (all 21 tests passed).
-   - Verified UI changes via Playwright screenshots.
-
-Please review the implementation for any potential regressions or styling improvements.
+## Verification Results
+- All unit and E2E tests passed.
+- Frontend verified with Playwright screenshots on mobile-sized viewport.
+- Verified that Settings Modal is now correctly scrollable with a fixed footer.
+- Verified that Console filter buttons are present and styled correctly.

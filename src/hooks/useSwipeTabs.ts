@@ -1,8 +1,17 @@
 import { useRef, useCallback } from 'react'
 
-function isEditorTarget(target: EventTarget | undefined | null) {
+function isInteractiveTarget(target: EventTarget | undefined | null) {
   if (!(target instanceof HTMLElement)) return false
-  return Boolean(target.closest('[data-testid="code-editor-container"]'))
+  // Don't swipe if touching the editor or the resize handle
+  if (target.closest('[data-testid="code-editor-container"]')) return false
+  if (target.closest('.cursor-ns-resize')) return false
+
+  // Only allow swipe if touching the header, status bar, or type info bar
+  return (
+    Boolean(target.closest('header')) ||
+    Boolean(target.closest('.bg-crust')) || // StatusBar
+    Boolean(target.closest('.font-mono.shrink-0')) // TypeInfoBar or Console Header
+  )
 }
 
 export function useSwipeTabs<T extends string>(
@@ -19,7 +28,7 @@ export function useSwipeTabs<T extends string>(
   const onTouchStart = useCallback(
     (e: React.TouchEvent) => {
       if (disabled) return
-      if (isEditorTarget(e.target)) return
+      if (!isInteractiveTarget(e.target)) return
       touchStartX.current = e.touches[0].clientX
       touchStartY.current = e.touches[0].clientY
       swiping.current = false
@@ -30,7 +39,7 @@ export function useSwipeTabs<T extends string>(
   const onTouchMove = useCallback(
     (e: React.TouchEvent) => {
       if (disabled) return
-      if (isEditorTarget(e.target)) return
+      if (!isInteractiveTarget(e.target)) return
       const dx = e.touches[0].clientX - touchStartX.current
       const dy = e.touches[0].clientY - touchStartY.current
       if (!swiping.current && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) {
@@ -45,7 +54,7 @@ export function useSwipeTabs<T extends string>(
   const onTouchEnd = useCallback(
     (e: React.TouchEvent) => {
       if (disabled) return
-      if (isEditorTarget(e.target)) return
+      if (!isInteractiveTarget(e.target)) return
       if (!swiping.current) return
       const dx = e.changedTouches[0].clientX - touchStartX.current
       const dy = e.changedTouches[0].clientY - touchStartY.current

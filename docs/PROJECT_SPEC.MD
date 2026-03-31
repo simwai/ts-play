@@ -6,12 +6,14 @@
 A web-based TypeScript playground built with React 19, Vite, and @webcontainer/api. It allows users to write, compile, and run TypeScript code directly in the browser using a sandboxed WebContainer environment.
 
 ## Key Features
-- **Real-time Compilation**: Powered by `esbuild-wasm` and the TypeScript Language Service.
-- **WebContainer Sandbox**: High-fidelity execution environment using `node` within the browser.
+- **Real-time Compilation**: Powered by \`esbuild-wasm\` and the TypeScript Language Service.
+- **WebContainer Sandbox**: High-fidelity execution environment using \`node\` within the browser.
 - **Monaco Editor Integration**: Rich IDE features including autocomplete, diagnostics, and type information.
 - **Type Information Bar**: A dedicated UI component that displays detailed information about the symbol under the cursor (kind, name, type, and JSDoc).
 - **Package Management**: Install and use npm packages in the playground.
-- **Customizable Environment**: Configurable `tsconfig.json` and syntax themes (Catppuccin Mocha, Latte, Monokai, Shades of Purple, GitHub Dark/Light).
+- **Console Filtering**: Filter console output by type (Log, Info, Warn, Error) to easily find relevant messages.
+- **Customizable Environment**: Configurable \`tsconfig.json\` and syntax themes (Catppuccin Mocha, Latte, Monokai, Shades of Purple, GitHub Dark/Light).
+- **Toggle Node.js Warnings**: Option to show or hide verbose Node.js runtime warnings in the console.
 - **Sharing**: Compressed URL-based sharing and server-side snippet storage.
 
 ## Architecture
