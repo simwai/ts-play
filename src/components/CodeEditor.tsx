@@ -19,7 +19,7 @@ import {
   monokai,
   shadesOfPurple,
 } from '../lib/monaco-themes'
-import { type ThemeMode, isDarkMode } from '../lib/theme'
+import { type ThemeMode } from '../lib/theme'
 
 export type CodeEditorRef = {
   undo: () => void
@@ -206,6 +206,8 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         wordWrap: lineWrap ? ('on' as const) : ('off' as const),
         padding: { top: 16, bottom: 16 },
         fixedOverflowWidgets: true,
+        // Allow native context menu on mobile
+        domReadOnly: isMobileLike,
       }),
       [
         readOnly,

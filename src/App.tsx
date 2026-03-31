@@ -7,7 +7,6 @@ import { PackageManager } from './components/PackageManager'
 import { Header } from './components/Header'
 import { StatusBar } from './components/StatusBar'
 import { SettingsModal } from './components/SettingsModal'
-import { decodeSharePayload } from './lib/shareCodec'
 import { useVirtualKeyboard } from './hooks/useVirtualKeyboard'
 import { formatAllFiles } from './lib/formatter'
 import { workerClient } from './lib/workerClient'
@@ -15,7 +14,7 @@ import { getWebContainer } from './lib/webcontainer'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import { useResizePanel } from './hooks/useResizePanel'
 import { useSwipeTabs } from './hooks/useSwipeTabs'
-import { shareSnippet, loadSharedSnippet } from './lib/api'
+import { shareSnippet } from './lib/api'
 import { useConsoleManager } from './hooks/useConsoleManager'
 import { useCompilerManager } from './hooks/useCompilerManager'
 import { usePackageManager } from './hooks/usePackageManager'
@@ -69,7 +68,6 @@ console.log("Type:", typeof fetchData);
 `
 
 export function App() {
-  const [themeMode, setThemeMode] = useState<ThemeMode>('mocha')
   const [toasts, setToasts] = useState<ToastMessage[]>([])
 
   // Sync toasts from store
@@ -79,16 +77,22 @@ export function App() {
     })
   }, [])
 
+  // Initialize state from localStorage or fallback to defaults
+  const [isDarkMode, setIsDarkMode] = useLocalStorage('tsplay_is_dark', true)
+  const [preferredDarkTheme, setPreferredDarkTheme] = useLocalStorage<ThemeMode>('tsplay_dark_theme', 'mocha')
+  const [preferredLightTheme, setPreferredLightTheme] = useLocalStorage<ThemeMode>('tsplay_light_theme', 'latte')
+
+  const themeMode = isDarkMode ? preferredDarkTheme : preferredLightTheme
+
   // Toggle dark mode class on HTML element
   useEffect(() => {
-    if (themeMode === 'mocha') {
+    if (isDarkMode) {
       document.documentElement.classList.add('dark')
     } else {
       document.documentElement.classList.remove('dark')
     }
-  }, [themeMode])
+  }, [isDarkMode])
 
-  // Initialize state from localStorage or fallback to defaults
   const [tsCode, setTsCode] = useLocalStorage('tsplay_ts', DEFAULT_TS)
   const [jsCode, setJsCode] = useLocalStorage(
     'tsplay_js',
@@ -200,87 +204,26 @@ export function App() {
       } catch {
         await instance.fs.writeFile(
           'package.json',
-          JSON.stringify({ name: 'playground', type: 'module' }, null, 2)
+          JSON.stringify({ name: 'playground-project', dependencies: {} }, null, 2)
         )
       }
     })
   }, [])
 
-  useEffect(() => {
-    const parameters = new URLSearchParams(globalThis.location.search)
-    const embedded =
-      parameters.get('code') || globalThis.location.hash.replace(/^#code=/, '')
-    if (embedded) {
-      decodeSharePayload(embedded)
-        .then((payload) => {
-          setTsCode(payload.tsCode || '')
-          setJsCode(payload.jsCode || '')
-          playgroundStore.addToast('info', 'Loaded embedded share link.')
-        })
-        .catch((error) => {
-          playgroundStore.addToast(
-            'error',
-            `Failed to load embedded link: ${error.message}`
-          )
-        })
-      return
-    }
+  const handleCopyAll = useCallback(async () => {
+    let content = ''
+    if (activeTab === 'ts') content = tsCode
+    else if (activeTab === 'js') content = jsCode
+    else if (activeTab === 'dts') content = dtsCode
 
-    const shareId = parameters.get('share')
-    if (shareId) {
-      loadSharedSnippet(shareId)
-        .then((data) => {
-          if (data.success) {
-            setTsCode(data.tsCode)
-            if (data.jsCode) setJsCode(data.jsCode)
-            playgroundStore.addToast(
-              'success',
-              `Loaded shared snippet (${data.remainingDays} days left)`
-            )
-            const url = new URL(globalThis.location.href)
-            url.searchParams.delete('share')
-            globalThis.history.replaceState({}, '', url.toString())
-            return
-          }
-          playgroundStore.addToast(
-            'error',
-            `Failed to load shared snippet: ${data.error}`
-          )
-        })
-        .catch((error) => {
-          playgroundStore.addToast(
-            'error',
-            `Failed to load shared snippet: ${error.message}`
-          )
-        })
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+      playgroundStore.addToast('success', `Copied ${activeTab.toUpperCase()} to clipboard`)
+    } catch (err) {
+      playgroundStore.addToast('error', 'Failed to copy to clipboard')
     }
-  }, [setTsCode, setJsCode])
-
-  const handleCopyAll = useCallback(() => {
-    const code =
-      activeTab === 'ts' ? tsCode : activeTab === 'js' ? jsCode : dtsCode
-    navigator.clipboard
-      .writeText(code)
-      .then(() => {
-        setCopied(true)
-        playgroundStore.addToast('info', 'Copied to clipboard')
-        setTimeout(() => {
-          setCopied(false)
-        }, 1500)
-      })
-      .catch(() => {
-        const ta = document.createElement('textarea')
-        ta.value = code
-        document.body.append(ta)
-        ta.select()
-        document.execCommand('copy')
-        ta.remove()
-        setCopied(true)
-        playgroundStore.addToast('info', 'Copied to clipboard')
-        setTimeout(() => {
-          setCopied(false)
-        }, 1500)
-      })
   }, [activeTab, tsCode, jsCode, dtsCode])
 
   const handleDeleteAll = useCallback(() => {
@@ -288,7 +231,6 @@ export function App() {
       setTsCode('')
     } else if (activeTab === 'js') {
       setJsCode('')
-      setJsDirty(false)
     } else {
       setDtsCode('')
     }
@@ -446,7 +388,7 @@ export function App() {
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        themeMode={themeMode} setThemeMode={setThemeMode}
+        isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode}
         handleCopyAll={handleCopyAll}
         copied={copied}
         handleDeleteAll={handleDeleteAll}
@@ -606,6 +548,11 @@ export function App() {
         lineWrap={lineWrap}
         setLineWrap={setLineWrap}
         packageManagerStatus={status}
+        isDarkMode={isDarkMode}
+        preferredDarkTheme={preferredDarkTheme}
+        setPreferredDarkTheme={setPreferredDarkTheme}
+        preferredLightTheme={preferredLightTheme}
+        setPreferredLightTheme={setPreferredLightTheme}
       />
 
       <ToastContainer

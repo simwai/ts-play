@@ -13,14 +13,13 @@ import {
 } from 'lucide-react'
 import { IconButton } from './ui/IconButton'
 import { Button } from './ui/Button'
-import type { ThemeMode } from '../lib/theme'
 import { TABS, type TabType } from '../lib/constants'
 
 type HeaderProps = {
   activeTab: TabType
   setActiveTab: (tab: TabType) => void
-  themeMode: ThemeMode
-  setThemeMode: (mode: ThemeMode | ((m: ThemeMode) => ThemeMode)) => void
+  isDarkMode: boolean
+  setIsDarkMode: (val: boolean) => void
   handleCopyAll: () => void
   copied: boolean
   handleDeleteAll: () => void
@@ -39,8 +38,8 @@ type HeaderProps = {
 export function Header({
   activeTab,
   setActiveTab,
-  themeMode,
-  setThemeMode,
+  isDarkMode,
+  setIsDarkMode,
   handleCopyAll,
   copied,
   handleDeleteAll,
@@ -88,18 +87,18 @@ export function Header({
         {/* Theme toggle */}
         <IconButton
           onClick={() => {
-            setThemeMode((m) => (m === 'mocha' ? 'latte' : 'mocha'))
+            setIsDarkMode(!isDarkMode)
           }}
           title={
-            themeMode === 'mocha'
-              ? 'Switch to Latte (light)'
-              : 'Switch to Mocha (dark)'
+            isDarkMode
+              ? 'Switch to light mode'
+              : 'Switch to dark mode'
           }
           tooltipAlign='right'
           variant='surface'
           size='sm'
         >
-          {themeMode === 'mocha' ? (
+          {isDarkMode ? (
             <Sun className='w-3 h-3 md:w-4 md:h-4' />
           ) : (
             <Moon className='w-3 h-3 md:w-4 md:h-4' />

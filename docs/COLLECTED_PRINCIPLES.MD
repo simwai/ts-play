@@ -9,6 +9,11 @@
 -   **Symbol Info Robustness**: Prefer `displayParts` over regex for symbol name extraction in the editor and worker.
 -   **Path Normalization**: Consistently normalize paths across the frontend, worker, and WebContainer filesystem to ensure seamless inter-process communication.
 
+## Theme & UI Principles
+-   **Theme Persistence**: The application maintains separate persisted states for preferred dark and light syntax themes.
+-   **Mode-Aware Theme Selection**: The syntax theme selection in settings is filtered to match the current global dark/light mode.
+-   **Mobile UX**: On mobile devices, native browser behaviors (like the long-press context menu) should be preserved by disabling Monaco's custom context menu and setting `domReadOnly: true` where appropriate.
+
 ## Documentation Maintenance
 -   All documentation files should have an agent prompt at the top to encourage continuous updates.
 -   Documentation filenames must be in UPPER_CASE_SNAKE_CASE with the `.MD` extension.
