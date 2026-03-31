@@ -1,79 +1,59 @@
-import * as esbuild from 'esbuild-wasm'
-import esbuildWasmUrl from 'esbuild-wasm/esbuild.wasm?url'
 import * as TS from 'typescript'
+import * as esbuild from 'esbuild-wasm'
 
-// Basic libs - core TS
-import lib_es5_d_ts from 'typescript/lib/lib.es5.d.ts?raw'
-import lib_es2020_d_ts from 'typescript/lib/lib.es2020.d.ts?raw'
-import lib_dom_d_ts from 'typescript/lib/lib.dom.d.ts?raw'
+const esbuildWasmUrl = new URL('esbuild-wasm/esbuild.wasm', import.meta.url)
+  .href
+let isEsbuildInitialized = false
 
 let languageService: TS.LanguageService | undefined
-let isEsbuildInitialized = false
-let workerInitializationPromise: Promise<void> | undefined
-
-const virtualFiles: Record<string, { version: number; content: string }> = {}
-const defaultLibraryFiles: Record<string, string> = {
-  'lib.es5.d.ts': lib_es5_d_ts,
-  'lib.es2020.d.ts': lib_es2020_d_ts,
-  'lib.dom.d.ts': lib_dom_d_ts,
-}
-
 let compilerOptions: TS.CompilerOptions = {
-  target: TS.ScriptTarget.ES2020,
+  target: TS.ScriptTarget.ESNext,
   module: TS.ModuleKind.ESNext,
-  moduleResolution: TS.ModuleResolutionKind.NodeNext,
-  resolveJsonModule: true,
-  allowImportingTsExtensions: true,
-  esModuleInterop: true,
+  moduleResolution: TS.ModuleResolutionKind.Bundler,
+  lib: ['lib.esnext.d.ts', 'lib.dom.d.ts'],
   strict: true,
+  esModuleInterop: true,
   skipLibCheck: true,
+  allowJs: true,
   jsx: TS.JsxEmit.ReactJSX,
   declaration: true,
-  noImplicitAny: false,
   baseUrl: '/',
   paths: {
     '*': ['node_modules/*'],
   },
 }
 
+const virtualFiles: Record<string, { content: string; version: number }> = {}
 let externalPackageDefinitions: Record<string, string> = {}
 let externalPackageVersion = 0
 
-// Helper to normalize paths for the LS host
-const normalizePath = (p: string) => (p.startsWith('/') ? p : '/' + p)
+const defaultLibraryFiles: Record<string, string> = {}
+let workerInitializationPromise: Promise<void> | null = null
 
 async function initializeLanguageService() {
-  if (languageService) return
-
   const host: TS.LanguageServiceHost = {
     getScriptFileNames: () => [
       '/main.ts',
-      ...Object.keys(defaultLibraryFiles).map((f) => '/' + f),
-      ...Object.keys(externalPackageDefinitions).map(normalizePath),
+      ...Object.keys(externalPackageDefinitions),
     ],
-    getScriptVersion: (fileName) => {
-      const normalized = fileName.startsWith('/') ? fileName : '/' + fileName
+    getScriptVersion: (path) => {
+      const normalized = path.startsWith('/') ? path : '/' + path
       if (normalized === '/main.ts')
-        return String(virtualFiles['/main.ts']?.version ?? 0)
-      if (
-        externalPackageDefinitions[normalized] ||
-        externalPackageDefinitions[normalized.substring(1)]
-      )
+        return String(virtualFiles['/main.ts']?.version || 0)
+      if (externalPackageDefinitions[normalized])
         return String(externalPackageVersion)
       return '0'
     },
-    getScriptSnapshot: (fileName) => {
+    getScriptSnapshot: (path) => {
       let content: string | undefined
-      const normalized = fileName.startsWith('/') ? fileName : '/' + fileName
+      const normalized = path.startsWith('/') ? path : '/' + path
 
       if (normalized === '/main.ts') {
         content = virtualFiles['/main.ts']?.content
-      } else if (defaultLibraryFiles[normalized.substring(1)]) {
+      } else if (normalized.startsWith('/lib.')) {
         content = defaultLibraryFiles[normalized.substring(1)]
       } else {
-        content =
-          externalPackageDefinitions[normalized] ||
-          externalPackageDefinitions[normalized.substring(1)]
+        content = externalPackageDefinitions[normalized]
       }
 
       return content !== undefined
@@ -82,12 +62,11 @@ async function initializeLanguageService() {
     },
     getCurrentDirectory: () => '/',
     getCompilationSettings: () => compilerOptions,
-    getDefaultLibFileName: () => '/lib.es2020.d.ts',
+    getDefaultLibFileName: () => '/lib.esnext.d.ts',
     fileExists: (path) => {
       const normalized = path.startsWith('/') ? path : '/' + path
       return !!(
         externalPackageDefinitions[normalized] ||
-        externalPackageDefinitions[normalized.substring(1)] ||
         defaultLibraryFiles[normalized.substring(1)] ||
         normalized === '/main.ts'
       )
@@ -96,7 +75,6 @@ async function initializeLanguageService() {
       const normalized = path.startsWith('/') ? path : '/' + path
       return (
         externalPackageDefinitions[normalized] ||
-        externalPackageDefinitions[normalized.substring(1)] ||
         defaultLibraryFiles[normalized.substring(1)] ||
         (normalized === '/main.ts'
           ? virtualFiles['/main.ts']?.content
@@ -106,21 +84,21 @@ async function initializeLanguageService() {
     readDirectory: (path, extensions) => {
       const normalizedPath = path.endsWith('/') ? path : path + '/'
       const searchPath = normalizedPath.startsWith('/')
-        ? normalizedPath.substring(1)
-        : normalizedPath
-      return Object.keys(externalPackageDefinitions)
-        .filter(
-          (f) =>
-            f.startsWith(searchPath) &&
-            (!extensions || extensions.some((e) => f.endsWith(e)))
-        )
-        .map(normalizePath)
+        ? normalizedPath
+        : '/' + normalizedPath
+
+      return Object.keys(externalPackageDefinitions).filter(
+        (f) =>
+          f.startsWith(searchPath) &&
+          (!extensions || extensions.some((e) => f.endsWith(e)))
+      )
     },
     directoryExists: (path) => {
       const normalizedPath = path.endsWith('/') ? path : path + '/'
       const searchPath = normalizedPath.startsWith('/')
-        ? normalizedPath.substring(1)
-        : normalizedPath
+        ? normalizedPath
+        : '/' + normalizedPath
+
       return Object.keys(externalPackageDefinitions).some((f) =>
         f.startsWith(searchPath)
       )
