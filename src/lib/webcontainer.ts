@@ -137,8 +137,6 @@ export class WebContainerService {
     const reader = proc.output.getReader()
     const decoder = new TextDecoder()
     let currentLineBuffer = ''
-    let lineCountSinceYield = 0
-    const MAX_LINES_PER_YIELD = 20
 
     ;(async () => {
       try {
@@ -167,14 +165,6 @@ export class WebContainerService {
               )
               if (!options.silent) this.emitLog('info', simplified)
               options.onLog?.(simplified)
-
-              lineCountSinceYield++
-              // Prevent UI thread starvation by yielding after processing a batch of lines
-              if (lineCountSinceYield >= MAX_LINES_PER_YIELD) {
-                lineCountSinceYield = 0
-                // Using a microtask or a brief timeout to yield control back to the browser
-                // We use a Promise that resolves immediately but allows the event loop to turn
-              }
             }
           }
 
@@ -185,12 +175,6 @@ export class WebContainerService {
             const completeLines = lines.slice(0, -1)
             currentLineBuffer = lines[lines.length - 1]
             processLines(completeLines)
-          }
-
-          // If we've processed a lot of chunks, yield control
-          if (lineCountSinceYield > 0) {
-            await new Promise((resolve) => setTimeout(resolve, 0))
-            lineCountSinceYield = 0
           }
         }
         if (currentLineBuffer) {
