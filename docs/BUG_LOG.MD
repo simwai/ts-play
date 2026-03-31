@@ -70,3 +70,16 @@
 - **Solution**:
   1. Enabled `declaration: true` in `compilerOptions`.
   2. Updated the `COMPILE` message handler to call `languageService.getEmitOutput('main.ts', true)` and extract the `.d.ts` file from the output.
+
+## 2025-05-24: Excessive NPM Installs and Missing @types
+
+- **Issue**: Rapid typing caused dozens of queued npm installs/uninstalls. @types packages were not being installed automatically in the WebContainer.
+- **Cause**:
+  1. Short debounce (1s) in import detection.
+  2. Sequential execution of every individual import change without batching or cancellation.
+  3. No logic to check for or include @types packages in the install command.
+- **Solution**:
+  1. Increased import detection debounce to 2500ms.
+  2. Implemented a target-state reconciliation loop that batches all additions and removals into single npm commands.
+  3. Added an npm registry check to verify package existence and automatically discover/install @types/ versions.
+  4. Added warnings (controllable via settings) for missing packages or types.

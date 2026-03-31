@@ -167,7 +167,7 @@ export function App() {
     checkImports,
     installQueue,
     status,
-  } = usePackageManager(tsCode, addMessage)
+  } = usePackageManager(tsCode, addMessage, showNodeWarnings)
 
   const diagnostics = useTSDiagnostics(tsCode, activeTab === 'ts', packageTypings)
 
