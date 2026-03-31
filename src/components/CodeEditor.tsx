@@ -250,6 +250,10 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         padding: { top: 16, bottom: 16 },
         fixedOverflowWidgets: true,
         domReadOnly: isMobileLike,
+        // Ensure long-press works for native selection on mobile
+        selectionHighlight: !isMobileLike,
+        occurrencesHighlight: !isMobileLike,
+        links: !isMobileLike,
       }),
       [
         readOnly,
@@ -262,7 +266,14 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
     )
 
     return (
-      <div className='w-full h-full relative group'>
+      <div
+        className='w-full h-full relative group'
+        style={{
+          // Enable native text selection on mobile
+          userSelect: isMobileLike ? 'text' : 'none',
+          WebkitUserSelect: isMobileLike ? 'text' : 'none',
+        }}
+      >
         <Editor
           height='100%'
           language={language}
