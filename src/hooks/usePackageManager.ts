@@ -175,13 +175,19 @@ export function usePackageManager(
         logger: false,
         delegate: {
           receivedFile: (code, path) => {
-            pendingTypings.current[path] = code
-            if (typingUpdateTimer.current)
-              clearTimeout(typingUpdateTimer.current)
-            typingUpdateTimer.current = setTimeout(flushTypings, 500)
+            // Only use ATA if we don't have a container version of the file
+            // Container versions are usually more accurate for the specific installed version
+            if (!path.startsWith('/node_modules/')) {
+              pendingTypings.current[path] = code
+              if (typingUpdateTimer.current)
+                clearTimeout(typingUpdateTimer.current)
+              typingUpdateTimer.current = setTimeout(flushTypings, 500)
+            }
           },
           errorMessage: (userFacingMessage, error) => {
-            console.error('ATA Error:', userFacingMessage, error)
+            // ATA errors are common and often non-fatal (missing types for some packages)
+            // We'll just log them to console instead of showing to user
+            console.warn('ATA Warning:', userFacingMessage, error)
           },
           finished: () => {
             flushTypings()

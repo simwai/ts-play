@@ -128,13 +128,23 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
 
     switch (type) {
       case 'INIT': {
-        workerInitializationPromise ||= (async () => {
-          if (!isEsbuildInitialized) {
-            await esbuild.initialize({ wasmURL: esbuildWasmUrl, worker: false })
-            isEsbuildInitialized = true
-          }
-          await initializeLanguageService()
-        })()
+        if (!workerInitializationPromise) {
+          workerInitializationPromise = (async () => {
+            if (!isEsbuildInitialized) {
+              try {
+                await esbuild.initialize({
+                  wasmURL: esbuildWasmUrl,
+                  worker: false,
+                })
+                isEsbuildInitialized = true
+              } catch (e: any) {
+                if (!e.message?.includes('already initialized')) throw e
+                isEsbuildInitialized = true
+              }
+            }
+            await initializeLanguageService()
+          })()
+        }
         await workerInitializationPromise
         result = true
         break
