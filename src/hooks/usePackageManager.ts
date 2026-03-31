@@ -94,16 +94,19 @@ export function usePackageManager(
 
   const syncTypingsFromContainer = useCallback(async () => {
     try {
-      const types = await webContainerService.readDirRecursive(
+      // Sync .d.ts files AND package.json files from node_modules.
+      // package.json files are crucial for modern module resolution (NodeNext/Bundler)
+      // as they define where the types live (e.g. zod)
+      const files = await webContainerService.readDirRecursive(
         'node_modules',
-        (path) => path.endsWith('.d.ts'),
+        (path) => path.endsWith('.d.ts') || path.endsWith('package.json'),
         15
       )
 
-      if (Object.keys(types).length > 0) {
+      if (Object.keys(files).length > 0) {
         setPackageTypings((prev) => ({
           ...prev,
-          ...types,
+          ...files,
         }))
       }
     } catch (error) {
@@ -175,18 +178,15 @@ export function usePackageManager(
         logger: false,
         delegate: {
           receivedFile: (code, path) => {
-            // Only use ATA if we don't have a container version of the file
-            // Container versions are usually more accurate for the specific installed version
-            if (!path.startsWith('/node_modules/')) {
-              pendingTypings.current[path] = code
-              if (typingUpdateTimer.current)
-                clearTimeout(typingUpdateTimer.current)
-              typingUpdateTimer.current = setTimeout(flushTypings, 500)
-            }
+            // REMOVED: path.startsWith('/node_modules/') check.
+            // We WANT to use ATA even for node_modules to ensure we have types even
+            // if the WebContainer sync hasn't finished or is incomplete.
+            pendingTypings.current[path] = code
+            if (typingUpdateTimer.current)
+              clearTimeout(typingUpdateTimer.current)
+            typingUpdateTimer.current = setTimeout(flushTypings, 500)
           },
           errorMessage: (userFacingMessage, error) => {
-            // ATA errors are common and often non-fatal (missing types for some packages)
-            // We'll just log them to console instead of showing to user
             console.warn('ATA Warning:', userFacingMessage, error)
           },
           finished: () => {

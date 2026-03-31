@@ -36,6 +36,21 @@ export class WebContainerService {
         this.emitLog('info', 'Server ready: ' + url + ' (port ' + port + ')')
       })
 
+      // Initialize with a default package.json to avoid Node.js warnings and set ESM mode
+      await instance.fs.writeFile(
+        'package.json',
+        JSON.stringify(
+          {
+            name: 'ts-play-project',
+            version: '1.0.0',
+            type: 'module',
+            dependencies: {},
+          },
+          null,
+          2
+        )
+      )
+
       return instance
     })()
 

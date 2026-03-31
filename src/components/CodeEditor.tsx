@@ -102,7 +102,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         target: monaco.languages.typescript.ScriptTarget.ESNext,
         allowNonTsExtensions: true,
         moduleResolution:
-          monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+          monaco.languages.typescript.ModuleResolutionKind.NodeNext,
         module: monaco.languages.typescript.ModuleKind.ESNext,
         noEmit: true,
         esModuleInterop: true,

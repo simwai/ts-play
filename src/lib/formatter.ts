@@ -1,94 +1,87 @@
-import * as prettier from 'prettier/standalone'
-import * as prettierPluginBabel from 'prettier/plugins/babel'
-import * as prettierPluginEstree from 'prettier/plugins/estree'
-import * as prettierPluginTypescript from 'prettier/plugins/typescript'
+import type { BuiltInParserName } from 'prettier'
+import { webContainerService } from './webcontainer'
 
-export async function loadPrettier(): Promise<void> {
-  // Prettier is now bundled locally, no need to load from CDN
+let prettier: any = null
+let prettierPlugins: any[] = []
+let prettierPromise: Promise<void> | null = null
+
+export async function loadPrettier() {
+  if (prettier) return
+  if (prettierPromise) return prettierPromise
+
+  prettierPromise = (async () => {
+    try {
+      // Lazy load prettier to avoid blocking the main thread during initial load
+      const [p, ...plugins] = await Promise.all([
+        import('prettier/standalone'),
+        import('prettier/plugins/estree'),
+        import('prettier/plugins/typescript'),
+        import('prettier/plugins/postcss'),
+      ])
+      prettier = p.default || p
+      prettierPlugins = plugins.map((mod) => mod.default || mod)
+    } catch (error) {
+      console.warn('Prettier load failed:', error)
+    }
+  })()
+
+  return prettierPromise
 }
 
 export async function formatCode(
   code: string,
-  language: 'typescript' | 'javascript' | 'dts'
+  parser: BuiltInParserName = 'typescript'
 ): Promise<string> {
-  const parser = language === 'javascript' ? 'babel' : 'typescript'
+  await loadPrettier()
+  if (!prettier) return code
 
-  const formatted = await prettier.format(code, {
-    parser,
-    plugins: [
-      prettierPluginBabel,
-      prettierPluginEstree,
-      prettierPluginTypescript,
-    ],
-    printWidth: 80,
-    tabWidth: 2,
-    useTabs: false,
-    semi: true,
-    singleQuote: true,
-    trailingComma: 'es5',
-    bracketSpacing: true,
-    arrowParens: 'always',
-  })
-
-  return formatted
-}
-
-export async function formatJson(code: string): Promise<string> {
   try {
     return await prettier.format(code, {
-      parser: 'json5', // json5 safely supports comments and trailing commas
-      plugins: [prettierPluginBabel, prettierPluginEstree],
+      parser,
+      plugins: prettierPlugins,
+      semi: false,
+      singleQuote: true,
+      trailingComma: 'none',
       printWidth: 80,
-      tabWidth: 2,
-      useTabs: false,
-      quoteProps: 'preserve',
-      trailingComma: 'none', // Ensures Prettier doesn't strip the quotes we just added
     })
-  } catch {
-    return code // Fallback to raw if formatting fails
+  } catch (error) {
+    console.warn('Formatting error:', error)
+    return code
   }
 }
 
 export async function formatAllFiles(
-  tsCode: string,
-  jsCode: string,
-  dtsCode: string
-): Promise<{
-  tsCode: string
-  jsCode: string
-  dtsCode: string
-  errors: string[]
-}> {
+  ts: string,
+  js: string,
+  dts: string
+): Promise<{ ts: string; js: string; dts: string; errors: string[] }> {
   const errors: string[] = []
 
-  let formattedTs = tsCode
-  let formattedJs = jsCode
-  let formattedDts = dtsCode
+  const format = async (code: string, parser: BuiltInParserName) => {
+    try {
+      return await formatCode(code, parser)
+    } catch (e: any) {
+      errors.push(e.message)
+      return code
+    }
+  }
 
-  await Promise.all([
-    formatCode(tsCode, 'typescript')
-      .then((r) => {
-        formattedTs = r
-      })
-      .catch((error) => errors.push(`TS: ${error.message}`)),
-
-    formatCode(jsCode, 'javascript')
-      .then((r) => {
-        formattedJs = r
-      })
-      .catch((error) => errors.push(`JS: ${error.message}`)),
-
-    formatCode(dtsCode, 'dts')
-      .then((r) => {
-        formattedDts = r
-      })
-      .catch((error) => errors.push(`DTS: ${error.message}`)),
+  const [fTs, fJs, fDts] = await Promise.all([
+    format(ts, 'typescript'),
+    format(js, 'typescript'),
+    format(dts, 'typescript'),
   ])
 
-  return {
-    tsCode: formattedTs,
-    jsCode: formattedJs,
-    dtsCode: formattedDts,
-    errors,
+  // Also format in WebContainer if prettier is available there
+  try {
+    await webContainerService.spawnManaged(
+      'npx',
+      ['prettier', '--write', 'index.ts', 'index.js'],
+      { silent: true }
+    )
+  } catch {
+    /* ignore */
   }
+
+  return { ts: fTs, js: fJs, dts: fDts, errors }
 }
