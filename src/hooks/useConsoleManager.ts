@@ -7,6 +7,7 @@ export function useConsoleManager() {
 
   const addMessage = useCallback(
     (type: ConsoleMessage['type'], args: unknown[]) => {
+      // Filter out internal React error noise
       if (
         type === 'error' &&
         args.some(
@@ -19,16 +20,25 @@ export function useConsoleManager() {
 
       const formatted = args.map((a) => {
         if (a instanceof Error) return a.stack || a.message
-        if (typeof a === 'string') return a
+        if (typeof a === 'string') {
+          // Collapse repeating whitespace to maintain performance
+          return a.replace(/ {10,}/g, '          ')
+        }
         try {
           return JSON.stringify(a, null, 2)
         } catch {
           return String(a)
         }
       })
-      setMessages((previous) =>
-        [...previous, { type, args: formatted, ts: Date.now() }].slice(-500)
-      )
+
+      setMessages((previous) => {
+        // Keep only the last 200 messages for mobile stability
+        const next = [...previous, { type, args: formatted, ts: Date.now() }]
+        if (next.length > 200) {
+          return next.slice(-200)
+        }
+        return next
+      })
     },
     []
   )
