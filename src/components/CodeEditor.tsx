@@ -80,11 +80,14 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       redo: () => editorRef.current?.trigger('keyboard', 'redo', null),
       jumpTo: (line, col) => {
         if (editorRef.current) {
-          editorRef.current.revealPositionInCenter({ lineNumber: line, column: col })
+          editorRef.current.revealPositionInCenter({
+            lineNumber: line,
+            column: col,
+          })
           editorRef.current.setPosition({ lineNumber: line, column: col })
           editorRef.current.focus()
         }
-      }
+      },
     }))
 
     const handleBeforeMount: BeforeMount = (monaco) => {
@@ -100,13 +103,17 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         allowNonTsExtensions: true,
         moduleResolution:
           monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-        module: monaco.languages.typescript.ModuleKind.CommonJS,
+        module: monaco.languages.typescript.ModuleKind.ESNext,
         noEmit: true,
         esModuleInterop: true,
-        jsx: monaco.languages.typescript.JsxEmit.React,
-        reactNamespace: 'React',
+        jsx: monaco.languages.typescript.JsxEmit.ReactJSX,
         allowJs: true,
         typeRoots: ['node_modules/@types'],
+        baseUrl: 'file:///',
+        resolveJsonModule: true,
+        paths: {
+          '*': ['node_modules/*'],
+        },
       })
     }
 
@@ -180,17 +187,20 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
 
     useEffect(() => {
       if (monaco) {
-        const libs = Object.entries(extraLibs).map(([key, content]) => ({
-          content,
-          filePath: key.startsWith('file://')
-            ? key
-            : `file:///node_modules/@types/${key}/index.d.ts`,
-        }))
+        const libs = Object.entries(extraLibs)
+          .map(([key, content]) => {
+            let filePath = key
+            if (!filePath.startsWith('file://')) {
+              filePath = `file://${filePath.startsWith('/') ? '' : '/'}${filePath}`
+            }
+            if (filePath === 'file:///index.d.ts') return null
+            return { content, filePath }
+          })
+          .filter(Boolean)
         monaco.languages.typescript.typescriptDefaults.setExtraLibs(libs as any)
       }
     }, [monaco, extraLibs])
 
-    // Toggle diagnostics
     useEffect(() => {
       if (!monaco) return
 
@@ -239,7 +249,6 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         wordWrap: lineWrap ? ('on' as const) : ('off' as const),
         padding: { top: 16, bottom: 16 },
         fixedOverflowWidgets: true,
-        // Allow native context menu on mobile
         domReadOnly: isMobileLike,
       }),
       [

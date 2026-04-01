@@ -20,3 +20,5 @@
 
 - All documentation files should have an agent prompt at the top to encourage continuous updates.
 - Documentation filenames must be in UPPER_CASE_SNAKE_CASE with the `.MD` extension.
+- **Package Reconciliation**: The package manager uses a target-state reconciliation loop to minimize npm operations, batching multiple changes into single commands after a settle period.
+- **Type Discovery**: Automatic discovery and installation of @types packages in the runtime environment ensures consistent behavior between the editor and the execution sandbox.
