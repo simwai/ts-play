@@ -163,11 +163,11 @@ export function usePackageManager(
 
   const flushTypings = useCallback(() => {
     if (Object.keys(pendingTypings.current).length === 0) return
-    setPackageTypings((prev) => ({
-      ...prev,
-      ...pendingTypings.current,
-    }))
-    pendingTypings.current = {}
+    setPackageTypings((prev) => {
+      const next = { ...prev, ...pendingTypings.current }
+      pendingTypings.current = {}
+      return next
+    })
   }, [])
 
   useEffect(() => {
@@ -178,10 +178,9 @@ export function usePackageManager(
         logger: false,
         delegate: {
           receivedFile: (code, path) => {
-            // REMOVED: path.startsWith('/node_modules/') check.
-            // We WANT to use ATA even for node_modules to ensure we have types even
-            // if the WebContainer sync hasn't finished or is incomplete.
-            pendingTypings.current[path] = code
+            // Ensure absolute path for Monaco/Worker consistency
+            const normalizedPath = path.startsWith('/') ? path : '/' + path
+            pendingTypings.current[normalizedPath] = code
             if (typingUpdateTimer.current)
               clearTimeout(typingUpdateTimer.current)
             typingUpdateTimer.current = setTimeout(flushTypings, 500)
