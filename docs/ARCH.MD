@@ -6,6 +6,54 @@
 
 <p style="color: #94e2d5; font-style: italic; font-size: 1.1rem; margin-bottom: 2.5rem; border-left: 4px solid #cba6f7; padding-left: 1.5rem;">A high-fidelity, browser-native TypeScript development environment powered by WebContainers.</p>
 
+<div style="background: rgba(49, 50, 68, 0.5); padding: 1.5rem; border-radius: 1rem; border: 1px solid rgba(203, 166, 247, 0.2); margin-bottom: 3rem;">
+<h3 style="color: #cba6f7; margin-top: 0; text-align: center;">🗺️ System Relationships</h3>
+
+```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#cba6f7', 'primaryTextColor': '#cdd6f4', 'primaryBorderColor': '#cba6f7', 'lineColor': '#89b4fa', 'secondaryColor': '#313244', 'tertiaryColor': '#1e1e2e'}}}%%
+graph TD
+    subgraph "Main UI Thread (React 19)"
+        UI[User Interface]
+        STORE[PlaygroundStore]
+        WC_SVC[WebContainerService]
+        ED[Monaco Editor]
+        PM[Package Manager Hook]
+    end
+
+    subgraph "Web Worker"
+        TS[TS Language Service]
+        EB[esbuild-wasm]
+        WFS[Virtual FS / Module Resolution]
+    end
+
+    subgraph "WebContainer (Sandbox)"
+        NODE[Node.js Runtime]
+        NM[node_modules]
+        FS[Virtual Filesystem]
+    end
+
+    UI --> ED
+    UI --> STORE
+    PM --> WC_SVC
+    PM -- "detectImports" --> TS
+    WC_SVC --> NODE
+    WC_SVC --> FS
+    EB -- "compile" --> FS
+    NM -- "Sync Types" --> WFS
+    WFS --> ED
+    TS -- "Diagnostics/Info" --> UI
+    NM -- "Types" --> TS
+
+    style UI fill:#cba6f7,stroke:#1e1e2e,color:#1e1e2e
+    style TS fill:#cba6f7,stroke:#1e1e2e,color:#1e1e2e
+    style NODE fill:#cba6f7,stroke:#1e1e2e,color:#1e1e2e
+    style STORE fill:#89b4fa,stroke:#1e1e2e,color:#1e1e2e
+    style EB fill:#89b4fa,stroke:#1e1e2e,color:#1e1e2e
+    style NM fill:#89b4fa,stroke:#1e1e2e,color:#1e1e2e
+```
+
+</div>
+
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 3rem;">
   <div style="background: rgba(49, 50, 68, 0.5); padding: 1.5rem; border-radius: 1rem; border: 1px solid rgba(203, 166, 247, 0.2);">
     <h3 style="color: #89b4fa; margin-top: 0;">🌐 UI & Orchestration</h3>
@@ -59,6 +107,6 @@
 - Code is compiled to ESM via <code>esbuild</code>.
 - Assets are mounted to the <b>WebContainer virtual filesystem</b>.
 - A <code>node</code> process is spawned within the browser's sandbox.
-- Output is streamed to the UI with full <b>ANSI color support</b> and yielding mechanisms to maintain 60FPS UI performance.
+- Output is streamed to the UI with full <b>ANSI color support</b> and yielding mechanisms to prevent UI starvation.
 
 </div>
