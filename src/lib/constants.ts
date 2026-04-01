@@ -6,7 +6,7 @@ export const DEFAULT_TSCONFIG = `{
     "strict": true,
     "target": "ESNext",
     "module": "ESNext",
-    "moduleResolution": "NodeNext",
+    "moduleResolution": "Bundler",
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,

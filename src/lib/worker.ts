@@ -9,7 +9,7 @@ let languageService: TS.LanguageService | undefined
 let compilerOptions: TS.CompilerOptions = {
   target: TS.ScriptTarget.ESNext,
   module: TS.ModuleKind.ESNext,
-  moduleResolution: TS.ModuleResolutionKind.NodeNext,
+  moduleResolution: TS.ModuleResolutionKind.Bundler,
   lib: ['lib.esnext.d.ts', 'lib.dom.d.ts'],
   strict: true,
   esModuleInterop: true,
@@ -77,15 +77,13 @@ async function initializeLanguageService() {
         '/main.ts',
         ...Object.keys(externalPackageDefinitions),
       ];
-      // Include explicitly requested libs
-      if (compilerOptions.lib) {
-          compilerOptions.lib.forEach(l => {
-              const fileName = getLibFileName(l);
-              if (defaultLibraryFiles[fileName]) {
-                  names.push('/' + fileName);
-              }
-          });
-      }
+
+      // Include all loaded default libraries in the script file list
+      // This ensures they are considered part of the project
+      Object.keys(defaultLibraryFiles).forEach(lib => {
+          names.push('/' + lib);
+      });
+
       return names;
     },
     getScriptVersion: (path) => {

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import type { ConsoleMessage } from '../components/Console'
 
 export function useConsoleManager() {
@@ -19,16 +19,26 @@ export function useConsoleManager() {
       }
 
       const formatted = args.map((a) => {
-        if (a instanceof Error) return a.stack || a.message
-        if (typeof a === 'string') {
-          // Collapse repeating whitespace to maintain performance
-          return a.replace(/ {10,}/g, '          ')
+        let result = ''
+        if (a instanceof Error) {
+          result = a.stack || a.message
+        } else if (typeof a === 'string') {
+          result = a
+        } else {
+          try {
+            result = JSON.stringify(a, null, 2)
+          } catch {
+            result = String(a)
+          }
         }
-        try {
-          return JSON.stringify(a, null, 2)
-        } catch {
-          return String(a)
+
+        // Truncate individual messages to prevent UI hangs with huge objects/strings
+        if (result.length > 5000) {
+          result = result.slice(0, 5000) + '... (truncated)'
         }
+
+        // Collapse repeating whitespace to maintain performance
+        return result.replace(/ {10,}/g, '          ')
       })
 
       setMessages((previous) => {
