@@ -42,6 +42,7 @@ async function initializeLanguageService() {
         return String(virtualFiles['/main.ts']?.version || 0)
       if (externalPackageDefinitions[normalized])
         return String(externalPackageVersion)
+      if (normalized.startsWith('/lib.')) return '1'
       return '0'
     },
     getScriptSnapshot: (path) => {
@@ -52,6 +53,8 @@ async function initializeLanguageService() {
         content = virtualFiles['/main.ts']?.content
       } else if (normalized.startsWith('/lib.')) {
         content = defaultLibraryFiles[normalized.substring(1)]
+      } else if (normalized === '/lib.d.ts') {
+        content = defaultLibraryFiles['lib.d.ts']
       } else {
         content = externalPackageDefinitions[normalized]
       }
@@ -68,6 +71,7 @@ async function initializeLanguageService() {
       return !!(
         externalPackageDefinitions[normalized] ||
         defaultLibraryFiles[normalized.substring(1)] ||
+        (normalized === '/lib.d.ts' && defaultLibraryFiles['lib.d.ts']) ||
         normalized === '/main.ts'
       )
     },

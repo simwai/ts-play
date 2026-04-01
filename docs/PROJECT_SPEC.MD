@@ -8,15 +8,17 @@ A web-based TypeScript playground built with React 19, Vite, and @webcontainer/a
 
 ## Key Features
 
-- **Real-time Compilation**: Powered by \`esbuild-wasm\` and the TypeScript Language Service.
-- **WebContainer Sandbox**: High-fidelity execution environment using \`node\` within the browser.
+- **Real-time Compilation**: Powered by `esbuild-wasm` and the TypeScript Language Service.
+- **WebContainer Sandbox**: High-fidelity execution environment using `node` within the browser.
 - **Monaco Editor Integration**: Rich IDE features including autocomplete, diagnostics, and type information.
 - **Type Information Bar**: A dedicated UI component that displays detailed information about the symbol under the cursor (kind, name, type, and JSDoc).
 - **Package Management**: Install and use npm packages in the playground.
 - **Console Filtering**: Filter console output by type (Log, Info, Warn, Error) to easily find relevant messages.
-- **Customizable Environment**: Configurable \`tsconfig.json\` and syntax themes (Catppuccin Mocha, Latte, Monokai, Shades of Purple, GitHub Dark/Light).
+- **Customizable Environment**: Configurable `tsconfig.json` and syntax themes (Catppuccin Mocha, Latte, Monokai, Shades of Purple, GitHub Dark/Light).
 - **Toggle Node.js Warnings**: Option to show or hide verbose Node.js runtime warnings in the console.
 - **Sharing**: Compressed URL-based sharing and server-side snippet storage.
+- **Automatic ESM Support**: The WebContainer environment is initialized with a root `package.json` that sets `"type": "module"` for consistent ESM behavior across the playground.
+- **Modern Module Resolution**: The TypeScript Language Service and the playground's background worker use `NodeNext` module resolution for high-fidelity type resolution of modern npm packages.
 
 ## Architecture
 

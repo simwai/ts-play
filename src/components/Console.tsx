@@ -65,6 +65,7 @@ export const Console = React.memo(function Console({
   problemCount,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [filter, setFilter] = useState<FilterType>('all')
 
   // Create Ansi converter with truecolor support if enabled
@@ -84,8 +85,16 @@ export const Console = React.memo(function Console({
   )
 
   useEffect(() => {
-    if (isOpen && activeTab === 'console')
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (isOpen && activeTab === 'console') {
+      // Debounce scroll to prevent jank during high-frequency logs
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current)
+      scrollTimerRef.current = setTimeout(() => {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+      }, 100)
+    }
+    return () => {
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current)
+    }
   }, [messages, isOpen, filter, activeTab])
 
   const errors = messages.filter((m) => m.type === 'error').length

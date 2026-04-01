@@ -168,11 +168,11 @@ export function usePackageManager(
 
   const flushTypings = useCallback(() => {
     if (Object.keys(pendingTypings.current).length === 0) return
-    setPackageTypings((prev) => ({
-      ...prev,
-      ...pendingTypings.current,
-    }))
-    pendingTypings.current = {}
+    setPackageTypings((prev) => {
+      const next = { ...prev, ...pendingTypings.current }
+      pendingTypings.current = {}
+      return next
+    })
   }, [])
 
   useEffect(() => {
@@ -232,7 +232,6 @@ export function usePackageManager(
 
     const performChanges = async () => {
       try {
-        // Ensure root package.json exists with type: module to avoid Node.js warnings
         await webContainerService.writeFile(
           'package.json',
           JSON.stringify(
