@@ -28,7 +28,7 @@ export function StatusBar({
   setLineWrap,
   packageManagerStatus,
 }: StatusBarProps) {
-  const lowerStatus = compilerStatus.toLowerCase()
+  const lowerStatus = (compilerStatus || "loading").toLowerCase()
   const statusLabel =
     lowerStatus === 'loading'
       ? '⏳ Loading…'

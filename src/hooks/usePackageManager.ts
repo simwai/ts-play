@@ -92,6 +92,8 @@ export function usePackageManager(
   const pendingTypings = useRef<Record<string, string>>({})
   const typingUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const containerTypePaths = useRef<Set<string>>(new Set())
+
   const tsCursorPos = useRef(0)
   const checkImportsTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined
@@ -102,10 +104,13 @@ export function usePackageManager(
       const types = await webContainerService.readDirRecursive(
         'node_modules',
         (path) => path.endsWith('.d.ts') || path.endsWith('package.json'),
-        30
+        6
       )
 
       if (Object.keys(types).length > 0) {
+        const newPaths = new Set(Object.keys(types))
+        containerTypePaths.current = newPaths
+
         setPackageTypings((prev) => {
           const next = { ...prev }
           for (const [path, content] of Object.entries(types)) {
@@ -175,6 +180,11 @@ export function usePackageManager(
     })
   }, [])
 
+  const flushTypingsRef = useRef(flushTypings)
+  useEffect(() => {
+    flushTypingsRef.current = flushTypings
+  }, [flushTypings])
+
   useEffect(() => {
     if (!ataRef.current) {
       ataRef.current = setupTypeAcquisition({
@@ -183,18 +193,20 @@ export function usePackageManager(
         logger: false,
         delegate: {
           receivedFile: (code, path) => {
+            if (containerTypePaths.current.has(path)) return
+
             if (!path.startsWith('/node_modules/')) {
               pendingTypings.current[path] = code
               if (typingUpdateTimer.current)
                 clearTimeout(typingUpdateTimer.current)
-              typingUpdateTimer.current = setTimeout(flushTypings, 500)
+              typingUpdateTimer.current = setTimeout(() => flushTypingsRef.current(), 500)
             }
           },
           errorMessage: (userFacingMessage, error) => {
             console.warn('ATA Warning:', userFacingMessage, error)
           },
           finished: () => {
-            flushTypings()
+            flushTypingsRef.current()
             setStatus('idle')
           },
           started: () => {
@@ -203,7 +215,7 @@ export function usePackageManager(
         },
       })
     }
-  }, [flushTypings])
+  }, []) // Remove flushTypings from deps to avoid re-init, using ref instead
 
   useEffect(() => {
     if (ataRef.current && tsCode) {
@@ -308,7 +320,7 @@ export function usePackageManager(
       }
     }
 
-    installQueue.current = installQueue.current.then(performChanges)
+    installQueue.current = installQueue.current.then(performChanges).catch((error) => { console.error("Package queue failure:", error); setStatus("error"); addMessage("error", ["Package manager error: " + (error as Error).message]); })
   }, [
     installedPackages,
     addMessage,

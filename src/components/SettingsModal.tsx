@@ -2,44 +2,34 @@ import { useState, useEffect } from 'react'
 import { IconButton } from './ui/IconButton'
 import { Button } from './ui/Button'
 import { CodeEditor } from './CodeEditor'
-import { DEFAULT_TSCONFIG } from '../lib/constants'
-import { formatJson } from '../lib/formatter'
 import { workerClient } from '../lib/workerClient'
+import { formatJson } from '../lib/formatter'
 import { playgroundStore } from '../lib/state-manager'
+import { DEFAULT_TSCONFIG } from '../lib/constants'
+import { DARK_THEMES, LIGHT_THEMES, THEME_LABELS, type ThemeMode } from '../lib/theme'
 import { Github } from 'lucide-react'
-import {
-  THEME_LABELS,
-  type ThemeMode,
-  DARK_THEMES,
-  LIGHT_THEMES,
-} from '../lib/theme'
 
 type SettingsModalProps = {
   isOpen: boolean
   onClose: () => void
   tsConfigString: string
-  onSave: (newConfig: string) => void
+  onSave: (config: string) => void
   trueColorEnabled: boolean
   setTrueColorEnabled: (val: boolean) => void
   lineWrap: boolean
   setLineWrap: (val: boolean) => void
-  showNodeWarnings: boolean
-  setShowNodeWarnings: (val: boolean) => void
   packageManagerStatus: string
   isDarkMode: boolean
   preferredDarkTheme: ThemeMode
-  setPreferredDarkTheme: (theme: ThemeMode) => void
+  setPreferredDarkTheme: (val: ThemeMode) => void
   preferredLightTheme: ThemeMode
-  setPreferredLightTheme: (theme: ThemeMode) => void
+  setPreferredLightTheme: (val: ThemeMode) => void
 }
 
-function fixLooseJson(code: string): string {
-  return code.replace(/([a-zA-Z_$][\w$]*)\s*:/g, (match, key, offset, str) => {
-    let i = offset - 1
-    while (i >= 0 && /\s/.test(str[i])) i--
-    if (str[i] === '"' || str[i] === "'") return match
-    return `"${key}":`
-  })
+function fixLooseJson(json: string) {
+  return json
+    .replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"$2":')
+    .replace(/'/g, '"')
 }
 
 export function SettingsModal({
@@ -51,9 +41,6 @@ export function SettingsModal({
   setTrueColorEnabled,
   lineWrap,
   setLineWrap,
-  showNodeWarnings,
-  setShowNodeWarnings,
-  packageManagerStatus,
   isDarkMode,
   preferredDarkTheme,
   setPreferredDarkTheme,
@@ -65,12 +52,8 @@ export function SettingsModal({
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   useEffect(() => {
-    if (isOpen) {
-      setTemporaryTsConfig(tsConfigString)
-      setIsValid(true)
-      setErrorMsg(null)
-    }
-  }, [isOpen, tsConfigString])
+    setTemporaryTsConfig(tsConfigString)
+  }, [tsConfigString, isOpen])
 
   useEffect(() => {
     if (!isOpen) return
@@ -220,19 +203,6 @@ export function SettingsModal({
                   data-testid='settings-wrap-toggle'
                 />
               </div>
-
-              <div className='flex items-center justify-between group'>
-                <label className='text-sm font-bold text-subtext0 group-hover:text-text transition-colors'>
-                  Show Node.js Warnings
-                </label>
-                <input
-                  type='checkbox'
-                  checked={showNodeWarnings}
-                  onChange={(e) => setShowNodeWarnings(e.target.checked)}
-                  className='w-5 h-5 accent-mauve cursor-pointer'
-                  data-testid='settings-node-warnings-toggle'
-                />
-              </div>
             </div>
 
             <div className='flex flex-col gap-2'>
@@ -252,7 +222,7 @@ export function SettingsModal({
                   disableDiagnostics={true}
                   disableShortcuts={true}
                   lineWrap={lineWrap}
-                  themeMode={currentTheme}
+                  theme={currentTheme}
                 />
               </div>
               {errorMsg && (
