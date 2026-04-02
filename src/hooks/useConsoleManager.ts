@@ -37,8 +37,7 @@ export function useConsoleManager() {
           result = result.slice(0, 5000) + '... (truncated)'
         }
 
-        // Collapse repeating whitespace to maintain performance
-        return result.replace(/ {10,}/g, '          ')
+        return result
       })
 
       setMessages((previous) => {

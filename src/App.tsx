@@ -216,24 +216,6 @@ export function App() {
     }
   }, [])
 
-  // Initialize base package.json for WebContainer
-  useEffect(() => {
-    getWebContainer().then(async (instance) => {
-      try {
-        await instance.fs.readFile('package.json', 'utf8')
-      } catch {
-        await instance.fs.writeFile(
-          'package.json',
-          JSON.stringify(
-            { name: 'playground-project', dependencies: {} },
-            null,
-            2
-          )
-        )
-      }
-    })
-  }, [])
-
   const handleCopyAll = useCallback(async () => {
     let content = ''
     if (activeTab === 'ts') content = tsCode
