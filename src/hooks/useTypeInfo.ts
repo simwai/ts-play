@@ -1,18 +1,19 @@
-import { useCallback } from 'react'
-import { workerClient } from '../lib/workerClient'
-import type { TypeInfo } from '../lib/types'
-export function useTypeInfo() {
-  const getTypeInfo = useCallback(
-    async (code: string, offset: number): Promise<TypeInfo | undefined> => {
-      try {
-        await workerClient.updateFile('/main.ts', code)
-        return await workerClient.getTypeInfo(offset)
-      } catch {
-        return
-      }
-    },
-    []
-  )
+import { useState, useCallback } from 'react'
 
-  return { getTypeInfo }
+export function useTypeInfo(tsCursorPos: { current: number }) {
+  const [typeInfo, setTypeInfo] = useState<string>('')
+
+  const handleTypeInfoChange = useCallback((info: string) => {
+    setTypeInfo(info)
+  }, [])
+
+  const handleCursorPosChange = useCallback((pos: number) => {
+    tsCursorPos.current = pos
+  }, [tsCursorPos])
+
+  return {
+    typeInfo,
+    handleTypeInfoChange,
+    handleCursorPosChange,
+  }
 }

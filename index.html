@@ -16,6 +16,14 @@
       href="/favicon.ico"
     />
     <title>TS Playground</title>
+    <script>
+      try {
+        const dark = localStorage.getItem('tsplay_is_dark')
+        if (dark === null || JSON.parse(dark) === true) {
+          document.documentElement.classList.add('dark')
+        }
+      } catch {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

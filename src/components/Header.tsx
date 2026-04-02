@@ -10,6 +10,7 @@ import {
   Play,
   Square,
   Share2,
+  Settings,
 } from 'lucide-react'
 import { IconButton } from './ui/IconButton'
 import { Button } from './ui/Button'
@@ -17,41 +18,31 @@ import { TABS, type TabType } from '../lib/constants'
 
 type HeaderProps = {
   activeTab: TabType
-  setActiveTab: (tab: TabType) => void
+  onTabChange: (tab: TabType) => void
   isDarkMode: boolean
   setIsDarkMode: (val: boolean) => void
-  handleCopyAll: () => void
+  onCopyAll: () => void
   copied: boolean
-  handleDeleteAll: () => void
-  handleFormat: () => void
-  formatting: boolean
-  formatSuccess: boolean
-  doRun: (skipDirtyCheck?: boolean) => void
+  onDeleteAll: () => void
+  onRun: (skipDirtyCheck?: boolean) => void
   isRunning: boolean
   compilerStatus: CompilerStatus
-  handleShare: () => void
-  sharing: boolean
-  shareSuccess: boolean
+  onSettings: () => void
   stopCode?: () => void
 }
 
 export function Header({
   activeTab,
-  setActiveTab,
+  onTabChange,
   isDarkMode,
   setIsDarkMode,
-  handleCopyAll,
+  onCopyAll,
   copied,
-  handleDeleteAll,
-  handleFormat,
-  formatting,
-  formatSuccess,
-  doRun,
+  onDeleteAll,
+  onRun,
   isRunning,
   compilerStatus,
-  handleShare,
-  sharing,
-  shareSuccess,
+  onSettings,
   stopCode,
 }: HeaderProps) {
   return (
@@ -69,7 +60,7 @@ export function Header({
           <button
             key={tab}
             onClick={() => {
-              setActiveTab(tab)
+              onTabChange(tab)
             }}
             className={`px-1.5 py-0.5 md:px-3 md:py-1.5 rounded border-none text-4xs md:text-xs font-semibold font-mono cursor-pointer tracking-wide uppercase transition-all duration-150 ${
               activeTab === tab
@@ -101,12 +92,23 @@ export function Header({
           )}
         </IconButton>
 
+        {/* Settings */}
+        <IconButton
+          onClick={onSettings}
+          title='Settings'
+          tooltipAlign='right'
+          variant='surface'
+          size='sm'
+        >
+          <Settings className='w-3 h-3 md:w-4 md:h-4' />
+        </IconButton>
+
         {/* Separator */}
         <div className='w-px h-3.5 md:h-5 bg-surface1 shrink-0 mx-0.5 md:mx-1' />
 
         {/* Copy all */}
         <IconButton
-          onClick={handleCopyAll}
+          onClick={onCopyAll}
           title={`Copy all ${activeTab}`}
           tooltipAlign='right'
           variant='surface'
@@ -126,7 +128,7 @@ export function Header({
 
         {/* Delete all */}
         <IconButton
-          onClick={handleDeleteAll}
+          onClick={onDeleteAll}
           title={`Clear ${activeTab} editor`}
           tooltipAlign='right'
           variant='surface'
@@ -134,29 +136,6 @@ export function Header({
           className='text-red hover:text-red'
         >
           <Trash2 className='w-3 h-3 md:w-4 md:h-4' />
-        </IconButton>
-
-        {/* Format */}
-        <IconButton
-          onClick={handleFormat}
-          disabled={formatting}
-          title='Format all files with Prettier (TS + JS + DTS)'
-          tooltipAlign='right'
-          variant='surface'
-          size='sm'
-          className={
-            formatSuccess
-              ? 'text-green border-green bg-green/15 hover:bg-green/20'
-              : ''
-          }
-        >
-          {formatting ? (
-            <Loader2 className='w-3 h-3 md:w-4 md:h-4 animate-spin' />
-          ) : formatSuccess ? (
-            <Check className='w-3 h-3 md:w-4 md:h-4' />
-          ) : (
-            <Wand2 className='w-3 h-3 md:w-4 md:h-4' />
-          )}
         </IconButton>
 
         {/* Separator */}
@@ -181,7 +160,7 @@ export function Header({
           </Button>
         ) : (
           <Button
-            onClick={async () => doRun(false)}
+            onClick={async () => onRun(false)}
             data-testid='header-run-button'
             disabled={compilerStatus !== 'ready'}
             variant='primary'
@@ -197,32 +176,6 @@ export function Header({
             <span className='hidden sm:inline'>Run</span>
           </Button>
         )}
-
-        {/* Separator */}
-        <div className='w-px h-3.5 md:h-5 bg-surface1 shrink-0 mx-0.5 md:mx-1' />
-
-        {/* Share */}
-        <IconButton
-          onClick={handleShare}
-          title={sharing ? 'Sharing...' : 'Share snippet (expires in 7 days)'}
-          tooltipAlign='right'
-          variant='surface'
-          size='sm'
-          disabled={sharing}
-          className={
-            shareSuccess
-              ? 'text-green border-green bg-green/15 hover:bg-green/20'
-              : ''
-          }
-        >
-          {sharing ? (
-            <Loader2 className='w-3 h-3 md:w-4 md:h-4 animate-spin' />
-          ) : shareSuccess ? (
-            <Check className='w-3 h-3 md:w-4 md:h-4' />
-          ) : (
-            <Share2 className='w-3 h-3 md:w-4 md:h-4' />
-          )}
-        </IconButton>
       </div>
     </header>
   )
