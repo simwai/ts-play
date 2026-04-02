@@ -250,7 +250,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         padding: { top: 16, bottom: 16 },
         fixedOverflowWidgets: true,
         domReadOnly: isMobileLike,
-        // Ensure long-press works for native selection on mobile
+        // Crucial for native selection on Android
         selectionHighlight: !isMobileLike,
         occurrencesHighlight: !isMobileLike,
         links: !isMobileLike,
@@ -268,10 +268,11 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
     return (
       <div
         className='w-full h-full relative group'
+        data-testid='code-editor-container'
         style={{
-          // Enable native text selection on mobile
-          userSelect: isMobileLike ? 'text' : 'none',
-          WebkitUserSelect: isMobileLike ? 'text' : 'none',
+            // Enable native text selection on mobile devices
+            userSelect: isMobileLike ? 'text' : 'none',
+            WebkitUserSelect: isMobileLike ? 'text' : 'none'
         }}
       >
         <Editor
