@@ -1,6 +1,5 @@
 import { WebContainer, type WebContainerProcess } from '@webcontainer/api'
-import { ResultAsync, okAsync, errAsync } from 'neverthrow'
-import { playgroundStore } from './state-manager'
+import { ResultAsync, okAsync } from 'neverthrow'
 import { RegexPatterns, toRegExp } from './regex'
 
 export const SYSTEM_DEPS = [
@@ -26,7 +25,6 @@ export class WebContainerService {
     if (this.bootPromise) return ResultAsync.fromPromise(this.bootPromise, (e) => e as Error)
 
     this.bootPromise = (async () => {
-      playgroundStore.setState({ compilerStatus: 'loading' })
       this.emitLog('info', 'Booting WebContainer...')
       const instance = await WebContainer.boot()
       this.instance = instance
@@ -37,8 +35,6 @@ export class WebContainerService {
         this.emitLog('info', 'Server ready: ' + url + ' (port ' + port + ')')
       })
 
-      // Initialize with a default package.json to avoid Node.js warnings and set ESM mode
-      // include SYSTEM_DEPS so they are available for CLI tools
       await instance.fs.writeFile(
         'package.json',
         JSON.stringify(
@@ -79,20 +75,6 @@ export class WebContainerService {
     if (!message) return
     this.logCallbacks.forEach((cb) =>
       cb({ type, message, timestamp: Date.now() })
-    )
-  }
-
-  enqueue<T>(
-    actionName: string,
-    task: (instance: WebContainer) => Promise<T>
-  ): ResultAsync<T, Error> {
-    return ResultAsync.fromPromise(
-      playgroundStore.enqueue(actionName, async () => {
-        const instanceResult = await this.getInstance()
-        if (instanceResult.isErr()) throw instanceResult.error
-        return task(instanceResult.value)
-      }),
-      (e) => e as Error
     )
   }
 
@@ -233,7 +215,6 @@ export class WebContainerService {
                     options.onLog?.(simplified)
 
                     linesProcessedSinceYield++
-                    // Yield every 50 lines to keep UI responsive
                     if (linesProcessedSinceYield > 50) {
                       await new Promise((resolve) => setTimeout(resolve, 0))
                       linesProcessedSinceYield = 0
@@ -302,7 +283,6 @@ export class WebContainerService {
                   await read(fullPath, depth + 1)
                 } else if (!filter || filter(fullPath)) {
                   const content = await instance.fs.readFile(fullPath, 'utf8')
-                  // Monaco path normalization: always absolute from root
                   const absolutePath = fullPath.startsWith('/')
                     ? fullPath
                     : '/' + fullPath
@@ -335,8 +315,4 @@ export const runCommand = (
   return webContainerService.spawnManaged(cmd, args, {
     onLog: onOutput,
   })
-}
-export const operationQueue = {
-  add: <T>(task: () => Promise<T>) =>
-    playgroundStore.enqueue('Background Task', task),
 }

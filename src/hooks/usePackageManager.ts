@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { setupTypeAcquisition } from '@typescript/ata'
 import { useMachine } from '@xstate/react'
+import { useSetAtom } from 'jotai'
 import { packageMachine } from '../lib/machines/packageMachine'
 import { workerClient } from '../lib/workerClient'
 import {
@@ -8,6 +9,7 @@ import {
   SYSTEM_DEPS,
   webContainerService,
 } from '../lib/webcontainer'
+import { packageManagerStatusAtom, enqueueTaskAtom } from '../lib/store'
 import type { InstalledPackage } from '../components/PackageManager'
 import type { ConsoleMessage } from '../components/Console'
 import * as TS from 'typescript'
@@ -15,47 +17,12 @@ import type { PackageManagerStatus } from '../lib/types'
 import { checkNpmPackage, getTypesPackageName } from '../lib/api'
 
 const BUILTIN_MODULES = new Set([
-  'assert',
-  'async_hooks',
-  'buffer',
-  'child_process',
-  'cluster',
-  'console',
-  'constants',
-  'crypto',
-  'dgram',
-  'diagnostics_channel',
-  'dns',
-  'domain',
-  'events',
-  'fs',
-  'http',
-  'http2',
-  'https',
-  'inspector',
-  'module',
-  'net',
-  'os',
-  'path',
-  'perf_hooks',
-  'process',
-  'punycode',
-  'querystring',
-  'readline',
-  'repl',
-  'stream',
-  'string_decoder',
-  'sys',
-  'timers',
-  'tls',
-  'trace_events',
-  'tty',
-  'url',
-  'util',
-  'v8',
-  'vm',
-  'worker_threads',
-  'zlib',
+  'assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'console',
+  'constants', 'crypto', 'dgram', 'diagnostics_channel', 'dns', 'domain',
+  'events', 'fs', 'http', 'http2', 'https', 'inspector', 'module', 'net',
+  'os', 'path', 'perf_hooks', 'process', 'punycode', 'querystring',
+  'readline', 'repl', 'stream', 'string_decoder', 'sys', 'timers', 'tls',
+  'trace_events', 'tty', 'url', 'util', 'v8', 'vm', 'worker_threads', 'zlib',
 ])
 
 const PACKAGE_CHECK_CACHE = new Map<string, boolean>()
@@ -86,6 +53,21 @@ export function usePackageManager(
     {}
   )
   const [state, send] = useMachine(packageMachine)
+  const setStatus = useSetAtom(packageManagerStatusAtom)
+  const enqueueTask = useSetAtom(enqueueTaskAtom)
+
+  useEffect(() => {
+    const status: PackageManagerStatus = state.matches('installing')
+      ? 'installing'
+      : state.matches('uninstalling')
+      ? 'uninstalling'
+      : state.matches('syncing')
+      ? 'syncing'
+      : state.matches('error')
+      ? 'error'
+      : 'idle'
+    setStatus(status)
+  }, [state, setStatus])
 
   const previousPkgsRef = useRef<Set<string>>(new Set())
   const installQueue = useRef<Promise<void>>(Promise.resolve())
@@ -96,7 +78,6 @@ export function usePackageManager(
 
   const containerTypePaths = useRef<Set<string>>(new Set())
 
-  const tsCursorPos = useRef(0)
   const checkImportsTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined
   )
@@ -132,19 +113,6 @@ export function usePackageManager(
   const checkImports = useCallback(() => {
     if (checkImportsTimeout.current) clearTimeout(checkImportsTimeout.current)
     checkImportsTimeout.current = setTimeout(async () => {
-      const lines = tsCode.split('\n')
-      const cursorLineIdx =
-        tsCode.slice(0, tsCursorPos.current).split('\n').length - 1
-      const currentLine = lines[cursorLineIdx] || ''
-
-      if (
-        /\bimport\b/.test(currentLine) &&
-        !currentLine.includes('from') &&
-        !currentLine.includes('import(')
-      ) {
-        return
-      }
-
       try {
         const detectedResult = await workerClient.detectImports(tsCode)
         if (detectedResult.isErr()) {
@@ -253,116 +221,109 @@ export function usePackageManager(
     previousPkgsRef.current = currentTargetNames
 
     const performChanges = async () => {
-      try {
-        const writeRes = await webContainerService.writeFile(
-          'package.json',
-          JSON.stringify(
-            {
-              name: 'ts-play-project',
-              type: 'module',
-              dependencies: Object.fromEntries(
-                [...currentTargetNames, ...SYSTEM_DEPS].map((p) => [p, 'latest'])
-              ),
-            },
-            null,
-            2
-          )
-        )
-        if (writeRes.isErr()) throw writeRes.error
+      return enqueueTask({
+          name: 'Manage Packages',
+          task: async () => {
+              try {
+                const writeRes = await webContainerService.writeFile(
+                  'package.json',
+                  JSON.stringify(
+                    {
+                      name: 'ts-play-project',
+                      type: 'module',
+                      dependencies: Object.fromEntries(
+                        [...currentTargetNames, ...SYSTEM_DEPS].map((p) => [p, 'latest'])
+                      ),
+                    },
+                    null,
+                    2
+                  )
+                )
+                if (writeRes.isErr()) throw writeRes.error
 
-        const finalInstallList: string[] = []
-        for (const pkg of toAdd) {
-          const pkgExists = await cachedCheckNpmPackage(pkg)
-          if (!pkgExists) {
-            if (showNodeWarnings) {
-              addMessage('warn', [
-                `Package "${pkg}" not found on npm registry.`,
-              ])
-            }
-            continue
+                const finalInstallList: string[] = []
+                for (const pkg of toAdd) {
+                  const pkgExists = await cachedCheckNpmPackage(pkg)
+                  if (!pkgExists) {
+                    if (showNodeWarnings) {
+                      addMessage('warn', [
+                        `Package "${pkg}" not found on npm registry.`,
+                      ])
+                    }
+                    continue
+                  }
+                  finalInstallList.push(pkg)
+
+                  const typesPkg = getTypesPackageName(pkg)
+                  const typesExist = await cachedCheckNpmPackage(typesPkg)
+                  if (typesExist) {
+                    finalInstallList.push(typesPkg)
+                  }
+                }
+
+                if (toRemove.length > 0) {
+                  send({ type: 'UNINSTALL' })
+                  addMessage('info', ['npm uninstall ' + toRemove.join(' ') + '...'])
+                  const procRes = await runCommand('npm', ['uninstall', ...toRemove.map(p => [p, getTypesPackageName(p)]).flat()], (out) => {
+                    const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
+                    if (clean && !/^[\/|\-]$/.test(clean)) addMessage('info', [clean])
+                  })
+                  if (procRes.isErr()) throw procRes.error
+                  await procRes.value.exit
+
+                  await syncTypingsFromContainer()
+                  send({ type: 'SUCCESS' })
+                }
+
+                if (finalInstallList.length > 0) {
+                  send({ type: 'INSTALL' })
+                  addMessage('info', [
+                    'npm install ' + finalInstallList.join(' ') + '...',
+                  ])
+
+                  const procRes = await runCommand(
+                    'npm',
+                    ['install', '--no-progress', ...finalInstallList],
+                    (out) => {
+                      const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
+                      if (clean && !/^[\/|\-]$/.test(clean)) addMessage('info', [clean])
+                    }
+                  )
+                  if (procRes.isErr()) throw procRes.error
+                  await procRes.value.exit
+
+                  await syncTypingsFromContainer()
+                  send({ type: 'SUCCESS' })
+                }
+              } catch (error) {
+                console.error('Package management failed:', error)
+                const message = (error as Error).message
+                send({ type: 'FAILURE', error: message })
+                addMessage('error', [
+                  'Package manager error: ' + message,
+                ])
+                throw error
+              }
           }
-          finalInstallList.push(pkg)
-
-          const typesPkg = getTypesPackageName(pkg)
-          const typesExist = await cachedCheckNpmPackage(typesPkg)
-          if (typesExist) {
-            finalInstallList.push(typesPkg)
-          }
-        }
-
-        if (toRemove.length > 0) {
-          send({ type: 'UNINSTALL' })
-          addMessage('info', ['npm uninstall ' + toRemove.join(' ') + '...'])
-          const procRes = await runCommand('npm', ['uninstall', ...toRemove.map(p => [p, getTypesPackageName(p)]).flat()], (out) => {
-            const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
-            if (clean && !/^[\/|\-]$/.test(clean)) addMessage('info', [clean])
-          })
-          if (procRes.isErr()) throw procRes.error
-          await procRes.value.exit
-
-          await syncTypingsFromContainer()
-          send({ type: 'SUCCESS' })
-        }
-
-        if (finalInstallList.length > 0) {
-          send({ type: 'INSTALL' })
-          addMessage('info', [
-            'npm install ' + finalInstallList.join(' ') + '...',
-          ])
-
-          const procRes = await runCommand(
-            'npm',
-            ['install', '--no-progress', ...finalInstallList],
-            (out) => {
-              const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
-              if (clean && !/^[\/|\-]$/.test(clean)) addMessage('info', [clean])
-            }
-          )
-          if (procRes.isErr()) throw procRes.error
-          await procRes.value.exit
-
-          await syncTypingsFromContainer()
-          send({ type: 'SUCCESS' })
-        }
-      } catch (error) {
-        console.error('Package management failed:', error)
-        const message = (error as Error).message
-        send({ type: 'FAILURE', error: message })
-        addMessage('error', [
-          'Package manager error: ' + message,
-        ])
-      }
+      })
     }
 
     installQueue.current = installQueue.current.then(performChanges).catch((error) => {
         console.error("Package queue failure:", error);
-        send({ type: 'FAILURE', error: (error as Error).message });
-        addMessage('error', ['Package manager error: ' + (error as Error).message]);
     })
   }, [
     installedPackages,
     addMessage,
     showNodeWarnings,
     syncTypingsFromContainer,
-    send
+    send,
+    enqueueTask
   ])
-
-  const status: PackageManagerStatus = state.matches('installing')
-    ? 'installing'
-    : state.matches('uninstalling')
-    ? 'uninstalling'
-    : state.matches('syncing')
-    ? 'syncing'
-    : state.matches('error')
-    ? 'error'
-    : 'idle'
 
   return {
     installedPackages,
     packageTypings,
-    tsCursorPos,
     checkImports,
     installQueue,
-    status,
   }
 }

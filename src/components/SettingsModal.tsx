@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
+import { useSetAtom } from 'jotai'
 import { IconButton } from './ui/IconButton'
 import { Button } from './ui/Button'
 import { CodeEditor } from './CodeEditor'
 import { workerClient } from '../lib/workerClient'
 import { formatJson } from '../lib/formatter'
-import { playgroundStore } from '../lib/state-manager'
+import { enqueueTaskAtom, addToastAtom } from '../lib/store'
 import { DEFAULT_TSCONFIG } from '../lib/constants'
 import { DARK_THEMES, LIGHT_THEMES, THEME_LABELS, type ThemeMode } from '../lib/theme'
 import { Github } from 'lucide-react'
@@ -50,6 +51,8 @@ export function SettingsModal({
   const [temporaryTsConfig, setTemporaryTsConfig] = useState(tsConfigString)
   const [isValid, setIsValid] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const enqueueTask = useSetAtom(enqueueTaskAtom)
+  const addToast = useSetAtom(addToastAtom)
 
   useEffect(() => {
     setTemporaryTsConfig(tsConfigString)
@@ -88,25 +91,28 @@ export function SettingsModal({
 
     onClose()
 
-    playgroundStore.enqueue('Update TSConfig', async () => {
-      try {
-        let toSave = temporaryTsConfig
-        const resResult = await workerClient.validateConfig(toSave); if (resResult.isErr()) throw resResult.error; const res = resResult.value;
-        if (!res.valid) {
-          const fixed = fixLooseJson(toSave)
-          const fixedResResult_v = await workerClient.validateConfig(fixed); if (fixedResResult_v.isErr()) throw fixedResResult_v.error; const fixedRes = fixedResResult_v.value;
-          if (fixedRes.valid) toSave = fixed
-        }
-        const formatted = await formatJson(toSave)
-        const finalConfig = fixLooseJson(formatted)
+    enqueueTask({
+      name: 'Update TSConfig',
+      task: async () => {
+        try {
+          let toSave = temporaryTsConfig
+          const resResult = await workerClient.validateConfig(toSave); if (resResult.isErr()) throw resResult.error; const res = resResult.value;
+          if (!res.valid) {
+            const fixed = fixLooseJson(toSave)
+            const fixedResResult_v = await workerClient.validateConfig(fixed); if (fixedResResult_v.isErr()) throw fixedResResult_v.error; const fixedRes = fixedResResult_v.value;
+            if (fixedRes.valid) toSave = fixed
+          }
+          const formatted = await formatJson(toSave)
+          const finalConfig = fixLooseJson(formatted)
 
-        onSave(finalConfig)
-        playgroundStore.addToast('success', 'TSConfig updated successfully')
-      } catch (error) {
-        playgroundStore.addToast(
-          'error',
-          `Failed to save TSConfig: ${(error as Error).message}`
-        )
+          onSave(finalConfig)
+          addToast({ type: 'success', message: 'TSConfig updated successfully' })
+        } catch (error) {
+          addToast({
+            type: 'error',
+            message: `Failed to save TSConfig: ${(error as Error).message}`
+          })
+        }
       }
     })
   }
@@ -136,7 +142,6 @@ export function SettingsModal({
           </IconButton>
         </div>
 
-        {/* Scrollable content container */}
         <div className='flex-1 overflow-y-auto min-h-0'>
           <div className='px-5 py-6 flex flex-col gap-6'>
             <div className='flex flex-col gap-4'>
@@ -244,7 +249,6 @@ export function SettingsModal({
           </div>
         </div>
 
-        {/* Fixed Footer with Buttons and Credits */}
         <div className='flex flex-col shrink-0'>
           <div className='flex items-center justify-between gap-3 px-5 py-3 border-t border-surface0 bg-base'>
             <Button

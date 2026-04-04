@@ -1,13 +1,20 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useAtom, useSetAtom, useAtomValue } from 'jotai'
 import { Header } from './components/Header'
 import { StatusBar } from './components/StatusBar'
 import { CodeEditor, type CodeEditorRef } from './components/CodeEditor'
-import { Console, type ConsoleMessage } from './components/Console'
+import { Console } from './components/Console'
 import { SettingsModal } from './components/SettingsModal'
 import { Problems } from './components/Problems'
 import { PackageManager } from './components/PackageManager'
 import { TypeInfoBar } from './components/TypeInfoBar'
-import { useLocalStorage } from './hooks/useLocalStorage'
+import {
+  tsCodeAtom, jsCodeAtom, dtsCodeAtom, tsConfigAtom,
+  isDarkModeAtom, preferredDarkThemeAtom, preferredLightThemeAtom,
+  trueColorEnabledAtom, lineWrapAtom, showNodeWarningsAtom,
+  compilerStatusAtom, packageManagerStatusAtom, isRunningAtom,
+  toastsAtom, removeToastAtom, addToastAtom, jsDirtyAtom
+} from './lib/store'
 import { useCompilerManager } from './hooks/useCompilerManager'
 import { useConsoleManager } from './hooks/useConsoleManager'
 import { useTypeInfo } from './hooks/useTypeInfo'
@@ -16,10 +23,9 @@ import { usePackageManager } from './hooks/usePackageManager'
 import { useSwipeTabs } from './hooks/useSwipeTabs'
 import { useTSDiagnostics } from './hooks/useTSDiagnostics'
 import { useResizePanel } from './hooks/useResizePanel'
-import { playgroundStore } from './lib/state-manager'
 import { ToastContainer } from './components/ui/Toast'
 import { workerClient } from './lib/workerClient'
-import { DEFAULT_TS, DEFAULT_TSCONFIG, TABS } from './lib/constants'
+import { TABS } from './lib/constants'
 import type { ThemeMode } from './lib/theme'
 
 type Tab = (typeof TABS)[number]
@@ -30,11 +36,11 @@ export function App() {
     'console' | 'problems' | 'packages'
   >('console')
 
-  const [isDarkMode, setIsDarkMode] = useLocalStorage('tsplay_is_dark', true)
-  const [preferredDarkTheme, setPreferredDarkTheme] =
-    useLocalStorage<ThemeMode>('tsplay_dark_theme', 'mocha')
-  const [preferredLightTheme, setPreferredLightTheme] =
-    useLocalStorage<ThemeMode>('tsplay_light_theme', 'latte')
+  const [isDarkMode, setIsDarkMode] = useAtom(isDarkModeAtom)
+  const preferredDarkTheme = useAtomValue(preferredDarkThemeAtom)
+  const preferredLightTheme = useAtomValue(preferredLightThemeAtom)
+  const setPreferredDarkTheme = useSetAtom(preferredDarkThemeAtom)
+  const setPreferredLightTheme = useSetAtom(preferredLightThemeAtom)
 
   const themeMode = isDarkMode ? preferredDarkTheme : preferredLightTheme
 
@@ -42,32 +48,26 @@ export function App() {
     document.documentElement.classList.toggle('dark', isDarkMode)
   }, [isDarkMode])
 
-  const [tsCode, setTsCode] = useLocalStorage('tsplay_ts', DEFAULT_TS)
-  const [jsCode, setJsCode] = useLocalStorage(
-    'tsplay_js',
-    '// Press Run to compile TypeScript →'
-  )
-  const [dtsCode, setDtsCode] = useLocalStorage(
-    'tsplay_dts',
-    '// Declaration files will appear here'
-  )
-  const [tsConfigString, setTsConfigString] = useLocalStorage(
-    'tsplay_tsconfig',
-    DEFAULT_TSCONFIG
-  )
+  const [tsCode, setTsCode] = useAtom(tsCodeAtom)
+  const [jsCode, setJsCode] = useAtom(jsCodeAtom)
+  const [dtsCode, setDtsCode] = useAtom(dtsCodeAtom)
+  const [tsConfigString, setTsConfigString] = useAtom(tsConfigAtom)
 
-  const [trueColorEnabled, setTrueColorEnabled] = useLocalStorage(
-    'tsplay_true_color',
-    true
-  )
-  const [lineWrap, setLineWrap] = useLocalStorage('tsplay_line_wrap', false)
-  const [showNodeWarnings, setShowNodeWarnings] = useLocalStorage(
-    'tsplay_show_node_warnings',
-    false
-  )
+  const [trueColorEnabled, setTrueColorEnabled] = useAtom(trueColorEnabledAtom)
+  const [lineWrap, setLineWrap] = useAtom(lineWrapAtom)
+  const [showNodeWarnings, setShowNodeWarnings] = useAtom(showNodeWarningsAtom)
+
+  const [jsDirty, setJsDirty] = useAtom(jsDirtyAtom)
+  const [isRunning, setIsRunning] = useAtom(isRunningAtom)
+  const [compilerStatus, setCompilerStatus] = useAtom(compilerStatusAtom)
+  const [pmStatus, setPmStatus] = useAtom(packageManagerStatusAtom)
+  const [toasts, setToasts] = useAtom(toastsAtom)
+  const removeToast = useSetAtom(removeToastAtom)
+  const addToast = useSetAtom(addToastAtom)
 
   const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } = useConsoleManager()
-  const { compilerStatus, isRunning, runCode, stopCode } = useCompilerManager(
+
+  const { runCode, stopCode } = useCompilerManager(
     tsCode,
     addMessage
   )
@@ -78,7 +78,6 @@ export function App() {
   const {
     installedPackages,
     packageTypings,
-    status: pmStatus,
     installQueue,
   } = usePackageManager(tsCode, addMessage, showNodeWarnings)
 
@@ -105,7 +104,6 @@ export function App() {
     workerClient.updateConfig(tsConfigString).then(res => res.match(() => {}, console.error))
   }, [tsConfigString])
 
-  const [jsDirty, setJsDirty] = useState(false)
   const [showModal, setShowModal] = useState(false)
 
   const compactForKeyboard = keyboardOpen && isMobileLike
@@ -125,7 +123,7 @@ export function App() {
         addMessage('error', [err.message])
       })
     },
-    [jsDirty, runCode, installQueue, setJsCode, setDtsCode, addMessage]
+    [jsDirty, runCode, installQueue, setJsCode, setDtsCode, addMessage, setJsDirty]
   )
 
   const handleJumpToProblem = useCallback((line: number) => {
@@ -176,11 +174,11 @@ export function App() {
       await navigator.clipboard.writeText(content)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-      playgroundStore.addToast('success', 'Copied to clipboard')
+      addToast({ type: 'success', message: 'Copied to clipboard' })
     } catch {
-      playgroundStore.addToast('error', 'Failed to copy to clipboard')
+      addToast({ type: 'error', message: 'Failed to copy to clipboard' })
     }
-  }, [activeTab, tsCode, jsCode, dtsCode])
+  }, [activeTab, tsCode, jsCode, dtsCode, addToast])
 
   const handleDeleteAll = useCallback(() => {
     if (activeTab === 'ts') {
@@ -188,11 +186,8 @@ export function App() {
       setJsCode('')
       setDtsCode('')
     }
-    playgroundStore.addToast('info', 'Cleared current editor')
-  }, [activeTab, setTsCode, setJsCode, setDtsCode])
-
-  const [toasts, setToasts] = useState(playgroundStore.getState().toasts)
-  useEffect(() => playgroundStore.subscribe((state) => setToasts(state.toasts)), [])
+    addToast({ type: 'info', message: 'Cleared current editor' })
+  }, [activeTab, setTsCode, setJsCode, setDtsCode, addToast])
 
   return (
     <div
@@ -386,7 +381,7 @@ export function App() {
 
       <ToastContainer
         toasts={toasts}
-        onClose={(id) => playgroundStore.removeToast(id)}
+        onClose={(id) => removeToast(id)}
       />
     </div>
   )

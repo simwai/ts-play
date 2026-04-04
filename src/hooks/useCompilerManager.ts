@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useMachine } from '@xstate/react'
+import { useSetAtom } from 'jotai'
 import { compilerMachine } from '../lib/machines/compilerMachine'
 import { workerClient } from '../lib/workerClient'
 import { loadPrettier } from '../lib/formatter'
 import { writeFiles, runCommand, readFile } from '../lib/webcontainer'
+import { compilerStatusAtom, isRunningAtom, enqueueTaskAtom } from '../lib/store'
 import type { CompilerStatus } from '../lib/types'
 import type { ConsoleMessage } from '../components/Console'
 
@@ -13,6 +15,24 @@ export function useCompilerManager(
 ) {
   const [state, send] = useMachine(compilerMachine)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const setStatus = useSetAtom(compilerStatusAtom)
+  const setIsRunning = useSetAtom(isRunningAtom)
+  const enqueueTask = useSetAtom(enqueueTaskAtom)
+
+  useEffect(() => {
+    const status: CompilerStatus = state.matches('initializing')
+      ? 'loading'
+      : state.matches('compiling')
+      ? 'compiling'
+      : state.matches('running')
+      ? 'running'
+      : state.matches('error')
+      ? 'error'
+      : 'ready'
+
+    setStatus(status)
+    setIsRunning(state.matches('running'))
+  }, [state, setStatus, setIsRunning])
 
   useEffect(() => {
     send({ type: 'BOOT_START' })
@@ -47,111 +67,100 @@ export function useCompilerManager(
     ) => {
       if (state.matches('running') || state.matches('compiling')) return
 
-      send({ type: 'COMPILE_START' })
+      return enqueueTask({
+        name: 'Run Code',
+        task: async () => {
+          send({ type: 'COMPILE_START' })
 
-      try {
-        // Wait for background tasks (like npm install esbuild) if any
-        await Promise.race([
-          pendingInstalls,
-          new Promise((_, reject) =>
-            setTimeout(
-              () => reject(new Error('Background tasks timed out')),
-              30000
-            )
-          ),
-        ]).catch((e) => {
-          console.warn('Proceeding despite background task warning:', e.message)
-        })
+          try {
+            await Promise.race([
+              pendingInstalls,
+              new Promise((_, reject) =>
+                setTimeout(
+                  () => reject(new Error('Background tasks timed out')),
+                  30000
+                )
+              ),
+            ]).catch((e) => {
+              console.warn('Proceeding despite background task warning:', e.message)
+            })
 
-        // Write source code
-        const writeRes = await writeFiles({
-          'main.ts': tsCode,
-        })
-        if (writeRes.isErr()) throw writeRes.error
+            const writeRes = await writeFiles({
+              'main.ts': tsCode,
+            })
+            if (writeRes.isErr()) throw writeRes.error
 
-        addMessage('info', ['Compiling with esbuild...'])
+            addMessage('info', ['Compiling with esbuild...'])
 
-        // Run esbuild in the container
-        const esbuildProcResult = await runCommand('npx', [
-          'esbuild',
-          'main.ts',
-          '--bundle',
-          '--platform=node',
-          '--outfile=index.js',
-          '--format=esm',
-          '--target=es2020'
-        ], (out) => {
-           const clean = out.trim()
-           if (clean) addMessage('info', [clean])
-        })
+            const esbuildProcResult = await runCommand('npx', [
+              'esbuild',
+              'main.ts',
+              '--bundle',
+              '--platform=node',
+              '--outfile=index.js',
+              '--format=esm',
+              '--target=es2020'
+            ], (out) => {
+               const clean = out.trim()
+               if (clean) addMessage('info', [clean])
+            })
 
-        if (esbuildProcResult.isErr()) throw esbuildProcResult.error
-        const esbuildProc = esbuildProcResult.value
-        const esbuildExitCode = await esbuildProc.exit
+            if (esbuildProcResult.isErr()) throw esbuildProcResult.error
+            const esbuildProc = esbuildProcResult.value
+            const esbuildExitCode = await esbuildProc.exit
 
-        if (esbuildExitCode !== 0) {
-           throw new Error(`Compilation failed with code ${esbuildExitCode}`)
+            if (esbuildExitCode !== 0) {
+               throw new Error(`Compilation failed with code ${esbuildExitCode}`)
+            }
+
+            const jsResult = await readFile('index.js')
+            const js = jsResult.isOk() ? jsResult.value : ''
+
+            const dtsResult = await workerClient.generateDts(tsCode)
+            const dts = dtsResult.isOk() ? dtsResult.value : ''
+
+            onSuccess(js, dts)
+
+            addMessage('info', ['Executing via Node.js...'])
+            const processResult = await runCommand('node', ['index.js'], (out) => {
+              const clean = out.trim()
+              if (clean) addMessage('log', [clean])
+            })
+
+            if (processResult.isErr()) throw processResult.error
+            const process = processResult.value
+            send({ type: 'COMPILE_SUCCESS', process })
+
+            timeoutRef.current = setTimeout(() => {
+              send({ type: 'STOP' })
+              addMessage('error', ['Execution timed out after 5 minutes.'])
+            }, 300000)
+
+            const exitCode = await process.exit
+
+            if (timeoutRef.current) {
+              clearTimeout(timeoutRef.current)
+              timeoutRef.current = null
+            }
+
+            if (exitCode !== 0 && !state.matches('idle')) {
+               addMessage('error', [`Process exited with code ${exitCode}`])
+            }
+
+            send({ type: 'PROCESS_DONE' })
+          } catch (error) {
+            const message = (error as Error).message
+            send({ type: 'COMPILE_FAILURE', error: message })
+            onError(error as Error)
+            throw error
+          }
         }
-
-        // Read back the compiled JS for the UI
-        const jsResult = await readFile('index.js')
-        const js = jsResult.isOk() ? jsResult.value : ''
-
-        // Get .d.ts from worker (it uses Language Service)
-        const dtsResult = await workerClient.generateDts(tsCode)
-        const dts = dtsResult.isOk() ? dtsResult.value : ''
-
-        onSuccess(js, dts)
-
-        addMessage('info', ['Executing via Node.js...'])
-        const processResult = await runCommand('node', ['index.js'], (out) => {
-          const clean = out.trim()
-          if (clean) addMessage('log', [clean])
-        })
-
-        if (processResult.isErr()) throw processResult.error
-        const process = processResult.value
-        send({ type: 'COMPILE_SUCCESS', process })
-
-        timeoutRef.current = setTimeout(() => {
-          send({ type: 'STOP' })
-          addMessage('error', ['Execution timed out after 5 minutes.'])
-        }, 300000)
-
-        const exitCode = await process.exit
-
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current)
-          timeoutRef.current = null
-        }
-
-        if (exitCode !== 0 && !state.matches('idle')) {
-           addMessage('error', [`Process exited with code ${exitCode}`])
-        }
-
-        send({ type: 'PROCESS_DONE' })
-      } catch (error) {
-        const message = (error as Error).message
-        send({ type: 'COMPILE_FAILURE', error: message })
-        onError(error as Error)
-      }
+      })
     },
-    [tsCode, addMessage, send, state]
+    [tsCode, addMessage, send, state, enqueueTask]
   )
 
-  const compilerStatus: CompilerStatus = state.matches('initializing')
-    ? 'loading'
-    : state.matches('compiling')
-    ? 'compiling'
-    : state.matches('running')
-    ? 'running'
-    : state.matches('error')
-    ? 'error'
-    : 'ready'
-
   return {
-    compilerStatus,
-    isRunning: state.matches('running'),
     runCode,
     stopCode,
   }

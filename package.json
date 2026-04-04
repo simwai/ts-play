@@ -25,6 +25,7 @@
     "clsx": "2.1.1",
     "esbuild-wasm": "^0.23.1",
     "husky": "^9.1.7",
+    "jotai": "^2.19.0",
     "lucide-react": "^0.577.0",
     "neverthrow": "^8.2.0",
     "prettier": "^3.8.1",
