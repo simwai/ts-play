@@ -56,7 +56,7 @@ describe('RegexPatterns', () => {
     let m
     while ((m = re.exec(code)) !== null) {
       // Group index: 1 (import), 3 (dynamic import), 5 (require)
-      matches.push(m[1] || m[3] || m[5])
+      matches.push(m[2] || m[4] || m[6])
     }
     expect(matches).toContain('bar')
     expect(matches).toContain('baz')

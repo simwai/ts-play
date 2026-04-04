@@ -10,6 +10,7 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
+  useCallback,
 } from 'react'
 import {
   githubDark,
@@ -75,6 +76,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
     const editorRef = useRef<any>(null)
     const monaco = useMonaco()
     const typeInfoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const changeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const prevLibKeysRef = useRef<Set<string>>(new Set())
 
     useImperativeHandle(ref, () => ({
@@ -104,8 +106,8 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         target: monaco.languages.typescript.ScriptTarget.ESNext,
         allowNonTsExtensions: true,
         moduleResolution:
-        monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-        module: monaco.languages.typescript.ModuleKind.ESNext,
+        monaco.languages.typescript.ModuleResolutionKind.NodeNext,
+        module: monaco.languages.typescript.ModuleKind.NodeNext,
         noEmit: true,
         esModuleInterop: true,
         jsx: monaco.languages.typescript.JsxEmit.ReactJSX,
@@ -118,6 +120,58 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         },
       })
     }
+
+    const updateTypeInfo = useCallback(async (editor: any, offset: number) => {
+       if (!onTypeInfoChange || hideTypeInfo || !monaco) return
+
+        try {
+          const model = editor.getModel()
+          if (!model) return
+          const worker = await monaco.languages.typescript.getTypeScriptWorker()
+          const client = await worker(model.uri)
+          const info = await client.getQuickInfoAtPosition(
+            model.uri.toString(),
+            offset
+          )
+
+          if (info) {
+            const displayParts = info.displayParts || []
+            const documentation = info.documentation || []
+            const text = displayParts.map((p) => p.text).join('')
+
+            const SYMBOL_KINDS = new Set([
+              'localName',
+              'variableName',
+              'parameterName',
+              'methodName',
+              'functionName',
+              'className',
+              'interfaceName',
+              'aliasName',
+              'propertyName',
+              'enumName',
+              'enumMemberName',
+              'moduleName',
+              'typeParameterName',
+            ])
+            const symbolPart = displayParts.find((p) =>
+              SYMBOL_KINDS.has(p.kind)
+            )
+            const name = symbolPart ? symbolPart.text : ''
+
+            onTypeInfoChange({
+              name,
+              kind: info.kind,
+              typeAnnotation: text,
+              jsDoc: documentation.map((d) => d.text).join('\n'),
+            })
+          } else {
+            onTypeInfoChange(null)
+          }
+        } catch {
+          onTypeInfoChange(null)
+        }
+    }, [onTypeInfoChange, hideTypeInfo, monaco])
 
     const handleEditorMount: OnMount = (editor, monaco) => {
       editorRef.current = editor
@@ -133,56 +187,18 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
           col: e.position.column,
         })
 
-        if (!onTypeInfoChange || hideTypeInfo) return
-
         if (typeInfoTimerRef.current) clearTimeout(typeInfoTimerRef.current)
-        typeInfoTimerRef.current = setTimeout(async () => {
-          try {
-            const worker = await monaco.languages.typescript.getTypeScriptWorker()
-            const client = await worker(model.uri)
-            const info = await client.getQuickInfoAtPosition(
-              model.uri.toString(),
-              offset
-            )
-
-            if (info) {
-              const displayParts = info.displayParts || []
-              const documentation = info.documentation || []
-              const text = displayParts.map((p) => p.text).join('')
-
-              const SYMBOL_KINDS = new Set([
-                'localName',
-                'variableName',
-                'parameterName',
-                'methodName',
-                'functionName',
-                'className',
-                'interfaceName',
-                'aliasName',
-                'propertyName',
-                'enumName',
-                'enumMemberName',
-                'moduleName',
-                'typeParameterName',
-              ])
-              const symbolPart = displayParts.find((p) =>
-                SYMBOL_KINDS.has(p.kind)
-              )
-              const name = symbolPart ? symbolPart.text : ''
-
-              onTypeInfoChange({
-                name,
-                kind: info.kind,
-                typeAnnotation: text,
-                jsDoc: documentation.map((d) => d.text).join('\n'),
-              })
-            } else {
-              onTypeInfoChange(null)
-            }
-          } catch {
-            onTypeInfoChange(null)
-          }
+        typeInfoTimerRef.current = setTimeout(() => {
+          updateTypeInfo(editor, offset)
         }, 120)
+      })
+
+      editor.onDidChangeModelContent(() => {
+          if (!onChange) return
+          if (changeTimerRef.current) clearTimeout(changeTimerRef.current)
+          changeTimerRef.current = setTimeout(() => {
+              onChange(editor.getValue())
+          }, 300)
       })
     }
 
@@ -285,7 +301,6 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
           height='100%'
           language={language}
           value={value}
-          onChange={(v) => onChange?.(v || '')}
           onMount={handleEditorMount}
           beforeMount={handleBeforeMount}
           theme={theme}

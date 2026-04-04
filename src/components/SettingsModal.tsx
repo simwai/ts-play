@@ -59,11 +59,11 @@ export function SettingsModal({
     if (!isOpen) return
     const timer = setTimeout(async () => {
       try {
-        const res = await workerClient.validateConfig(temporaryTsConfig)
+        const resResult = await workerClient.validateConfig(temporaryTsConfig); if (resResult.isErr()) throw resResult.error; const res = resResult.value;
         if (!res.valid) {
           const fixed = fixLooseJson(temporaryTsConfig)
           if (fixed !== temporaryTsConfig) {
-            const fixedRes = await workerClient.validateConfig(fixed)
+            const fixedResResult_v = await workerClient.validateConfig(fixed); if (fixedResResult_v.isErr()) throw fixedResResult_v.error; const fixedRes = fixedResResult_v.value;
             if (fixedRes.valid) {
               setIsValid(true)
               setErrorMsg(
@@ -91,10 +91,10 @@ export function SettingsModal({
     playgroundStore.enqueue('Update TSConfig', async () => {
       try {
         let toSave = temporaryTsConfig
-        const res = await workerClient.validateConfig(toSave)
+        const resResult = await workerClient.validateConfig(toSave); if (resResult.isErr()) throw resResult.error; const res = resResult.value;
         if (!res.valid) {
           const fixed = fixLooseJson(toSave)
-          const fixedRes = await workerClient.validateConfig(fixed)
+          const fixedResResult_v = await workerClient.validateConfig(fixed); if (fixedResResult_v.isErr()) throw fixedResResult_v.error; const fixedRes = fixedResResult_v.value;
           if (fixedRes.valid) toSave = fixed
         }
         const formatted = await formatJson(toSave)

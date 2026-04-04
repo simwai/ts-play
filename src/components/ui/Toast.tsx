@@ -1,44 +1,50 @@
-import { useEffect } from 'react'
-import { CheckCircle2, Info, AlertCircle, X } from 'lucide-react'
-import { cn } from '../../utils/cn'
-import type { ToastMessage } from '../../lib/types'
+import React, { useEffect, useState } from 'react'
+import { X, CheckCircle, Info, AlertCircle } from 'lucide-react'
+import type { ToastMessage, ToastType } from '../../lib/types'
 
-interface ToastProps extends ToastMessage {
-  onClose: (id: string) => void
+const TOAST_COLORS: Record<ToastType, string> = {
+  success: 'bg-green text-crust',
+  info: 'bg-blue text-crust',
+  error: 'bg-red text-crust',
 }
 
-export function Toast({ id, type, message, onClose }: ToastProps) {
+const TOAST_ICONS: Record<ToastType, any> = {
+  success: CheckCircle,
+  info: Info,
+  error: AlertCircle,
+}
+
+export function Toast({
+  message,
+  onClose,
+}: {
+  message: ToastMessage
+  onClose: (id: string) => void
+}) {
+  const [isVisible, setIsVisible] = useState(true)
+  const Icon = TOAST_ICONS[message.type]
+
   useEffect(() => {
-    const timer = setTimeout(() => onClose(id), 5000)
+    const timer = setTimeout(() => {
+      setIsVisible(false)
+      setTimeout(() => onClose(message.id), 300)
+    }, 4000)
     return () => clearTimeout(timer)
-  }, [id, onClose])
-
-  const icons = {
-    success: <CheckCircle2 className='w-5 h-5 text-green' />,
-    info: <Info className='w-5 h-5 text-blue' />,
-    error: <AlertCircle className='w-5 h-5 text-red' />,
-  }
-
-  const borderColors = {
-    success: 'border-green/30',
-    info: 'border-blue/30',
-    error: 'border-red/30',
-  }
+  }, [message.id, onClose])
 
   return (
     <div
-      className={cn(
-        'flex items-center gap-3 px-4 py-3 rounded-lg border bg-mantle shadow-lg animate-in fade-in slide-in-from-right-4 duration-300',
-        borderColors[type]
-      )}
+      className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-2xl transition-all duration-300 ${
+        isVisible ? 'translate-x-0 opacity-100' : 'translate-x-12 opacity-0'
+      } ${TOAST_COLORS[message.type]}`}
     >
-      <div className='shrink-0'>{icons[type]}</div>
-      <p className='text-sm font-medium text-text'>{message}</p>
+      <Icon size={18} />
+      <span className="text-xs font-bold font-mono">{message.message}</span>
       <button
-        onClick={() => onClose(id)}
-        className='ml-auto text-overlay0 hover:text-text transition-colors'
+        onClick={() => onClose(message.id)}
+        className="ml-auto p-1 hover:bg-black/10 rounded-full transition-colors"
       >
-        <X className='w-4 h-4' />
+        <X size={14} />
       </button>
     </div>
   )
@@ -52,16 +58,10 @@ export function ToastContainer({
   onClose: (id: string) => void
 }) {
   return (
-    <div className='fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none'>
+    <div className="fixed bottom-24 right-6 flex flex-col gap-3 z-[100] max-w-xs w-full pointer-events-none">
       {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          className='pointer-events-auto'
-        >
-          <Toast
-            {...toast}
-            onClose={onClose}
-          />
+        <div key={toast.id} className="pointer-events-auto">
+          <Toast message={toast} onClose={onClose} />
         </div>
       ))}
     </div>

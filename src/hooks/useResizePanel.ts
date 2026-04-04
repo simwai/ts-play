@@ -1,70 +1,36 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 
-export function useResizePanel(
-  initialHeightRem = 11.25, // 180px
-  minHeightRem = 5, // 80px
-  maxHeightRem = 25 // 400px
-) {
-  const [panelHeight, setPanelHeight] = useState(initialHeightRem)
-  const [isResizing, setIsResizing] = useState(false)
-  const resizeStartY = useRef(0)
-  const resizeStartHeight = useRef(0)
+export function useResizePanel(initialHeight: number) {
+  const [panelHeight, setPanelHeight] = useState(initialHeight)
+  const isResizing = useRef(false)
 
-  const handleResizeStart = useCallback(
-    (e: React.MouseEvent | React.TouchEvent) => {
-      e.preventDefault()
-      setIsResizing(true)
-      resizeStartY.current = 'touches' in e ? e.touches[0].clientY : e.clientY
-      resizeStartHeight.current = panelHeight
-    },
-    [panelHeight]
-  )
+  const startResizing = useCallback(() => {
+    isResizing.current = true
+    document.body.style.cursor = 'row-resize'
+    document.body.style.userSelect = 'none'
+  }, [])
 
-  const handleResizeMove = useCallback(
-    (e: MouseEvent | TouchEvent) => {
-      if (!isResizing) return
-      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
-      const deltaY = resizeStartY.current - clientY
+  const stopResizing = useCallback(() => {
+    isResizing.current = false
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  }, [])
 
-      // Convert pixel delta to rem based on root font size
-      const remSize =
-        parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
-      const deltaRem = deltaY / remSize
-
-      const newHeight = Math.max(
-        minHeightRem,
-        Math.min(maxHeightRem, resizeStartHeight.current + deltaRem)
-      )
-      setPanelHeight(newHeight)
-    },
-    [isResizing, minHeightRem, maxHeightRem]
-  )
-
-  const handleResizeEnd = useCallback(() => {
-    setIsResizing(false)
+  const onMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizing.current) return
+    const newHeight = window.innerHeight - e.clientY
+    // Constrain height between 100px and 80% of window height
+    setPanelHeight(Math.max(100, Math.min(newHeight, window.innerHeight * 0.8)))
   }, [])
 
   useEffect(() => {
-    if (isResizing) {
-      globalThis.addEventListener('mousemove', handleResizeMove)
-      globalThis.addEventListener('mouseup', handleResizeEnd)
-      globalThis.addEventListener('touchmove', handleResizeMove, {
-        passive: false,
-      })
-      globalThis.addEventListener('touchend', handleResizeEnd)
-      document.body.style.cursor = 'ns-resize'
-      document.body.style.userSelect = 'none'
-    }
-
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', stopResizing)
     return () => {
-      globalThis.removeEventListener('mousemove', handleResizeMove)
-      globalThis.removeEventListener('mouseup', handleResizeEnd)
-      globalThis.removeEventListener('touchmove', handleResizeMove)
-      globalThis.removeEventListener('touchend', handleResizeEnd)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', stopResizing)
     }
-  }, [isResizing, handleResizeMove, handleResizeEnd])
+  }, [onMouseMove, stopResizing])
 
-  return { panelHeight, isResizing, handleResizeStart }
+  return { panelHeight, startResizing }
 }

@@ -1,24 +1,36 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import type { TypeInfo } from '../lib/types'
 
-export function useTypeInfo(tsCursorPos: { current: number }) {
-  const [typeInfo, setTypeInfo] = useState<string>('')
+export function useTypeInfo() {
+  const [typeInfo, setTypeInfo] = useState<string | null>(null)
+  const lastInfoRef = useRef<TypeInfo | null>(null)
 
   const handleTypeInfoChange = useCallback((info: TypeInfo | null) => {
     if (!info) {
-      setTypeInfo('')
-    } else {
-      setTypeInfo(info.typeAnnotation || '')
+      setTypeInfo(null)
+      lastInfoRef.current = null
+      return
     }
-  }, [])
 
-  const handleCursorPosChange = useCallback((pos: number) => {
-    tsCursorPos.current = pos
-  }, [tsCursorPos])
+    if (
+      lastInfoRef.current &&
+      lastInfoRef.current.name === info.name &&
+      lastInfoRef.current.typeAnnotation === info.typeAnnotation
+    ) {
+      return
+    }
+
+    lastInfoRef.current = info
+
+    let display = info.typeAnnotation
+    if (info.jsDoc) {
+      display += ' \n ' + info.jsDoc
+    }
+    setTypeInfo(display)
+  }, [])
 
   return {
     typeInfo,
     handleTypeInfoChange,
-    handleCursorPosChange,
   }
 }

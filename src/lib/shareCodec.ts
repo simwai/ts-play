@@ -1,3 +1,5 @@
+import { ResultAsync, Result } from 'neverthrow'
+
 type SharePayload = {
   tsCode: string
   jsCode: string
@@ -58,23 +60,28 @@ export async function encodeSharePayload(payload: SharePayload) {
   return `raw.${toBase64Url(bytes)}`
 }
 
-export async function decodeSharePayload(token: string): Promise<SharePayload> {
-  const [kind, data] = token.split('.', 2)
-  if (!kind || !data) throw new Error('Invalid embedded share link')
+export function decodeSharePayload(token: string): ResultAsync<SharePayload, Error> {
+  return ResultAsync.fromPromise(
+    (async () => {
+      const [kind, data] = token.split('.', 2)
+      if (!kind || !data) throw new Error('Invalid embedded share link')
 
-  const bytes = fromBase64Url(data)
-  let decoded: Uint8Array | undefined
+      const bytes = fromBase64Url(data)
+      let decoded: Uint8Array | undefined
 
-  if (kind === 'gz') {
-    decoded = (await gunzip(bytes)) ?? undefined
-    if (!decoded)
-      throw new Error('This browser cannot decode compressed share links')
-  } else if (kind === 'raw') {
-    decoded = bytes
-  } else {
-    throw new Error('Unknown embedded share format')
-  }
+      if (kind === 'gz') {
+        decoded = (await gunzip(bytes)) ?? undefined
+        if (!decoded)
+          throw new Error('This browser cannot decode compressed share links')
+      } else if (kind === 'raw') {
+        decoded = bytes
+      } else {
+        throw new Error('Unknown embedded share format')
+      }
 
-  const json = new TextDecoder().decode(decoded)
-  return JSON.parse(json) as SharePayload
+      const json = new TextDecoder().decode(decoded)
+      return JSON.parse(json) as SharePayload
+    })(),
+    (e) => e as Error
+  )
 }

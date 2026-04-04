@@ -6,6 +6,7 @@ import { Console, type ConsoleMessage } from './components/Console'
 import { SettingsModal } from './components/SettingsModal'
 import { Problems } from './components/Problems'
 import { PackageManager } from './components/PackageManager'
+import { TypeInfoBar } from './components/TypeInfoBar'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import { useCompilerManager } from './hooks/useCompilerManager'
 import { useConsoleManager } from './hooks/useConsoleManager'
@@ -18,10 +19,9 @@ import { useResizePanel } from './hooks/useResizePanel'
 import { playgroundStore } from './lib/state-manager'
 import { ToastContainer } from './components/ui/Toast'
 import { workerClient } from './lib/workerClient'
-import { DEFAULT_TS, DEFAULT_TSCONFIG } from './lib/constants'
+import { DEFAULT_TS, DEFAULT_TSCONFIG, TABS } from './lib/constants'
 import type { ThemeMode } from './lib/theme'
 
-const TABS = ['ts', 'js', 'dts'] as const
 type Tab = (typeof TABS)[number]
 
 export function App() {
@@ -38,7 +38,6 @@ export function App() {
 
   const themeMode = isDarkMode ? preferredDarkTheme : preferredLightTheme
 
-  // Toggle dark mode class on HTML element
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDarkMode)
   }, [isDarkMode])
@@ -67,49 +66,43 @@ export function App() {
     false
   )
 
-  const { messages, addMessage, clearMessages } = useConsoleManager()
+  const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } = useConsoleManager()
   const { compilerStatus, isRunning, runCode, stopCode } = useCompilerManager(
     tsCode,
     addMessage
   )
+
+  const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 })
+  const tsCursorPos = useRef(0)
+
   const {
     installedPackages,
     packageTypings,
-    tsCursorPos,
     status: pmStatus,
     installQueue,
   } = usePackageManager(tsCode, addMessage, showNodeWarnings)
 
-  const diagnostics = useTSDiagnostics(tsCode)
+  const diagnostics = useTSDiagnostics(tsCode, true, packageTypings)
 
-  const { typeInfo, handleTypeInfoChange, handleCursorPosChange } =
-    useTypeInfo(tsCursorPos)
+  const { typeInfo, handleTypeInfoChange } = useTypeInfo()
 
   const { keyboardOpen, isMobileLike } = useVirtualKeyboard()
-
-  const [consoleOpen, setConsoleOpen] = useState(true)
-  const toggleConsole = useCallback(() => setConsoleOpen((v) => !v), [])
-
   const { panelHeight, startResizing } = useResizePanel(300)
 
-  // Combined extra libs for Monaco
   const extraLibs = useMemo(() => {
-    const libs = []
+    const libs: Record<string, string> = {}
     for (const [path, content] of Object.entries(packageTypings)) {
-      libs.push({ content, filePath: path })
+      libs[path] = content
     }
     return libs
   }, [packageTypings])
 
   const [copied, setCopied] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-
-  // Editor Refs for Undo/Redo
   const tsEditorRef = useRef<CodeEditorRef>(null)
 
-  // Send tsconfig to worker whenever it changes
   useEffect(() => {
-    workerClient.updateConfig(tsConfigString).catch(console.error)
+    workerClient.updateConfig(tsConfigString).then(res => res.match(() => {}, console.error))
   }, [tsConfigString])
 
   const [jsDirty, setJsDirty] = useState(false)
@@ -137,17 +130,16 @@ export function App() {
 
   const handleJumpToProblem = useCallback((line: number) => {
     setActiveTab('ts')
-    tsEditorRef.current?.revealLine(line)
-    tsEditorRef.current?.focus()
+    tsEditorRef.current?.jumpTo(line, 1)
   }, [])
 
   const { onTouchStart, onTouchMove, onTouchEnd } = useSwipeTabs(
     activeTab,
     (tab) => setActiveTab(tab as Tab),
-    ['ts', 'js', 'dts']
+    TABS,
+    false
   )
 
-  // Global Keyboard Shortcuts (Tab Switching)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isInput =
@@ -204,7 +196,7 @@ export function App() {
 
   return (
     <div
-      className="flex flex-col h-screen select-none theme-transition"
+      className="flex flex-col h-screen select-none theme-transition bg-base text-text"
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
@@ -255,12 +247,14 @@ export function App() {
                 setTsCode(v || '')
                 setJsDirty(true)
               }}
+              onCursorChange={(offset) => {
+                tsCursorPos.current = offset
+              }}
+              onCursorPosChange={setCursorPos}
               language="typescript"
               theme={themeMode}
               onTypeInfoChange={handleTypeInfoChange}
-              onCursorPosChange={handleCursorPosChange}
-              extraLibs={packageTypings}
-              diagnostics={diagnostics}
+              extraLibs={extraLibs}
               lineWrap={lineWrap}
             />
           </div>
@@ -302,17 +296,12 @@ export function App() {
           </div>
         </div>
 
-        <div
-          className="h-6 flex items-center px-3 bg-mantle border-t border-surface0 text-xxs text-subtext1 font-mono overflow-hidden whitespace-nowrap"
-          style={{ display: compactForKeyboard ? 'none' : 'flex' }}
-        >
-          <div className="flex-1 truncate">
-            {typeInfo || 'Ready'}
-          </div>
-          <div className="ml-4 opacity-70">
-            Ln {tsCursorPos.current > 0 ? (tsCode.slice(0, tsCursorPos.current).split('\n').length) : 1}, Col {tsCursorPos.current - tsCode.lastIndexOf('\n', tsCursorPos.current - 1)}
-          </div>
-        </div>
+        <TypeInfoBar
+          typeInfo={typeInfo}
+          line={cursorPos.line}
+          column={cursorPos.col}
+          visible={!compactForKeyboard}
+        />
       </main>
 
       {!compactForKeyboard && (

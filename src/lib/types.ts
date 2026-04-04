@@ -16,13 +16,13 @@ export type TypeInfo = {
   detail?: string
 }
 
-export type ConsoleMessageType = 'log' | 'info' | 'warn' | 'error'
+export type ConsoleMessageType = 'log' | 'info' | 'warn' | 'error' | 'debug' | 'trace' | 'dir'
 
 export type ConsoleMessage = {
   id: string
   type: ConsoleMessageType
   timestamp: number
-  args: any[]
+  args: string[]
 }
 
 export type CompilerStatus =

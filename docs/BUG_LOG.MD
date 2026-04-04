@@ -110,3 +110,15 @@
   2. Implemented a target-state reconciliation loop that batches all additions and removals into single npm commands.
   3. Added an npm registry check to verify package existence and automatically discover/install @types/ versions.
   4. Added warnings (controllable via settings) for missing packages or types.
+
+## 2025-05-25: ansi-to-html Crash and Worker Instability
+
+- **Issue**: The application would occasionally crash or the worker would fail to provide type information.
+- **Cause**:
+  1. The `ansi-to-html` library crashed with `TypeError: Cannot read properties of undefined (reading '3')` when encountering certain ANSI escape sequences.
+  2. The TypeScript worker could fail if `getQuickInfoAtPosition` or `getEmitOutput` returned objects with missing properties (like `tags` or `displayParts`) or threw errors during high-frequency updates.
+  3. High-frequency cursor moves and typing caused excessive re-renders of the root `App` component due to cursor position being kept in state.
+- **Solution**:
+  1. Wrapped `ansiConvert.toHtml` in a `try/catch` block in `Console.tsx`.
+  2. Hardened `worker.ts` with explicit null/undefined checks for all Language Service results and added `try/catch` around `getEmitOutput`.
+  3. Extracted the cursor position and type information display into a new `TypeInfoBar` component, significantly reducing re-render overhead of the main `App` component.

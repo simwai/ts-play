@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import type { ConsoleMessage } from '../components/Console'
 
 export function useConsoleManager() {
@@ -7,7 +7,6 @@ export function useConsoleManager() {
 
   const addMessage = useCallback(
     (type: ConsoleMessage['type'], args: unknown[]) => {
-      // Filter out internal React error noise
       if (
         type === 'error' &&
         args.some(
@@ -24,26 +23,26 @@ export function useConsoleManager() {
           result = a.stack || a.message
         } else if (typeof a === 'string') {
           result = a
-        } else {
+        } else if (a && typeof a === 'object') {
           try {
             result = JSON.stringify(a, null, 2)
           } catch {
             result = String(a)
           }
+        } else {
+            result = String(a)
         }
 
-        // Truncate individual messages to prevent UI hangs with huge objects/strings
         if (result.length > 5000) {
           result = result.slice(0, 5000) + '... (truncated)'
         }
 
-        // Collapse repeating whitespace to maintain performance
         return result.replace(/ {10,}/g, '          ')
       })
 
       setMessages((previous) => {
-        // Keep only the last 200 messages for mobile stability
-        const next = [...previous, { type, args: formatted, ts: Date.now() }]
+        const id = Math.random().toString(36).slice(2, 11) + '-' + Date.now()
+        const next = [...previous, { id, type, args: formatted, timestamp: Date.now() }]
         if (next.length > 200) {
           return next.slice(-200)
         }

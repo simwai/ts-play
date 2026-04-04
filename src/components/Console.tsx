@@ -1,22 +1,16 @@
-import React, { useRef, useEffect, useMemo, useState } from 'react'
-import { Eraser } from 'lucide-react'
+import React, { useEffect, useRef, useState, useMemo } from 'react'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
-import { PanelHeader } from './ui/PanelHeader'
+import { Eraser } from 'lucide-react'
 import Ansi from 'ansi-to-html'
-
-export type ConsoleMessage = {
-  type: 'log' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'dir'
-  args: string[]
-  ts: number
-}
+import type { ConsoleMessage } from '../lib/types'
 
 type Props = {
   messages: ConsoleMessage[]
   onClear: () => void
   isOpen: boolean
   onToggle: () => void
-  contentHeight: number // Now in rem
+  contentHeight: number
   trueColorEnabled?: boolean
   showNodeWarnings?: boolean
   activeTab: 'console' | 'problems' | 'packages'
@@ -24,9 +18,7 @@ type Props = {
   problemCount: number
 }
 
-function typeVariant(
-  type: ConsoleMessage['type']
-): 'error' | 'warn' | 'info' | 'default' {
+function typeVariant(type: ConsoleMessage['type']): 'error' | 'warn' | 'info' | 'default' {
   if (type === 'error') return 'error'
   if (type === 'warn' || type === 'trace') return 'warn'
   if (type === 'info' || type === 'debug' || type === 'dir') return 'info'
@@ -68,25 +60,18 @@ export const Console = React.memo(function Console({
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [filter, setFilter] = useState<FilterType>('all')
 
-  // Create Ansi converter with truecolor support if enabled
   const ansiConvert = useMemo(
     () =>
       new Ansi({
         newline: false,
         escapeHtml: true,
         stream: false,
-        colors: trueColorEnabled
-          ? undefined
-          : {
-              // Standard 16 colors fallback if needed
-            },
       }),
-    [trueColorEnabled]
+    []
   )
 
   useEffect(() => {
     if (isOpen && activeTab === 'console') {
-      // Debounce scroll to prevent jank during high-frequency logs
       if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current)
       scrollTimerRef.current = setTimeout(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -102,8 +87,7 @@ export const Console = React.memo(function Console({
 
   const filteredMessages = useMemo(() => {
     return messages.filter((m) => {
-      // Node.js warnings filter
-      if (!showNodeWarnings && m.args.some((arg) => arg.startsWith('(node:'))) {
+      if (!showNodeWarnings && m.args.some((arg) => typeof arg === 'string' && arg.startsWith('(node:'))) {
         return false
       }
 
@@ -117,13 +101,7 @@ export const Console = React.memo(function Console({
     })
   }, [messages, filter, showNodeWarnings])
 
-  const FilterButton = ({
-    type,
-    label,
-  }: {
-    type: FilterType
-    label: string
-  }) => (
+  const FilterButton = ({ type, label }: { type: FilterType; label: string }) => (
     <button
       onClick={(e) => {
         e.stopPropagation()
@@ -185,21 +163,14 @@ export const Console = React.memo(function Console({
         onClick={onToggle}
       >
         <div className='flex items-center gap-1'>
-          <TabButton
-            id='console'
-            label='Console'
-            count={messages.length}
-          />
+          <TabButton id='console' label='Console' count={messages.length} />
           <TabButton
             id='problems'
             label='Problems'
             count={problemCount}
             variant={problemCount > 0 ? 'error' : 'default'}
           />
-          <TabButton
-            id='packages'
-            label='Packages'
-          />
+          <TabButton id='packages' label='Packages' />
         </div>
 
         <div className='flex items-center gap-3 pr-2'>
@@ -234,40 +205,15 @@ export const Console = React.memo(function Console({
         <>
           <div className='flex items-center gap-2 px-4 py-1.5 bg-base/30 border-b border-surface0/20'>
             <div className='flex bg-surface0/50 rounded px-1 py-0.5 gap-1 shrink-0'>
-              <FilterButton
-                type='all'
-                label='All'
-              />
-              <FilterButton
-                type='log'
-                label='Log'
-              />
-              <FilterButton
-                type='info'
-                label='Info'
-              />
-              <FilterButton
-                type='warn'
-                label='Warn'
-              />
-              <FilterButton
-                type='error'
-                label='Err'
-              />
+              <FilterButton type='all' label='All' />
+              <FilterButton type='log' label='Log' />
+              <FilterButton type='info' label='Info' />
+              <FilterButton type='warn' label='Warn' />
+              <FilterButton type='error' label='Err' />
             </div>
             <div className='flex items-center gap-1.5 ml-auto'>
-              {errors > 0 && (
-                <Badge
-                  label={`${errors} err`}
-                  variant='error'
-                />
-              )}
-              {warns > 0 && (
-                <Badge
-                  label={`${warns} warn`}
-                  variant='warn'
-                />
-              )}
+              {errors > 0 && <Badge label={`${errors} err`} variant='error' />}
+              {warns > 0 && <Badge label={`${warns} warn`} variant='warn' />}
             </div>
           </div>
           <div
@@ -283,12 +229,20 @@ export const Console = React.memo(function Console({
             ) : (
               filteredMessages.map((m, idx) => {
                 const fullText = m.args.join(' ')
-                const hasAnsi =
-                  trueColorEnabled && /[\u001b\u009b]/.test(fullText)
+                const hasAnsi = trueColorEnabled && /[\u001b\u009b]/.test(fullText)
+
+                let contentHtml = ''
+                if (hasAnsi) {
+                    try {
+                        contentHtml = ansiConvert.toHtml(fullText)
+                    } catch (e) {
+                        contentHtml = fullText
+                    }
+                }
 
                 return (
                   <div
-                    key={`${m.ts}-${idx}`}
+                    key={`${m.timestamp}-${idx}`}
                     data-testid='console-message'
                     className={`flex items-start gap-2.5 px-3 py-1.5 border-b border-surface0/40 ${
                       m.type === 'error'
@@ -306,9 +260,7 @@ export const Console = React.memo(function Console({
                     {hasAnsi ? (
                       <div
                         className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono`}
-                        dangerouslySetInnerHTML={{
-                          __html: ansiConvert.toHtml(fullText),
-                        }}
+                        dangerouslySetInnerHTML={{ __html: contentHtml }}
                       />
                     ) : (
                       <pre

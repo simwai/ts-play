@@ -27,20 +27,33 @@ export function useTSDiagnostics(
 
       try {
         // Sync code to worker
-        await workerClient.updateFile('/main.ts', code)
+        const updateFileRes = await workerClient.updateFile('/main.ts', code)
+        if (updateFileRes.isErr()) {
+           console.error('Failed to update file in worker:', updateFileRes.error)
+           return
+        }
         lastCodeRef.current = code
 
         // Performance optimization: Only send the huge node_modules object
         // to the worker if it actually changed (after an npm install)
         if (lastLibsRef.current !== extraLibs) {
-          await workerClient.updateExtraLibs(extraLibs)
-          lastLibsRef.current = extraLibs
+          const updateLibsRes = await workerClient.updateExtraLibs(extraLibs)
+          if (updateLibsRes.isErr()) {
+             console.error('Failed to update extra libs in worker:', updateLibsRes.error)
+          } else {
+             lastLibsRef.current = extraLibs
+          }
         }
 
-        const diags = await workerClient.getDiagnostics()
+        const diagsResult = await workerClient.getDiagnostics()
+        if (diagsResult.isErr()) {
+           console.error('Failed to get diagnostics from worker:', diagsResult.error)
+           return
+        }
+
+        const diags = diagsResult.value
 
         // ONLY update if the code hasn't changed since we started the request.
-        // This prevents "flickering" or misaligned squiggles from old versions of the file.
         if (lastCodeRef.current === code) {
           setDiagnostics(diags)
         }

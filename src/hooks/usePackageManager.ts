@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { setupTypeAcquisition } from '@typescript/ata'
+import { useMachine } from '@xstate/react'
+import { packageMachine } from '../lib/machines/packageMachine'
 import { workerClient } from '../lib/workerClient'
 import {
   runCommand,
@@ -83,7 +85,7 @@ export function usePackageManager(
   const [packageTypings, setPackageTypings] = useState<Record<string, string>>(
     {}
   )
-  const [status, setStatus] = useState<PackageManagerStatus>('idle')
+  const [state, send] = useMachine(packageMachine)
 
   const previousPkgsRef = useRef<Set<string>>(new Set())
   const installQueue = useRef<Promise<void>>(Promise.resolve())
@@ -100,28 +102,31 @@ export function usePackageManager(
   )
 
   const syncTypingsFromContainer = useCallback(async () => {
-    try {
-      const types = await webContainerService.readDirRecursive(
-        'node_modules',
-        (path) => path.endsWith('.d.ts') || path.endsWith('package.json'),
-        6
-      )
+    const result = await webContainerService.readDirRecursive(
+      'node_modules',
+      (path) => path.endsWith('.d.ts') || path.endsWith('package.json'),
+      6
+    )
 
-      if (Object.keys(types).length > 0) {
-        const newPaths = new Set(Object.keys(types))
-        containerTypePaths.current = newPaths
+    result.match(
+      (types) => {
+        if (Object.keys(types).length > 0) {
+          const newPaths = new Set(Object.keys(types))
+          containerTypePaths.current = newPaths
 
-        setPackageTypings((prev) => {
-          const next = { ...prev }
-          for (const [path, content] of Object.entries(types)) {
-            next[path] = content
-          }
-          return next
-        })
+          setPackageTypings((prev) => {
+            const next = { ...prev }
+            for (const [path, content] of Object.entries(types)) {
+              next[path] = content
+            }
+            return next
+          })
+        }
+      },
+      (error) => {
+        console.warn('[Package Manager] Container typing sync failed:', error)
       }
-    } catch (error) {
-      console.warn('[Package Manager] Container typing sync failed:', error)
-    }
+    )
   }, [])
 
   const checkImports = useCallback(() => {
@@ -141,7 +146,12 @@ export function usePackageManager(
       }
 
       try {
-        const detected = await workerClient.detectImports(tsCode)
+        const detectedResult = await workerClient.detectImports(tsCode)
+        if (detectedResult.isErr()) {
+           console.error('Failed to detect imports:', detectedResult.error)
+           return
+        }
+        const detected = detectedResult.value
         const filtered = [...detected].filter((pkg) => {
           if (pkg.startsWith('node:')) return false
           if (BUILTIN_MODULES.has(pkg)) return false
@@ -207,15 +217,15 @@ export function usePackageManager(
           },
           finished: () => {
             flushTypingsRef.current()
-            setStatus('idle')
+            send({ type: 'SUCCESS' })
           },
           started: () => {
-            setStatus('syncing')
+            send({ type: 'SYNC' })
           },
         },
       })
     }
-  }, []) // Remove flushTypings from deps to avoid re-init, using ref instead
+  }, [send])
 
   useEffect(() => {
     if (ataRef.current && tsCode) {
@@ -244,20 +254,21 @@ export function usePackageManager(
 
     const performChanges = async () => {
       try {
-        await webContainerService.writeFile(
+        const writeRes = await webContainerService.writeFile(
           'package.json',
           JSON.stringify(
             {
-              name: 'playground-project',
+              name: 'ts-play-project',
               type: 'module',
               dependencies: Object.fromEntries(
-                [...currentTargetNames].map((p) => [p, 'latest'])
+                [...currentTargetNames, ...SYSTEM_DEPS].map((p) => [p, 'latest'])
               ),
             },
             null,
             2
           )
         )
+        if (writeRes.isErr()) throw writeRes.error
 
         const finalInstallList: string[] = []
         for (const pkg of toAdd) {
@@ -280,53 +291,71 @@ export function usePackageManager(
         }
 
         if (toRemove.length > 0) {
-          const typesToRemove = toRemove.map(getTypesPackageName)
-          const allToRemove = [...toRemove, ...typesToRemove]
-
-          setStatus('uninstalling')
+          send({ type: 'UNINSTALL' })
           addMessage('info', ['npm uninstall ' + toRemove.join(' ') + '...'])
-          await runCommand('npm', ['uninstall', ...allToRemove], (out) => {
+          const procRes = await runCommand('npm', ['uninstall', ...toRemove.map(p => [p, getTypesPackageName(p)]).flat()], (out) => {
             const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
-            if (clean && !/^[/\|\-]$/.test(clean)) addMessage('info', [clean])
+            if (clean && !/^[\/|\-]$/.test(clean)) addMessage('info', [clean])
           })
+          if (procRes.isErr()) throw procRes.error
+          await procRes.value.exit
 
           await syncTypingsFromContainer()
+          send({ type: 'SUCCESS' })
         }
 
         if (finalInstallList.length > 0) {
-          setStatus('installing')
+          send({ type: 'INSTALL' })
           addMessage('info', [
             'npm install ' + finalInstallList.join(' ') + '...',
           ])
 
-          await runCommand(
+          const procRes = await runCommand(
             'npm',
             ['install', '--no-progress', ...finalInstallList],
             (out) => {
               const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
-              if (clean && !/^[/\|\-]$/.test(clean)) addMessage('info', [clean])
+              if (clean && !/^[\/|\-]$/.test(clean)) addMessage('info', [clean])
             }
           )
+          if (procRes.isErr()) throw procRes.error
+          await procRes.value.exit
 
           await syncTypingsFromContainer()
+          send({ type: 'SUCCESS' })
         }
-        setStatus('idle')
       } catch (error) {
         console.error('Package management failed:', error)
-        setStatus('error')
+        const message = (error as Error).message
+        send({ type: 'FAILURE', error: message })
         addMessage('error', [
-          'Package manager error: ' + (error as Error).message,
+          'Package manager error: ' + message,
         ])
       }
     }
 
-    installQueue.current = installQueue.current.then(performChanges).catch((error) => { console.error("Package queue failure:", error); setStatus("error"); addMessage("error", ["Package manager error: " + (error as Error).message]); })
+    installQueue.current = installQueue.current.then(performChanges).catch((error) => {
+        console.error("Package queue failure:", error);
+        send({ type: 'FAILURE', error: (error as Error).message });
+        addMessage('error', ['Package manager error: ' + (error as Error).message]);
+    })
   }, [
     installedPackages,
     addMessage,
     showNodeWarnings,
     syncTypingsFromContainer,
+    send
   ])
+
+  const status: PackageManagerStatus = state.matches('installing')
+    ? 'installing'
+    : state.matches('uninstalling')
+    ? 'uninstalling'
+    : state.matches('syncing')
+    ? 'syncing'
+    : state.matches('error')
+    ? 'error'
+    : 'idle'
 
   return {
     installedPackages,
