@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { WebContainerService } from './webcontainer'
+import { WebContainer } from '@webcontainer/api'
 
 vi.mock('@webcontainer/api', () => ({
   WebContainer: {
@@ -9,6 +10,15 @@ vi.mock('@webcontainer/api', () => ({
       fs: {
         writeFile: vi.fn().mockResolvedValue(undefined),
       },
+      spawn: vi.fn().mockResolvedValue({
+        exit: Promise.resolve(0),
+        output: {
+          getReader: vi.fn().mockReturnValue({
+            read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+            releaseLock: vi.fn(),
+          }),
+        },
+      }),
     }),
   },
 }))
@@ -22,13 +32,18 @@ describe('WebContainerService', () => {
   })
 
   it('exportSnapshot should call export with binary format', async () => {
-    const instance = await service.getInstance()
-    const exportSpy = vi.spyOn(instance, 'export')
-
     const result = await service.exportSnapshot()
 
-    expect(exportSpy).toHaveBeenCalledWith('.', { format: 'binary' })
-    expect(result).toBeInstanceOf(Uint8Array)
-    expect(result).toEqual(new Uint8Array([1, 2, 3]))
+    if (result.isErr()) {
+        throw result.error
+    }
+
+    const instanceResult = await service.getInstance()
+    if (instanceResult.isErr()) throw instanceResult.error
+    const instance = instanceResult.value
+
+    expect(instance.export).toHaveBeenCalledWith('.', { format: 'binary' })
+    expect(result.value).toBeInstanceOf(Uint8Array)
+    expect(result.value).toEqual(new Uint8Array([1, 2, 3]))
   })
 })

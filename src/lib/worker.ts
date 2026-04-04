@@ -1,118 +1,109 @@
 import * as TS from 'typescript'
-import * as esbuild from 'esbuild-wasm'
 
-const esbuildWasmUrl = new URL('esbuild-wasm/esbuild.wasm', import.meta.url)
-  .href
-let isEsbuildInitialized = false
-
-let languageService: TS.LanguageService | undefined
 let compilerOptions: TS.CompilerOptions = {
   target: TS.ScriptTarget.ESNext,
-  module: TS.ModuleKind.ESNext,
-  moduleResolution: TS.ModuleResolutionKind.Bundler,
-  lib: ['lib.esnext.d.ts', 'lib.dom.d.ts'],
-  strict: true,
+  module: TS.ModuleKind.NodeNext,
+  moduleResolution: TS.ModuleResolutionKind.NodeNext,
   esModuleInterop: true,
-  skipLibCheck: true,
-  allowJs: true,
   jsx: TS.JsxEmit.ReactJSX,
+  allowJs: true,
   declaration: true,
-  baseUrl: '/',
-  paths: {
-    '*': ['node_modules/*'],
-  },
+  emitDeclarationOnly: true,
+  skipLibCheck: true,
 }
 
-const virtualFiles: Record<string, { content: string; version: number }> = {}
+let languageService: TS.LanguageService | undefined
+const virtualFiles: Record<string, { version: number; content: string }> = {}
 let externalPackageDefinitions: Record<string, string> = {}
 let externalPackageVersion = 0
 
 const defaultLibraryFiles: Record<string, string> = {}
-let workerInitializationPromise: Promise<void> | null = null
+
+async function fetchLib(name: string) {
+  if (defaultLibraryFiles[name]) return
+  try {
+    const res = await fetch(`https://unpkg.com/typescript@latest/lib/${name}`)
+    if (res.ok) {
+      defaultLibraryFiles[name] = await res.text()
+    }
+  } catch (err) {
+    console.warn(`Failed to fetch TS lib: ${name}`, err)
+  }
+}
 
 async function initializeLanguageService() {
+  const libs = [
+    'lib.esnext.d.ts',
+    'lib.dom.d.ts',
+    'lib.esnext.full.d.ts',
+    'lib.es2020.full.d.ts',
+  ]
+  await Promise.all(libs.map(fetchLib))
+
   const host: TS.LanguageServiceHost = {
-    getScriptFileNames: () => [
-      '/main.ts',
-      ...Object.keys(externalPackageDefinitions),
-    ],
+    getScriptFileNames: () => ['/main.ts'],
     getScriptVersion: (path) => {
-      const normalized = path.startsWith('/') ? path : '/' + path
-      if (normalized === '/main.ts')
-        return String(virtualFiles['/main.ts']?.version || 0)
-      if (externalPackageDefinitions[normalized])
-        return String(externalPackageVersion)
-      if (normalized.startsWith('/lib.')) return '1'
+      if (path === '/main.ts') return String(virtualFiles['/main.ts']?.version || 0)
+      if (externalPackageDefinitions[path]) return String(externalPackageVersion)
       return '0'
     },
     getScriptSnapshot: (path) => {
-      let content: string | undefined
+      if (typeof path !== 'string') return undefined
       const normalized = path.startsWith('/') ? path : '/' + path
+      let content: string | undefined
 
       if (normalized === '/main.ts') {
         content = virtualFiles['/main.ts']?.content
-      } else if (normalized.startsWith('/lib.')) {
+      } else if (externalPackageDefinitions[normalized]) {
+        content = externalPackageDefinitions[normalized]
+      } else if (defaultLibraryFiles[normalized.substring(1)]) {
         content = defaultLibraryFiles[normalized.substring(1)]
       } else if (normalized === '/lib.d.ts') {
         content = defaultLibraryFiles['lib.d.ts']
-      } else {
-        content = externalPackageDefinitions[normalized]
       }
 
-      return content !== undefined
-        ? TS.ScriptSnapshot.fromString(content)
-        : undefined
+      return content !== undefined ? TS.ScriptSnapshot.fromString(content) : undefined
     },
     getCurrentDirectory: () => '/',
     getCompilationSettings: () => compilerOptions,
     getDefaultLibFileName: () => '/lib.esnext.d.ts',
     fileExists: (path) => {
+      if (typeof path !== 'string') return false
       const normalized = path.startsWith('/') ? path : '/' + path
       return !!(
         externalPackageDefinitions[normalized] ||
         defaultLibraryFiles[normalized.substring(1)] ||
-        (normalized === '/lib.d.ts' && defaultLibraryFiles['lib.d.ts']) ||
         normalized === '/main.ts'
       )
     },
     readFile: (path) => {
+      if (typeof path !== 'string') return undefined
       const normalized = path.startsWith('/') ? path : '/' + path
       return (
         externalPackageDefinitions[normalized] ||
         defaultLibraryFiles[normalized.substring(1)] ||
-        (normalized === '/main.ts'
-          ? virtualFiles['/main.ts']?.content
-          : undefined)
+        (normalized === '/main.ts' ? virtualFiles['/main.ts']?.content : undefined)
       )
     },
     readDirectory: (path, extensions) => {
+      if (typeof path !== 'string') return []
       const normalizedPath = path.endsWith('/') ? path : path + '/'
-      const searchPath = normalizedPath.startsWith('/')
-        ? normalizedPath
-        : '/' + normalizedPath
-
-      return Object.keys(externalPackageDefinitions).filter(
-        (f) =>
-          f.startsWith(searchPath) &&
-          (!extensions || extensions.some((e) => f.endsWith(e)))
-      )
+      const searchPath = normalizedPath.startsWith('/') ? normalizedPath : '/' + normalizedPath
+      return Object.keys(externalPackageDefinitions).filter(f => f.startsWith(searchPath) && (!extensions || extensions.some(e => f.endsWith(e))))
     },
     directoryExists: (path) => {
+      if (typeof path !== 'string') return false
       const normalizedPath = path.endsWith('/') ? path : path + '/'
-      const searchPath = normalizedPath.startsWith('/')
-        ? normalizedPath
-        : '/' + normalizedPath
-
-      return Object.keys(externalPackageDefinitions).some((f) =>
-        f.startsWith(searchPath)
-      )
-    },
+      const searchPath = normalizedPath.startsWith('/') ? normalizedPath : '/' + normalizedPath
+      return Object.keys(externalPackageDefinitions).some(f => f.startsWith(searchPath))
+    }
   }
 
   languageService = TS.createLanguageService(host)
 }
 
 function generateAmbientDeclarations(sourceCode: string): string {
+  if (!sourceCode) return ''
   return (
     '// Declarations auto-generated from main.ts\n' +
     sourceCode
@@ -122,8 +113,7 @@ function generateAmbientDeclarations(sourceCode: string): string {
   )
 }
 
-const getErrorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : String(error)
+let workerInitializationPromise: Promise<void> | null = null
 
 globalThis.onmessage = async (messageEvent: MessageEvent) => {
   const { id, type, payload } = messageEvent.data
@@ -133,21 +123,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
     switch (type) {
       case 'INIT': {
         if (!workerInitializationPromise) {
-          workerInitializationPromise = (async () => {
-            if (!isEsbuildInitialized) {
-              try {
-                await esbuild.initialize({
-                  wasmURL: esbuildWasmUrl,
-                  worker: false,
-                })
-                isEsbuildInitialized = true
-              } catch (e: any) {
-                if (!e.message?.includes('already initialized')) throw e
-                isEsbuildInitialized = true
-              }
-            }
-            await initializeLanguageService()
-          })()
+          workerInitializationPromise = initializeLanguageService()
         }
         await workerInitializationPromise
         result = true
@@ -156,20 +132,18 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
 
       case 'UPDATE_FILE': {
         const { content, filename = '/main.ts' } = payload
+        if (typeof filename !== 'string') throw new Error('Invalid filename')
         const normalized = filename.startsWith('/') ? filename : '/' + filename
-        const fileState = virtualFiles[normalized]
-        if (!fileState || fileState.content !== content) {
-          virtualFiles[normalized] = {
-            version: (fileState?.version || 0) + 1,
-            content,
-          }
+        virtualFiles[normalized] = {
+          version: (virtualFiles[normalized]?.version || 0) + 1,
+          content,
         }
         result = true
         break
       }
 
       case 'UPDATE_EXTRA_LIBS': {
-        externalPackageDefinitions = payload.libs
+        externalPackageDefinitions = payload.libs || {}
         externalPackageVersion += 1
         if (virtualFiles['/main.ts']) virtualFiles['/main.ts'].version += 1
         result = true
@@ -178,20 +152,17 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
 
       case 'UPDATE_CONFIG': {
         const { tsconfig } = payload
+        if (typeof tsconfig !== 'string') throw new Error('Invalid tsconfig')
         const parsed = TS.parseConfigFileTextToJson('tsconfig.json', tsconfig)
         if (parsed.config) {
           const host = {
-            useCaseSensitiveFileNames: true,
-            readDirectory: () => [],
-            fileExists: () => true,
-            readFile: () => tsconfig,
-            getCurrentDirectory: () => '/',
+             useCaseSensitiveFileNames: true,
+             readDirectory: () => [],
+             fileExists: () => true,
+             readFile: () => tsconfig,
+             getCurrentDirectory: () => '/'
           }
-          const { options } = TS.parseJsonConfigFileContent(
-            parsed.config,
-            host,
-            '/'
-          )
+          const { options } = TS.parseJsonConfigFileContent(parsed.config, host as any, '/')
           compilerOptions = { ...compilerOptions, ...options }
           if (virtualFiles['/main.ts']) virtualFiles['/main.ts'].version += 1
         }
@@ -200,26 +171,24 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       }
 
       case 'VALIDATE_CONFIG': {
-        const { tsconfig } = payload
-        const parsed = TS.parseConfigFileTextToJson('tsconfig.json', tsconfig)
-        if (parsed.error) {
-          result = {
-            valid: false,
-            error: TS.flattenDiagnosticMessageText(
-              parsed.error.messageText,
-              '\n'
-            ),
-          }
-        } else {
-          result = { valid: true }
-        }
-        break
+         const { tsconfig } = payload
+         if (typeof tsconfig !== 'string') {
+            result = { valid: false, error: 'Config must be a string' }
+            break
+         }
+         const parsed = TS.parseConfigFileTextToJson('tsconfig.json', tsconfig)
+         if (parsed.error) {
+            result = { valid: false, error: TS.flattenDiagnosticMessageText(parsed.error.messageText, '\n') }
+         } else {
+            result = { valid: true }
+         }
+         break
       }
 
       case 'GET_DIAGNOSTICS': {
         if (!languageService) {
-          result = []
-          break
+           result = []
+           break
         }
         const all = [
           ...languageService.getSyntacticDiagnostics('/main.ts'),
@@ -245,10 +214,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
             start: d.start || 0,
             length: d.length || 0,
             message,
-            category:
-              d.category === TS.DiagnosticCategory.Warning
-                ? 'warning'
-                : 'error',
+            category: d.category === TS.DiagnosticCategory.Warning ? 'warning' : 'error',
             line,
             character,
           }
@@ -258,50 +224,27 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
 
       case 'GET_TYPE_INFO': {
         if (!languageService) {
-          result = undefined
-          break
+            result = undefined
+            break
         }
-        const info = languageService.getQuickInfoAtPosition(
-          '/main.ts',
-          payload.offset
-        )
+        const info = languageService.getQuickInfoAtPosition('/main.ts', payload.offset || 0)
         if (!info) {
           result = undefined
           break
         }
 
-        const SYMBOL_KINDS = new Set([
-          'localName',
-          'variableName',
-          'parameterName',
-          'methodName',
-          'functionName',
-          'className',
-          'interfaceName',
-          'aliasName',
-          'propertyName',
-          'enumName',
-          'enumMemberName',
-          'moduleName',
-          'typeParameterName',
-        ])
-        const symbolPart = info.displayParts.find((p) =>
-          SYMBOL_KINDS.has(p.kind)
-        )
+        const SYMBOL_KINDS = new Set(['localName', 'variableName', 'parameterName', 'methodName', 'functionName', 'className', 'interfaceName', 'aliasName', 'propertyName', 'enumName', 'enumMemberName', 'moduleName', 'typeParameterName'])
+        const symbolPart = (info.displayParts || []).find(p => SYMBOL_KINDS.has(p.kind))
         const name = symbolPart ? symbolPart.text : ''
 
-        const typeAnnotation = TS.displayPartsToString(info.displayParts)
-        let jsDoc = info.documentation
-          ? TS.displayPartsToString(info.documentation)
-          : ''
+        const typeAnnotation = TS.displayPartsToString(info.displayParts || [])
+        let jsDoc = info.documentation ? TS.displayPartsToString(info.documentation || []) : ''
 
-        if (info.tags) {
-          const tagsText = info.tags
-            .map((tag) => {
-              const text = TS.displayPartsToString(tag.text)
-              return `\n\n@${tag.name}${text ? ' ' + text : ''}`
-            })
-            .join('')
+        if (Array.isArray(info.tags)) {
+          const tagsText = info.tags.map(tag => {
+            const text = TS.displayPartsToString(tag.text || [])
+            return `\n\n@${tag.name}${text ? ' ' + text : ''}`
+          }).join('')
           jsDoc += tagsText
         }
 
@@ -315,84 +258,66 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       }
 
       case 'GET_COMPLETIONS': {
-        if (!languageService) {
-          result = []
-          break
-        }
-        const completions = languageService.getCompletionsAtPosition(
-          '/main.ts',
-          payload.offset,
-          undefined
-        )
-        result = completions
-          ? completions.entries.map((e) => ({
-              name: e.name,
-              kind: e.kind,
-              insertText: e.insertText,
-            }))
-          : []
-        break
+         if (!languageService) {
+            result = []
+            break
+         }
+         const completions = languageService.getCompletionsAtPosition('/main.ts', payload.offset || 0, undefined)
+         result = completions ? completions.entries.map(e => ({
+            name: e.name,
+            kind: e.kind,
+            insertText: e.insertText
+         })) : []
+         break
       }
 
-      case 'COMPILE': {
+      case 'GENERATE_DTS': {
+        const { code } = payload
+        if (typeof code !== 'string') throw new Error('Invalid code')
         // Sync virtual file first
         virtualFiles['/main.ts'] = {
-          version: (virtualFiles['/main.ts']?.version || 0) + 1,
-          content: payload.code,
+           version: (virtualFiles['/main.ts']?.version || 0) + 1,
+           content: code
         }
-
-        const compiled = await esbuild.build({
-          bundle: false,
-          format: 'esm',
-          target: 'es2020',
-          write: false,
-          stdin: {
-            contents: payload.code,
-            loader: 'ts',
-            sourcefile: '/main.ts',
-          },
-        })
 
         let dts = ''
         if (languageService) {
-          const output = languageService.getEmitOutput('/main.ts', true)
-          const dtsFile = output.outputFiles.find((f) =>
-            f.name.endsWith('.d.ts')
-          )
-          if (dtsFile) dts = dtsFile.text
+          try {
+            const output = languageService.getEmitOutput('/main.ts', true)
+            const dtsFile = output.outputFiles.find((f) => f.name.endsWith('.d.ts'))
+            if (dtsFile) dts = dtsFile.text
+          } catch (e) {
+            console.error('Failed to emit .d.ts from Language Service:', e)
+          }
         }
 
         if (!dts) {
-          dts = generateAmbientDeclarations(payload.code)
+          dts = generateAmbientDeclarations(code)
         }
 
-        result = {
-          js: compiled.outputFiles?.[0]?.text || '',
-          dts,
-        }
+        result = dts
         break
       }
 
       case 'DETECT_IMPORTS': {
-        const sourceFile = TS.createSourceFile(
-          'temp.ts',
-          payload.code,
-          TS.ScriptTarget.Latest,
-          true
-        )
+        const { code } = payload
+        if (typeof code !== 'string') {
+            result = []
+            break
+        }
+        const sourceFile = TS.createSourceFile('temp.ts', code, TS.ScriptTarget.Latest, true)
         const imports = new Set<string>()
         const visit = (node: TS.Node) => {
-          if (
-            TS.isImportDeclaration(node) &&
-            TS.isStringLiteral(node.moduleSpecifier)
-          ) {
-            const m = node.moduleSpecifier.text
-            if (!m.startsWith('.') && !m.startsWith('/')) {
-              const parts = m.split('/')
-              imports.add(
-                m.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0]
-              )
-            }
+          if (TS.isImportDeclaration(node) && TS.isStringLiteral(node.moduleSpecifier)) {
+             const m = node.moduleSpecifier.text
+             if (!m.startsWith('.') && !m.startsWith('/')) {
+                const parts = m.split('/')
+                if (m.startsWith('@') && parts.length >= 2) {
+                   imports.add(`${parts[0]}/${parts[1]}`)
+                } else if (parts.length >= 1) {
+                   imports.add(parts[0])
+                }
+             }
           }
           TS.forEachChild(node, visit)
         }
@@ -406,6 +331,6 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
     }
     self.postMessage({ id, success: true, payload: result })
   } catch (error) {
-    self.postMessage({ id, success: false, error: getErrorMessage(error) })
+    self.postMessage({ id, success: false, error: (error as Error).message })
   }
 }

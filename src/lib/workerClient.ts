@@ -1,3 +1,4 @@
+import { ResultAsync } from 'neverthrow'
 import type { TSDiagnostic, TypeInfo } from './types'
 
 class WorkerClient {
@@ -40,60 +41,63 @@ class WorkerClient {
     return this.worker
   }
 
-  private async send<T>(type: string, payload?: any): Promise<T> {
-    return new Promise((resolve, reject) => {
-      const id = ++this.msgId
+  private send<T>(type: string, payload?: any): ResultAsync<T, Error> {
+    return ResultAsync.fromPromise(
+      new Promise<T>((resolve, reject) => {
+        const id = ++this.msgId
 
-      // Timeout to prevent memory leaks if the worker hangs
-      const timeoutId = setTimeout(() => {
-        this.resolves.delete(id)
-        reject(new Error(`Worker request '${type}' timed out after 15s`))
-      }, 15_000)
+        // Timeout to prevent memory leaks if the worker hangs
+        const timeoutId = setTimeout(() => {
+          this.resolves.delete(id)
+          reject(new Error(`Worker request '${type}' timed out after 15s`))
+        }, 15_000)
 
-      this.resolves.set(id, { resolve, reject, timeoutId })
-      this.getWorker().postMessage({ id, type, payload })
-    })
+        this.resolves.set(id, { resolve, reject, timeoutId })
+        this.getWorker().postMessage({ id, type, payload })
+      }),
+      (e) => e as Error
+    )
   }
 
-  async init() {
+  init(): ResultAsync<void, Error> {
     return this.send<void>('INIT')
   }
 
-  async updateFile(filename: string, content: string) {
+  updateFile(filename: string, content: string): ResultAsync<void, Error> {
     return this.send<void>('UPDATE_FILE', { filename, content })
   }
 
-  async updateExtraLibs(libs: Record<string, string>) {
+  updateExtraLibs(libs: Record<string, string>): ResultAsync<void, Error> {
     return this.send<void>('UPDATE_EXTRA_LIBS', { libs })
   }
 
-  async updateConfig(tsconfig: string) {
+  updateConfig(tsconfig: string): ResultAsync<void, Error> {
     return this.send<void>('UPDATE_CONFIG', { tsconfig })
   }
 
-  async validateConfig(tsconfig: string) {
+  validateConfig(tsconfig: string): ResultAsync<{ valid: boolean; error?: string }, Error> {
     return this.send<{ valid: boolean; error?: string }>('VALIDATE_CONFIG', {
       tsconfig,
     })
   }
 
-  async getDiagnostics() {
+  getDiagnostics(): ResultAsync<TSDiagnostic[], Error> {
     return this.send<TSDiagnostic[]>('GET_DIAGNOSTICS')
   }
 
-  async getTypeInfo(offset: number) {
+  getTypeInfo(offset: number): ResultAsync<TypeInfo | undefined, Error> {
     return this.send<TypeInfo | undefined>('GET_TYPE_INFO', { offset })
   }
 
-  async getCompletions(offset: number) {
+  getCompletions(offset: number): ResultAsync<any[], Error> {
     return this.send<any[]>('GET_COMPLETIONS', { offset })
   }
 
-  async compile(code: string) {
-    return this.send<{ js: string; dts: string }>('COMPILE', { code })
+  generateDts(code: string): ResultAsync<string, Error> {
+    return this.send<string>('GENERATE_DTS', { code })
   }
 
-  async detectImports(code: string) {
+  detectImports(code: string): ResultAsync<string[], Error> {
     return this.send<string[]>('DETECT_IMPORTS', { code })
   }
 }

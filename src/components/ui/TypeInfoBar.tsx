@@ -235,7 +235,7 @@ function getKindLabel(kind: string): string {
     case 'primitive':
       return 'prim'
     default:
-      return kind ? kind.substring(0, 4) : ''
+      return (typeof kind === "string") ? kind.substring(0, 4) : ""
   }
 }
 

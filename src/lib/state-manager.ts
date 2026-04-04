@@ -60,7 +60,7 @@ class PlaygroundStore {
   }
 
   addToast(type: ToastType, message: string) {
-    const id = Math.random().toString(36).substring(2, 9)
+    const id = Math.random().toString(36).slice(2, 9)
     this.setState((prev) => ({
       toasts: [...prev.toasts, { id, type, message }],
     }))

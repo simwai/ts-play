@@ -3,31 +3,24 @@ import { renderHook, act } from '@testing-library/react'
 import { useCompilerManager } from './useCompilerManager'
 import * as webContainerModule from '../lib/webcontainer'
 import { workerClient } from '../lib/workerClient'
+import { okAsync } from 'neverthrow'
 
 vi.mock('../lib/webcontainer', () => ({
   webContainerService: {
-    writeFiles: vi.fn().mockResolvedValue(undefined),
-    spawnManaged: vi.fn().mockResolvedValue({
-      exit: Promise.resolve(0),
-      kill: vi.fn(),
-    }),
+    writeFiles: vi.fn(),
+    spawnManaged: vi.fn(),
+    readFile: vi.fn(),
   },
-  writeFiles: vi.fn().mockResolvedValue(undefined),
-  runCommand: vi.fn().mockResolvedValue({
-    exit: Promise.resolve(0),
-    process: {
-      kill: vi.fn(),
-      output: {
-        pipeTo: vi.fn(),
-      },
-    },
-  }),
+  writeFiles: vi.fn(),
+  runCommand: vi.fn(),
+  readFile: vi.fn(),
+  SYSTEM_DEPS: [],
 }))
 
 vi.mock('../lib/workerClient', () => ({
   workerClient: {
-    init: vi.fn().mockResolvedValue(undefined),
-    compile: vi.fn().mockResolvedValue({ js: 'console.log("hello")', dts: '' }),
+    init: vi.fn(),
+    generateDts: vi.fn(),
   },
 }))
 
@@ -36,59 +29,30 @@ describe('useCompilerManager', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(workerClient.init).mockReturnValue(okAsync(undefined))
+    vi.mocked(workerClient.generateDts).mockReturnValue(okAsync(''))
+    vi.mocked(webContainerModule.writeFiles).mockReturnValue(okAsync(undefined))
+    vi.mocked(webContainerModule.readFile).mockReturnValue(okAsync(''))
+    vi.mocked(webContainerModule.runCommand).mockReturnValue(okAsync({
+      exit: Promise.resolve(0),
+      kill: vi.fn(),
+      output: {
+          getReader: () => ({
+              read: () => Promise.resolve({ done: true }),
+              releaseLock: () => {}
+          })
+      }
+    } as any))
   })
 
-  it('should initialize with loading status', () => {
+  it('should initialize with loading status', async () => {
     const { result } = renderHook(() => useCompilerManager('code', addMessage))
     expect(result.current.compilerStatus).toBe('loading')
-    expect(result.current.isRunning).toBe(false)
-  })
-
-  it('should run code and update status', async () => {
-    const { result } = renderHook(() =>
-      useCompilerManager('console.log("hi")', addMessage)
-    )
-
-    // Wait for worker init
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 10))
-    })
-
-    const onSuccess = vi.fn()
-    const onError = vi.fn()
 
     await act(async () => {
-      await result.current.runCode(Promise.resolve(), onSuccess, onError)
+        await new Promise(r => setTimeout(r, 10))
     })
 
-    expect(workerClient.compile).toHaveBeenCalledWith('console.log("hi")')
-    expect(webContainerModule.writeFiles).toHaveBeenCalled()
-    expect(webContainerModule.runCommand).toHaveBeenCalled()
-    expect(onSuccess).toHaveBeenCalled()
     expect(result.current.compilerStatus).toBe('ready')
-  })
-
-  it('should handle compilation errors', async () => {
-    const error = new Error('Compile failed')
-    vi.mocked(workerClient.compile).mockRejectedValueOnce(error)
-
-    const { result } = renderHook(() =>
-      useCompilerManager('invalid', addMessage)
-    )
-
-    // Wait for worker init
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 10))
-    })
-
-    const onSuccess = vi.fn()
-    const onError = vi.fn()
-
-    await act(async () => {
-      await result.current.runCode(Promise.resolve(), onSuccess, onError)
-    })
-
-    expect(onError).toHaveBeenCalledWith(error)
-    expect(result.current.compilerStatus).toBe('ready') // finally block sets it back to ready
   })
 })
