@@ -17,6 +17,7 @@ export async function loadPrettier() {
         import('prettier/plugins/estree'),
         import('prettier/plugins/typescript'),
         import('prettier/plugins/postcss'),
+        import('prettier/plugins/babel'),
       ])
       prettier = p.default || p
       prettierPlugins = plugins.map((mod) => mod.default || mod)
@@ -48,6 +49,10 @@ export async function formatCode(
     console.warn('Formatting error:', error)
     return code
   }
+}
+
+export async function formatJson(json: string): Promise<string> {
+  return formatCode(json, 'json')
 }
 
 export async function formatAllFiles(

@@ -62,9 +62,14 @@ async function cachedCheckNpmPackage(pkgName: string): Promise<boolean> {
   if (PACKAGE_CHECK_CACHE.has(pkgName)) {
     return PACKAGE_CHECK_CACHE.get(pkgName)!
   }
-  const exists = await checkNpmPackage(pkgName)
-  PACKAGE_CHECK_CACHE.set(pkgName, exists)
-  return exists
+  try {
+    const exists = await checkNpmPackage(pkgName)
+    PACKAGE_CHECK_CACHE.set(pkgName, exists)
+    return exists
+  } catch {
+    PACKAGE_CHECK_CACHE.set(pkgName, false)
+    return false
+  }
 }
 
 export function usePackageManager(
@@ -87,6 +92,8 @@ export function usePackageManager(
   const pendingTypings = useRef<Record<string, string>>({})
   const typingUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const containerTypePaths = useRef<Set<string>>(new Set())
+
   const tsCursorPos = useRef(0)
   const checkImportsTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined
@@ -94,20 +101,23 @@ export function usePackageManager(
 
   const syncTypingsFromContainer = useCallback(async () => {
     try {
-      // Sync .d.ts files AND package.json files from node_modules.
-      // package.json files are crucial for modern module resolution (NodeNext/Bundler)
-      // as they define where the types live (e.g. zod)
-      const files = await webContainerService.readDirRecursive(
+      const types = await webContainerService.readDirRecursive(
         'node_modules',
         (path) => path.endsWith('.d.ts') || path.endsWith('package.json'),
-        15
+        6
       )
 
-      if (Object.keys(files).length > 0) {
-        setPackageTypings((prev) => ({
-          ...prev,
-          ...files,
-        }))
+      if (Object.keys(types).length > 0) {
+        const newPaths = new Set(Object.keys(types))
+        containerTypePaths.current = newPaths
+
+        setPackageTypings((prev) => {
+          const next = { ...prev }
+          for (const [path, content] of Object.entries(types)) {
+            next[path] = content
+          }
+          return next
+        })
       }
     } catch (error) {
       console.warn('[Package Manager] Container typing sync failed:', error)
@@ -154,7 +164,7 @@ export function usePackageManager(
       } catch (error) {
         console.error('Failed to detect imports:', error)
       }
-    }, 2500) // Debounce to 2.5s
+    }, 2500)
   }, [tsCode])
 
   useEffect(() => {
@@ -170,6 +180,11 @@ export function usePackageManager(
     })
   }, [])
 
+  const flushTypingsRef = useRef(flushTypings)
+  useEffect(() => {
+    flushTypingsRef.current = flushTypings
+  }, [flushTypings])
+
   useEffect(() => {
     if (!ataRef.current) {
       ataRef.current = setupTypeAcquisition({
@@ -178,18 +193,20 @@ export function usePackageManager(
         logger: false,
         delegate: {
           receivedFile: (code, path) => {
-            // Ensure absolute path for Monaco/Worker consistency
-            const normalizedPath = path.startsWith('/') ? path : '/' + path
-            pendingTypings.current[normalizedPath] = code
-            if (typingUpdateTimer.current)
-              clearTimeout(typingUpdateTimer.current)
-            typingUpdateTimer.current = setTimeout(flushTypings, 500)
+            if (containerTypePaths.current.has(path)) return
+
+            if (!path.startsWith('/node_modules/')) {
+              pendingTypings.current[path] = code
+              if (typingUpdateTimer.current)
+                clearTimeout(typingUpdateTimer.current)
+              typingUpdateTimer.current = setTimeout(() => flushTypingsRef.current(), 500)
+            }
           },
           errorMessage: (userFacingMessage, error) => {
             console.warn('ATA Warning:', userFacingMessage, error)
           },
           finished: () => {
-            flushTypings()
+            flushTypingsRef.current()
             setStatus('idle')
           },
           started: () => {
@@ -198,7 +215,7 @@ export function usePackageManager(
         },
       })
     }
-  }, [flushTypings])
+  }, []) // Remove flushTypings from deps to avoid re-init, using ref instead
 
   useEffect(() => {
     if (ataRef.current && tsCode) {
@@ -207,11 +224,8 @@ export function usePackageManager(
   }, [tsCode])
 
   useEffect(() => {
-    // Reconciliation logic
     const currentTargetNames = new Set(installedPackages.map((p) => p.name))
     const previouslyProcessedNames = previousPkgsRef.current
-
-    // Don't uninstall SYSTEM_DEPS
     const systemDepsSet = new Set(SYSTEM_DEPS)
 
     const toAdd = [...currentTargetNames].filter(
@@ -230,7 +244,21 @@ export function usePackageManager(
 
     const performChanges = async () => {
       try {
-        // 1. Resolve @types for new packages
+        await webContainerService.writeFile(
+          'package.json',
+          JSON.stringify(
+            {
+              name: 'playground-project',
+              type: 'module',
+              dependencies: Object.fromEntries(
+                [...currentTargetNames].map((p) => [p, 'latest'])
+              ),
+            },
+            null,
+            2
+          )
+        )
+
         const finalInstallList: string[] = []
         for (const pkg of toAdd) {
           const pkgExists = await cachedCheckNpmPackage(pkg)
@@ -251,7 +279,6 @@ export function usePackageManager(
           }
         }
 
-        // 2. Perform Uninstall
         if (toRemove.length > 0) {
           const typesToRemove = toRemove.map(getTypesPackageName)
           const allToRemove = [...toRemove, ...typesToRemove]
@@ -266,7 +293,6 @@ export function usePackageManager(
           await syncTypingsFromContainer()
         }
 
-        // 3. Perform Install
         if (finalInstallList.length > 0) {
           setStatus('installing')
           addMessage('info', [
@@ -294,7 +320,7 @@ export function usePackageManager(
       }
     }
 
-    installQueue.current = installQueue.current.then(performChanges)
+    installQueue.current = installQueue.current.then(performChanges).catch((error) => { console.error("Package queue failure:", error); setStatus("error"); addMessage("error", ["Package manager error: " + (error as Error).message]); })
   }, [
     installedPackages,
     addMessage,

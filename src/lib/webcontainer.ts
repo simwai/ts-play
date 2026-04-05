@@ -209,10 +209,11 @@ export class WebContainerService {
   async readDirRecursive(
     dir: string,
     filter?: (path: string) => boolean,
-    maxDepth = 10
+    maxDepth = 6, maxFiles = 2000
   ): Promise<Record<string, string>> {
     const instance = await this.getInstance()
     const results: Record<string, string> = {}
+    let fileCount = 0
 
     const read = async (currentPath: string, depth: number) => {
       if (depth > maxDepth) return
@@ -224,10 +225,15 @@ export class WebContainerService {
         for (const entry of entries) {
           const fullPath = currentPath + '/' + entry.name
 
-          // Skip common high-volume/hidden folders for performance
-          if (entry.name === '.git' || entry.name === '.husky') continue
+          if (
+            entry.name === '.git' ||
+            entry.name === '.husky' ||
+            entry.name === '.bin'
+          )
+            continue
 
           if (entry.isDirectory()) {
+          if (++fileCount > maxFiles) return
             await read(fullPath, depth + 1)
           } else if (!filter || filter(fullPath)) {
             const content = await instance.fs.readFile(fullPath, 'utf8')
@@ -252,11 +258,16 @@ export const getWebContainer = () => webContainerService.getInstance()
 export const writeFiles = (files: Record<string, string>) =>
   webContainerService.writeFiles(files)
 export const readFile = (path: string) => webContainerService.readFile(path)
-export const runCommand = (
+export const runCommand = async (
   cmd: string,
   args: string[],
   onOutput: (d: string) => void
-) => webContainerService.spawnManaged(cmd, args, { onLog: onOutput })
+): Promise<{ exit: Promise<number>; process: WebContainerProcess }> => {
+  const proc = await webContainerService.spawnManaged(cmd, args, {
+    onLog: onOutput,
+  })
+  return { exit: proc.exit, process: proc }
+}
 export const operationQueue = {
   add: <T>(task: () => Promise<T>) =>
     playgroundStore.enqueue('Background Task', task),

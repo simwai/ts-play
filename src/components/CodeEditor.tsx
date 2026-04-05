@@ -38,7 +38,7 @@ type CodeEditorProps = {
   hideGutter?: boolean
   fontSizeOverride?: number
   disableAutocomplete?: boolean
-  themeMode?: ThemeMode
+  theme?: ThemeMode
   path?: string
   lineWrap?: boolean
   extraLibs?: Record<string, string>
@@ -61,7 +61,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       hideGutter = false,
       fontSizeOverride,
       disableAutocomplete = false,
-      themeMode = 'mocha',
+      theme = 'mocha',
       path = 'file:///index.ts',
       lineWrap = true,
       extraLibs = {},
@@ -74,6 +74,8 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
   ) => {
     const editorRef = useRef<any>(null)
     const monaco = useMonaco()
+    const typeInfoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const prevLibKeysRef = useRef<Set<string>>(new Set())
 
     useImperativeHandle(ref, () => ({
       undo: () => editorRef.current?.trigger('keyboard', 'undo', null),
@@ -102,7 +104,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         target: monaco.languages.typescript.ScriptTarget.ESNext,
         allowNonTsExtensions: true,
         moduleResolution:
-          monaco.languages.typescript.ModuleResolutionKind.Bundler,
+        monaco.languages.typescript.ModuleResolutionKind.NodeJs,
         module: monaco.languages.typescript.ModuleKind.ESNext,
         noEmit: true,
         esModuleInterop: true,
@@ -122,71 +124,78 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
 
       editor.onDidChangeCursorPosition((e) => {
         const model = editor.getModel()
-        if (model) {
-          const offset = model.getOffsetAt(e.position)
-          onCursorChange?.(offset)
-          onCursorPosChange?.({
-            line: e.position.lineNumber,
-            col: e.position.column,
-          })
-        }
-      })
+        if (!model) return
 
-      editor.onDidChangeCursorPosition(async (e) => {
-        const model = editor.getModel()
-        if (!model || !onTypeInfoChange || hideTypeInfo) return
+        const offset = model.getOffsetAt(e.position)
+        onCursorChange?.(offset)
+        onCursorPosChange?.({
+          line: e.position.lineNumber,
+          col: e.position.column,
+        })
 
-        try {
-          const worker = await monaco.languages.typescript.getTypeScriptWorker()
-          const client = await worker(model.uri)
-          const offset = model.getOffsetAt(e.position)
+        if (!onTypeInfoChange || hideTypeInfo) return
 
-          const info = await client.getQuickInfoAtPosition(
-            model.uri.toString(),
-            offset
-          )
-          if (info) {
-            const displayParts = info.displayParts || []
-            const documentation = info.documentation || []
-            const text = displayParts.map((p) => p.text).join('')
-
-            const SYMBOL_KINDS = new Set([
-              'localName',
-              'variableName',
-              'parameterName',
-              'methodName',
-              'functionName',
-              'className',
-              'interfaceName',
-              'aliasName',
-              'propertyName',
-              'enumName',
-              'enumMemberName',
-              'moduleName',
-              'typeParameterName',
-            ])
-            const symbolPart = displayParts.find((p) =>
-              SYMBOL_KINDS.has(p.kind)
+        if (typeInfoTimerRef.current) clearTimeout(typeInfoTimerRef.current)
+        typeInfoTimerRef.current = setTimeout(async () => {
+          try {
+            const worker = await monaco.languages.typescript.getTypeScriptWorker()
+            const client = await worker(model.uri)
+            const info = await client.getQuickInfoAtPosition(
+              model.uri.toString(),
+              offset
             )
-            const name = symbolPart ? symbolPart.text : ''
 
-            onTypeInfoChange({
-              name,
-              kind: info.kind,
-              typeAnnotation: text,
-              jsDoc: documentation.map((d) => d.text).join('\n'),
-            })
-          } else {
+            if (info) {
+              const displayParts = info.displayParts || []
+              const documentation = info.documentation || []
+              const text = displayParts.map((p) => p.text).join('')
+
+              const SYMBOL_KINDS = new Set([
+                'localName',
+                'variableName',
+                'parameterName',
+                'methodName',
+                'functionName',
+                'className',
+                'interfaceName',
+                'aliasName',
+                'propertyName',
+                'enumName',
+                'enumMemberName',
+                'moduleName',
+                'typeParameterName',
+              ])
+              const symbolPart = displayParts.find((p) =>
+                SYMBOL_KINDS.has(p.kind)
+              )
+              const name = symbolPart ? symbolPart.text : ''
+
+              onTypeInfoChange({
+                name,
+                kind: info.kind,
+                typeAnnotation: text,
+                jsDoc: documentation.map((d) => d.text).join('\n'),
+              })
+            } else {
+              onTypeInfoChange(null)
+            }
+          } catch {
             onTypeInfoChange(null)
           }
-        } catch {
-          onTypeInfoChange(null)
-        }
+        }, 120)
       })
     }
 
     useEffect(() => {
       if (monaco) {
+        const nextKeys = new Set(Object.keys(extraLibs))
+        const hasChanges = nextKeys.size !== prevLibKeysRef.current.size ||
+          [...nextKeys].some(k => !prevLibKeysRef.current.has(k))
+
+        if (!hasChanges) return
+
+        prevLibKeysRef.current = nextKeys
+
         const libs = Object.entries(extraLibs)
           .map(([key, content]) => {
             let filePath = key
@@ -250,7 +259,6 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         padding: { top: 16, bottom: 16 },
         fixedOverflowWidgets: true,
         domReadOnly: isMobileLike,
-        // Ensure long-press works for native selection on mobile
         selectionHighlight: !isMobileLike,
         occurrencesHighlight: !isMobileLike,
         links: !isMobileLike,
@@ -269,7 +277,6 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       <div
         className='w-full h-full relative group'
         style={{
-          // Enable native text selection on mobile
           userSelect: isMobileLike ? 'text' : 'none',
           WebkitUserSelect: isMobileLike ? 'text' : 'none',
         }}
@@ -281,7 +288,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
           onChange={(v) => onChange?.(v || '')}
           onMount={handleEditorMount}
           beforeMount={handleBeforeMount}
-          theme={themeMode}
+          theme={theme}
           options={options}
           path={path}
         />

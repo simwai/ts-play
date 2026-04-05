@@ -1,48 +1,112 @@
 <!-- AGENT PROMPT: Please update this file after every message if it is relevant. Continuous updates ensure that the documentation accurately reflects the current state of the codebase, project specification, and architectural principles. -->
 
-# Architecture: TSPlay
+<div style="background-color: #1e1e2e; color: #cdd6f4; padding: 3rem; border-radius: 2rem; border: 2px solid #cba6f7; font-family: 'JetBrains Mono', 'Fira Code', monospace; line-height: 1.7; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);">
 
-A high-performance, browser-native TypeScript development environment.
+<h1 style="color: #cba6f7; font-size: 3rem; margin-top: 0; text-shadow: 0 0 20px rgba(203, 166, 247, 0.4);">✨ TSPlay Architecture</h1>
 
-## 🎨 Core Design Principles
+<p style="color: #94e2d5; font-style: italic; font-size: 1.1rem; margin-bottom: 2.5rem; border-left: 4px solid #cba6f7; padding-left: 1.5rem;">A high-fidelity, browser-native TypeScript development environment powered by WebContainers.</p>
 
-- **Single-Page Simplicity**: A focused, responsive UI that prioritizes code space.
-- **Worker-First Processing**: Offloading TypeScript Language Service and `esbuild` compilation to a dedicated Web Worker to maintain UI responsiveness.
-- **WebContainer Sandbox**: Utilizing Node.js-in-the-browser for high-fidelity execution and actual `npm` package support.
-- **Themed Experience**: Deep integration with Catppuccin and other popular syntax themes, spanning both the UI and the Monaco editor.
+<div style="background: rgba(49, 50, 68, 0.5); padding: 1.5rem; border-radius: 1rem; border: 1px solid rgba(203, 166, 247, 0.2); margin-bottom: 3rem;">
+<h3 style="color: #cba6f7; margin-top: 0; text-align: center;">🗺️ System Relationships</h3>
 
-## 📦 Package Management & Type Acquisition
+```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#cba6f7', 'primaryTextColor': '#cdd6f4', 'primaryBorderColor': '#cba6f7', 'lineColor': '#89b4fa', 'secondaryColor': '#313244', 'tertiaryColor': '#1e1e2e'}}}%%
+graph TD
+    subgraph "Main UI Thread (React 19)"
+        UI[User Interface]
+        STORE[PlaygroundStore]
+        WC_SVC[WebContainerService]
+        ED[Monaco Editor]
+        PM[Package Manager Hook]
+    end
 
-The playground implements a dual-layer strategy for managing dependencies and types:
+    subgraph "Web Worker"
+        TS[TS Language Service]
+        EB[esbuild-wasm]
+        WFS[Virtual FS / Module Resolution]
+    end
 
-### 1. The Reconciliation Loop
+    subgraph "WebContainer (Sandbox)"
+        NODE[Node.js Runtime]
+        NM[node_modules]
+        FS[Virtual Filesystem]
+    end
 
-To prevent "process storms" when users type rapidly, the `usePackageManager` hook utilizes a target-state reconciliation loop:
+    UI --> ED
+    UI --> STORE
+    PM --> WC_SVC
+    PM -- "detectImports" --> TS
+    WC_SVC --> NODE
+    WC_SVC --> FS
+    EB -- "compile" --> FS
+    NM -- "Sync Types" --> WFS
+    WFS --> ED
+    TS -- "Diagnostics/Info" --> UI
+    NM -- "Types" --> TS
 
-- **Debounced Detection**: Import statements are detected after a 2500ms settle period.
-- **Batching**: All necessary additions and removals are calculated and executed in single `npm install` or `npm uninstall` commands.
-- **Auto-Discovery**: The system automatically queries the npm registry for corresponding `@types/` packages and installs them alongside the main package.
+    style UI fill:#cba6f7,stroke:#1e1e2e,color:#1e1e2e
+    style TS fill:#cba6f7,stroke:#1e1e2e,color:#1e1e2e
+    style NODE fill:#cba6f7,stroke:#1e1e2e,color:#1e1e2e
+    style STORE fill:#89b4fa,stroke:#1e1e2e,color:#1e1e2e
+    style EB fill:#89b4fa,stroke:#1e1e2e,color:#1e1e2e
+    style NM fill:#89b4fa,stroke:#1e1e2e,color:#1e1e2e
+```
 
-### 2. Dual-Layer Typings
+</div>
 
-Types are provided to the Monaco editor from two sources:
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 3rem;">
+  <div style="background: rgba(49, 50, 68, 0.5); padding: 1.5rem; border-radius: 1rem; border: 1px solid rgba(203, 166, 247, 0.2);">
+    <h3 style="color: #89b4fa; margin-top: 0;">🌐 UI & Orchestration</h3>
+    <ul style="margin-bottom: 0; padding-left: 1.2rem;">
+      <li>React 19 Functional Core</li>
+      <li>Monaco Editor Integration</li>
+      <li>PlaygroundStore (Observable)</li>
+      <li>WebContainer Lifecycle Mgmt</li>
+    </ul>
+  </div>
+  <div style="background: rgba(49, 50, 68, 0.5); padding: 1.5rem; border-radius: 1rem; border: 1px solid rgba(203, 166, 247, 0.2);">
+    <h3 style="color: #89b4fa; margin-top: 0;">⚙️ Processing Engine</h3>
+    <ul style="margin-bottom: 0; padding-left: 1.2rem;">
+      <li>Dedicated TS Worker</li>
+      <li>esbuild-wasm (JS Emission)</li>
+      <li>TS Language Service (Types)</li>
+      <li>Virtual FS Module Resolution</li>
+    </ul>
+  </div>
+</div>
 
-- **ATA (Automatic Type Acquisition)**: Provides immediate, high-level types for the editor's Language Service.
-- **Container Sync**: After `npm` operations, the system recursively reads `.d.ts` files directly from the WebContainer's `node_modules` and injects them into the editor's virtual filesystem for 100% execution-to-editor parity.
+---
 
-## 🚀 Execution Pipeline
+<h2 style="color: #fab387; margin-top: 2.5rem;">📦 Dependency Reconciliation</h2>
 
-1. **Compilation**: Source code is passed to the Worker where `esbuild-wasm` generates JS and the TS Language Service generates `.d.ts` declarations.
-2. **Mounting**: Compiled assets are written to the WebContainer's virtual filesystem.
-3. **Execution**: The WebContainer spawns a `node` process. Output is streamed back to the UI Console with support for ANSI color codes and yielding mechanisms to prevent UI starvation.
+<p>To ensure a smooth typing experience, TSPlay implements a state-based reconciliation loop for <code>npm</code> packages:</p>
 
-## 🛠️ Tech Stack Breakdown
+<div style="background: rgba(30, 30, 46, 0.8); padding: 1.5rem; border-radius: 1rem; border: 1px solid #fab387; margin: 1.5rem 0;">
+  <code style="color: #a6e3a1;">Debounce (2.5s) ➜ Analyze Imports ➜ Calculate Delta ➜ Execute Batch ➜ Sync FS</code>
+</div>
 
-| Layer         | Technology                                |
-| :------------ | :---------------------------------------- |
-| **Framework** | React 19 (ESM)                            |
-| **Styling**   | Tailwind CSS (Catppuccin Palette)         |
-| **Editor**    | Monaco Editor                             |
-| **Bundler**   | esbuild-wasm                              |
-| **Runtime**   | @webcontainer/api                         |
-| **State**     | Custom Observable Store (PlaygroundStore) |
+- **Delta Calculation**: Identifies exactly which packages need to be added or removed.
+- **Auto-Types Discovery**: Automatically queries the npm registry for <code>@types/</code> equivalents.
+- **ESM Readiness**: Automatically manages <code>package.json</code> with <code>"type": "module"</code> to ensure seamless ES module execution in Node.js.
+
+---
+
+<h2 style="color: #fab387; margin-top: 2.5rem;">📂 Dual-Layer Type Parity</h2>
+
+<p>TSPlay achieves 100% execution-to-editor parity by synchronizing type definitions from two distinct layers:</p>
+
+1. <b style="color: #cba6f7;">ATA Layer</b>: High-speed, CDN-based type acquisition for immediate feedback during typing.
+2. <b style="color: #cba6f7;">Container Sync Layer</b>: A deep recursive crawl (up to 30 levels) of the WebContainer's <code>node_modules</code>. It synchronizes both <code>.d.ts</code> and <code>package.json</code> files, ensuring Monaco resolves types exactly like the Node.js runtime.
+
+---
+
+<h2 style="color: #fab387; margin-top: 2.5rem;">⚡ The Execution Sandbox</h2>
+
+<p>When you click <span style="background: #a6e3a1; color: #11111b; padding: 2px 8px; border-radius: 4px; font-weight: bold;">Run</span>, the following occurs:</p>
+
+- Code is compiled to ESM via <code>esbuild</code>.
+- Assets are mounted to the <b>WebContainer virtual filesystem</b>.
+- A <code>node</code> process is spawned within the browser's sandbox.
+- Output is streamed to the UI with full <b>ANSI color support</b> and yielding mechanisms to prevent UI starvation.
+
+</div>

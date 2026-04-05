@@ -4,6 +4,7 @@ import { loadPrettier } from '../lib/formatter'
 import { writeFiles, runCommand } from '../lib/webcontainer'
 import type { CompilerStatus } from '../lib/types'
 import type { WebContainerProcess } from '@webcontainer/api'
+import type { ConsoleMessage } from '../components/Console'
 
 export function useCompilerManager(
   tsCode: string,
@@ -12,6 +13,7 @@ export function useCompilerManager(
   const [compilerStatus, setCompilerStatus] =
     useState<CompilerStatus>('loading')
   const [isRunning, setIsRunning] = useState(false)
+  const isRunningRef = useRef(false)
   const currentProcess = useRef<WebContainerProcess | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -46,6 +48,7 @@ export function useCompilerManager(
       timeoutRef.current = null
     }
     setIsRunning(false)
+    isRunningRef.current = false
   }, [addMessage])
 
   const runCode = useCallback(
@@ -54,7 +57,8 @@ export function useCompilerManager(
       onSuccess: (js: string, dts: string) => void,
       onError: (error: Error) => void
     ) => {
-      if (isRunning) return
+      if (isRunningRef.current) return
+      isRunningRef.current = true
       setIsRunning(true)
       setCompilerStatus('compiling')
 
@@ -98,6 +102,7 @@ export function useCompilerManager(
             currentProcess.current = null
             addMessage('error', ['Execution timed out after 5 minutes.'])
             setIsRunning(false)
+            isRunningRef.current = false
             setCompilerStatus('ready')
           }
         }, 300000)
@@ -118,10 +123,11 @@ export function useCompilerManager(
         onError(error as Error)
       } finally {
         setIsRunning(false)
+        isRunningRef.current = false
         setCompilerStatus('ready')
       }
     },
-    [tsCode, addMessage, isRunning]
+    [tsCode, addMessage]
   )
 
   return { compilerStatus, isRunning, runCode, stopCode }
