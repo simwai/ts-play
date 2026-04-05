@@ -155,7 +155,6 @@ export class WebContainerService {
 
     ;(async () => {
       try {
-        let linesProcessedSinceYield = 0
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
@@ -181,13 +180,6 @@ export class WebContainerService {
               )
               if (!options.silent) this.emitLog('info', simplified)
               options.onLog?.(simplified)
-
-              linesProcessedSinceYield++
-              // Yield every 50 lines to keep UI responsive
-              if (linesProcessedSinceYield > 50) {
-                await new Promise((resolve) => setTimeout(resolve, 0))
-                linesProcessedSinceYield = 0
-              }
             }
           }
 

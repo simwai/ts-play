@@ -42,71 +42,31 @@
   2. Enhanced `CodeEditor` to explicitly support and implement `hideTypeInfo`, `disableDiagnostics`, and `disableShortcuts`.
   3. Implemented proper diagnostic toggling in Monaco for both TypeScript and JSON editors.
 
-## 2025-05-22: Blocked Native Context Menu on Mobile
+## 2025-05-22: Blocked Native Context Menu and Keyboard on Mobile
 
-- **Issue**: The browser's native context menu (for copy/paste/share) was blocked when long-pressing words in the editor on mobile devices.
-- **Cause**: Monaco Editor's custom hover tooltips and its internal context menu were intercepting the long-press event.
+- **Issue**: The browser's native context menu was blocked and the keyboard didn't open on mobile.
+- **Cause**: `domReadOnly: true` was used to allow native selection but blocked the keyboard. Monaco's internal context menu was also intercepting long-press.
 - **Solution**:
-  1. Specifically disabled Monaco's hover and context menu when `isMobileLike` is true.
-  2. Continued to provide essential symbol information via the Type Info Bar.
+  1. Set `domReadOnly: false` and `contextmenu: false` in Monaco options.
+  2. Forced `userSelect: text` on the editor container.
+  3. Disabled `autoImports` and `importSuggestions` in TypeScript compiler options to prevent auto-import code insertion while keeping IntelliSense.
 
-## 2025-05-22: Horizontal Scroll Blocked by Swipe Gesture
+## 2025-05-22: Delayed/Stale Type Information
 
-- **Issue**: Horizontal scrolling in the code editor (when line wrap was disabled) was impossible because any horizontal swipe was intercepted by the tab-switching logic.
-- **Cause**: `useSwipeTabs` was listening for touches on the entire editor container and didn't have specific enough exclusion logic.
+- **Issue**: Types installed via npm were not immediately visible (red squiggles remained).
+- **Cause**: The TypeScript Language Service in the worker was caching semantic information and not properly clearing it when new library files (`extraLibs`) were injected.
 - **Solution**:
-  1. Restructured `App.tsx` to place the swipe listener on the root container.
-  2. Refined `useSwipeTabs` to only trigger tab switches when the swipe originates from the Header, StatusBar, or TypeInfoBar/Console Header.
-  3. Excluded the Editor area from the swipe trigger.
+  1. Added `languageService.cleanupSemanticCache()` in the worker when `UPDATE_EXTRA_LIBS` or `UPDATE_CONFIG` is received.
+  2. Reduced debouncing in `usePackageManager` (1000ms), `useTSDiagnostics` (100ms), and ATA syncing (100ms) for a more "real-time" experience.
 
-## 2025-05-22: Chrome Browser Crash (Black Screen) on "Run"
+## 2025-05-22: "Black Screen of Death" Crash
 
-- **Issue**: Clicking "Run" would occasionally cause the browser tab to crash (turning completely black) on mobile Chrome.
-- **Cause**: Rapid, high-volume terminal output from the WebContainer was saturating the UI thread.
-- **Solution**:
-  1. Implemented a yielding mechanism in `WebContainerService.spawnManaged`.
-  2. Added a `setTimeout(resolve, 0)` yield after processing batches of output lines.
-
-## 2025-05-22: Type Info Bar "Empty Box" and Inaccurate Info
-
-- **Issue**: The Type Info Bar sometimes displayed an empty box for the "kind" tag, or failed to extract the symbol name correctly.
+- **Issue**: The entire page would turn black (or dark background color) and become unresponsive, especially in Private Browsing or restricted environments.
 - **Cause**:
-  1. Brittle regex-based name extraction in `CodeEditor.tsx`.
-  2. Missing mappings for many `ScriptElementKind` values.
-  3. Inconsistent logic between the Worker and the Editor.
+  1. `useLocalStorage` accessed `localStorage` without guards, throwing a `SecurityError` in restricted contexts.
+  2. Lack of an `ErrorBoundary` caused React to unmount the entire application upon any render-phase error.
 - **Solution**:
-  1. Synchronized name extraction logic using `displayParts.find(p => SYMBOL_KINDS.has(p.kind))`.
-  2. Expanded the `getKindLabel` and color/style mappings in `TypeInfoBar.tsx`.
-  3. Added fallbacks for empty names and handled 'keyword' kind specifically.
-
-## 2025-05-22: Syntax Theme Selection Regression
-
-- **Issue**: The ability to select syntax themes was accidentally removed during a UI simplification pass.
-- **Cause**:
-  1. Removal of the theme dropdown in `SettingsModal.tsx`.
-  2. `CodeEditor.tsx` was using hardcoded logic to switch themes.
-- **Solution**:
-  1. Restored the "Syntax Theme" dropdown in `SettingsModal.tsx`.
-  2. Updated `CodeEditor.tsx` to directly apply the `themeMode` string to Monaco's theme.
-  3. Ensured `themeMode` and `setThemeMode` are correctly propagated from `App.tsx`.
-
-## 2025-05-22: Non-working .d.ts Emission
-
-- **Issue**: The `.d.ts` tab often showed manually filtered "export" lines rather than accurate TypeScript declaration files.
-- **Cause**: The `COMPILE` action in `worker.ts` was using a simple regex-based helper instead of the Language Service.
-- **Solution**:
-  1. Enabled `declaration: true` in `compilerOptions`.
-  2. Updated the `COMPILE` message handler to call `languageService.getEmitOutput('main.ts', true)` and extract the `.d.ts` file from the output.
-
-## 2025-05-24: Excessive NPM Installs and Missing @types
-
-- **Issue**: Rapid typing caused dozens of queued npm installs/uninstalls. @types packages were not being installed automatically in the WebContainer.
-- **Cause**:
-  1. Short debounce (1s) in import detection.
-  2. Sequential execution of every individual import change without batching or cancellation.
-  3. No logic to check for or include @types packages in the install command.
-- **Solution**:
-  1. Increased import detection debounce to 2500ms.
-  2. Implemented a target-state reconciliation loop that batches all additions and removals into single npm commands.
-  3. Added an npm registry check to verify package existence and automatically discover/install @types/ versions.
-  4. Added warnings (controllable via settings) for missing packages or types.
+  1. Added try-catch guards to all `localStorage` access in `useLocalStorage.ts`.
+  2. Wrapped the root application in an `ErrorBoundary` in `main.tsx`.
+  3. Added a blocking inline script in `index.html` to apply the theme class before the first paint, preventing FOUC.
+  4. Removed redundant and conflicting `package.json` writing logic from `App.tsx` to simplify initialization.

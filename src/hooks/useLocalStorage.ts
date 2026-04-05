@@ -20,7 +20,8 @@ export function useLocalStorage<T>(
       } catch {
         return item as unknown as T
       }
-    } catch {
+    } catch (e) {
+      console.warn('[useLocalStorage] Initializer failed for key "' + key + '":', e)
       return initialValue
     }
   })
@@ -31,8 +32,9 @@ export function useLocalStorage<T>(
         key,
         typeof value === 'string' ? value : JSON.stringify(value)
       )
-    } catch {
-      /* quota / security — silently ignore */
+    } catch (e) {
+      /* silently ignore quota / security errors */
+      console.warn('[useLocalStorage] Setter failed for key "' + key + '":', e)
     }
   }, [key, value])
 
