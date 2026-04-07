@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "format": "prettier -w .",
-    "check-quality": "knip && madge --circular --extensions ts,tsx src/",
+    "check-quality": "knip && madge --orphans --circular --extensions ts,tsx src/",
+    "type-check": "tsc --noEmit",
     "prepare": "husky",
     "test": "vitest --run"
   },
