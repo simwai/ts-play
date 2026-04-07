@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import type { ConsoleMessage } from '../components/Console'
 
 export function useConsoleManager() {
@@ -7,6 +7,7 @@ export function useConsoleManager() {
 
   const addMessage = useCallback(
     (type: ConsoleMessage['type'], args: unknown[]) => {
+      // Filter out internal React error noise
       if (
         type === 'error' &&
         args.some(
@@ -18,17 +19,35 @@ export function useConsoleManager() {
       }
 
       const formatted = args.map((a) => {
-        if (a instanceof Error) return a.stack || a.message
-        if (typeof a === 'string') return a
-        try {
-          return JSON.stringify(a, null, 2)
-        } catch {
-          return String(a)
+        let result = ''
+        if (a instanceof Error) {
+          result = a.stack || a.message
+        } else if (typeof a === 'string') {
+          result = a
+        } else {
+          try {
+            result = JSON.stringify(a, null, 2)
+          } catch {
+            result = String(a)
+          }
         }
+
+        // Truncate individual messages to prevent UI hangs with huge objects/strings
+        if (result.length > 5000) {
+          result = result.slice(0, 5000) + '... (truncated)'
+        }
+
+        return result
       })
-      setMessages((previous) =>
-        [...previous, { type, args: formatted, ts: Date.now() }].slice(-500)
-      )
+
+      setMessages((previous) => {
+        // Keep only the last 200 messages for mobile stability
+        const next = [...previous, { type, args: formatted, ts: Date.now() }]
+        if (next.length > 200) {
+          return next.slice(-200)
+        }
+        return next
+      })
     },
     []
   )

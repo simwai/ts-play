@@ -1,3 +1,4 @@
+import { type TypeInfo } from '../lib/types'
 import Editor, {
   type BeforeMount,
   type OnMount,
@@ -18,54 +19,77 @@ import {
   monokai,
   shadesOfPurple,
 } from '../lib/monaco-themes'
-import { type ThemeMode, isDarkMode } from '../lib/theme'
+import { type ThemeMode } from '../lib/theme'
 
-export type CodeEditorHandle = {
+export type CodeEditorRef = {
   undo: () => void
   redo: () => void
+  jumpTo: (line: number, col: number) => void
 }
 
 type CodeEditorProps = {
   value: string
   onChange?: (value: string) => void
   onCursorChange?: (offset: number) => void
+  onCursorPosChange?: (pos: { line: number; col: number }) => void
+  onTypeInfoChange?: (info: TypeInfo | null) => void
   language?: 'typescript' | 'javascript' | 'json'
   readOnly?: boolean
   hideGutter?: boolean
   fontSizeOverride?: number
   disableAutocomplete?: boolean
-  themeMode?: ThemeMode
+  theme?: ThemeMode
   path?: string
   lineWrap?: boolean
   extraLibs?: Record<string, string>
   isMobileLike?: boolean
+  hideTypeInfo?: boolean
+  disableDiagnostics?: boolean
+  disableShortcuts?: boolean
 }
 
-export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
+export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
   (
     {
       value,
       onChange,
       onCursorChange,
+      onCursorPosChange,
+      onTypeInfoChange,
       language = 'typescript',
       readOnly = false,
       hideGutter = false,
       fontSizeOverride,
       disableAutocomplete = false,
-      themeMode = 'mocha',
+      theme = 'mocha',
       path = 'file:///index.ts',
       lineWrap = true,
       extraLibs = {},
       isMobileLike = false,
+      hideTypeInfo = false,
+      disableDiagnostics = false,
+      disableShortcuts = false,
     },
     ref
   ) => {
     const editorRef = useRef<any>(null)
     const monaco = useMonaco()
+    const typeInfoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const prevLibKeysRef = useRef<Set<string>>(new Set())
 
     useImperativeHandle(ref, () => ({
       undo: () => editorRef.current?.trigger('keyboard', 'undo', null),
       redo: () => editorRef.current?.trigger('keyboard', 'redo', null),
+      jumpTo: (line, col) => {
+        if (editorRef.current) {
+          editorRef.current.revealPositionInCenter({
+            lineNumber: line,
+            column: col,
+          })
+          editorRef.current.setPosition({ lineNumber: line, column: col })
+          editorRef.current.focus()
+        }
+      },
     }))
 
     const handleBeforeMount: BeforeMount = (monaco) => {
@@ -81,13 +105,17 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
         allowNonTsExtensions: true,
         moduleResolution:
           monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-        module: monaco.languages.typescript.ModuleKind.CommonJS,
+        module: monaco.languages.typescript.ModuleKind.ESNext,
         noEmit: true,
         esModuleInterop: true,
-        jsx: monaco.languages.typescript.JsxEmit.React,
-        reactNamespace: 'React',
+        jsx: monaco.languages.typescript.JsxEmit.ReactJSX,
         allowJs: true,
         typeRoots: ['node_modules/@types'],
+        baseUrl: 'file:///',
+        resolveJsonModule: true,
+        paths: {
+          '*': ['node_modules/*'],
+        },
       })
     }
 
@@ -96,71 +124,116 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
 
       editor.onDidChangeCursorPosition((e) => {
         const model = editor.getModel()
-        if (model) {
-          const offset = model.getOffsetAt(e.position)
-          onCursorChange?.(offset)
-          onCursorPosChange?.({
-            line: e.position.lineNumber,
-            col: e.position.column,
-          })
-        }
-      })
+        if (!model) return
 
-      editor.onDidChangeCursorPosition(async (e) => {
-        const model = editor.getModel()
-        if (!model || !onTypeInfoChange) return
+        const offset = model.getOffsetAt(e.position)
+        onCursorChange?.(offset)
+        onCursorPosChange?.({
+          line: e.position.lineNumber,
+          col: e.position.column,
+        })
 
-        try {
-          const worker = await monaco.languages.typescript.getTypeScriptWorker()
-          const client = await worker(model.uri)
-          const offset = model.getOffsetAt(e.position)
+        if (!onTypeInfoChange || hideTypeInfo) return
 
-          const info = await client.getQuickInfoAtPosition(
-            model.uri.toString(),
-            offset
-          )
-          if (info) {
-            const displayParts = info.displayParts || []
-            const documentation = info.documentation || []
-            const text = displayParts.map((p) => p.text).join('')
-
-            const nameMatch = text.match(
-              /^(?:const|let|var|function|class|interface|type|enum)\s+([^\s:(]+)/
+        if (typeInfoTimerRef.current) clearTimeout(typeInfoTimerRef.current)
+        typeInfoTimerRef.current = setTimeout(async () => {
+          try {
+            const worker =
+              await monaco.languages.typescript.getTypeScriptWorker()
+            const client = await worker(model.uri)
+            const info = await client.getQuickInfoAtPosition(
+              model.uri.toString(),
+              offset
             )
-            const name = nameMatch ? nameMatch[1] : ''
 
-            onTypeInfoChange({
-              name,
-              kind: info.kind,
-              type: text,
-              documentation: documentation.map((d) => d.text).join('\n'),
-            })
-          } else {
+            if (info) {
+              const displayParts = info.displayParts || []
+              const documentation = info.documentation || []
+              const text = displayParts.map((p) => p.text).join('')
+
+              const SYMBOL_KINDS = new Set([
+                'localName',
+                'variableName',
+                'parameterName',
+                'methodName',
+                'functionName',
+                'className',
+                'interfaceName',
+                'aliasName',
+                'propertyName',
+                'enumName',
+                'enumMemberName',
+                'moduleName',
+                'typeParameterName',
+              ])
+              const symbolPart = displayParts.find((p) =>
+                SYMBOL_KINDS.has(p.kind)
+              )
+              const name = symbolPart ? symbolPart.text : ''
+
+              onTypeInfoChange({
+                name,
+                kind: info.kind,
+                typeAnnotation: text,
+                jsDoc: documentation.map((d) => d.text).join('\n'),
+              })
+            } else {
+              onTypeInfoChange(null)
+            }
+          } catch {
             onTypeInfoChange(null)
           }
-        } catch {
-          onTypeInfoChange(null)
-        }
+        }, 120)
       })
     }
 
     useEffect(() => {
       if (monaco) {
-        const libs = Object.entries(extraLibs).map(([key, content]) => ({
-          content,
-          filePath: key.startsWith('file://')
-            ? key
-            : `file:///node_modules/@types/${key}/index.d.ts`,
-        }))
+        const nextKeys = new Set(Object.keys(extraLibs))
+        const hasChanges =
+          nextKeys.size !== prevLibKeysRef.current.size ||
+          [...nextKeys].some((k) => !prevLibKeysRef.current.has(k))
+
+        if (!hasChanges) return
+
+        prevLibKeysRef.current = nextKeys
+
+        const libs = Object.entries(extraLibs)
+          .map(([key, content]) => {
+            let filePath = key
+            if (!filePath.startsWith('file://')) {
+              filePath = `file://${filePath.startsWith('/') ? '' : '/'}${filePath}`
+            }
+            if (filePath === 'file:///index.d.ts') return null
+            return { content, filePath }
+          })
+          .filter(Boolean)
         monaco.languages.typescript.typescriptDefaults.setExtraLibs(libs as any)
       }
     }, [monaco, extraLibs])
+
+    useEffect(() => {
+      if (!monaco) return
+
+      if (language === 'typescript') {
+        monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+          noSemanticValidation: disableDiagnostics,
+          noSyntaxValidation: disableDiagnostics,
+        })
+      } else if (language === 'json') {
+        monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+          validate: !disableDiagnostics,
+          allowComments: true,
+        })
+      }
+    }, [monaco, disableDiagnostics, language])
 
     const options = useMemo(
       () => ({
         minimap: { enabled: false },
         fontSize: fontSizeOverride || (isMobileLike ? 12 : 14),
-        fontFamily: "'Fira Code', 'Cascadia Code', Consolas, monospace",
+        fontFamily:
+          "'JetBrains Mono', 'Victor Mono', 'Fira Code', 'Cascadia Code', monospace",
         fontLigatures: true,
         cursorBlinking: 'smooth' as const,
         cursorSmoothCaretAnimation: 'on' as const,
@@ -183,9 +256,14 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
         hideCursorInOverviewRuler: true,
         renderLineHighlight: 'all' as const,
         suggestOnTriggerCharacters: !disableAutocomplete,
+        hover: { enabled: !isMobileLike },
         wordWrap: lineWrap ? ('on' as const) : ('off' as const),
         padding: { top: 16, bottom: 16 },
         fixedOverflowWidgets: true,
+        domReadOnly: isMobileLike,
+        selectionHighlight: !isMobileLike,
+        occurrencesHighlight: !isMobileLike,
+        links: !isMobileLike,
       }),
       [
         readOnly,
@@ -198,7 +276,13 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
     )
 
     return (
-      <div className='w-full h-full relative group'>
+      <div
+        className='w-full h-full relative group'
+        style={{
+          userSelect: isMobileLike ? 'text' : 'none',
+          WebkitUserSelect: isMobileLike ? 'text' : 'none',
+        }}
+      >
         <Editor
           height='100%'
           language={language}
@@ -206,13 +290,7 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
           onChange={(v) => onChange?.(v || '')}
           onMount={handleEditorMount}
           beforeMount={handleBeforeMount}
-          theme={
-            themeMode === 'mocha'
-              ? 'mocha'
-              : isDarkMode(themeMode)
-                ? 'github-dark'
-                : 'github-light'
-          }
+          theme={theme}
           options={options}
           path={path}
         />

@@ -2,20 +2,6 @@ import { WebContainer, type WebContainerProcess } from '@webcontainer/api'
 import { playgroundStore } from './state-manager'
 import { RegexPatterns, toRegExp } from './regex'
 
-export type EnvironmentStatus =
-  | 'idle'
-  | 'booting'
-  | 'preparing'
-  | 'ready'
-  | 'error'
-export type CompilerStatus =
-  | 'Idle'
-  | 'Preparing'
-  | 'Running'
-  | 'Compiling'
-  | 'Ready'
-  | 'Error'
-
 export const SYSTEM_DEPS = [
   'typescript',
   'esbuild',
@@ -39,7 +25,7 @@ export class WebContainerService {
     if (this.bootPromise) return this.bootPromise
 
     this.bootPromise = (async () => {
-      playgroundStore.setState({ lifecycle: 'booting' })
+      playgroundStore.setState({ compilerStatus: 'loading' })
       this.emitLog('info', 'Booting WebContainer...')
       const instance = await WebContainer.boot()
       this.instance = instance
@@ -49,6 +35,21 @@ export class WebContainerService {
         this.serverUrl = url
         this.emitLog('info', 'Server ready: ' + url + ' (port ' + port + ')')
       })
+
+      // Initialize with a default package.json to avoid Node.js warnings and set ESM mode
+      await instance.fs.writeFile(
+        'package.json',
+        JSON.stringify(
+          {
+            name: 'ts-play-project',
+            version: '1.0.0',
+            type: 'module',
+            dependencies: {},
+          },
+          null,
+          2
+        )
+      )
 
       return instance
     })()
@@ -70,8 +71,11 @@ export class WebContainerService {
     )
   }
 
-  async enqueue<T>(task: (instance: WebContainer) => Promise<T>): Promise<T> {
-    return playgroundStore.enqueue(async () => {
+  async enqueue<T>(
+    actionName: string,
+    task: (instance: WebContainer) => Promise<T>
+  ): Promise<T> {
+    return playgroundStore.enqueue(actionName, async () => {
       const instance = await this.getInstance()
       return task(instance)
     })
@@ -95,7 +99,6 @@ export class WebContainerService {
   async exportSnapshot(): Promise<Uint8Array> {
     const instance = await this.getInstance()
     this.emitLog('info', 'Exporting environment snapshot...')
-    // Use binary format to avoid JSON serialization issues and reduce size
     const snapshot = (await instance.export('.', {
       format: 'binary',
     })) as Uint8Array
@@ -120,9 +123,7 @@ export class WebContainerService {
         currentPath += (currentPath ? '/' : '') + parts[i]
         try {
           await instance.fs.mkdir(currentPath, { recursive: true })
-        } catch {
-          // Directory might already exist
-        }
+        } catch {}
       }
     }
 
@@ -138,16 +139,6 @@ export class WebContainerService {
   async readFile(path: string) {
     const instance = await this.getInstance()
     return instance.fs.readFile(path, 'utf8')
-  }
-
-  async getEnvReady() {
-    return new Promise<void>((resolve) => {
-      const check = () => {
-        if (playgroundStore.getState().lifecycle === 'ready') resolve()
-        else setTimeout(check, 100)
-      }
-      check()
-    })
   }
 
   async spawnManaged(
@@ -168,39 +159,38 @@ export class WebContainerService {
           const { done, value } = await reader.read()
           if (done) break
 
-          let chunk = value as any
-          if (value instanceof Uint8Array) {
-            chunk = decoder.decode(value, { stream: true })
+          let chunk = value as unknown
+          if (chunk instanceof Uint8Array) {
+            chunk = decoder.decode(chunk, { stream: true })
           }
 
           currentLineBuffer += chunk
           const lines = currentLineBuffer.split(toRegExp(RegexPatterns.NEWLINE))
 
-          const last = lines[lines.length - 1]
-          const hasIncompleteAnsi = toRegExp(
-            RegexPatterns.INCOMPLETE_ANSI
-          ).test(last)
+          const last = lines[lines.length - 1] ?? ''
+          if (last) {
+            const hasIncompleteAnsi = toRegExp(
+              RegexPatterns.INCOMPLETE_ANSI
+            ).test(last)
 
-          if (!hasIncompleteAnsi) {
-            currentLineBuffer = lines.pop() || ''
-            for (const line of lines) {
-              const simplified = line.replace(
-                toRegExp(RegexPatterns.EXCESSIVE_WHITESPACE),
-                '    '
-              )
-              if (!options.silent) this.emitLog('info', simplified)
-              options.onLog?.(simplified)
+            const processLines = async (linesToProc: string[]) => {
+              for (const line of linesToProc) {
+                const simplified = line.replace(
+                  toRegExp(RegexPatterns.EXCESSIVE_WHITESPACE),
+                  '    '
+                )
+                if (!options.silent) this.emitLog('info', simplified)
+                options.onLog?.(simplified)
+              }
             }
-          } else {
-            const completeLines = lines.slice(0, -1)
-            currentLineBuffer = lines[lines.length - 1]
-            for (const line of completeLines) {
-              const simplified = line.replace(
-                toRegExp(RegexPatterns.EXCESSIVE_WHITESPACE),
-                '    '
-              )
-              if (!options.silent) this.emitLog('info', simplified)
-              options.onLog?.(simplified)
+
+            if (!hasIncompleteAnsi) {
+              currentLineBuffer = lines.pop() || ''
+              await processLines(lines)
+            } else {
+              const completeLines = lines.slice(0, -1)
+              currentLineBuffer = lines[lines.length - 1] ?? ''
+              await processLines(completeLines)
             }
           }
         }
@@ -220,49 +210,68 @@ export class WebContainerService {
 
   async readDirRecursive(
     dir: string,
-    filter?: (path: string) => boolean
+    filter?: (path: string) => boolean,
+    maxDepth = 6,
+    maxFiles = 2000
   ): Promise<Record<string, string>> {
     const instance = await this.getInstance()
     const results: Record<string, string> = {}
+    let fileCount = 0
 
-    const read = async (currentPath: string) => {
+    const read = async (currentPath: string, depth: number) => {
+      if (depth > maxDepth) return
+
       try {
         const entries = await instance.fs.readdir(currentPath, {
           withFileTypes: true,
         })
         for (const entry of entries) {
           const fullPath = currentPath + '/' + entry.name
+
+          if (
+            entry.name === '.git' ||
+            entry.name === '.husky' ||
+            entry.name === '.bin'
+          )
+            continue
+
           if (entry.isDirectory()) {
-            await read(fullPath)
+            if (++fileCount > maxFiles) return
+            await read(fullPath, depth + 1)
           } else if (!filter || filter(fullPath)) {
             const content = await instance.fs.readFile(fullPath, 'utf8')
-            // Keep the full path relative to the root for Monaco
-            const monacoPath = fullPath.startsWith('./')
-              ? fullPath.slice(2)
-              : fullPath
-            results[monacoPath] = content
+            // Monaco path normalization: always absolute from root
+            const absolutePath = fullPath.startsWith('/')
+              ? fullPath
+              : '/' + fullPath
+            results[absolutePath] = content
           }
         }
       } catch {}
     }
 
-    await read(dir)
+    await read(dir, 0)
     return results
   }
 }
 
 export const webContainerService = new WebContainerService()
 
-// For backward compatibility during migration
 export const getWebContainer = () => webContainerService.getInstance()
 export const writeFiles = (files: Record<string, string>) =>
   webContainerService.writeFiles(files)
 export const readFile = (path: string) => webContainerService.readFile(path)
-export const runCommand = (
+export const runCommand = async (
   cmd: string,
   args: string[],
   onOutput: (d: string) => void
-) => webContainerService.spawnManaged(cmd, args, { onLog: onOutput })
+): Promise<{ exit: Promise<number>; process: WebContainerProcess }> => {
+  const proc = await webContainerService.spawnManaged(cmd, args, {
+    onLog: onOutput,
+  })
+  return { exit: proc.exit, process: proc }
+}
 export const operationQueue = {
-  add: <T>(task: () => Promise<T>) => playgroundStore.enqueue(task),
+  add: <T>(task: () => Promise<T>) =>
+    playgroundStore.enqueue('Background Task', task),
 }

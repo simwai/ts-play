@@ -15,7 +15,26 @@
       rel="alternate icon"
       href="/favicon.ico"
     />
+    <script>
+      // Runs before any paint — no FOUC
+      try {
+        const dark = localStorage.getItem('tsplay_is_dark')
+        if (dark === null || JSON.parse(dark)) {
+          document.documentElement.classList.add('dark')
+        } else {
+          document.documentElement.classList.remove('dark')
+        }
+      } catch {}
+    </script>
     <title>TS Playground</title>
+    <script>
+      try {
+        const dark = localStorage.getItem('tsplay_is_dark')
+        if (dark === null || JSON.parse(dark) === true) {
+          document.documentElement.classList.add('dark')
+        }
+      } catch {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

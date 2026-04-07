@@ -2,15 +2,14 @@
   "extends": "@sindresorhus/tsconfig",
   "compilerOptions": {
     "target": "es2023",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "lib": ["ESNext", "WebWorker"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "incremental": true,
-    /* Path mapping */
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["**/*.ts"]

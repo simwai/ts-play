@@ -35,3 +35,6 @@ snippets/*.json
 tsconfig.tsbuildinfo
 .aider*
 *.old
+*.py
+*.patch
+*.txt

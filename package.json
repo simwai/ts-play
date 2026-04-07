@@ -10,12 +10,12 @@
     "format": "prettier -w .",
     "check-quality": "knip && madge --circular --extensions ts,tsx src/",
     "prepare": "husky",
-    "test:browser": "vitest --config=vitest.browser.config.ts"
+    "test": "vitest --run"
   },
   "engines": {
     "node": ">=20.19.0 <21 || >=22.12.0"
   },
-  "packageManager": "pnpm",
+  "packageManager": "pnpm@10.32.1",
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "@sindresorhus/tsconfig": "^8.1.0",
@@ -29,6 +29,7 @@
     "prettier": "^3.8.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-error-boundary": "^6.1.1",
     "tailwind-merge": "3.4.0"
   },
   "browserslist": [

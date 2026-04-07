@@ -6,6 +6,9 @@ vi.mock('@webcontainer/api', () => ({
     boot: vi.fn().mockResolvedValue({
       export: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3])),
       on: vi.fn(),
+      fs: {
+        writeFile: vi.fn().mockResolvedValue(undefined),
+      },
     }),
   },
 }))

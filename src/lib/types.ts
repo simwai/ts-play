@@ -27,11 +27,18 @@ export type ConsoleMessage = {
 
 export type CompilerStatus =
   | 'loading'
-  | 'ready'
-  | 'error'
+  | 'preparing'
   | 'compiling'
   | 'running'
-export type PackageManagerStatus = 'idle' | 'installing' | 'syncing' | 'error'
+  | 'ready'
+  | 'error'
+
+export type PackageManagerStatus =
+  | 'idle'
+  | 'installing'
+  | 'uninstalling'
+  | 'syncing'
+  | 'error'
 
 export type ToastType = 'success' | 'info' | 'error'
 

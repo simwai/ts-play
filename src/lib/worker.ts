@@ -1,78 +1,62 @@
-import * as esbuild from 'esbuild-wasm'
-import esbuildWasmUrl from 'esbuild-wasm/esbuild.wasm?url'
 import * as TS from 'typescript'
+import * as esbuild from 'esbuild-wasm'
 
-// Basic libs - core TS
-import lib_es5_d_ts from 'typescript/lib/lib.es5.d.ts?raw'
-import lib_es2020_d_ts from 'typescript/lib/lib.es2020.d.ts?raw'
-import lib_dom_d_ts from 'typescript/lib/lib.dom.d.ts?raw'
+const esbuildWasmUrl = new URL('esbuild-wasm/esbuild.wasm', import.meta.url)
+  .href
+let isEsbuildInitialized = false
 
 let languageService: TS.LanguageService | undefined
-let isEsbuildInitialized = false
-let workerInitializationPromise: Promise<void> | undefined
-
-const virtualFiles: Record<string, { version: number; content: string }> = {}
-const defaultLibraryFiles: Record<string, string> = {
-  'lib.es5.d.ts': lib_es5_d_ts,
-  'lib.es2020.d.ts': lib_es2020_d_ts,
-  'lib.dom.d.ts': lib_dom_d_ts,
-}
-
 let compilerOptions: TS.CompilerOptions = {
-  target: TS.ScriptTarget.ES2020,
+  target: TS.ScriptTarget.ESNext,
   module: TS.ModuleKind.ESNext,
-  moduleResolution: TS.ModuleResolutionKind.NodeNext,
-  resolveJsonModule: true,
-  allowImportingTsExtensions: true,
-  esModuleInterop: true,
+  moduleResolution: TS.ModuleResolutionKind.Bundler,
+  lib: ['lib.esnext.d.ts', 'lib.dom.d.ts'],
   strict: true,
+  esModuleInterop: true,
   skipLibCheck: true,
+  allowJs: true,
   jsx: TS.JsxEmit.ReactJSX,
-  noImplicitAny: false,
+  declaration: true,
   baseUrl: '/',
   paths: {
     '*': ['node_modules/*'],
   },
 }
 
+const virtualFiles: Record<string, { content: string; version: number }> = {}
 let externalPackageDefinitions: Record<string, string> = {}
 let externalPackageVersion = 0
 
-// Helper to normalize paths for the LS host
-const normalizePath = (p: string) => (p.startsWith('/') ? p : '/' + p)
+const defaultLibraryFiles: Record<string, string> = {}
+let workerInitializationPromise: Promise<void> | null = null
 
 async function initializeLanguageService() {
-  if (languageService) return
-
   const host: TS.LanguageServiceHost = {
     getScriptFileNames: () => [
       '/main.ts',
-      ...Object.keys(defaultLibraryFiles).map((f) => '/' + f),
-      ...Object.keys(externalPackageDefinitions).map(normalizePath),
+      ...Object.keys(externalPackageDefinitions),
     ],
-    getScriptVersion: (fileName) => {
-      const normalized = fileName.startsWith('/') ? fileName : '/' + fileName
+    getScriptVersion: (path) => {
+      const normalized = path.startsWith('/') ? path : '/' + path
       if (normalized === '/main.ts')
-        return String(virtualFiles['main.ts']?.version ?? 0)
-      if (
-        externalPackageDefinitions[normalized] ||
-        externalPackageDefinitions[normalized.substring(1)]
-      )
+        return String(virtualFiles['/main.ts']?.version || 0)
+      if (externalPackageDefinitions[normalized])
         return String(externalPackageVersion)
+      if (normalized.startsWith('/lib.')) return '1'
       return '0'
     },
-    getScriptSnapshot: (fileName) => {
+    getScriptSnapshot: (path) => {
       let content: string | undefined
-      const normalized = fileName.startsWith('/') ? fileName : '/' + fileName
+      const normalized = path.startsWith('/') ? path : '/' + path
 
       if (normalized === '/main.ts') {
-        content = virtualFiles['main.ts']?.content
-      } else if (defaultLibraryFiles[normalized.substring(1)]) {
+        content = virtualFiles['/main.ts']?.content
+      } else if (normalized.startsWith('/lib.')) {
         content = defaultLibraryFiles[normalized.substring(1)]
+      } else if (normalized === '/lib.d.ts') {
+        content = defaultLibraryFiles['lib.d.ts']
       } else {
-        content =
-          externalPackageDefinitions[normalized] ||
-          externalPackageDefinitions[normalized.substring(1)]
+        content = externalPackageDefinitions[normalized]
       }
 
       return content !== undefined
@@ -81,13 +65,13 @@ async function initializeLanguageService() {
     },
     getCurrentDirectory: () => '/',
     getCompilationSettings: () => compilerOptions,
-    getDefaultLibFileName: () => '/lib.es2020.d.ts',
+    getDefaultLibFileName: () => '/lib.esnext.d.ts',
     fileExists: (path) => {
       const normalized = path.startsWith('/') ? path : '/' + path
       return !!(
         externalPackageDefinitions[normalized] ||
-        externalPackageDefinitions[normalized.substring(1)] ||
         defaultLibraryFiles[normalized.substring(1)] ||
+        (normalized === '/lib.d.ts' && defaultLibraryFiles['lib.d.ts']) ||
         normalized === '/main.ts'
       )
     },
@@ -95,31 +79,30 @@ async function initializeLanguageService() {
       const normalized = path.startsWith('/') ? path : '/' + path
       return (
         externalPackageDefinitions[normalized] ||
-        externalPackageDefinitions[normalized.substring(1)] ||
         defaultLibraryFiles[normalized.substring(1)] ||
         (normalized === '/main.ts'
-          ? virtualFiles['main.ts']?.content
+          ? virtualFiles['/main.ts']?.content
           : undefined)
       )
     },
     readDirectory: (path, extensions) => {
       const normalizedPath = path.endsWith('/') ? path : path + '/'
       const searchPath = normalizedPath.startsWith('/')
-        ? normalizedPath.substring(1)
-        : normalizedPath
-      return Object.keys(externalPackageDefinitions)
-        .filter(
-          (f) =>
-            f.startsWith(searchPath) &&
-            (!extensions || extensions.some((e) => f.endsWith(e)))
-        )
-        .map(normalizePath)
+        ? normalizedPath
+        : '/' + normalizedPath
+
+      return Object.keys(externalPackageDefinitions).filter(
+        (f) =>
+          f.startsWith(searchPath) &&
+          (!extensions || extensions.some((e) => f.endsWith(e)))
+      )
     },
     directoryExists: (path) => {
       const normalizedPath = path.endsWith('/') ? path : path + '/'
       const searchPath = normalizedPath.startsWith('/')
-        ? normalizedPath.substring(1)
-        : normalizedPath
+        ? normalizedPath
+        : '/' + normalizedPath
+
       return Object.keys(externalPackageDefinitions).some((f) =>
         f.startsWith(searchPath)
       )
@@ -149,23 +132,34 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
 
     switch (type) {
       case 'INIT': {
-        workerInitializationPromise ||= (async () => {
-          if (!isEsbuildInitialized) {
-            await esbuild.initialize({ wasmURL: esbuildWasmUrl, worker: false })
-            isEsbuildInitialized = true
-          }
-          await initializeLanguageService()
-        })()
+        if (!workerInitializationPromise) {
+          workerInitializationPromise = (async () => {
+            if (!isEsbuildInitialized) {
+              try {
+                await esbuild.initialize({
+                  wasmURL: esbuildWasmUrl,
+                  worker: false,
+                })
+                isEsbuildInitialized = true
+              } catch (e: any) {
+                if (!e.message?.includes('already initialized')) throw e
+                isEsbuildInitialized = true
+              }
+            }
+            await initializeLanguageService()
+          })()
+        }
         await workerInitializationPromise
         result = true
         break
       }
 
       case 'UPDATE_FILE': {
-        const { content, filename = 'main.ts' } = payload
-        const fileState = virtualFiles[filename]
+        const { content, filename = '/main.ts' } = payload
+        const normalized = filename.startsWith('/') ? filename : '/' + filename
+        const fileState = virtualFiles[normalized]
         if (!fileState || fileState.content !== content) {
-          virtualFiles[filename] = {
+          virtualFiles[normalized] = {
             version: (fileState?.version || 0) + 1,
             content,
           }
@@ -177,7 +171,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       case 'UPDATE_EXTRA_LIBS': {
         externalPackageDefinitions = payload.libs
         externalPackageVersion += 1
-        if (virtualFiles['main.ts']) virtualFiles['main.ts'].version += 1
+        if (virtualFiles['/main.ts']) virtualFiles['/main.ts'].version += 1
         result = true
         break
       }
@@ -199,7 +193,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
             '/'
           )
           compilerOptions = { ...compilerOptions, ...options }
-          if (virtualFiles['main.ts']) virtualFiles['main.ts'].version += 1
+          if (virtualFiles['/main.ts']) virtualFiles['/main.ts'].version += 1
         }
         result = true
         break
@@ -228,8 +222,8 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
           break
         }
         const all = [
-          ...languageService.getSyntacticDiagnostics('main.ts'),
-          ...languageService.getSemanticDiagnostics('main.ts'),
+          ...languageService.getSyntacticDiagnostics('/main.ts'),
+          ...languageService.getSemanticDiagnostics('/main.ts'),
         ]
         result = all.map((d) => {
           let message = ''
@@ -268,7 +262,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
           break
         }
         const info = languageService.getQuickInfoAtPosition(
-          'main.ts',
+          '/main.ts',
           payload.offset
         )
         if (!info) {
@@ -294,9 +288,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
         const symbolPart = info.displayParts.find((p) =>
           SYMBOL_KINDS.has(p.kind)
         )
-        const name = symbolPart
-          ? symbolPart.text
-          : TS.displayPartsToString(info.displayParts)
+        const name = symbolPart ? symbolPart.text : ''
 
         const typeAnnotation = TS.displayPartsToString(info.displayParts)
         let jsDoc = info.documentation
@@ -328,7 +320,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
           break
         }
         const completions = languageService.getCompletionsAtPosition(
-          'main.ts',
+          '/main.ts',
           payload.offset,
           undefined
         )
@@ -343,6 +335,12 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       }
 
       case 'COMPILE': {
+        // Sync virtual file first
+        virtualFiles['/main.ts'] = {
+          version: (virtualFiles['/main.ts']?.version || 0) + 1,
+          content: payload.code,
+        }
+
         const compiled = await esbuild.build({
           bundle: false,
           format: 'esm',
@@ -351,12 +349,26 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
           stdin: {
             contents: payload.code,
             loader: 'ts',
-            sourcefile: 'main.ts',
+            sourcefile: '/main.ts',
           },
         })
+
+        let dts = ''
+        if (languageService) {
+          const output = languageService.getEmitOutput('/main.ts', true)
+          const dtsFile = output.outputFiles.find((f) =>
+            f.name.endsWith('.d.ts')
+          )
+          if (dtsFile) dts = dtsFile.text
+        }
+
+        if (!dts) {
+          dts = generateAmbientDeclarations(payload.code)
+        }
+
         result = {
           js: compiled.outputFiles?.[0]?.text || '',
-          dts: generateAmbientDeclarations(payload.code),
+          dts,
         }
         break
       }
