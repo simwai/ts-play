@@ -1,14 +1,32 @@
-import React, { StrictMode } from 'react'
+import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { App } from './App'
 import './index.css'
 
-const container = document.getElementById('root')
-if (!container) throw new Error('Root element not found')
+const root = document.querySelector('#root')
+if (!root) throw new Error('#root element missing from index.html')
 
-const root = createRoot(container)
-root.render(
+window.onerror = function (message, source, lineno, colno, error) {
+  console.error(
+    'GLOBAL ERROR:',
+    message,
+    'AT',
+    source,
+    lineno,
+    colno,
+    'STACK:',
+    error?.stack
+  )
+}
+window.onunhandledrejection = function (event) {
+  console.error('UNHANDLED REJECTION:', event.reason)
+}
+
+createRoot(root).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>
 )

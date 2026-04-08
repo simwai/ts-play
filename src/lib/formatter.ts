@@ -82,7 +82,7 @@ export async function formatAllFiles(
     await webContainerService.spawnManaged(
       'npx',
       ['prettier', '--write', 'index.ts', 'index.js'],
-      { silent: true }
+      { onLog: () => {} }
     )
   } catch {
     /* ignore */

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { RegexPatterns, toRegExp } from './regex'
+import { RegexPatterns } from './regex'
 
 describe('RegexPatterns', () => {
   it('LEADING_SLASH should match and strip leading slash', () => {

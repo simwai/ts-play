@@ -21,7 +21,7 @@ export type ConsoleMessageType = 'log' | 'info' | 'warn' | 'error' | 'debug' | '
 export type ConsoleMessage = {
   id: string
   type: ConsoleMessageType
-  timestamp: number
+  ts: number
   args: string[]
 }
 

@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react'
-import { ToastMessage, ToastType } from '../../lib/types'
+import { ToastMessage } from '../../lib/types'
 
 type ToastProps = ToastMessage & {
   onClose: (id: string) => void

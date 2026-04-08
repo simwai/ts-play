@@ -338,7 +338,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
         // Sync virtual file first
         virtualFiles['/main.ts'] = {
           version: (virtualFiles['/main.ts']?.version || 0) + 1,
-          content: payload.code,
+          content: payload.code!!,
         }
 
         const compiled = await esbuild.build({
@@ -347,7 +347,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
           target: 'es2020',
           write: false,
           stdin: {
-            contents: payload.code,
+            contents: payload.code!!,
             loader: 'ts',
             sourcefile: '/main.ts',
           },
@@ -363,7 +363,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
         }
 
         if (!dts) {
-          dts = generateAmbientDeclarations(payload.code)
+          dts = generateAmbientDeclarations(payload.code!!)
         }
 
         result = {
@@ -376,7 +376,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       case 'DETECT_IMPORTS': {
         const sourceFile = TS.createSourceFile(
           'temp.ts',
-          payload.code,
+          payload.code!!,
           TS.ScriptTarget.Latest,
           true
         )
@@ -390,7 +390,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
             if (!m.startsWith('.') && !m.startsWith('/')) {
               const parts = m.split('/')
               imports.add(
-                m.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0]
+                m.startsWith('@') ? `${parts[0]!}/${parts[1]}` : parts[0]!
               )
             }
           }

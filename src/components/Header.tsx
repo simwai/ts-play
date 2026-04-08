@@ -1,20 +1,8 @@
-import type { CompilerStatus } from '../lib/types'
-import {
-  Sun,
-  Moon,
-  Copy,
-  Check,
-  Trash2,
-  Wand2,
-  Loader2,
-  Play,
-  Square,
-  Share2,
-  Settings,
-} from 'lucide-react'
+import type { CompilerStatus, TabType } from '../lib/types'
+import { Sun, Moon, Copy, Check, Trash2, Play, Square, Settings, Wand2, Loader2, Share2 } from 'lucide-react'
 import { IconButton } from './ui/IconButton'
 import { Button } from './ui/Button'
-import { TABS, type TabType } from '../lib/constants'
+import { TABS } from '../lib/constants'
 
 type HeaderProps = {
   activeTab: TabType
@@ -29,153 +17,41 @@ type HeaderProps = {
   compilerStatus: CompilerStatus
   onSettings: () => void
   stopCode?: () => void
+  handleFormat: () => void
+  formatting: boolean
+  formatSuccess: boolean
+  handleShare: () => void
+  sharing: boolean
+  shareSuccess: boolean
 }
 
 export function Header({
-  activeTab,
-  onTabChange,
-  isDarkMode,
-  setIsDarkMode,
-  onCopyAll,
-  copied,
-  onDeleteAll,
-  onRun,
-  isRunning,
-  compilerStatus,
-  onSettings,
-  stopCode,
+  activeTab, onTabChange, isDarkMode, setIsDarkMode, onCopyAll, copied, onDeleteAll,
+  onRun, isRunning, compilerStatus, onSettings, stopCode, handleFormat, formatting,
+  formatSuccess, handleShare, sharing, shareSuccess
 }: HeaderProps) {
   return (
-    <header className='flex items-center justify-between px-1.5 md:px-3 h-9 md:h-12 bg-mantle border-b border-surface0 shrink-0 gap-1.5 md:gap-3 relative z-40'>
-      {/* Brand */}
-      <div className='flex items-center gap-1.5 md:gap-2'>
-        <span className='text-xs md:text-sm font-bold tracking-tight font-mono'>
-          TS<span className='text-mauve'>Play</span>
-        </span>
-      </div>
-
-      {/* Tabs */}
-      <div className='flex bg-surface0 rounded-md p-0.5 gap-0.5 shrink'>
+    <header className="flex items-center justify-between px-2 h-12 bg-mantle border-b border-surface0 shrink-0">
+      <div className="flex bg-surface0 rounded-md p-0.5 gap-0.5">
         {TABS.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => {
-              onTabChange(tab)
-            }}
-            className={`px-1.5 py-0.5 md:px-3 md:py-1.5 rounded border-none text-4xs md:text-xs font-semibold font-mono cursor-pointer tracking-wide uppercase transition-all duration-150 ${
-              activeTab === tab
-                ? 'bg-mauve/20 text-mauve shadow-sm'
-                : 'bg-transparent text-overlay1 hover:text-text'
-            }`}
-          >
-            {tab}
-          </button>
+          <button key={tab} onClick={() => onTabChange(tab as TabType)} className={`px-2 py-1 rounded text-xs font-bold font-mono ${activeTab === tab ? 'bg-lavender text-crust' : 'text-subtext1 hover:text-text'}`}>{tab}</button>
         ))}
       </div>
-
-      {/* Actions */}
-      <div className='flex items-center gap-1 md:gap-2 shrink-0'>
-        {/* Theme toggle */}
-        <IconButton
-          onClick={() => {
-            setIsDarkMode(!isDarkMode)
-          }}
-          title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-          tooltipAlign='right'
-          variant='surface'
-          size='sm'
-        >
-          {isDarkMode ? (
-            <Sun className='w-3 h-3 md:w-4 md:h-4' />
-          ) : (
-            <Moon className='w-3 h-3 md:w-4 md:h-4' />
-          )}
-        </IconButton>
-
-        {/* Settings */}
-        <IconButton
-          onClick={onSettings}
-          title='Settings'
-          tooltipAlign='right'
-          variant='surface'
-          size='sm'
-        >
-          <Settings className='w-3 h-3 md:w-4 md:h-4' />
-        </IconButton>
-
-        {/* Separator */}
-        <div className='w-px h-3.5 md:h-5 bg-surface1 shrink-0 mx-0.5 md:mx-1' />
-
-        {/* Copy all */}
-        <IconButton
-          onClick={onCopyAll}
-          title={`Copy all ${activeTab}`}
-          tooltipAlign='right'
-          variant='surface'
-          size='sm'
-          className={
-            copied
-              ? 'text-green border-green bg-green/15 hover:bg-green/20'
-              : ''
-          }
-        >
-          {copied ? (
-            <Check className='w-3 h-3 md:w-4 md:h-4' />
-          ) : (
-            <Copy className='w-3 h-3 md:w-4 md:h-4' />
-          )}
-        </IconButton>
-
-        {/* Delete all */}
-        <IconButton
-          onClick={onDeleteAll}
-          title={`Clear ${activeTab} editor`}
-          tooltipAlign='right'
-          variant='surface'
-          size='sm'
-          className='text-red hover:text-red'
-        >
-          <Trash2 className='w-3 h-3 md:w-4 md:h-4' />
-        </IconButton>
-
-        {/* Separator */}
-        <div className='w-px h-3.5 md:h-5 bg-surface1 shrink-0 mx-0.5 md:mx-1' />
-
-        {/* Run / Stop */}
+      <div className="flex items-center gap-1">
+        <IconButton onClick={() => setIsDarkMode(!isDarkMode)} title="Toggle Theme" variant="surface" size="sm">{isDarkMode ? <Sun size={16} /> : <Moon size={16} />}</IconButton>
+        <IconButton onClick={onSettings} title="Settings" variant="surface" size="sm"><Settings size={16} /></IconButton>
+        <div className="w-px h-4 bg-surface1 mx-1" />
+        <IconButton onClick={onCopyAll} title="Copy All" variant="surface" size="sm" className={copied ? 'text-green' : ''}>{copied ? <Check size={16} /> : <Copy size={16} />}</IconButton>
+        <IconButton onClick={onDeleteAll} title="Clear Editor" variant="surface" size="sm" className="text-red"><Trash2 size={16} /></IconButton>
+        <IconButton onClick={handleFormat} disabled={formatting} title="Format" variant="surface" size="sm" className={formatSuccess ? 'text-green' : ''}>{formatting ? <Loader2 size={16} className="animate-spin" /> : formatSuccess ? <Check size={16} /> : <Wand2 size={16} />}</IconButton>
+        <div className="w-px h-4 bg-surface1 mx-1" />
         {isRunning ? (
-          <Button
-            onClick={() => stopCode?.()}
-            data-testid='header-stop-button'
-            variant='primary'
-            size='sm'
-            title='Stop execution'
-            tooltipAlign='right'
-            className='font-mono tracking-wide bg-red! border-red! hover:bg-red/80 active:bg-red/90'
-          >
-            <Square
-              className='w-3 h-3 md:w-4 md:h-4'
-              fill='currentColor'
-            />
-            <span className='hidden sm:inline'>Stop</span>
-          </Button>
+          <Button onClick={stopCode} variant="danger" size="sm" className="h-8"><Square size={14} className="mr-2 fill-current" /> Stop</Button>
         ) : (
-          <Button
-            onClick={async () => onRun(false)}
-            data-testid='header-run-button'
-            disabled={compilerStatus !== 'ready'}
-            variant='primary'
-            size='sm'
-            title='Run (compile + execute)'
-            tooltipAlign='right'
-            className='font-mono tracking-wide'
-          >
-            <Play
-              className='w-3 h-3 md:w-4 md:h-4'
-              fill='currentColor'
-            />
-            <span className='hidden sm:inline'>Run</span>
-          </Button>
+          <Button onClick={() => onRun(false)} disabled={compilerStatus !== 'ready'} variant="primary" size="sm" className="h-8"><Play size={14} className="mr-2 fill-current" /> Run</Button>
         )}
+        <div className="w-px h-4 bg-surface1 mx-1" />
+        <IconButton onClick={handleShare} disabled={sharing} title="Share" variant="surface" size="sm" className={shareSuccess ? 'text-green' : ''}>{sharing ? <Loader2 size={16} className="animate-spin" /> : shareSuccess ? <Check size={16} /> : <Share2 size={16} />}</IconButton>
       </div>
     </header>
   )
