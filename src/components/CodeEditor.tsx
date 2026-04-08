@@ -45,7 +45,24 @@ type CodeEditorProps = {
   hideTypeInfo?: boolean
   disableDiagnostics?: boolean
   diagnostics?: any[]
+  autoImports?: boolean
 }
+
+const SYMBOL_KINDS = new Set([
+  'localName',
+  'variableName',
+  'parameterName',
+  'methodName',
+  'functionName',
+  'className',
+  'interfaceName',
+  'aliasName',
+  'propertyName',
+  'enumName',
+  'enumMemberName',
+  'moduleName',
+  'typeParameterName',
+])
 
 export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
   (
@@ -67,6 +84,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       isMobileLike = false,
       hideTypeInfo = false,
       disableDiagnostics = false,
+      autoImports = false,
     },
     ref
   ) => {
@@ -112,6 +130,12 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
           allowJs: true,
           typeRoots: ['node_modules/@types'],
         })
+
+        monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+          noSemanticValidation: disableDiagnostics,
+          noSyntaxValidation: disableDiagnostics,
+          diagnosticCodesToIgnore: [1375, 1378],
+        })
       }
     }
 
@@ -126,7 +150,9 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
           line: e.position.lineNumber,
           col: e.position.column,
         })
-        onCursorChange?.(model.getOffsetAt(e.position))
+
+        const offset = model.getOffsetAt(e.position)
+        onCursorChange?.(offset)
 
         if (!onTypeInfoChange || hideTypeInfo) return
 
@@ -139,16 +165,21 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
             const client = await worker(model.uri)
             const info = await client.getQuickInfoAtPosition(
               model.uri.toString(),
-              model.getOffsetAt(e.position)
+              offset
             )
 
             if (info) {
               const displayParts = info.displayParts || []
               const documentation = info.documentation || []
+              const typeAnnotation = displayParts.map((p: any) => p.text).join('')
+
+              const symbolPart = displayParts.find((p: any) => SYMBOL_KINDS.has(p.kind))
+              const name = symbolPart ? symbolPart.text : ''
+
               onTypeInfoChange?.({
-                name: displayParts.map((p: any) => p.text).join(''),
+                name,
                 kind: info.kind,
-                typeAnnotation: displayParts.map((p: any) => p.text).join(''),
+                typeAnnotation,
                 detail: documentation.map((d: any) => d.text).join(''),
               })
             } else {
@@ -228,6 +259,35 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         selectionHighlight: !isMobileLike,
         occurrencesHighlight: (!isMobileLike ? 'singleFile' : 'off') as any,
         links: !isMobileLike,
+        suggest: {
+          showMethods: true,
+          showFunctions: true,
+          showConstructors: true,
+          showFields: true,
+          showVariables: true,
+          showClasses: true,
+          showStructs: true,
+          showInterfaces: true,
+          showModules: true,
+          showProperties: true,
+          showEvents: true,
+          showOperators: true,
+          showUnits: true,
+          showValue: true,
+          showConstant: true,
+          showEnum: true,
+          showEnumMember: true,
+          showKeyword: true,
+          showWords: true,
+          showColors: true,
+          showFiles: true,
+          showReferences: true,
+          showFolders: true,
+          showTypeParameters: true,
+          showSnippets: true,
+          autoImports: autoImports,
+        },
+        importSuggestions: autoImports,
       }),
       [
         readOnly,
@@ -236,6 +296,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         disableAutocomplete,
         lineWrap,
         isMobileLike,
+        autoImports,
       ]
     )
 

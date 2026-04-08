@@ -14,6 +14,7 @@ export const preferredLightThemeAtom = atomWithStorage<ThemeMode>('tsplay_light_
 export const trueColorEnabledAtom = atomWithStorage('tsplay_true_color', true)
 export const lineWrapAtom = atomWithStorage('tsplay_line_wrap', false)
 export const showNodeWarningsAtom = atomWithStorage('tsplay_show_node_warnings', false)
+export const autoImportsAtom = atomWithStorage("tsplay_auto_imports", false)
 
 export const compilerStatusAtom = atom<CompilerStatus>('loading')
 export const packageManagerStatusAtom = atom<PackageManagerStatus>('idle')

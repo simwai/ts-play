@@ -27,7 +27,7 @@ import {
   tsCodeAtom, jsCodeAtom, dtsCodeAtom, tsConfigAtom, isDarkModeAtom,
   jsDirtyAtom, isRunningAtom, compilerStatusAtom, packageManagerStatusAtom,
   toastsAtom, removeToastAtom, addToastAtom, enqueueTaskAtom,
-  showNodeWarningsAtom
+  showNodeWarningsAtom, autoImportsAtom
 } from './lib/store'
 
 const TABS = ['ts', 'js', 'dts'] as const
@@ -44,6 +44,7 @@ export function App() {
   const [pmStatus] = useAtom(packageManagerStatusAtom)
   const [toasts] = useAtom(toastsAtom)
   const [showNodeWarnings] = useAtom(showNodeWarningsAtom)
+  const [autoImports] = useAtom(autoImportsAtom)
 
   const removeToast = useSetAtom(removeToastAtom)
   const enqueueTask = useSetAtom(enqueueTaskAtom)
@@ -127,9 +128,9 @@ export function App() {
       <Header
         activeTab={activeTab} onTabChange={setActiveTab} stopCode={stopCode} isRunning={isRunning}
         compilerStatus={compilerStatus as any} onSettings={() => setShowSettings(true)} isDarkMode={isDarkMode}
-        setIsDarkMode={setIsDarkMode} onCopyAll={handleCopyAll} onDeleteAll={() => setTsCode('')}
+        setIsDarkMode={setIsDarkMode} handleCopyAll={handleCopyAll} handleDeleteAll={() => {}}
         copied={copied} handleFormat={handleFormat} formatting={formatting} formatSuccess={formatSuccess}
-        handleShare={handleShare} sharing={sharing} shareSuccess={shareSuccess} onRun={doRun}
+        handleShare={handleShare} sharing={sharing} shareSuccess={shareSuccess} doRun={doRun}
       />
       <StatusBar
         compilerStatus={compilerStatus as any} activeTab={activeTab} jsDirty={jsDirty}
@@ -140,7 +141,7 @@ export function App() {
       <main className="flex-1 relative flex flex-col min-h-0">
         <div className="flex-1 relative">
            <div className={cn("absolute inset-0 transition-opacity duration-200 z-10", activeTab !== 'ts' && "opacity-0 pointer-events-none z-0")}>
-             <CodeEditor ref={tsEditorRef} value={tsCode} onChange={(v) => { setTsCode(v); setJsDirty(true) }} language="typescript" theme={isDarkMode ? 'dark' : 'light'} onTypeInfoChange={handleTypeInfoChange} onCursorPosChange={setCursorPos} diagnostics={diagnostics} />
+             <CodeEditor ref={tsEditorRef} value={tsCode} onChange={(v) => { setTsCode(v); setJsDirty(true) }} language="typescript" theme={isDarkMode ? 'dark' : 'light'} onTypeInfoChange={handleTypeInfoChange} onCursorPosChange={setCursorPos} diagnostics={diagnostics} autoImports={autoImports} />
            </div>
            <div className={cn("absolute inset-0 transition-opacity duration-200 z-10", activeTab !== 'js' && "opacity-0 pointer-events-none z-0")}>
              <CodeEditor value={jsCode} language="javascript" theme={isDarkMode ? 'dark' : 'light'} readOnly />

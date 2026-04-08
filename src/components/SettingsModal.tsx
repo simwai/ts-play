@@ -11,6 +11,7 @@ import {
   lineWrapAtom,
   trueColorEnabledAtom,
   resetWorkspaceAtom,
+  autoImportsAtom,
 } from '../lib/store'
 import { DARK_THEMES, LIGHT_THEMES, THEME_LABELS } from '../lib/theme'
 import { workerClient } from '../lib/workerClient'
@@ -28,6 +29,7 @@ export function SettingsModal({ isOpen, onClose }: Props) {
   const [preferredLight, setPreferredLight] = useAtom(preferredLightThemeAtom)
   const [lineWrap, setLineWrap] = useAtom(lineWrapAtom)
   const [trueColor, setTrueColor] = useAtom(trueColorEnabledAtom)
+  const [autoImports, setAutoImports] = useAtom(autoImportsAtom)
   const resetWorkspace = useSetAtom(resetWorkspaceAtom)
 
   const [tempConfig, setTempConfig] = useState(tsConfig)
@@ -148,6 +150,16 @@ export function SettingsModal({ isOpen, onClose }: Props) {
               >
                 <span className="text-sm font-medium">True Color Logs</span>
                 {trueColor && <Check size={16} />}
+              </button>
+              <button
+                onClick={() => setAutoImports(!autoImports)}
+                className={cn(
+                  "flex items-center justify-between p-3 rounded-lg border transition-all",
+                  autoImports ? "bg-lavender/5 border-lavender/30 text-lavender" : "bg-crust border-surface0 text-subtext1"
+                )}
+              >
+                <span className="text-sm font-medium">Auto Imports</span>
+                {autoImports && <Check size={16} />}
               </button>
             </div>
           </section>

@@ -9,10 +9,10 @@ type HeaderProps = {
   onTabChange: (tab: TabType) => void
   isDarkMode: boolean
   setIsDarkMode: (val: boolean) => void
-  onCopyAll: () => void
+  handleCopyAll: () => void
   copied: boolean
-  onDeleteAll: () => void
-  onRun: (skipDirtyCheck?: boolean) => void
+  handleDeleteAll: () => void
+  doRun: (skipDirtyCheck?: boolean) => void
   isRunning: boolean
   compilerStatus: CompilerStatus
   onSettings: () => void
@@ -26,8 +26,8 @@ type HeaderProps = {
 }
 
 export function Header({
-  activeTab, onTabChange, isDarkMode, setIsDarkMode, onCopyAll, copied, onDeleteAll,
-  onRun, isRunning, compilerStatus, onSettings, stopCode, handleFormat, formatting,
+  activeTab, onTabChange, isDarkMode, setIsDarkMode, handleCopyAll, copied, handleDeleteAll,
+  doRun, isRunning, compilerStatus, onSettings, stopCode, handleFormat, formatting,
   formatSuccess, handleShare, sharing, shareSuccess
 }: HeaderProps) {
   return (
@@ -41,14 +41,14 @@ export function Header({
         <IconButton onClick={() => setIsDarkMode(!isDarkMode)} title="Toggle Theme" variant="surface" size="sm">{isDarkMode ? <Sun size={16} /> : <Moon size={16} />}</IconButton>
         <IconButton onClick={onSettings} title="Settings" variant="surface" size="sm"><Settings size={16} /></IconButton>
         <div className="w-px h-4 bg-surface1 mx-1" />
-        <IconButton onClick={onCopyAll} title="Copy All" variant="surface" size="sm" className={copied ? 'text-green' : ''}>{copied ? <Check size={16} /> : <Copy size={16} />}</IconButton>
-        <IconButton onClick={onDeleteAll} title="Clear Editor" variant="surface" size="sm" className="text-red"><Trash2 size={16} /></IconButton>
+        <IconButton onClick={handleCopyAll} title="Copy All" variant="surface" size="sm" className={copied ? 'text-green' : ''}>{copied ? <Check size={16} /> : <Copy size={16} />}</IconButton>
+        <IconButton onClick={handleDeleteAll} title="Clear Editor" variant="surface" size="sm" className="text-red"><Trash2 size={16} /></IconButton>
         <IconButton onClick={handleFormat} disabled={formatting} title="Format" variant="surface" size="sm" className={formatSuccess ? 'text-green' : ''}>{formatting ? <Loader2 size={16} className="animate-spin" /> : formatSuccess ? <Check size={16} /> : <Wand2 size={16} />}</IconButton>
         <div className="w-px h-4 bg-surface1 mx-1" />
         {isRunning ? (
           <Button onClick={stopCode} variant="danger" size="sm" className="h-8"><Square size={14} className="mr-2 fill-current" /> Stop</Button>
         ) : (
-          <Button onClick={() => onRun(false)} disabled={compilerStatus !== 'ready'} variant="primary" size="sm" className="h-8"><Play size={14} className="mr-2 fill-current" /> Run</Button>
+          <Button onClick={() => doRun(false)} disabled={compilerStatus !== 'ready'} variant="primary" size="sm" className="h-8"><Play size={14} className="mr-2 fill-current" /> Run</Button>
         )}
         <div className="w-px h-4 bg-surface1 mx-1" />
         <IconButton onClick={handleShare} disabled={sharing} title="Share" variant="surface" size="sm" className={shareSuccess ? 'text-green' : ''}>{sharing ? <Loader2 size={16} className="animate-spin" /> : shareSuccess ? <Check size={16} /> : <Share2 size={16} />}</IconButton>
