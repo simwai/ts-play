@@ -46,6 +46,7 @@ type CodeEditorProps = {
   hideTypeInfo?: boolean
   disableDiagnostics?: boolean
   disableShortcuts?: boolean
+  diagnostics?: any[]
 }
 
 export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
@@ -73,7 +74,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
     ref
   ) => {
     const editorRef = useRef<any>(null)
-    const monaco = useMonaco()
+    const monaco = useMonaco() as any
     const typeInfoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const prevLibKeysRef = useRef<Set<string>>(new Set())
 

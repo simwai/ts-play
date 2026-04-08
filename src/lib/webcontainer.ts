@@ -165,7 +165,7 @@ export class WebContainerService {
           }
 
           currentLineBuffer += chunk
-          const lines = currentLineBuffer.split(toRegExp(RegexPatterns.NEWLINE))
+          const lines = currentLineBuffer.split(RegexPatterns.NEWLINE)
 
           const last = lines[lines.length - 1] ?? ''
           if (last) {
@@ -176,7 +176,7 @@ export class WebContainerService {
             const processLines = async (linesToProc: string[]) => {
               for (const line of linesToProc) {
                 const simplified = line.replace(
-                  toRegExp(RegexPatterns.EXCESSIVE_WHITESPACE),
+                  RegexPatterns.EXCESSIVE_WHITESPACE,
                   '    '
                 )
                 if (!options.silent) this.emitLog('info', simplified)

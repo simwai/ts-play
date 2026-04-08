@@ -73,7 +73,7 @@ export const Console = React.memo(function Console({
     () =>
       new Ansi({
         newline: false,
-        escapeHtml: true,
+        escapeXML: true,
         stream: false,
         colors: trueColorEnabled
           ? undefined

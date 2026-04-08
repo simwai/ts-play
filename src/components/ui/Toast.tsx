@@ -1,44 +1,46 @@
-import { useEffect } from 'react'
-import { CheckCircle2, Info, AlertCircle, X } from 'lucide-react'
-import { cn } from '../../utils/cn'
-import type { ToastMessage } from '../../lib/types'
+import React, { useEffect, useState } from 'react'
+import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react'
+import { ToastMessage, ToastType } from '../../lib/types'
 
-interface ToastProps extends ToastMessage {
+type ToastProps = ToastMessage & {
   onClose: (id: string) => void
 }
 
 export function Toast({ id, type, message, onClose }: ToastProps) {
-  useEffect(() => {
-    const timer = setTimeout(() => onClose(id), 5000)
-    return () => clearTimeout(timer)
-  }, [id, onClose])
+  const [isVisible, setIsVisible] = useState(false)
 
-  const icons = {
-    success: <CheckCircle2 className='w-5 h-5 text-green' />,
-    info: <Info className='w-5 h-5 text-blue' />,
-    error: <AlertCircle className='w-5 h-5 text-red' />,
+  useEffect(() => {
+    setIsVisible(true)
+    return () => setIsVisible(false)
+  }, [])
+
+  const colors = {
+    success: 'text-green-400',
+    info: 'text-blue-400',
+    error: 'text-red-400',
+    warning: 'text-yellow-400'
   }
 
-  const borderColors = {
-    success: 'border-green/30',
-    info: 'border-blue/30',
-    error: 'border-red/30',
+  const icons = {
+    success: <CheckCircle2 size={20} />,
+    info: <Info size={20} />,
+    error: <AlertCircle size={20} />,
+    warning: <AlertCircle size={20} />
   }
 
   return (
     <div
-      className={cn(
-        'flex items-center gap-3 px-4 py-3 rounded-lg border bg-mantle shadow-lg animate-in fade-in slide-in-from-right-4 duration-300',
-        borderColors[type]
-      )}
+      className={`flex items-center gap-3 bg-mantle border border-surface0 rounded-lg p-4 shadow-xl transition-all duration-300 transform ${
+        isVisible ? 'translate-x-0 opacity-100' : 'translate-x-12 opacity-0'
+      }`}
     >
-      <div className='shrink-0'>{icons[type]}</div>
-      <p className='text-sm font-medium text-text'>{message}</p>
+      <div className={colors[type]}>{icons[type]}</div>
+      <div className='flex-1 text-sm text-text font-medium'>{message}</div>
       <button
         onClick={() => onClose(id)}
-        className='ml-auto text-overlay0 hover:text-text transition-colors'
+        className='text-subtext1 hover:text-text transition-colors'
       >
-        <X className='w-4 h-4' />
+        <X size={18} />
       </button>
     </div>
   )
@@ -52,17 +54,9 @@ export function ToastContainer({
   onClose: (id: string) => void
 }) {
   return (
-    <div className='fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none'>
+    <div className='fixed bottom-6 right-6 z-[200] flex flex-col gap-3'>
       {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          className='pointer-events-auto'
-        >
-          <Toast
-            {...toast}
-            onClose={onClose}
-          />
-        </div>
+        <Toast key={toast.id} {...toast} onClose={onClose} />
       ))}
     </div>
   )

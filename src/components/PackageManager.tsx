@@ -10,12 +10,14 @@ type Props = {
   packages: InstalledPackage[]
   isOpen: boolean
   contentHeight: number // Now in rem
+  onToggle?: () => void
 }
 
 export const PackageManager = React.memo(function PackageManager({
   packages,
   isOpen,
   contentHeight,
+  onToggle,
 }: Props) {
   if (!isOpen) return null
 

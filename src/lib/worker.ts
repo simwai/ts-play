@@ -285,12 +285,12 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
           'moduleName',
           'typeParameterName',
         ])
-        const symbolPart = info.displayParts.find((p) =>
+        const symbolPart = info.displayParts!.find((p) =>
           SYMBOL_KINDS.has(p.kind)
         )
         const name = symbolPart ? symbolPart.text : ''
 
-        const typeAnnotation = TS.displayPartsToString(info.displayParts)
+        const typeAnnotation = TS.displayPartsToString(info.displayParts!)
         let jsDoc = info.documentation
           ? TS.displayPartsToString(info.documentation)
           : ''
