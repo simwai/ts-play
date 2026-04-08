@@ -21,6 +21,7 @@ import { workerClient } from './lib/workerClient'
 import { formatAllFiles } from './lib/formatter'
 import { getShareUrl } from './lib/api'
 import { type TabType } from './lib/types'
+import { cn } from './lib/utils'
 
 import {
   tsCodeAtom, jsCodeAtom, dtsCodeAtom, tsConfigAtom, isDarkModeAtom,
@@ -48,7 +49,7 @@ export function App() {
   const enqueueTask = useSetAtom(enqueueTaskAtom)
   const addToast = useSetAtom(addToastAtom)
 
-  const { messages, addMessage, clearMessages, toggleConsole } = useConsoleManager()
+  const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } = useConsoleManager()
   const { runCode, stopCode } = useCompilerManager(tsCode, addMessage)
   const { installedPackages, packageTypings, installQueue } = usePackageManager(tsCode, addMessage, showNodeWarnings)
 
@@ -64,7 +65,8 @@ export function App() {
   const [copied, setCopied] = useState(false)
 
   const diagnostics = useTSDiagnostics(tsCode, activeTab === 'ts', packageTypings)
-  const tsCursorPos = useRef(0); const { typeInfo, handleTypeInfoChange } = useTypeInfo(tsCursorPos)
+  const tsCursorPos = useRef(0)
+  const { typeInfo, handleTypeInfoChange } = useTypeInfo(tsCursorPos)
   const { keyboardOpen, isMobileLike } = useVirtualKeyboard()
   const { panelHeight, startResizing } = useResizePanel(11.25)
   const tsEditorRef = useRef<CodeEditorRef>(null)
@@ -112,8 +114,16 @@ export function App() {
     setSharing(false)
   }, [tsCode, tsConfigString, addToast])
 
+  const compactForKeyboard = keyboardOpen && isMobileLike
+
   return (
-    <div className="flex flex-col h-screen select-none" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+    <div
+      className="flex flex-col h-screen select-none theme-transition"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      style={{ '--panel-height': consoleOpen ? `${panelHeight}rem` : '2.5rem' } as React.CSSProperties}
+    >
       <Header
         activeTab={activeTab} onTabChange={setActiveTab} stopCode={stopCode} isRunning={isRunning}
         compilerStatus={compilerStatus as any} onSettings={() => setShowSettings(true)} isDarkMode={isDarkMode}
@@ -124,23 +134,35 @@ export function App() {
       <StatusBar
         compilerStatus={compilerStatus as any} activeTab={activeTab} jsDirty={jsDirty}
         handleUndo={() => tsEditorRef.current?.undo()} handleRedo={() => tsEditorRef.current?.redo()}
-        onOpenSettings={() => setShowSettings(true)} compactForKeyboard={keyboardOpen && isMobileLike}
+        onOpenSettings={() => setShowSettings(true)} compactForKeyboard={compactForKeyboard}
         lineWrap={true} packageManagerStatus={pmStatus as any} setLineWrap={() => {}}
       />
       <main className="flex-1 relative flex flex-col min-h-0">
         <div className="flex-1 relative">
-           <CodeEditor ref={tsEditorRef} value={tsCode} onChange={(v) => { setTsCode(v); setJsDirty(true) }} language="typescript" theme={isDarkMode ? 'dark' : 'light'} onTypeInfoChange={handleTypeInfoChange} onCursorPosChange={setCursorPos} diagnostics={diagnostics} />
+           <div className={cn("absolute inset-0 transition-opacity duration-200 z-10", activeTab !== 'ts' && "opacity-0 pointer-events-none z-0")}>
+             <CodeEditor ref={tsEditorRef} value={tsCode} onChange={(v) => { setTsCode(v); setJsDirty(true) }} language="typescript" theme={isDarkMode ? 'dark' : 'light'} onTypeInfoChange={handleTypeInfoChange} onCursorPosChange={setCursorPos} diagnostics={diagnostics} />
+           </div>
+           <div className={cn("absolute inset-0 transition-opacity duration-200 z-10", activeTab !== 'js' && "opacity-0 pointer-events-none z-0")}>
+             <CodeEditor value={jsCode} language="javascript" theme={isDarkMode ? 'dark' : 'light'} readOnly />
+           </div>
+           <div className={cn("absolute inset-0 transition-opacity duration-200 z-10", activeTab !== 'dts' && "opacity-0 pointer-events-none z-0")}>
+             <CodeEditor value={dtsCode} language="typescript" theme={isDarkMode ? 'dark' : 'light'} readOnly />
+           </div>
         </div>
-        <div className="h-6 flex items-center px-3 bg-mantle border-t border-surface0 text-xxs font-mono truncate shrink-0">
-          {typeInfo || 'Ready'} | Ln {cursorPos.line}, Col {cursorPos.col}
-        </div>
+        {!compactForKeyboard && (
+          <div className="h-6 flex items-center px-3 bg-mantle border-t border-surface0 text-xxs font-mono truncate shrink-0 text-subtext1">
+            {typeInfo || 'Ready'} | Ln {cursorPos.line}, Col {cursorPos.col}
+          </div>
+        )}
       </main>
-      <div className="flex flex-col bg-crust relative shrink-0" style={{ height: `${panelHeight}rem` }}>
-        <div className="h-1 cursor-ns-resize hover:bg-lavender/30 absolute -top-0.5 left-0 right-0 z-50" onMouseDown={startResizing} />
-        <Console messages={messages as any} isOpen={activeBottomTab === 'console'} onClear={clearMessages} onToggle={toggleConsole} contentHeight={panelHeight} activeTab={activeBottomTab} onTabChange={setActiveBottomTab} problemCount={diagnostics.length} />
-        <Problems diagnostics={diagnostics as any} isOpen={activeBottomTab === 'problems'} contentHeight={panelHeight} onJumpToProblem={(l) => { setActiveTab('ts'); tsEditorRef.current?.jumpTo(l, 1) }} />
-        <PackageManager packages={installedPackages} isOpen={activeBottomTab === 'packages'} contentHeight={panelHeight} />
-      </div>
+      {!compactForKeyboard && (
+        <div className="flex flex-col bg-crust relative shrink-0 h-[var(--panel-height)]">
+          <div className={cn("h-1 cursor-ns-resize hover:bg-lavender/30 absolute -top-0.5 left-0 right-0 z-50", !consoleOpen && "hidden")} onMouseDown={startResizing} />
+          <Console messages={messages as any} isOpen={consoleOpen} onClear={clearMessages} onToggle={toggleConsole} activeTab={activeBottomTab} onTabChange={(t) => { setActiveBottomTab(t); if (!consoleOpen) toggleConsole(); }} problemCount={diagnostics.length} />
+          <Problems diagnostics={diagnostics as any} isOpen={consoleOpen && activeBottomTab === 'problems'} contentHeight={panelHeight} onJumpToProblem={(l) => { setActiveTab('ts'); tsEditorRef.current?.jumpTo(l, 1) }} />
+          <PackageManager packages={installedPackages} isOpen={consoleOpen && activeBottomTab === 'packages'} contentHeight={panelHeight} />
+        </div>
+      )}
       {showModal && <OverrideModal onConfirm={async () => doRun(true)} onCancel={() => setShowModal(false)} />}
       <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
       <ToastContainer toasts={toasts} onClose={removeToast} />

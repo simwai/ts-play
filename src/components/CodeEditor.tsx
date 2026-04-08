@@ -119,21 +119,20 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       editorRef.current = editor
 
       editor.onDidChangeCursorPosition((e) => {
+        const model = editor.getModel()
+        if (!model) return
+
         onCursorPosChange?.({
           line: e.position.lineNumber,
           col: e.position.column,
         })
-        const model = editor.getModel()
-        if (model) {
-          onCursorChange?.(model.getOffsetAt(e.position))
-        }
+        onCursorChange?.(model.getOffsetAt(e.position))
 
-        if (hideTypeInfo) return
+        if (!onTypeInfoChange || hideTypeInfo) return
 
         if (typeInfoTimerRef.current) clearTimeout(typeInfoTimerRef.current)
         typeInfoTimerRef.current = setTimeout(async () => {
-          const model = editor.getModel()
-          if (!model || language !== 'typescript') return
+          if (language !== 'typescript') return
 
           try {
             const worker = await monaco.languages.typescript.getTypeScriptWorker()
