@@ -1,29 +1,31 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { webContainerService } from './webcontainer'
 
-vi.mock('@webcontainer/api', () => ({
-  WebContainer: {
-    boot: vi.fn().mockResolvedValue({
-      fs: {
-        writeFile: vi.fn().mockResolvedValue(undefined),
-        readFile: vi.fn().mockResolvedValue('content'),
-        mkdir: vi.fn().mockResolvedValue(undefined),
-        readdir: vi.fn().mockResolvedValue([]),
-      },
-      spawn: vi.fn().mockResolvedValue({
-        output: {
-          getReader: () => ({
-            read: vi.fn().mockResolvedValue({ done: true }),
-            releaseLock: vi.fn(),
-          }),
-          pipeTo: vi.fn().mockResolvedValue(undefined),
+vi.mock('@webcontainer/api', () => {
+  return {
+    WebContainer: {
+      boot: vi.fn().mockResolvedValue({
+        fs: {
+          writeFile: vi.fn().mockResolvedValue(undefined),
+          readFile: vi.fn().mockResolvedValue('content'),
+          mkdir: vi.fn().mockResolvedValue(undefined),
+          readdir: vi.fn().mockResolvedValue([]),
         },
-        exit: Promise.resolve(0),
+        spawn: vi.fn().mockResolvedValue({
+          output: {
+            getReader: () => ({
+              read: vi.fn().mockResolvedValue({ done: true }),
+              releaseLock: vi.fn(),
+            }),
+            pipeTo: vi.fn().mockResolvedValue(undefined),
+          },
+          exit: Promise.resolve(0),
+        }),
+        on: vi.fn(),
       }),
-      on: vi.fn(),
-    }),
-  },
-}))
+    }
+  }
+})
 
 describe('WebContainerService', () => {
   beforeEach(() => {

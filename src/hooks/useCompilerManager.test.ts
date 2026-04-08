@@ -2,28 +2,44 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useCompilerManager } from './useCompilerManager'
 import { workerClient } from '../lib/workerClient'
-import { ok } from 'neverthrow'
 import { Provider } from 'jotai'
 import React from 'react'
 
-vi.mock('../lib/workerClient', () => ({
-  workerClient: {
-    init: vi.fn().mockResolvedValue(ok(undefined)),
-    updateConfig: vi.fn().mockResolvedValue(ok(undefined)),
-    generateDts: vi.fn().mockResolvedValue(ok('dts')),
-  },
-}))
+vi.mock('../lib/workerClient', () => {
+  return {
+    workerClient: {
+      init: vi.fn().mockResolvedValue({
+        isOk: () => true,
+        isErr: () => false,
+        value: undefined,
+        match: (s: any) => s()
+      }),
+      updateConfig: vi.fn().mockResolvedValue({
+        isOk: () => true,
+        isErr: () => false
+      }),
+      generateDts: vi.fn().mockResolvedValue({
+        isOk: () => true,
+        value: 'dts'
+      }),
+    }
+  }
+})
 
-vi.mock('../lib/webcontainer', () => ({
-  writeFiles: vi.fn().mockResolvedValue(ok(undefined)),
-  runCommand: vi.fn().mockResolvedValue(ok({ exit: Promise.resolve(0) })),
-  readFile: vi.fn().mockResolvedValue(ok('content')),
-}))
+vi.mock('../lib/webcontainer', () => {
+  return {
+    writeFiles: vi.fn().mockResolvedValue({ isOk: () => true, isErr: () => false }),
+    runCommand: vi.fn().mockResolvedValue({ isOk: () => true, value: { exit: Promise.resolve(0) } }),
+    readFile: vi.fn().mockResolvedValue({ isOk: () => true, value: 'content' }),
+  }
+})
 
-vi.mock('../lib/formatter', () => ({
-  loadPrettier: vi.fn().mockResolvedValue(undefined),
-  formatAllFiles: vi.fn().mockResolvedValue({ ts: '', js: '', dts: '', errors: [] }),
-}))
+vi.mock('../lib/formatter', () => {
+  return {
+    loadPrettier: vi.fn().mockResolvedValue(undefined),
+    formatAllFiles: vi.fn().mockResolvedValue({ ts: '', js: '', dts: '', errors: [] }),
+  }
+})
 
 describe('useCompilerManager', () => {
   const addMessage = vi.fn()
