@@ -3,7 +3,11 @@ import { useMachine } from '@xstate/react'
 import { useSetAtom } from 'jotai'
 import { packageMachine } from '../lib/machines/packageMachine'
 import { packageManagerStatusAtom } from '../lib/store'
-import { type InstalledPackage, type ConsoleMessage, type PackageManagerStatus } from '../lib/types'
+import {
+  type InstalledPackage,
+  type ConsoleMessage,
+  type PackageManagerStatus,
+} from '../lib/types'
 
 export function usePackageManager(
   _tsCode: string,

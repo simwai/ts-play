@@ -23,7 +23,7 @@ vi.mock('@webcontainer/api', () => {
         }),
         on: vi.fn(),
       }),
-    }
+    },
   }
 })
 

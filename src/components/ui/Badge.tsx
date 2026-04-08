@@ -10,7 +10,12 @@ export interface BadgeProps {
   label?: string
 }
 
-export function Badge({ children, label, variant = 'default', className }: BadgeProps) {
+export function Badge({
+  children,
+  label,
+  variant = 'default',
+  className,
+}: BadgeProps) {
   const variants = {
     error: 'bg-red/10 text-red border-red/20',
     warn: 'bg-yellow/10 text-yellow border-yellow/20',

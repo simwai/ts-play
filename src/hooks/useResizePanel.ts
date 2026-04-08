@@ -14,7 +14,10 @@ export function useResizePanel(
     (e: React.MouseEvent | React.TouchEvent) => {
       e.preventDefault()
       setIsResizing(true)
-      const clientY = 'touches' in e ? (e as React.TouchEvent).touches[0]?.clientY ?? 0 : (e as React.MouseEvent).clientY
+      const clientY =
+        'touches' in e
+          ? ((e as React.TouchEvent).touches[0]?.clientY ?? 0)
+          : (e as React.MouseEvent).clientY
       resizeStartY.current = clientY
       resizeStartHeight.current = panelHeight
     },
@@ -24,11 +27,22 @@ export function useResizePanel(
   const handleResizeMove = useCallback(
     (e: MouseEvent | TouchEvent) => {
       if (!isResizing) return
-      const clientY = 'touches' in e ? ((e as TouchEvent).touches[0]?.clientY ?? 0) : (e as MouseEvent).clientY
+      const clientY =
+        'touches' in e
+          ? ((e as TouchEvent).touches[0]?.clientY ?? 0)
+          : (e as MouseEvent).clientY
       const deltaY = resizeStartY.current - clientY
-      const remSize = parseFloat(globalThis.getComputedStyle(document.documentElement).fontSize) || 16
+      const remSize =
+        parseFloat(
+          globalThis.getComputedStyle(document.documentElement).fontSize
+        ) || 16
       const deltaRem = deltaY / remSize
-      setPanelHeight(Math.max(minHeightRem, Math.min(maxHeightRem, resizeStartHeight.current + deltaRem)))
+      setPanelHeight(
+        Math.max(
+          minHeightRem,
+          Math.min(maxHeightRem, resizeStartHeight.current + deltaRem)
+        )
+      )
     },
     [isResizing, minHeightRem, maxHeightRem]
   )
@@ -39,7 +53,9 @@ export function useResizePanel(
     if (isResizing) {
       globalThis.addEventListener('mousemove', handleResizeMove)
       globalThis.addEventListener('mouseup', handleResizeEnd)
-      globalThis.addEventListener('touchmove', handleResizeMove, { passive: false })
+      globalThis.addEventListener('touchmove', handleResizeMove, {
+        passive: false,
+      })
       globalThis.addEventListener('touchend', handleResizeEnd)
       document.body.style.cursor = 'ns-resize'
     }

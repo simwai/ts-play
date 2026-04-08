@@ -46,6 +46,7 @@ type CodeEditorProps = {
   disableDiagnostics?: boolean
   diagnostics?: any[]
   autoImports?: boolean
+  customAutocomplete?: boolean
 }
 
 const SYMBOL_KINDS = new Set([
@@ -85,13 +86,15 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       hideTypeInfo = false,
       disableDiagnostics = false,
       autoImports = false,
+      customAutocomplete = false,
     },
     ref
   ) => {
     const editorRef = useRef<any>(null)
-    const monaco = useMonaco() as any
+    const monaco = useMonaco()
     const typeInfoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const prevLibKeysRef = useRef<Set<string>>(new Set())
+    const completionProviderRef = useRef<any>(null)
 
     useImperativeHandle(ref, () => ({
       undo: () => editorRef.current?.trigger('keyboard', 'undo', null),
@@ -117,24 +120,18 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       monaco.editor.defineTheme('shades-of-purple', shadesOfPurple as any)
 
       if (language === 'typescript') {
-        monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
-          target: monaco.languages.typescript.ScriptTarget.ESNext,
+        const ts = (monaco.languages as any).typescript
+        ts.typescriptDefaults.setCompilerOptions({
+          target: ts.ScriptTarget.ESNext,
           allowNonTsExtensions: true,
-          moduleResolution:
-            monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-          module: monaco.languages.typescript.ModuleKind.ESNext,
+          moduleResolution: ts.ModuleResolutionKind.NodeJs,
+          module: ts.ModuleKind.ESNext,
           noEmit: true,
           esModuleInterop: true,
-          jsx: monaco.languages.typescript.JsxEmit.ReactJSX,
+          jsx: ts.JsxEmit.ReactJSX,
           reactNamespace: 'React',
           allowJs: true,
           typeRoots: ['node_modules/@types'],
-        })
-
-        monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
-          noSemanticValidation: disableDiagnostics,
-          noSyntaxValidation: disableDiagnostics,
-          diagnosticCodesToIgnore: [1375, 1378],
         })
       }
     }
@@ -161,7 +158,8 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
           if (language !== 'typescript') return
 
           try {
-            const worker = await monaco.languages.typescript.getTypeScriptWorker()
+            const ts = (monaco.languages as any).typescript
+            const worker = await ts.getTypeScriptWorker()
             const client = await worker(model.uri)
             const info = await client.getQuickInfoAtPosition(
               model.uri.toString(),
@@ -171,9 +169,13 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
             if (info) {
               const displayParts = info.displayParts || []
               const documentation = info.documentation || []
-              const typeAnnotation = displayParts.map((p: any) => p.text).join('')
+              const typeAnnotation = displayParts
+                .map((p: any) => p.text)
+                .join('')
 
-              const symbolPart = displayParts.find((p: any) => SYMBOL_KINDS.has(p.kind))
+              const symbolPart = displayParts.find((p: any) =>
+                SYMBOL_KINDS.has(p.kind)
+              )
               const name = symbolPart ? symbolPart.text : ''
 
               onTypeInfoChange?.({
@@ -194,6 +196,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
 
     useEffect(() => {
       if (monaco && language === 'typescript') {
+        const ts = (monaco.languages as any).typescript
         const libs = Object.entries(extraLibs).map(([path, content]) => ({
           content,
           filePath: path.startsWith('file://') ? path : `file:///${path}`,
@@ -205,23 +208,56 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
           [...currentKeys].some((k) => !prevLibKeysRef.current.has(k))
 
         if (hasChanged) {
-          monaco.languages.typescript.typescriptDefaults.setExtraLibs(libs as any)
+          ts.typescriptDefaults.setExtraLibs(libs)
           prevLibKeysRef.current = currentKeys
         }
 
-        monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+        ts.typescriptDefaults.setDiagnosticsOptions({
           noSemanticValidation: disableDiagnostics,
           noSyntaxValidation: disableDiagnostics,
         })
+
+        if (customAutocomplete) {
+          if (completionProviderRef.current)
+            completionProviderRef.current.dispose()
+          completionProviderRef.current =
+            monaco.languages.registerCompletionItemProvider('typescript', {
+              provideCompletionItems: async (model: any, position: any) => {
+                const worker = await ts.getTypeScriptWorker()
+                const client = await worker(model.uri)
+                const completions = await client.getCompletionsAtPosition(
+                  model.uri.toString(),
+                  model.getOffsetAt(position)
+                )
+                if (!completions) return { suggestions: [] }
+
+                return {
+                  suggestions: completions.entries.map((e: any) => ({
+                    label: e.name,
+                    kind: monaco.languages.CompletionItemKind.Variable,
+                    insertText: e.name,
+                    detail: e.kind,
+                    range: {
+                      startLineNumber: position.lineNumber,
+                      endLineNumber: position.lineNumber,
+                      startColumn: position.column,
+                      endColumn: position.column,
+                    },
+                  })),
+                }
+              },
+            } as any)
+        } else if (completionProviderRef.current) {
+          completionProviderRef.current.dispose()
+          completionProviderRef.current = null
+        }
       }
 
-      if (monaco && language === 'json') {
-        monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
-          validate: true,
-          allowComments: true,
-        })
+      return () => {
+        if (completionProviderRef.current)
+          completionProviderRef.current.dispose()
       }
-    }, [monaco, extraLibs, language, disableDiagnostics])
+    }, [monaco, extraLibs, language, disableDiagnostics, customAutocomplete])
 
     const options = useMemo(
       () => ({
@@ -260,34 +296,10 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         occurrencesHighlight: (!isMobileLike ? 'singleFile' : 'off') as any,
         links: !isMobileLike,
         suggest: {
-          showMethods: true,
-          showFunctions: true,
-          showConstructors: true,
-          showFields: true,
-          showVariables: true,
-          showClasses: true,
-          showStructs: true,
-          showInterfaces: true,
-          showModules: true,
-          showProperties: true,
-          showEvents: true,
-          showOperators: true,
-          showUnits: true,
-          showValue: true,
-          showConstant: true,
-          showEnum: true,
-          showEnumMember: true,
-          showKeyword: true,
-          showWords: true,
-          showColors: true,
-          showFiles: true,
-          showReferences: true,
-          showFolders: true,
-          showTypeParameters: true,
-          showSnippets: true,
           autoImports: autoImports,
+          showWords: !customAutocomplete,
         },
-        importSuggestions: autoImports,
+        quickSuggestions: !customAutocomplete,
       }),
       [
         readOnly,
@@ -297,16 +309,17 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         lineWrap,
         isMobileLike,
         autoImports,
+        customAutocomplete,
       ]
     )
 
     return (
       <div
-        className="h-full w-full overflow-hidden"
-        data-testid="code-editor-container"
+        className='h-full w-full overflow-hidden'
+        data-testid='code-editor-container'
       >
         <Editor
-          height="100%"
+          height='100%'
           language={language}
           value={value}
           onChange={(v) => onChange?.(v || '')}

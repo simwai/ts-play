@@ -9,8 +9,8 @@ export const DARK_THEMES = [
   'ayu-dark',
   'tomorrow-night',
   'cobalt',
-  'shades-of-purple'
-];
+  'shades-of-purple',
+]
 
 export const LIGHT_THEMES = [
   'vs',
@@ -19,8 +19,11 @@ export const LIGHT_THEMES = [
   'solarized-light',
   'github-light',
   'quietlight',
-  'tomorrow'
-];
+  'tomorrow',
+]
 
-export type ThemeMode = 'dark' | 'light';
-export const THEME_LABELS: Record<string, string> = { "vs-dark": "VS Dark", "github-dark": "GitHub Dark" };
+export type ThemeMode = 'dark' | 'light'
+export const THEME_LABELS: Record<string, string> = {
+  'vs-dark': 'VS Dark',
+  'github-dark': 'GitHub Dark',
+}

@@ -16,7 +16,15 @@ export type TypeInfo = {
   detail?: string
 }
 
-export type ConsoleMessageType = 'log' | 'info' | 'warn' | 'error' | 'debug' | 'trace' | 'dir' | 'system'
+export type ConsoleMessageType =
+  | 'log'
+  | 'info'
+  | 'warn'
+  | 'error'
+  | 'debug'
+  | 'trace'
+  | 'dir'
+  | 'system'
 
 export type ConsoleMessage = {
   id: string

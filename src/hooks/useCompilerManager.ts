@@ -5,7 +5,11 @@ import { compilerMachine } from '../lib/machines/compilerMachine'
 import { workerClient } from '../lib/workerClient'
 import { loadPrettier } from '../lib/formatter'
 import { writeFiles, runCommand, readFile } from '../lib/webcontainer'
-import { compilerStatusAtom, isRunningAtom, enqueueTaskAtom } from '../lib/store'
+import {
+  compilerStatusAtom,
+  isRunningAtom,
+  enqueueTaskAtom,
+} from '../lib/store'
 import type { CompilerStatus } from '../lib/types'
 import { type ConsoleMessage } from '../lib/types'
 
@@ -23,12 +27,12 @@ export function useCompilerManager(
     const status: CompilerStatus = state.matches('initializing')
       ? 'loading'
       : state.matches('compiling')
-      ? 'compiling'
-      : state.matches('running')
-      ? 'running'
-      : state.matches('error')
-      ? 'error'
-      : 'ready'
+        ? 'compiling'
+        : state.matches('running')
+          ? 'running'
+          : state.matches('error')
+            ? 'error'
+            : 'ready'
 
     setStatus(status)
     setIsRunning(state.matches('running'))
@@ -36,9 +40,8 @@ export function useCompilerManager(
 
   useEffect(() => {
     send({ type: 'BOOT_START' })
-    workerClient
-      .init()
-      .then((res) => res.match(
+    workerClient.init().then((res) =>
+      res.match(
         () => {
           send({ type: 'BOOT_SUCCESS' })
           loadPrettier().catch(() => {})
@@ -47,7 +50,8 @@ export function useCompilerManager(
           console.error('Worker init failed:', err)
           send({ type: 'BOOT_FAILURE', error: err.message })
         }
-      ))
+      )
+    )
   }, [send])
 
   const stopCode = useCallback(() => {
@@ -82,7 +86,10 @@ export function useCompilerManager(
                 )
               ),
             ]).catch((e) => {
-              console.warn('Proceeding despite background task warning:', e.message)
+              console.warn(
+                'Proceeding despite background task warning:',
+                e.message
+              )
             })
 
             const writeRes = await writeFiles({
@@ -92,25 +99,29 @@ export function useCompilerManager(
 
             addMessage('info', ['Compiling with esbuild...'])
 
-            const esbuildProcResult = await runCommand('npx', [
-              'esbuild',
-              'main.ts',
-              '--bundle',
-              '--platform=node',
-              '--outfile=index.js',
-              '--format=esm',
-              '--target=es2020'
-            ], (out) => {
-               const clean = out.trim()
-               if (clean) addMessage('info', [clean])
-            })
+            const esbuildProcResult = await runCommand(
+              'npx',
+              [
+                'esbuild',
+                'main.ts',
+                '--bundle',
+                '--platform=node',
+                '--outfile=index.js',
+                '--format=esm',
+                '--target=es2020',
+              ],
+              (out) => {
+                const clean = out.trim()
+                if (clean) addMessage('info', [clean])
+              }
+            )
 
             if (esbuildProcResult.isErr()) throw esbuildProcResult.error
             const esbuildProc = esbuildProcResult.value
             const esbuildExitCode = await esbuildProc.exit
 
             if (esbuildExitCode !== 0) {
-               throw new Error(`Compilation failed with code ${esbuildExitCode}`)
+              throw new Error(`Compilation failed with code ${esbuildExitCode}`)
             }
 
             const jsResult = await readFile('index.js')
@@ -122,10 +133,14 @@ export function useCompilerManager(
             onSuccess(js, dts)
 
             addMessage('info', ['Executing via Node.js...'])
-            const processResult = await runCommand('node', ['index.js'], (out) => {
-              const clean = out.trim()
-              if (clean) addMessage('log', [clean])
-            })
+            const processResult = await runCommand(
+              'node',
+              ['index.js'],
+              (out) => {
+                const clean = out.trim()
+                if (clean) addMessage('log', [clean])
+              }
+            )
 
             if (processResult.isErr()) throw processResult.error
             const process = processResult.value
@@ -144,7 +159,7 @@ export function useCompilerManager(
             }
 
             if (exitCode !== 0 && !state.matches('idle')) {
-               addMessage('error', [`Process exited with code ${exitCode}`])
+              addMessage('error', [`Process exited with code ${exitCode}`])
             }
 
             send({ type: 'PROCESS_DONE' })
@@ -154,7 +169,7 @@ export function useCompilerManager(
             onError(error as Error)
             throw error
           }
-        }
+        },
       })
     },
     [tsCode, addMessage, send, state, enqueueTask]
