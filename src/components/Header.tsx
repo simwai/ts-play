@@ -141,7 +141,7 @@ export function Header({
           </Button>
         ) : (
           <Button
-            onClick={() => doRun(false)}
+            data-testid="header-run-button" onClick={() => doRun(false)}
             disabled={compilerStatus !== 'ready'}
             variant='primary'
             size='sm'

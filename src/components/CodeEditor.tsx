@@ -4,13 +4,15 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
+  useState,
 } from 'react'
 import Editor, {
   type BeforeMount,
   type OnMount,
   useMonaco,
 } from '@monaco-editor/react'
-import { type TypeInfo, type ThemeMode } from '../lib/types'
+import type { editor as MonacoEditor } from 'monaco-editor'
+import { type TypeInfo, type ThemeMode, type TSDiagnostic } from '../lib/types'
 import {
   githubDark,
   githubLight,
@@ -19,6 +21,8 @@ import {
   monokai,
   shadesOfPurple,
 } from '../lib/monaco-themes'
+import { useMonacoTypeInfo } from '../hooks/useMonacoTypeInfo'
+import { useMonacoAutocomplete } from '../hooks/useMonacoAutocomplete'
 
 export type CodeEditorRef = {
   undo: () => void
@@ -44,26 +48,10 @@ type CodeEditorProps = {
   isMobileLike?: boolean
   hideTypeInfo?: boolean
   disableDiagnostics?: boolean
-  diagnostics?: any[]
+  diagnostics?: TSDiagnostic[]
   autoImports?: boolean
   customAutocomplete?: boolean
 }
-
-const SYMBOL_KINDS = new Set([
-  'localName',
-  'variableName',
-  'parameterName',
-  'methodName',
-  'functionName',
-  'className',
-  'interfaceName',
-  'aliasName',
-  'propertyName',
-  'enumName',
-  'enumMemberName',
-  'moduleName',
-  'typeParameterName',
-])
 
 export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
   (
@@ -90,26 +78,28 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
     },
     ref
   ) => {
-    const editorRef = useRef<any>(null)
+    const [editorInstance, setEditorInstance] = useState<MonacoEditor.IStandaloneCodeEditor | null>(null)
     const monaco = useMonaco()
-    const typeInfoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const prevLibKeysRef = useRef<Set<string>>(new Set())
-    const completionProviderRef = useRef<any>(null)
 
     useImperativeHandle(ref, () => ({
-      undo: () => editorRef.current?.trigger('keyboard', 'undo', null),
-      redo: () => editorRef.current?.trigger('keyboard', 'redo', null),
+      undo: () => editorInstance?.trigger('keyboard', 'undo', null),
+      redo: () => editorInstance?.trigger('keyboard', 'redo', null),
       jumpTo: (line, col) => {
-        if (editorRef.current) {
-          editorRef.current.revealPositionInCenter({
+        if (editorInstance) {
+          editorInstance.revealPositionInCenter({
             lineNumber: line,
             column: col,
           })
-          editorRef.current.setPosition({ lineNumber: line, column: col })
-          editorRef.current.focus()
+          editorInstance.setPosition({ lineNumber: line, column: col })
+          editorInstance.focus()
         }
       },
     }))
+
+    // Sub-hooks to handle specialized logic (SRP)
+    useMonacoTypeInfo(editorInstance, monaco, language, hideTypeInfo, onTypeInfoChange)
+    useMonacoAutocomplete(monaco, language, customAutocomplete)
 
     const handleBeforeMount: BeforeMount = (monaco) => {
       monaco.editor.defineTheme('github-dark', githubDark as any)
@@ -124,11 +114,11 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         ts.typescriptDefaults.setCompilerOptions({
           target: ts.ScriptTarget.ESNext,
           allowNonTsExtensions: true,
-          moduleResolution: ts.ModuleResolutionKind.NodeJs,
-          module: ts.ModuleKind.ESNext,
+          moduleResolution: (monaco.languages as any).typescript.ModuleResolutionKind.NodeJs,
+          module: (monaco.languages as any).typescript.ModuleKind.ESNext,
           noEmit: true,
           esModuleInterop: true,
-          jsx: ts.JsxEmit.ReactJSX,
+          jsx: (monaco.languages as any).typescript.JsxEmit.ReactJSX,
           reactNamespace: 'React',
           allowJs: true,
           typeRoots: ['node_modules/@types'],
@@ -136,8 +126,8 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       }
     }
 
-    const handleEditorMount: OnMount = (editor, monaco) => {
-      editorRef.current = editor
+    const handleEditorMount: OnMount = (editor) => {
+      setEditorInstance(editor)
 
       editor.onDidChangeCursorPosition((e) => {
         const model = editor.getModel()
@@ -148,49 +138,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
           col: e.position.column,
         })
 
-        const offset = model.getOffsetAt(e.position)
-        onCursorChange?.(offset)
-
-        if (!onTypeInfoChange || hideTypeInfo) return
-
-        if (typeInfoTimerRef.current) clearTimeout(typeInfoTimerRef.current)
-        typeInfoTimerRef.current = setTimeout(async () => {
-          if (language !== 'typescript') return
-
-          try {
-            const ts = (monaco.languages as any).typescript
-            const worker = await ts.getTypeScriptWorker()
-            const client = await worker(model.uri)
-            const info = await client.getQuickInfoAtPosition(
-              model.uri.toString(),
-              offset
-            )
-
-            if (info) {
-              const displayParts = info.displayParts || []
-              const documentation = info.documentation || []
-              const typeAnnotation = displayParts
-                .map((p: any) => p.text)
-                .join('')
-
-              const symbolPart = displayParts.find((p: any) =>
-                SYMBOL_KINDS.has(p.kind)
-              )
-              const name = symbolPart ? symbolPart.text : ''
-
-              onTypeInfoChange?.({
-                name,
-                kind: info.kind,
-                typeAnnotation,
-                detail: documentation.map((d: any) => d.text).join(''),
-              })
-            } else {
-              onTypeInfoChange?.(null)
-            }
-          } catch {
-            onTypeInfoChange?.(null)
-          }
-        }, 500)
+        onCursorChange?.(model.getOffsetAt(e.position))
       })
     }
 
@@ -216,48 +164,15 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
           noSemanticValidation: disableDiagnostics,
           noSyntaxValidation: disableDiagnostics,
         })
-
-        if (customAutocomplete) {
-          if (completionProviderRef.current)
-            completionProviderRef.current.dispose()
-          completionProviderRef.current =
-            monaco.languages.registerCompletionItemProvider('typescript', {
-              provideCompletionItems: async (model: any, position: any) => {
-                const worker = await ts.getTypeScriptWorker()
-                const client = await worker(model.uri)
-                const completions = await client.getCompletionsAtPosition(
-                  model.uri.toString(),
-                  model.getOffsetAt(position)
-                )
-                if (!completions) return { suggestions: [] }
-
-                return {
-                  suggestions: completions.entries.map((e: any) => ({
-                    label: e.name,
-                    kind: monaco.languages.CompletionItemKind.Variable,
-                    insertText: e.name,
-                    detail: e.kind,
-                    range: {
-                      startLineNumber: position.lineNumber,
-                      endLineNumber: position.lineNumber,
-                      startColumn: position.column,
-                      endColumn: position.column,
-                    },
-                  })),
-                }
-              },
-            } as any)
-        } else if (completionProviderRef.current) {
-          completionProviderRef.current.dispose()
-          completionProviderRef.current = null
-        }
       }
 
-      return () => {
-        if (completionProviderRef.current)
-          completionProviderRef.current.dispose()
+      if (monaco && language === 'json') {
+        (monaco.languages as any).json.jsonDefaults.setDiagnosticsOptions({
+          validate: true,
+          allowComments: true,
+        })
       }
-    }, [monaco, extraLibs, language, disableDiagnostics, customAutocomplete])
+    }, [monaco, extraLibs, language, disableDiagnostics])
 
     const options = useMemo(
       () => ({
@@ -315,11 +230,11 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
 
     return (
       <div
-        className='h-full w-full overflow-hidden'
-        data-testid='code-editor-container'
+        className="h-full w-full overflow-hidden"
+        data-testid="code-editor-container"
       >
         <Editor
-          height='100%'
+          height="100%"
           language={language}
           value={value}
           onChange={(v) => onChange?.(v || '')}
