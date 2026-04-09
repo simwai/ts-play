@@ -293,7 +293,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         fixedOverflowWidgets: true,
         domReadOnly: isMobileLike,
         selectionHighlight: !isMobileLike,
-        occurrencesHighlight: (!isMobileLike ? 'singleFile' : 'off') as any,
+        occurrencesHighlight: (!isMobileLike ? 'singleFile' : 'off') as 'singleFile' | 'off',
         links: !isMobileLike,
         suggest: {
           autoImports: autoImports,
