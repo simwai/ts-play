@@ -2,14 +2,10 @@ import { useState, useCallback } from 'react'
 import type { TypeInfo } from '../lib/types'
 
 export function useTypeInfo(tsCursorPos: { current: number }) {
-  const [typeInfo, setTypeInfo] = useState<string>('')
+  const [rawTypeInfo, setRawTypeInfo] = useState<TypeInfo | null>(null)
 
   const handleTypeInfoChange = useCallback((info: TypeInfo | null) => {
-    if (!info) {
-      setTypeInfo('')
-    } else {
-      setTypeInfo(info.typeAnnotation || '')
-    }
+    setRawTypeInfo(info)
   }, [])
 
   const handleCursorPosChange = useCallback(
@@ -20,7 +16,7 @@ export function useTypeInfo(tsCursorPos: { current: number }) {
   )
 
   return {
-    typeInfo,
+    rawTypeInfo,
     handleTypeInfoChange,
     handleCursorPosChange,
   }

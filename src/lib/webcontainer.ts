@@ -86,7 +86,7 @@ export const readFile = (path: string) => webContainerService.readFile(path)
 
 import { DisposableReader } from './readers'
 
-export async function* readStreamLines(stream: ReadableStream<string>) {
+async function* readStreamLines(stream: ReadableStream<string>) {
   await using reader = DisposableReader.fromStream(stream);
   let partialLine = '';
 

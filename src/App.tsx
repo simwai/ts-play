@@ -9,6 +9,7 @@ import { PackageManager } from './components/PackageManager'
 import { SettingsModal } from './components/SettingsModal'
 import { ToastContainer } from './components/ui/Toast'
 import { OverrideModal } from './components/OverrideModal'
+import { TypeInfoBar } from './components/ui/TypeInfoBar'
 import { useCompilerManager } from './hooks/useCompilerManager'
 import { useConsoleManager } from './hooks/useConsoleManager'
 import { useTypeInfo } from './hooks/useTypeInfo'
@@ -71,7 +72,7 @@ export function App() {
 
   const diagnostics = useTSDiagnostics(tsCode, activeTab === 'ts', packageTypings)
   const tsCursorPos = useRef(0)
-  const { typeInfo, handleTypeInfoChange } = useTypeInfo(tsCursorPos)
+  const { rawTypeInfo, handleTypeInfoChange } = useTypeInfo(tsCursorPos)
   const { keyboardOpen, isMobileLike } = useVirtualKeyboard()
   const { panelHeight, startResizing } = useResizePanel(11.25)
   const tsEditorRef = useRef<CodeEditorRef>(null)
@@ -156,9 +157,7 @@ export function App() {
            </div>
         </div>
         {!compactForKeyboard && (
-          <div className="h-6 flex items-center px-3 bg-mantle border-t border-surface0 text-xxs font-mono truncate shrink-0 text-subtext1">
-            {typeInfo || 'Ready'} | Ln {cursorPos.line}, Col {cursorPos.col}
-          </div>
+          <TypeInfoBar typeInfo={rawTypeInfo} cursorPos={cursorPos} language={activeTab === 'ts' ? 'typescript' : 'javascript'} />
         )}
       </main>
       {!compactForKeyboard && (
@@ -169,7 +168,7 @@ export function App() {
           <PackageManager packages={installedPackages} isOpen={consoleOpen && activeBottomTab === 'packages'} contentHeight={panelHeight} />
         </div>
       )}
-      {showModal && <OverrideModal onConfirm={async () => doRun(true)} onCancel={() => setShowModal(false)} />}
+      {showModal && <OverrideModal onConfirm={() => doRun(true)} onCancel={() => setShowModal(false)} />}
       <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
       <ToastContainer toasts={toasts} onClose={removeToast} />
     </div>
