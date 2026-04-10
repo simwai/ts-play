@@ -83,3 +83,24 @@ export const runCommand = (
 export const writeFiles = (files: Record<string, string>) =>
   webContainerService.writeFiles(files)
 export const readFile = (path: string) => webContainerService.readFile(path)
+
+import { DisposableReader } from './readers'
+
+export async function* readStreamLines(stream: ReadableStream<string>) {
+  await using reader = DisposableReader.fromStream(stream);
+  let partialLine = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const lines = (partialLine + value).split('\n');
+    partialLine = lines.pop() || '';
+
+    for (const line of lines) {
+      yield line;
+    }
+  }
+
+  if (partialLine) yield partialLine;
+}

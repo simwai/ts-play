@@ -1,8 +1,14 @@
-import React, { useRef, useEffect, useMemo, useState } from 'react'
-import { Eraser, ChevronDown, Terminal, Search, X } from 'lucide-react'
-import { Badge, type BadgeVariant } from './ui/Badge'
-import { Button } from './ui/Button'
+import React, { useEffect, useRef, useState, useMemo } from 'react'
+import {
+  Terminal,
+  Eraser,
+  ChevronDown,
+  Search,
+  X,
+} from 'lucide-react'
 import Ansi from 'ansi-to-html'
+import { Button } from './ui/Button'
+import { Badge, type BadgeVariant } from './ui/Badge'
 import { type ConsoleMessage } from '../lib/types'
 import { cn } from '../lib/utils'
 
@@ -20,15 +26,6 @@ type Props = {
 
 type FilterType = 'all' | 'log' | 'info' | 'warn' | 'error'
 
-function typeVariant(type: ConsoleMessage['type']): BadgeVariant {
-  if (type === 'error') return 'error'
-  if (type === 'warn' || type === 'trace') return 'warn'
-  return 'info'
-}
-
-function typeLabel(type: ConsoleMessage['type']): string {
-  return type.toUpperCase().slice(0, 3)
-}
 
 export const Console = React.memo(function Console({
   messages,
@@ -117,21 +114,24 @@ export const Console = React.memo(function Console({
         onTabChange(id)
       }}
       className={cn(
-        'flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all',
+        'relative flex items-center gap-1.5 px-3 h-full transition-all border-b-2 outline-none',
         activeTab === id
-          ? 'bg-surface0 text-lavender shadow-sm'
-          : 'text-subtext1 hover:text-text'
+          ? 'border-lavender text-text font-bold'
+          : 'border-transparent text-subtext1 hover:text-text'
       )}
     >
-      <span className='text-[10px] font-bold uppercase tracking-wider'>
+      <span className='text-[10px] uppercase tracking-[0.05em]'>
         {label}
       </span>
       {count !== undefined && count > 0 && (
-        <Badge
-          label={String(count)}
-          variant={variant}
-          className='scale-90'
-        />
+        <span className={cn(
+          "flex items-center justify-center min-w-[1rem] h-3.5 px-1 rounded-full text-[9px] font-bold",
+          variant === 'error' ? "bg-red text-crust" :
+          variant === 'warn' ? "bg-yellow text-crust" :
+          "bg-surface2 text-text"
+        )}>
+          {count}
+        </span>
       )}
     </button>
   )
@@ -141,19 +141,13 @@ export const Console = React.memo(function Console({
 
   return (
     <div
-      className='flex flex-col border-t border-surface0 bg-mantle shrink-0 overflow-hidden h-full'
+      className='flex flex-col border-t border-surface0 bg-crust shrink-0 overflow-hidden h-full'
       data-testid='console-container'
     >
       <div
-        className='flex items-center justify-between px-2 h-10 transition-colors bg-mantle/50 border-b border-surface0/30 cursor-pointer hover:bg-surface0/10'
-        onClick={onToggle}
+        className='flex items-center justify-between h-8 bg-mantle border-b border-surface0/30'
       >
-        <div className='flex items-center gap-1'>
-          <TabButton
-            id='console'
-            label='Console'
-            count={messages.length}
-          />
+        <div className='flex items-center h-full ml-3 gap-1'>
           <TabButton
             id='problems'
             label='Problems'
@@ -161,12 +155,17 @@ export const Console = React.memo(function Console({
             variant={problemCount > 0 ? 'error' : 'default'}
           />
           <TabButton
+            id='console'
+            label='Output'
+            count={messages.length}
+          />
+          <TabButton
             id='packages'
             label='Packages'
           />
         </div>
 
-        <div className='flex items-center gap-3 pr-2'>
+        <div className='flex items-center gap-1 pr-1 h-full'>
           {activeTab === 'console' && isOpen && messages.length > 0 && (
             <Button
               onClick={(e) => {
@@ -175,66 +174,55 @@ export const Console = React.memo(function Console({
               }}
               variant='ghost'
               size='sm'
-              className='h-7 px-2 text-subtext1 hover:text-red'
+              className='h-6 w-6 p-0 text-subtext1 hover:text-red hover:bg-surface0 rounded transition-colors'
+              title="Clear Output"
             >
-              <Eraser
-                size={14}
-                className='mr-1.5'
-              />
-              <span className='text-xs font-bold uppercase'>Clear</span>
+              <Eraser size={13} />
             </Button>
           )}
-          <ChevronDown
-            className={cn(
-              'w-4 h-4 text-overlay0 transition-transform duration-300',
-              isOpen && 'rotate-180'
-            )}
-          />
+          <Button
+            onClick={onToggle}
+            variant='ghost'
+            size='sm'
+            className='h-6 w-6 p-0 text-subtext1 hover:bg-surface0 rounded transition-colors'
+          >
+            <ChevronDown
+              className={cn(
+                'w-4 h-4 transition-transform duration-300',
+                isOpen && 'rotate-180'
+              )}
+            />
+          </Button>
         </div>
       </div>
 
       {isOpen && (
         <div className='flex flex-col bg-crust flex-1 min-h-0'>
           {activeTab === 'console' && (
-            <div className='flex items-center gap-2 px-3 py-1.5 bg-base/30 border-b border-surface0/20'>
+            <div className='flex items-center gap-2 px-3 h-7 bg-mantle/30 border-b border-surface0/10'>
               <div className='flex bg-surface0/50 rounded p-0.5 gap-0.5 shrink-0'>
-                <FilterButton
-                  type='all'
-                  label='All'
-                />
-                <FilterButton
-                  type='log'
-                  label='Log'
-                />
-                <FilterButton
-                  type='info'
-                  label='Info'
-                />
-                <FilterButton
-                  type='warn'
-                  label='Warn'
-                />
-                <FilterButton
-                  type='error'
-                  label='Err'
-                />
+                <FilterButton type='all' label='All' />
+                <FilterButton type='log' label='Log' />
+                <FilterButton type='info' label='Info' />
+                <FilterButton type='warn' label='Warn' />
+                <FilterButton type='error' label='Err' />
               </div>
 
-              <div className='relative flex-1 max-w-xs ml-2'>
+              <div className='relative flex-1 max-w-[12rem] ml-2'>
                 <Search
-                  size={12}
-                  className='absolute left-2 top-1/2 -translate-y-1/2 text-overlay0'
+                  size={11}
+                  className='absolute left-1.5 top-1/2 -translate-y-1/2 text-overlay0'
                 />
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder='Filter logs...'
-                  className='w-full bg-mantle border border-surface0 rounded px-7 py-0.5 text-[10px] text-text focus:outline-none focus:border-lavender'
+                  placeholder='Filter...'
+                  className='w-full bg-crust border border-surface0 rounded px-6 py-0 text-[9px] h-5 text-text focus:outline-none focus:border-lavender'
                 />
                 {search && (
                   <X
-                    size={10}
-                    className='absolute right-2 top-1/2 -translate-y-1/2 text-overlay0 cursor-pointer hover:text-text'
+                    size={9}
+                    className='absolute right-1.5 top-1/2 -translate-y-1/2 text-overlay0 cursor-pointer hover:text-text'
                     onClick={() => setSearch('')}
                   />
                 )}
@@ -242,16 +230,10 @@ export const Console = React.memo(function Console({
 
               <div className='flex items-center gap-2 ml-auto'>
                 {errors > 0 && (
-                  <Badge
-                    label={`${errors} ERR`}
-                    variant='error'
-                  />
+                  <Badge label={`${errors} E`} variant='error' className="h-4 px-1.5" />
                 )}
                 {warns > 0 && (
-                  <Badge
-                    label={`${warns} WRN`}
-                    variant='warn'
-                  />
+                  <Badge label={`${warns} W`} variant='warn' className="h-4 px-1.5" />
                 )}
               </div>
             </div>
@@ -259,58 +241,52 @@ export const Console = React.memo(function Console({
 
           <div
             ref={scrollRef}
-            className='flex-1 overflow-y-auto p-2 font-mono text-xs selection:bg-lavender/30'
+            className='flex-1 overflow-y-auto p-2 font-mono text-[11px] selection:bg-lavender/30 scrollbar-thin'
           >
             {activeTab === 'console' ? (
               filteredMessages.length === 0 ? (
-                <div className='h-full flex flex-col items-center justify-center text-subtext1 opacity-40 italic'>
+                <div className='h-full flex flex-col items-center justify-center text-subtext1 opacity-30 italic'>
                   <Terminal
                     size={24}
-                    className='mb-2 opacity-20'
+                    className='mb-2 opacity-10'
                   />
-                  {messages.length === 0 ? 'No output yet' : 'No matching logs'}
+                  {messages.length === 0 ? 'No output' : 'No matching entries'}
                 </div>
               ) : (
-                filteredMessages.map((msg, i) => {
-                  const fullText = msg.args.join(' ')
-                  const hasAnsi =
-                    trueColorEnabled && /[\u001b\u009b]/.test(fullText)
-                  return (
-                    <div
-                      key={`${msg.ts}-${i}`}
-                      className={cn(
-                        'flex items-start gap-2.5 py-1.5 px-2 border-b border-surface0/30 last:border-0 hover:bg-surface0/5 transition-colors',
-                        msg.type === 'error'
-                          ? 'bg-red/5'
-                          : msg.type === 'warn'
-                            ? 'bg-yellow/5'
-                            : ''
-                      )}
-                    >
-                      <Badge
-                        label={typeLabel(msg.type)}
-                        variant={typeVariant(msg.type)}
-                        className='h-4 px-1 py-0 mt-0.5 min-w-[32px] justify-center'
-                      />
-                      <div className='flex-1 min-w-0'>
-                        <div className='flex items-center gap-2 mb-0.5 opacity-40 text-[9px] font-bold'>
-                          <span>{new Date(msg.ts).toLocaleTimeString()}</span>
-                        </div>
-                        <div className='whitespace-pre-wrap break-all text-subtext1 leading-relaxed pl-1'>
-                          {hasAnsi ? (
-                            <span
-                              dangerouslySetInnerHTML={{
-                                __html: converter.toHtml(fullText),
-                              }}
-                            />
-                          ) : (
-                            fullText
-                          )}
+                <div className="space-y-0">
+                  {filteredMessages.map((msg, i) => {
+                    const fullText = msg.args.join(' ')
+                    const hasAnsi =
+                      trueColorEnabled && /[\u001b\u009b]/.test(fullText)
+                    return (
+                      <div
+                        key={`${msg.ts}-${i}`}
+                        className={cn(
+                          'flex items-start gap-3 py-0.5 px-2 hover:bg-surface0/10 transition-colors group leading-[1.4]',
+                          msg.type === 'error' && 'text-red bg-red/5',
+                          msg.type === 'warn' && 'text-yellow bg-yellow/5'
+                        )}
+                      >
+                        <span className="opacity-0 group-hover:opacity-20 text-[8px] min-w-[36px] text-right pt-[3px] transition-opacity pointer-events-none tabular-nums">
+                          {new Date(msg.ts).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        </span>
+                        <div className='flex-1 min-w-0'>
+                          <div className='whitespace-pre-wrap break-all'>
+                            {hasAnsi ? (
+                              <span
+                                dangerouslySetInnerHTML={{
+                                  __html: converter.toHtml(fullText),
+                                }}
+                              />
+                            ) : (
+                              fullText
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )
-                })
+                    )
+                  })}
+                </div>
               )
             ) : null}
           </div>
