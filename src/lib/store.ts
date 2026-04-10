@@ -1,6 +1,6 @@
 import { atom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
-import type { ThemeMode } from './theme'
+import type { ThemeName } from './theme'
 import type {
   CompilerStatus,
   PackageManagerStatus,
@@ -20,13 +20,13 @@ export const dtsCodeAtom = atomWithStorage(
 )
 export const tsConfigAtom = atomWithStorage('tsplay_tsconfig', DEFAULT_TSCONFIG)
 export const isDarkModeAtom = atomWithStorage('tsplay_is_dark', true)
-export const preferredDarkThemeAtom = atomWithStorage<ThemeMode>(
+export const preferredDarkThemeAtom = atomWithStorage<ThemeName>(
   'tsplay_dark_theme',
-  'mocha' as any
+  'mocha'
 )
-export const preferredLightThemeAtom = atomWithStorage<ThemeMode>(
+export const preferredLightThemeAtom = atomWithStorage<ThemeName>(
   'tsplay_light_theme',
-  'latte' as any
+  'latte'
 )
 export const trueColorEnabledAtom = atomWithStorage('tsplay_true_color', true)
 export const lineWrapAtom = atomWithStorage('tsplay_line_wrap', false)
@@ -65,7 +65,7 @@ export const enqueueTaskAtom = atom(
   async (
     _get,
     set,
-    { name, task }: { name: string; task: () => Promise<any> }
+    { name, task }: { name: string; task: () => Promise<void> }
   ) => {
     const id = Math.random().toString(36).slice(2, 11)
     const toastId = id

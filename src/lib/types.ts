@@ -58,7 +58,6 @@ export interface ToastMessage {
 
 export type TabType = 'ts' | 'js' | 'dts'
 
-export type ThemeMode = 'dark' | 'light'
 
 export interface InstalledPackage {
   name: string
@@ -68,7 +67,7 @@ export interface InstalledPackage {
 
 export interface PlaygroundConfig {
   theme: string
-  themeMode: ThemeMode
+  themeMode: 'dark' | 'light'
   fontSize: number
   fontFamily: string
   showLineNumbers: boolean

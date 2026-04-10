@@ -27,7 +27,8 @@ import {
   tsCodeAtom, jsCodeAtom, dtsCodeAtom, tsConfigAtom, isDarkModeAtom,
   jsDirtyAtom, isRunningAtom, compilerStatusAtom, packageManagerStatusAtom,
   toastsAtom, removeToastAtom, addToastAtom, enqueueTaskAtom,
-  showNodeWarningsAtom, autoImportsAtom, customAutocompleteAtom
+  showNodeWarningsAtom, autoImportsAtom, customAutocompleteAtom,
+  preferredDarkThemeAtom, preferredLightThemeAtom
 } from './lib/store'
 
 const TABS = ['ts', 'js', 'dts'] as const
@@ -38,6 +39,8 @@ export function App() {
   const [dtsCode, setDtsCode] = useAtom(dtsCodeAtom)
   const [tsConfigString] = useAtom(tsConfigAtom)
   const [isDarkMode, setIsDarkMode] = useAtom(isDarkModeAtom)
+  const [preferredDark] = useAtom(preferredDarkThemeAtom)
+  const [preferredLight] = useAtom(preferredLightThemeAtom)
   const [jsDirty, setJsDirty] = useAtom(jsDirtyAtom)
   const [isRunning] = useAtom(isRunningAtom)
   const [compilerStatus] = useAtom(compilerStatusAtom)
@@ -117,6 +120,7 @@ export function App() {
   }, [tsCode, tsConfigString, addToast])
 
   const compactForKeyboard = keyboardOpen && isMobileLike
+  const currentTheme = isDarkMode ? preferredDark : preferredLight
 
   return (
     <div
@@ -142,13 +146,13 @@ export function App() {
       <main className="flex-1 relative flex flex-col min-h-0">
         <div className="flex-1 relative">
            <div className={cn("absolute inset-0 transition-opacity duration-200 z-10", activeTab !== 'ts' && "opacity-0 pointer-events-none z-0")}>
-             <CodeEditor ref={tsEditorRef} value={tsCode} onChange={(v) => { setTsCode(v); setJsDirty(true) }} language="typescript" theme={isDarkMode ? 'dark' : 'light'} onTypeInfoChange={handleTypeInfoChange} onCursorPosChange={setCursorPos} diagnostics={diagnostics} autoImports={autoImports} customAutocomplete={customAutocomplete} />
+             <CodeEditor ref={tsEditorRef} value={tsCode} onChange={(v) => { setTsCode(v); setJsDirty(true) }} language="typescript" theme={currentTheme} onTypeInfoChange={handleTypeInfoChange} onCursorPosChange={setCursorPos} diagnostics={diagnostics} autoImports={autoImports} customAutocomplete={customAutocomplete} />
            </div>
            <div className={cn("absolute inset-0 transition-opacity duration-200 z-10", activeTab !== 'js' && "opacity-0 pointer-events-none z-0")}>
-             <CodeEditor value={jsCode} language="javascript" theme={isDarkMode ? 'dark' : 'light'} readOnly />
+             <CodeEditor value={jsCode} language="javascript" theme={currentTheme} readOnly />
            </div>
            <div className={cn("absolute inset-0 transition-opacity duration-200 z-10", activeTab !== 'dts' && "opacity-0 pointer-events-none z-0")}>
-             <CodeEditor value={dtsCode} language="typescript" theme={isDarkMode ? 'dark' : 'light'} readOnly />
+             <CodeEditor value={dtsCode} language="typescript" theme={currentTheme} readOnly />
            </div>
         </div>
         {!compactForKeyboard && (

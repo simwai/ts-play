@@ -11,8 +11,9 @@ import Editor, {
   type OnMount,
   useMonaco,
 } from '@monaco-editor/react'
-import type { editor as MonacoEditor } from 'monaco-editor'
-import { type TypeInfo, type ThemeMode, type TSDiagnostic } from '../lib/types'
+import type { editor } from 'monaco-editor'
+import { type TypeInfo, type TSDiagnostic } from '../lib/types'
+import { type ThemeName } from '../lib/theme'
 import {
   githubDark,
   githubLight,
@@ -41,7 +42,7 @@ type CodeEditorProps = {
   hideGutter?: boolean
   fontSizeOverride?: number
   disableAutocomplete?: boolean
-  theme?: ThemeMode
+  theme?: ThemeName
   path?: string
   lineWrap?: boolean
   extraLibs?: Record<string, string>
@@ -66,7 +67,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       hideGutter = false,
       fontSizeOverride,
       disableAutocomplete = false,
-      theme = 'dark',
+      theme = 'mocha',
       path,
       lineWrap = true,
       extraLibs = {},
@@ -78,7 +79,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
     },
     ref
   ) => {
-    const [editorInstance, setEditorInstance] = useState<MonacoEditor.IStandaloneCodeEditor | null>(null)
+    const [editorInstance, setEditorInstance] = useState<editor.IStandaloneCodeEditor | null>(null)
     const monaco = useMonaco()
     const prevLibKeysRef = useRef<Set<string>>(new Set())
 
@@ -102,23 +103,24 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
     useMonacoAutocomplete(monaco, language, customAutocomplete)
 
     const handleBeforeMount: BeforeMount = (monaco) => {
-      monaco.editor.defineTheme('github-dark', githubDark as any)
-      monaco.editor.defineTheme('github-light', githubLight as any)
-      monaco.editor.defineTheme('latte', latte as any)
-      monaco.editor.defineTheme('mocha', mocha as any)
-      monaco.editor.defineTheme('monokai', monokai as any)
-      monaco.editor.defineTheme('shades-of-purple', shadesOfPurple as any)
+      monaco.editor.defineTheme('github-dark', githubDark)
+      monaco.editor.defineTheme('github-light', githubLight)
+      monaco.editor.defineTheme('latte', latte)
+      monaco.editor.defineTheme('mocha', mocha)
+      monaco.editor.defineTheme('monokai', monokai)
+      monaco.editor.defineTheme('shades-of-purple', shadesOfPurple)
 
       if (language === 'typescript') {
-        const ts = (monaco.languages as any).typescript
+        // Justified 'any': Monaco's bundled types in @monaco-editor/react can have conflicting namespaces with core 'monaco-editor' types.
+        const ts: any = (monaco.languages as any)['typescript']
         ts.typescriptDefaults.setCompilerOptions({
           target: ts.ScriptTarget.ESNext,
           allowNonTsExtensions: true,
-          moduleResolution: (monaco.languages as any).typescript.ModuleResolutionKind.NodeJs,
-          module: (monaco.languages as any).typescript.ModuleKind.ESNext,
+          moduleResolution: ts.ModuleResolutionKind.NodeJs,
+          module: ts.ModuleKind.ESNext,
           noEmit: true,
           esModuleInterop: true,
-          jsx: (monaco.languages as any).typescript.JsxEmit.ReactJSX,
+          jsx: ts.JsxEmit.ReactJSX,
           reactNamespace: 'React',
           allowJs: true,
           typeRoots: ['node_modules/@types'],
@@ -144,7 +146,8 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
 
     useEffect(() => {
       if (monaco && language === 'typescript') {
-        const ts = (monaco.languages as any).typescript
+        // Justified 'any': Monaco's bundled types in @monaco-editor/react can have conflicting namespaces with core 'monaco-editor' types.
+        const ts: any = (monaco.languages as any)['typescript']
         const libs = Object.entries(extraLibs).map(([path, content]) => ({
           content,
           filePath: path.startsWith('file://') ? path : `file:///${path}`,
@@ -167,7 +170,9 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       }
 
       if (monaco && language === 'json') {
-        (monaco.languages as any).json.jsonDefaults.setDiagnosticsOptions({
+        // Justified 'any': Monaco's bundled types in @monaco-editor/react can have conflicting namespaces with core 'monaco-editor' types.
+        const json: any = (monaco.languages as any)['json']
+        json.jsonDefaults.setDiagnosticsOptions({
           validate: true,
           allowComments: true,
         })
@@ -240,7 +245,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
           onChange={(v) => onChange?.(v || '')}
           onMount={handleEditorMount}
           beforeMount={handleBeforeMount}
-          theme={theme === 'dark' ? 'mocha' : 'latte'}
+          theme={theme}
           options={options}
           path={path}
         />

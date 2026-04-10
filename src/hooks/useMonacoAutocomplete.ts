@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react'
-import { type IDisposable } from 'monaco-editor'
+import type { IDisposable, editor, Position } from 'monaco-editor'
+import type { Monaco } from '@monaco-editor/react'
 
 export function useMonacoAutocomplete(
-  monaco: any | null,
+  monaco: Monaco | null,
   language: string,
   customAutocomplete: boolean
 ) {
@@ -15,9 +16,11 @@ export function useMonacoAutocomplete(
       if (completionProviderRef.current) completionProviderRef.current.dispose()
 
       completionProviderRef.current = monaco.languages.registerCompletionItemProvider('typescript', {
-        provideCompletionItems: async (model: any, position: any) => {
+        provideCompletionItems: async (model: editor.ITextModel, position: Position) => {
           try {
-            const ts = monaco.languages.typescript
+            // Justified 'any': Monaco's bundled types in @monaco-editor/react's Monaco object
+            // can sometimes mis-type the 'languages' namespace properties.
+            const ts: any = (monaco.languages as any)['typescript']
             const worker = await ts.getTypeScriptWorker()
             const client = await worker(model.uri)
             const completions = await client.getCompletionsAtPosition(

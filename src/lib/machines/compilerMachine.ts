@@ -40,7 +40,9 @@ export const compilerMachine = createMachine(
           BOOT_SUCCESS: 'idle',
           BOOT_FAILURE: {
             target: 'error',
-            actions: assign({ error: ({ event }) => (event as any).error }),
+            actions: assign({
+              error: ({ event }) => event.type === 'BOOT_FAILURE' ? event.error : null
+            }),
           },
         },
       },
@@ -48,11 +50,15 @@ export const compilerMachine = createMachine(
         on: {
           COMPILE_SUCCESS: {
             target: 'running',
-            actions: assign({ process: ({ event }) => (event as any).process }),
+            actions: assign({
+              process: ({ event }) => event.type === 'COMPILE_SUCCESS' ? event.process : null
+            }),
           },
           COMPILE_FAILURE: {
             target: 'error',
-            actions: assign({ error: ({ event }) => (event as any).error }),
+            actions: assign({
+              error: ({ event }) => event.type === 'COMPILE_FAILURE' ? event.error : null
+            }),
           },
           STOP: 'idle',
         },

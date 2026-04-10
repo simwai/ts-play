@@ -13,7 +13,7 @@ export type PackageEvent =
 
 export const packageMachine = createMachine(
   {
-    id: 'packageManager',
+    id: 'package',
     initial: 'idle',
     types: {} as {
       context: PackageContext
@@ -33,19 +33,28 @@ export const packageMachine = createMachine(
       installing: {
         on: {
           SUCCESS: 'idle',
-          FAILURE: 'error',
+          FAILURE: {
+            target: 'error',
+            actions: 'setError',
+          },
         },
       },
       uninstalling: {
         on: {
           SUCCESS: 'idle',
-          FAILURE: 'error',
+          FAILURE: {
+            target: 'error',
+            actions: 'setError',
+          },
         },
       },
       syncing: {
         on: {
           SUCCESS: 'idle',
-          FAILURE: 'error',
+          FAILURE: {
+            target: 'error',
+            actions: 'setError',
+          },
         },
       },
       error: {
@@ -59,7 +68,9 @@ export const packageMachine = createMachine(
   },
   {
     actions: {
-      setError: assign({ error: ({ event }) => (event as any).error }),
+      setError: assign({
+        error: ({ event }) => event.type === 'FAILURE' ? event.error : null
+      }),
     },
   }
 )

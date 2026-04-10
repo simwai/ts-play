@@ -128,6 +128,7 @@ const getErrorMessage = (error: unknown) =>
 globalThis.onmessage = async (messageEvent: MessageEvent) => {
   const { id, type, payload } = messageEvent.data
   try {
+    // Justified 'any': Generic worker command result handling
     let result: any
 
     switch (type) {

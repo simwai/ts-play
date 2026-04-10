@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react'
 import type { editor } from 'monaco-editor'
+import type { Monaco } from '@monaco-editor/react'
 import { type TypeInfo } from '../lib/types'
 import { SYMBOL_KINDS, displayPartsToString, type MonacoDisplayPart, type MonacoDocumentation } from '../lib/monaco-utils'
 
 export function useMonacoTypeInfo(
   editorInstance: editor.IStandaloneCodeEditor | null,
-  monaco: any | null,
+  monaco: Monaco | null,
   language: string,
   hideTypeInfo: boolean,
   onTypeInfoChange?: (info: TypeInfo | null) => void
@@ -25,7 +26,9 @@ export function useMonacoTypeInfo(
         if (!model) return
 
         try {
-          const ts = monaco.languages.typescript
+          // Justified 'any': Monaco's bundled types in @monaco-editor/react's Monaco object
+          // can sometimes mis-type the 'languages' namespace properties.
+          const ts: any = (monaco.languages as any)['typescript']
           const worker = await ts.getTypeScriptWorker()
           const client = await worker(model.uri)
           const offset = model.getOffsetAt(e.position)
@@ -41,7 +44,7 @@ export function useMonacoTypeInfo(
               name: symbolPart ? symbolPart.text : '',
               kind: info.kind,
               typeAnnotation: displayPartsToString(displayParts),
-              detail: displayPartsToString(documentation as any),
+              detail: displayPartsToString(documentation),
             })
           } else {
             onTypeInfoChange(null)

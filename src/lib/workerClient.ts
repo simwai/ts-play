@@ -29,6 +29,7 @@ class WorkerClient {
     }
   }
 
+  // Justified 'any': Generic worker message request/response payload
   private async send(type: string, payload: any): Promise<any> {
     if (!this.worker) throw new Error('Worker not initialized')
     const id = Math.random().toString(36).slice(2, 11)
@@ -38,9 +39,30 @@ class WorkerClient {
     })
   }
 
-  async updateConfig(tsconfig: string) {
-    return ok(await this.send('UPDATE_CONFIG', { tsconfig }))
+  async updateFile(content: string, filename: string = '/main.ts') {
+    try {
+      return ok(await this.send('UPDATE_FILE', { content, filename }))
+    } catch (e: any) {
+      return err(e)
+    }
   }
+
+  async updateExtraLibs(libs: Record<string, string>) {
+    try {
+      return ok(await this.send('UPDATE_EXTRA_LIBS', { libs }))
+    } catch (e: any) {
+      return err(e)
+    }
+  }
+
+  async updateConfig(tsconfig: string) {
+    try {
+      return ok(await this.send('UPDATE_CONFIG', { tsconfig }))
+    } catch (e: any) {
+      return err(e)
+    }
+  }
+
   async getDiagnostics(): Promise<Result<TSDiagnostic[], Error>> {
     try {
       return ok(await this.send('GET_DIAGNOSTICS', {}))
@@ -48,6 +70,7 @@ class WorkerClient {
       return err(e)
     }
   }
+
   async compile(
     code: string
   ): Promise<Result<{ js: string; dts: string }, Error>> {
@@ -57,6 +80,7 @@ class WorkerClient {
       return err(e)
     }
   }
+
   async generateDts(code: string): Promise<Result<string, Error>> {
     try {
       const res = await this.send('COMPILE', { code })
@@ -65,16 +89,19 @@ class WorkerClient {
       return err(e)
     }
   }
+
   async getTypeInfo(
     path: string,
     offset: number
   ): Promise<Result<TypeInfo | null, Error>> {
     try {
+      // Worker currently expects '/main.ts' but we can expand this
       return ok(await this.send('GET_TYPE_INFO', { path, offset }))
     } catch (e: any) {
       return err(e)
     }
   }
+
   async validateConfig(tsconfig: string) {
     try {
       return ok(await this.send('VALIDATE_CONFIG', { tsconfig }))
@@ -82,6 +109,7 @@ class WorkerClient {
       return err(e)
     }
   }
+
   async detectImports(code: string) {
     try {
       return ok(await this.send('DETECT_IMPORTS', { code }))

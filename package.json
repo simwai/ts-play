@@ -19,7 +19,6 @@
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "@sindresorhus/tsconfig": "^8.1.0",
-    "@typescript/ata": "^0.9.8",
     "@webcontainer/api": "^1.6.1",
     "@xstate/react": "^6.1.0",
     "ansi-to-html": "^0.7.2",
@@ -41,17 +40,13 @@
     "not dead"
   ],
   "devDependencies": {
-    "@tailwindcss/postcss": "4.1.17",
     "@tailwindcss/vite": "4.1.17",
-    "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
-    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^22.0.0",
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.1.1",
     "@vitest/browser-playwright": "^4.1.2",
-    "autoprefixer": "^10.4.19",
     "esbuild-wasm": "^0.23.1",
     "knip": "^6.2.0",
     "madge": "^8.0.0",

@@ -3,6 +3,7 @@ import { useMachine } from '@xstate/react'
 import { useSetAtom } from 'jotai'
 import { packageMachine } from '../lib/machines/packageMachine'
 import { packageManagerStatusAtom } from '../lib/store'
+import { workerClient } from '../lib/workerClient'
 import {
   type InstalledPackage,
   type ConsoleMessage,
@@ -20,6 +21,11 @@ export function usePackageManager(
   useEffect(() => {
     setStatus(state.value as PackageManagerStatus)
   }, [state.value, setStatus])
+
+  // Sync typings if we had any (placeholder for now as ATA is not implemented in this simplified version)
+  useEffect(() => {
+    workerClient.updateExtraLibs({})
+  }, [])
 
   return {
     installedPackages: [] as InstalledPackage[],

@@ -14,7 +14,7 @@ import {
   autoImportsAtom,
   customAutocompleteAtom,
 } from '../lib/store'
-import { DARK_THEMES, LIGHT_THEMES, THEME_LABELS } from '../lib/theme'
+import { DARK_THEMES, LIGHT_THEMES, THEME_LABELS, type ThemeName } from '../lib/theme'
 import { workerClient } from '../lib/workerClient'
 import { Badge } from './ui/Badge'
 
@@ -48,7 +48,7 @@ export function SettingsModal({ isOpen, onClose }: Props) {
     const validate = async () => {
       const res = await workerClient.validateConfig(tempConfig)
       res.match(
-        (val: any) => {
+        (val: { valid: boolean; error?: string }) => {
           setIsValid(val.valid)
           setErrorMsg(val.error || null)
         },
@@ -96,7 +96,7 @@ export function SettingsModal({ isOpen, onClose }: Props) {
                 </label>
                 <select
                   value={preferredDark}
-                  onChange={(e) => setPreferredDark(e.target.value as any)}
+                  onChange={(e) => setPreferredDark(e.target.value as ThemeName)}
                   className='w-full bg-crust border border-surface0 rounded-lg px-3 py-2 text-sm text-text'
                 >
                   {DARK_THEMES.map((t) => (
@@ -115,7 +115,7 @@ export function SettingsModal({ isOpen, onClose }: Props) {
                 </label>
                 <select
                   value={preferredLight}
-                  onChange={(e) => setPreferredLight(e.target.value as any)}
+                  onChange={(e) => setPreferredLight(e.target.value as ThemeName)}
                   className='w-full bg-crust border border-surface0 rounded-lg px-3 py-2 text-sm text-text'
                 >
                   {LIGHT_THEMES.map((t) => (
@@ -151,7 +151,7 @@ export function SettingsModal({ isOpen, onClose }: Props) {
                 language='json'
                 value={tempConfig}
                 onChange={setTempConfig}
-                theme={isDarkMode ? 'dark' : 'light'}
+                theme={isDarkMode ? preferredDark : preferredLight}
                 fontSizeOverride={12}
                 hideTypeInfo
                 hideGutter

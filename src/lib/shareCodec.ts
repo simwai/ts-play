@@ -1,7 +1,7 @@
 export type SharePayload = {
   tsCode: string
   jsCode: string
-  packages: any[]
+  packages: { name: string; version: string }[]
 }
 
 function toBase64Url(bytes: Uint8Array) {

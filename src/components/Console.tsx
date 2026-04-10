@@ -106,7 +106,7 @@ export const Console = React.memo(function Console({
     count,
     variant,
   }: {
-    id: any
+    id: 'console' | 'problems' | 'packages'
     label: string
     count?: number
     variant?: BadgeVariant

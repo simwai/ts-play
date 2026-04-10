@@ -18,6 +18,9 @@ export function useTSDiagnostics(
     }
 
     const timer = setTimeout(async () => {
+      // First ensure the worker has the latest code
+      await workerClient.updateFile(code)
+
       const result = await workerClient.getDiagnostics()
       result.match(
         (results) => setDiagnostics(results),
