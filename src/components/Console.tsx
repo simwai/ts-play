@@ -1,121 +1,78 @@
-import React, { useRef, useEffect, useMemo, useState } from 'react'
-import { Eraser } from 'lucide-react'
-import { Badge } from './ui/Badge'
-import { Button } from './ui/Button'
-import { PanelHeader } from './ui/PanelHeader'
+import React, { useEffect, useRef, useState, useMemo } from 'react'
+import {
+  Terminal,
+  Eraser,
+  ChevronDown,
+  Search,
+  X,
+} from 'lucide-react'
 import Ansi from 'ansi-to-html'
-
-export type ConsoleMessage = {
-  type: 'log' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'dir'
-  args: string[]
-  ts: number
-}
+import { Button } from './ui/Button'
+import { Badge, type BadgeVariant } from './ui/Badge'
+import { type ConsoleMessage } from '../lib/types'
+import { cn } from '../lib/utils'
 
 type Props = {
   messages: ConsoleMessage[]
   onClear: () => void
   isOpen: boolean
   onToggle: () => void
-  contentHeight: number // Now in rem
-  trueColorEnabled?: boolean
   showNodeWarnings?: boolean
   activeTab: 'console' | 'problems' | 'packages'
   onTabChange: (tab: 'console' | 'problems' | 'packages') => void
   problemCount: number
-}
-
-function typeVariant(
-  type: ConsoleMessage['type']
-): 'error' | 'warn' | 'info' | 'default' {
-  if (type === 'error') return 'error'
-  if (type === 'warn' || type === 'trace') return 'warn'
-  if (type === 'info' || type === 'debug' || type === 'dir') return 'info'
-  return 'default'
-}
-
-function typeLabel(type: ConsoleMessage['type']): string {
-  if (type === 'error') return 'ERR'
-  if (type === 'warn') return 'WRN'
-  if (type === 'info') return 'INF'
-  if (type === 'debug') return 'DBG'
-  if (type === 'trace') return 'TRC'
-  if (type === 'dir') return 'DIR'
-  return 'LOG'
-}
-
-function typeColorClass(type: ConsoleMessage['type']): string {
-  if (type === 'error') return 'text-red'
-  if (type === 'warn' || type === 'trace') return 'text-yellow'
-  if (type === 'info' || type === 'debug' || type === 'dir') return 'text-blue'
-  return 'text-text'
+  trueColorEnabled?: boolean
 }
 
 type FilterType = 'all' | 'log' | 'info' | 'warn' | 'error'
+
 
 export const Console = React.memo(function Console({
   messages,
   onClear,
   isOpen,
   onToggle,
-  contentHeight,
-  trueColorEnabled = true,
   showNodeWarnings = true,
   activeTab,
   onTabChange,
   problemCount,
+  trueColorEnabled = true,
 }: Props) {
-  const bottomRef = useRef<HTMLDivElement>(null)
-  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const [filter, setFilter] = useState<FilterType>('all')
+  const [search, setSearch] = useState('')
 
-  // Create Ansi converter with truecolor support if enabled
-  const ansiConvert = useMemo(
-    () =>
-      new Ansi({
-        newline: false,
-        escapeHtml: true,
-        stream: false,
-        colors: trueColorEnabled
-          ? undefined
-          : {
-              // Standard 16 colors fallback if needed
-            },
-      }),
-    [trueColorEnabled]
+  const converter = useMemo(
+    () => new Ansi({ newline: true, escapeXML: true }),
+    []
   )
 
-  useEffect(() => {
-    if (isOpen && activeTab === 'console') {
-      // Debounce scroll to prevent jank during high-frequency logs
-      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current)
-      scrollTimerRef.current = setTimeout(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-      }, 100)
-    }
-    return () => {
-      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current)
-    }
-  }, [messages, isOpen, filter, activeTab])
-
-  const errors = messages.filter((m) => m.type === 'error').length
-  const warns = messages.filter((m) => m.type === 'warn').length
-
   const filteredMessages = useMemo(() => {
+    const searchLower = search.toLowerCase()
     return messages.filter((m) => {
-      // Node.js warnings filter
-      if (!showNodeWarnings && m.args.some((arg) => arg.startsWith('(node:'))) {
-        return false
+      if (!showNodeWarnings && m.type === 'system') return false
+      if (filter !== 'all') {
+        if (filter === 'log' && m.type !== 'log') return false
+        if (filter === 'info' && !['info', 'debug', 'dir'].includes(m.type))
+          return false
+        if (filter === 'warn' && !['warn', 'trace'].includes(m.type))
+          return false
+        if (filter === 'error' && m.type !== 'error') return false
       }
-
-      if (filter === 'all') return true
-      if (filter === 'log') return m.type === 'log'
-      if (filter === 'info')
-        return m.type === 'info' || m.type === 'debug' || m.type === 'dir'
-      if (filter === 'warn') return m.type === 'warn' || m.type === 'trace'
-      if (filter === 'error') return m.type === 'error'
+      if (
+        searchLower &&
+        !m.args.some((a) => String(a).toLowerCase().includes(searchLower))
+      )
+        return false
       return true
     })
-  }, [messages, filter, showNodeWarnings])
+  }, [messages, showNodeWarnings, filter, search])
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'console' && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [isOpen, activeTab, filteredMessages])
 
   const FilterButton = ({
     type,
@@ -129,11 +86,12 @@ export const Console = React.memo(function Console({
         e.stopPropagation()
         setFilter(type)
       }}
-      className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold uppercase transition-colors ${
+      className={cn(
+        'px-2 py-0.5 rounded text-[10px] font-bold uppercase transition-colors',
         filter === type
-          ? 'bg-mauve/20 text-mauve'
-          : 'text-overlay1 hover:text-text'
-      }`}
+          ? 'bg-lavender/20 text-lavender'
+          : 'text-subtext1 hover:text-text'
+      )}
     >
       {label}
     </button>
@@ -148,48 +106,48 @@ export const Console = React.memo(function Console({
     id: 'console' | 'problems' | 'packages'
     label: string
     count?: number
-    variant?: 'error' | 'warn' | 'info' | 'default'
+    variant?: BadgeVariant
   }) => (
     <button
       onClick={(e) => {
         e.stopPropagation()
         onTabChange(id)
-        if (!isOpen) onToggle()
       }}
-      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-all duration-200 ${
+      className={cn(
+        'relative flex items-center gap-1.5 px-3 h-full transition-all border-b-2 outline-none',
         activeTab === id
-          ? 'bg-surface0 text-mauve shadow-sm'
-          : 'text-overlay1 hover:text-text hover:bg-surface0/50'
-      }`}
+          ? 'border-lavender text-text font-bold'
+          : 'border-transparent text-subtext1 hover:text-text'
+      )}
     >
-      <span className='text-[10px] font-mono font-bold uppercase tracking-wider'>
+      <span className='text-[10px] uppercase tracking-[0.05em]'>
         {label}
       </span>
       {count !== undefined && count > 0 && (
-        <Badge
-          label={String(count)}
-          variant={variant}
-          className='scale-90 origin-left'
-        />
+        <span className={cn(
+          "flex items-center justify-center min-w-[1rem] h-3.5 px-1 rounded-full text-[9px] font-bold",
+          variant === 'error' ? "bg-red text-crust" :
+          variant === 'warn' ? "bg-yellow text-crust" :
+          "bg-surface2 text-text"
+        )}>
+          {count}
+        </span>
       )}
     </button>
   )
 
+  const errors = messages.filter((m) => m.type === 'error').length
+  const warns = messages.filter((m) => m.type === 'warn').length
+
   return (
     <div
-      className='flex flex-col border-t border-surface0 bg-mantle shrink-0'
+      className='flex flex-col border-t border-surface0 bg-crust shrink-0 overflow-hidden h-full'
       data-testid='console-container'
     >
       <div
-        className='flex items-center justify-between px-2 py-1 h-10 transition-colors duration-150 bg-mantle/50 border-b border-surface0/30'
-        onClick={onToggle}
+        className='flex items-center justify-between h-8 bg-mantle border-b border-surface0/30'
       >
-        <div className='flex items-center gap-1'>
-          <TabButton
-            id='console'
-            label='Console'
-            count={messages.length}
-          />
+        <div className='flex items-center h-full ml-3 gap-1'>
           <TabButton
             id='problems'
             label='Problems'
@@ -197,133 +155,142 @@ export const Console = React.memo(function Console({
             variant={problemCount > 0 ? 'error' : 'default'}
           />
           <TabButton
+            id='console'
+            label='Output'
+            count={messages.length}
+          />
+          <TabButton
             id='packages'
             label='Packages'
           />
         </div>
 
-        <div className='flex items-center gap-3 pr-2'>
-          {activeTab === 'console' && messages.length > 0 && (
+        <div className='flex items-center gap-1 pr-1 h-full'>
+          {activeTab === 'console' && isOpen && messages.length > 0 && (
             <Button
               onClick={(e) => {
                 e.stopPropagation()
                 onClear()
               }}
-              variant='secondary'
-              size='xs'
-              title='Clear console'
-              data-testid='console-clear-button'
-              tooltipAlign='right'
-              className='h-6 px-2'
+              variant='ghost'
+              size='sm'
+              className='h-6 w-6 p-0 text-subtext1 hover:text-red hover:bg-surface0 rounded transition-colors'
+              title="Clear Output"
             >
-              <Eraser size={11} />
-              <span className='hidden sm:inline'>Clear</span>
+              <Eraser size={13} />
             </Button>
           )}
-          <span
-            className={`text-sm inline-block leading-none pointer-events-none transition-transform duration-200 text-overlay1 ${
-              isOpen ? 'rotate-180' : 'rotate-0'
-            }`}
+          <Button
+            onClick={onToggle}
+            variant='ghost'
+            size='sm'
+            className='h-6 w-6 p-0 text-subtext1 hover:bg-surface0 rounded transition-colors'
           >
-            ▾
-          </span>
+            <ChevronDown
+              className={cn(
+                'w-4 h-4 transition-transform duration-300',
+                isOpen && 'rotate-180'
+              )}
+            />
+          </Button>
         </div>
       </div>
 
-      {isOpen && activeTab === 'console' && (
-        <>
-          <div className='flex items-center gap-2 px-4 py-1.5 bg-base/30 border-b border-surface0/20'>
-            <div className='flex bg-surface0/50 rounded px-1 py-0.5 gap-1 shrink-0'>
-              <FilterButton
-                type='all'
-                label='All'
-              />
-              <FilterButton
-                type='log'
-                label='Log'
-              />
-              <FilterButton
-                type='info'
-                label='Info'
-              />
-              <FilterButton
-                type='warn'
-                label='Warn'
-              />
-              <FilterButton
-                type='error'
-                label='Err'
-              />
-            </div>
-            <div className='flex items-center gap-1.5 ml-auto'>
-              {errors > 0 && (
-                <Badge
-                  label={`${errors} err`}
-                  variant='error'
-                />
-              )}
-              {warns > 0 && (
-                <Badge
-                  label={`${warns} warn`}
-                  variant='warn'
-                />
-              )}
-            </div>
-          </div>
-          <div
-            className='overflow-y-auto overflow-x-hidden'
-            style={{ height: `${contentHeight}rem` }}
-          >
-            {filteredMessages.length === 0 ? (
-              <div className='flex items-center justify-center h-full text-overlay0 text-xxs md:text-xs italic font-mono'>
-                {messages.length === 0
-                  ? 'No output yet — press Run to execute'
-                  : 'No matches for selected filter'}
+      {isOpen && (
+        <div className='flex flex-col bg-crust flex-1 min-h-0'>
+          {activeTab === 'console' && (
+            <div className='flex items-center gap-2 px-3 h-7 bg-mantle/30 border-b border-surface0/10'>
+              <div className='flex bg-surface0/50 rounded p-0.5 gap-0.5 shrink-0'>
+                <FilterButton type='all' label='All' />
+                <FilterButton type='log' label='Log' />
+                <FilterButton type='info' label='Info' />
+                <FilterButton type='warn' label='Warn' />
+                <FilterButton type='error' label='Err' />
               </div>
-            ) : (
-              filteredMessages.map((m, idx) => {
-                const fullText = m.args.join(' ')
-                const hasAnsi =
-                  trueColorEnabled && /[\u001b\u009b]/.test(fullText)
 
-                return (
-                  <div
-                    key={`${m.ts}-${idx}`}
-                    data-testid='console-message'
-                    className={`flex items-start gap-2.5 px-3 py-1.5 border-b border-surface0/40 ${
-                      m.type === 'error'
-                        ? 'bg-red/5'
-                        : m.type === 'warn'
-                          ? 'bg-yellow/5'
-                          : 'bg-transparent'
-                    }`}
-                  >
-                    <Badge
-                      label={typeLabel(m.type)}
-                      variant={typeVariant(m.type)}
-                      className='mt-0.5'
-                    />
-                    {hasAnsi ? (
+              <div className='relative flex-1 max-w-[12rem] ml-2'>
+                <Search
+                  size={11}
+                  className='absolute left-1.5 top-1/2 -translate-y-1/2 text-overlay0'
+                />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder='Filter...'
+                  className='w-full bg-crust border border-surface0 rounded px-6 py-0 text-[9px] h-5 text-text focus:outline-none focus:border-lavender'
+                />
+                {search && (
+                  <X
+                    size={9}
+                    className='absolute right-1.5 top-1/2 -translate-y-1/2 text-overlay0 cursor-pointer hover:text-text'
+                    onClick={() => setSearch('')}
+                  />
+                )}
+              </div>
+
+              <div className='flex items-center gap-2 ml-auto'>
+                {errors > 0 && (
+                  <Badge label={`${errors} E`} variant='error' className="h-4 px-1.5" />
+                )}
+                {warns > 0 && (
+                  <Badge label={`${warns} W`} variant='warn' className="h-4 px-1.5" />
+                )}
+              </div>
+            </div>
+          )}
+
+          <div
+            ref={scrollRef}
+            className='flex-1 overflow-y-auto p-2 font-mono text-[11px] selection:bg-lavender/30 scrollbar-thin'
+          >
+            {activeTab === 'console' ? (
+              filteredMessages.length === 0 ? (
+                <div className='h-full flex flex-col items-center justify-center text-subtext1 opacity-30 italic'>
+                  <Terminal
+                    size={24}
+                    className='mb-2 opacity-10'
+                  />
+                  {messages.length === 0 ? 'No output' : 'No matching entries'}
+                </div>
+              ) : (
+                <div className="space-y-0">
+                  {filteredMessages.map((msg, i) => {
+                    const fullText = msg.args.join(' ')
+                    const hasAnsi =
+                      trueColorEnabled && /[\u001b\u009b]/.test(fullText)
+                    return (
                       <div
-                        className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono`}
-                        dangerouslySetInnerHTML={{
-                          __html: ansiConvert.toHtml(fullText),
-                        }}
-                      />
-                    ) : (
-                      <pre
-                        className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}
+                        key={`${msg.ts}-${i}`}
+                        className={cn(
+                          'flex items-start gap-3 py-0.5 px-2 hover:bg-surface0/10 transition-colors group leading-[1.4]',
+                          msg.type === 'error' && 'text-red bg-red/5',
+                          msg.type === 'warn' && 'text-yellow bg-yellow/5'
+                        )}
                       >
-                        {fullText}
-                      </pre>
-                    )}
-                  </div>
-                )
-              })
-            )}
-            <div ref={bottomRef} />
+                        <span className="opacity-0 group-hover:opacity-20 text-[8px] min-w-[36px] text-right pt-[3px] transition-opacity pointer-events-none tabular-nums">
+                          {new Date(msg.ts).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        </span>
+                        <div className='flex-1 min-w-0'>
+                          <div className='whitespace-pre-wrap break-all'>
+                            {hasAnsi ? (
+                              <span
+                                dangerouslySetInnerHTML={{
+                                  __html: converter.toHtml(fullText),
+                                }}
+                              />
+                            ) : (
+                              fullText
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            ) : null}
           </div>
-        </>
+        </div>
       )}
     </div>
   )

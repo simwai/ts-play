@@ -1,55 +1,38 @@
-import { type CSSProperties } from 'react'
-import { cn } from '../../utils/cn'
+import { type ReactNode } from 'react'
+import { cn } from '../../lib/utils'
 
-export type BadgeVariant =
-  | 'default'
-  | 'error'
-  | 'warn'
-  | 'info'
-  | 'success'
-  | 'custom'
+export type BadgeVariant = 'error' | 'warn' | 'info' | 'default' | 'success'
 
-type BadgeProps = {
-  label: string
+export interface BadgeProps {
+  children?: ReactNode
   variant?: BadgeVariant
-  color?: string // Used when variant === 'custom'
-  style?: CSSProperties
   className?: string
+  label?: string
 }
 
 export function Badge({
+  children,
   label,
   variant = 'default',
-  color,
-  style,
   className,
 }: BadgeProps) {
+  const variants = {
+    error: 'bg-red/10 text-red border-red/20',
+    warn: 'bg-yellow/10 text-yellow border-yellow/20',
+    info: 'bg-blue/10 text-blue border-blue/20',
+    success: 'bg-green/10 text-green border-green/20',
+    default: 'bg-surface0 text-subtext1 border-surface1',
+  }
+
   return (
     <span
       className={cn(
-        'text-4xs font-bold tracking-wider uppercase font-mono rounded-[0.1875rem] px-1.5 py-0.5 shrink-0 leading-none border',
-        {
-          'bg-overlay1/20 text-overlay1 border-overlay1/40':
-            variant === 'default',
-          'bg-red/20 text-red border-red/40': variant === 'error',
-          'bg-yellow/20 text-yellow border-yellow/40': variant === 'warn',
-          'bg-blue/20 text-blue border-blue/40': variant === 'info',
-          'bg-green/20 text-green border-green/40': variant === 'success',
-        },
+        'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold transition-colors whitespace-nowrap uppercase tracking-wider',
+        variants[variant],
         className
       )}
-      style={
-        variant === 'custom' && color
-          ? {
-              color,
-              background: `${color}20`,
-              borderColor: `${color}40`,
-              ...style,
-            }
-          : style
-      }
     >
-      {label}
+      {children || label}
     </span>
   )
 }

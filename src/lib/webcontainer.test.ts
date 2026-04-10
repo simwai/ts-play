@@ -1,34 +1,52 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { WebContainerService } from './webcontainer'
+import { webContainerService } from './webcontainer'
 
-vi.mock('@webcontainer/api', () => ({
-  WebContainer: {
-    boot: vi.fn().mockResolvedValue({
-      export: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3])),
-      on: vi.fn(),
-      fs: {
-        writeFile: vi.fn().mockResolvedValue(undefined),
-      },
-    }),
-  },
-}))
+vi.mock('@webcontainer/api', () => {
+  return {
+    WebContainer: {
+      boot: vi.fn().mockResolvedValue({
+        fs: {
+          writeFile: vi.fn().mockResolvedValue(undefined),
+          readFile: vi.fn().mockResolvedValue('content'),
+          mkdir: vi.fn().mockResolvedValue(undefined),
+          readdir: vi.fn().mockResolvedValue([]),
+        },
+        spawn: vi.fn().mockResolvedValue({
+          output: {
+            getReader: () => ({
+              read: vi.fn().mockResolvedValue({ done: true }),
+              releaseLock: vi.fn(),
+            }),
+            pipeTo: vi.fn().mockResolvedValue(undefined),
+          },
+          exit: Promise.resolve(0),
+        }),
+        on: vi.fn(),
+      }),
+    },
+  }
+})
 
 describe('WebContainerService', () => {
-  let service: WebContainerService
-
   beforeEach(() => {
     vi.clearAllMocks()
-    service = new WebContainerService()
   })
 
-  it('exportSnapshot should call export with binary format', async () => {
-    const instance = await service.getInstance()
-    const exportSpy = vi.spyOn(instance, 'export')
+  it('should boot and return instance', async () => {
+    const result = await webContainerService.getInstance()
+    expect(result.isOk()).toBe(true)
+  })
 
-    const result = await service.exportSnapshot()
+  it('should write files', async () => {
+    const result = await webContainerService.writeFile('test.ts', 'const a = 1')
+    expect(result.isOk()).toBe(true)
+  })
 
-    expect(exportSpy).toHaveBeenCalledWith('.', { format: 'binary' })
-    expect(result).toBeInstanceOf(Uint8Array)
-    expect(result).toEqual(new Uint8Array([1, 2, 3]))
+  it('should read files', async () => {
+    const result = await webContainerService.readFile('test.ts')
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value).toBe('content')
+    }
   })
 })

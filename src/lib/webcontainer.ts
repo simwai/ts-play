@@ -1,277 +1,106 @@
 import { WebContainer, type WebContainerProcess } from '@webcontainer/api'
-import { playgroundStore } from './state-manager'
-import { RegexPatterns, toRegExp } from './regex'
-
-export const SYSTEM_DEPS = [
-  'typescript',
-  'esbuild',
-  'prettier',
-  'lodash-es',
-  '@types/lodash-es',
-  '@types/node',
-]
+import { okAsync, ResultAsync } from 'neverthrow'
 
 export class WebContainerService {
   private instance: WebContainer | null = null
   private bootPromise: Promise<WebContainer> | null = null
-  private logCallbacks: Set<
-    (log: { type: string; message: string; timestamp: number }) => void
-  > = new Set()
 
-  public serverUrl: string | null = null
+  getInstance(): ResultAsync<WebContainer, Error> {
+    if (this.instance) return okAsync(this.instance)
+    if (this.bootPromise)
+      return ResultAsync.fromPromise(this.bootPromise, (e) => e as Error)
 
-  async getInstance(): Promise<WebContainer> {
-    if (this.instance) return this.instance
-    if (this.bootPromise) return this.bootPromise
-
-    this.bootPromise = (async () => {
-      playgroundStore.setState({ compilerStatus: 'loading' })
-      this.emitLog('info', 'Booting WebContainer...')
-      const instance = await WebContainer.boot()
+    this.bootPromise = WebContainer.boot().then(async (instance) => {
       this.instance = instance
-      this.emitLog('info', 'WebContainer booted.')
-
-      instance.on('server-ready', (port, url) => {
-        this.serverUrl = url
-        this.emitLog('info', 'Server ready: ' + url + ' (port ' + port + ')')
-      })
-
-      // Initialize with a default package.json to avoid Node.js warnings and set ESM mode
       await instance.fs.writeFile(
         'package.json',
-        JSON.stringify(
-          {
-            name: 'ts-play-project',
-            version: '1.0.0',
-            type: 'module',
-            dependencies: {},
-          },
-          null,
-          2
-        )
+        JSON.stringify({ name: 'ts-play', type: 'module' })
       )
-
       return instance
-    })()
-
-    return this.bootPromise
+    })
+    return ResultAsync.fromPromise(this.bootPromise, (e) => e as Error)
   }
 
-  onLog(
-    cb: (log: { type: string; message: string; timestamp: number }) => void
-  ) {
-    this.logCallbacks.add(cb)
-    return () => this.logCallbacks.delete(cb)
-  }
-
-  emitLog(type: string, message: string) {
-    if (!message) return
-    this.logCallbacks.forEach((cb) =>
-      cb({ type, message, timestamp: Date.now() })
+  writeFile(path: string, content: string): ResultAsync<void, Error> {
+    return this.getInstance().andThen((instance) =>
+      ResultAsync.fromPromise(
+        instance.fs.writeFile(path, content),
+        (e) => e as Error
+      )
     )
   }
 
-  async enqueue<T>(
-    actionName: string,
-    task: (instance: WebContainer) => Promise<T>
-  ): Promise<T> {
-    return playgroundStore.enqueue(actionName, async () => {
-      const instance = await this.getInstance()
-      return task(instance)
-    })
+  writeFiles(files: Record<string, string>): ResultAsync<void, Error> {
+    return this.getInstance().andThen((instance) =>
+      ResultAsync.fromPromise(
+        (async () => {
+          for (const [p, c] of Object.entries(files)) {
+            await instance.fs.writeFile(p, c)
+          }
+        })(),
+        (e) => e as Error
+      )
+    )
   }
 
-  async mount(files: any) {
-    const instance = await this.getInstance()
-    await instance.mount(files)
+  readFile(path: string): ResultAsync<string, Error> {
+    return this.getInstance().andThen((instance) =>
+      ResultAsync.fromPromise(
+        instance.fs.readFile(path, 'utf8'),
+        (e) => e as Error
+      )
+    )
   }
 
-  async mountSnapshot(url: string) {
-    this.emitLog('info', 'Fetching snapshot from ' + url + '...')
-    const res = await fetch(url)
-    if (!res.ok) throw new Error('Snapshot fetch failed: ' + res.status)
-    const buffer = await res.arrayBuffer()
-    const instance = await this.getInstance()
-    await instance.mount(new Uint8Array(buffer))
-    this.emitLog('info', 'Snapshot mounted successfully.')
-  }
-
-  async exportSnapshot(): Promise<Uint8Array> {
-    const instance = await this.getInstance()
-    this.emitLog('info', 'Exporting environment snapshot...')
-    const snapshot = (await instance.export('.', {
-      format: 'binary',
-    })) as Uint8Array
-    this.emitLog('info', 'Snapshot exported.')
-    return snapshot
-  }
-
-  async mountRawSnapshot(data: Uint8Array) {
-    const instance = await this.getInstance()
-    await instance.mount(data)
-    this.emitLog('info', 'Local snapshot mounted.')
-  }
-
-  async writeFile(path: string, content: string) {
-    const instance = await this.getInstance()
-    const normalizedPath = path.startsWith('./') ? path.slice(2) : path
-    const parts = normalizedPath.split('/')
-
-    if (parts.length > 1) {
-      let currentPath = ''
-      for (let i = 0; i < parts.length - 1; i++) {
-        currentPath += (currentPath ? '/' : '') + parts[i]
-        try {
-          await instance.fs.mkdir(currentPath, { recursive: true })
-        } catch {}
-      }
-    }
-
-    await instance.fs.writeFile(normalizedPath, content)
-  }
-
-  async writeFiles(files: Record<string, string>) {
-    for (const [path, contents] of Object.entries(files)) {
-      await this.writeFile(path, contents)
-    }
-  }
-
-  async readFile(path: string) {
-    const instance = await this.getInstance()
-    return instance.fs.readFile(path, 'utf8')
-  }
-
-  async spawnManaged(
+  spawnManaged(
     cmd: string,
     args: string[],
-    options: { silent?: boolean; onLog?: (line: string) => void } = {}
-  ): Promise<WebContainerProcess> {
-    const instance = await this.getInstance()
-    const proc = await instance.spawn(cmd, args)
-
-    const reader = proc.output.getReader()
-    const decoder = new TextDecoder()
-    let currentLineBuffer = ''
-
-    ;(async () => {
-      try {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          let chunk = value as unknown
-          if (chunk instanceof Uint8Array) {
-            chunk = decoder.decode(chunk, { stream: true })
-          }
-
-          currentLineBuffer += chunk
-          const lines = currentLineBuffer.split(toRegExp(RegexPatterns.NEWLINE))
-
-          const last = lines[lines.length - 1] ?? ''
-          if (last) {
-            const hasIncompleteAnsi = toRegExp(
-              RegexPatterns.INCOMPLETE_ANSI
-            ).test(last)
-
-            const processLines = async (linesToProc: string[]) => {
-              for (const line of linesToProc) {
-                const simplified = line.replace(
-                  toRegExp(RegexPatterns.EXCESSIVE_WHITESPACE),
-                  '    '
-                )
-                if (!options.silent) this.emitLog('info', simplified)
-                options.onLog?.(simplified)
-              }
-            }
-
-            if (!hasIncompleteAnsi) {
-              currentLineBuffer = lines.pop() || ''
-              await processLines(lines)
-            } else {
-              const completeLines = lines.slice(0, -1)
-              currentLineBuffer = lines[lines.length - 1] ?? ''
-              await processLines(completeLines)
-            }
-          }
-        }
-        if (currentLineBuffer) {
-          if (!options.silent) this.emitLog('info', currentLineBuffer)
-          options.onLog?.(currentLineBuffer)
-        }
-      } catch (err: any) {
-        console.warn('[WC Service] Stream read error:', err.message)
-      } finally {
-        reader.releaseLock()
-      }
-    })()
-
-    return proc
-  }
-
-  async readDirRecursive(
-    dir: string,
-    filter?: (path: string) => boolean,
-    maxDepth = 6,
-    maxFiles = 2000
-  ): Promise<Record<string, string>> {
-    const instance = await this.getInstance()
-    const results: Record<string, string> = {}
-    let fileCount = 0
-
-    const read = async (currentPath: string, depth: number) => {
-      if (depth > maxDepth) return
-
-      try {
-        const entries = await instance.fs.readdir(currentPath, {
-          withFileTypes: true,
-        })
-        for (const entry of entries) {
-          const fullPath = currentPath + '/' + entry.name
-
-          if (
-            entry.name === '.git' ||
-            entry.name === '.husky' ||
-            entry.name === '.bin'
+    options: { onLog?: (l: string) => void } = {}
+  ): ResultAsync<WebContainerProcess, Error> {
+    return this.getInstance().andThen((instance) =>
+      ResultAsync.fromPromise(
+        (async () => {
+          const proc = await instance.spawn(cmd, args)
+          proc.output.pipeTo(
+            new WritableStream({
+              write: (chunk) => options.onLog?.(chunk),
+            })
           )
-            continue
-
-          if (entry.isDirectory()) {
-            if (++fileCount > maxFiles) return
-            await read(fullPath, depth + 1)
-          } else if (!filter || filter(fullPath)) {
-            const content = await instance.fs.readFile(fullPath, 'utf8')
-            // Monaco path normalization: always absolute from root
-            const absolutePath = fullPath.startsWith('/')
-              ? fullPath
-              : '/' + fullPath
-            results[absolutePath] = content
-          }
-        }
-      } catch {}
-    }
-
-    await read(dir, 0)
-    return results
+          return proc
+        })(),
+        (e) => e as Error
+      )
+    )
   }
 }
 
 export const webContainerService = new WebContainerService()
-
-export const getWebContainer = () => webContainerService.getInstance()
+export const runCommand = (
+  cmd: string,
+  args: string[],
+  onLog: (d: string) => void
+) => webContainerService.spawnManaged(cmd, args, { onLog })
 export const writeFiles = (files: Record<string, string>) =>
   webContainerService.writeFiles(files)
 export const readFile = (path: string) => webContainerService.readFile(path)
-export const runCommand = async (
-  cmd: string,
-  args: string[],
-  onOutput: (d: string) => void
-): Promise<{ exit: Promise<number>; process: WebContainerProcess }> => {
-  const proc = await webContainerService.spawnManaged(cmd, args, {
-    onLog: onOutput,
-  })
-  return { exit: proc.exit, process: proc }
-}
-export const operationQueue = {
-  add: <T>(task: () => Promise<T>) =>
-    playgroundStore.enqueue('Background Task', task),
+
+import { DisposableReader } from './readers'
+
+async function* readStreamLines(stream: ReadableStream<string>) {
+  await using reader = DisposableReader.fromStream(stream);
+  let partialLine = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const lines = (partialLine + value).split('\n');
+    partialLine = lines.pop() || '';
+
+    for (const line of lines) {
+      yield line;
+    }
+  }
+
+  if (partialLine) yield partialLine;
 }
