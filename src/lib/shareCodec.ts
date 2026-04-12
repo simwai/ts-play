@@ -1,7 +1,7 @@
-type SharePayload = {
+export type SharePayload = {
   tsCode: string
   jsCode: string
-  packages: unknown[]
+  packages: { name: string; version: string }[]
 }
 
 function toBase64Url(bytes: Uint8Array) {
@@ -10,7 +10,6 @@ function toBase64Url(bytes: Uint8Array) {
   for (let i = 0; i < bytes.length; i += chunk) {
     binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
   }
-
   return btoa(binary)
     .replaceAll('+', '-')
     .replaceAll('/', '_')
@@ -50,21 +49,17 @@ export async function encodeSharePayload(payload: SharePayload) {
   const json = JSON.stringify(payload)
   const bytes = new TextEncoder().encode(json)
   const compressed = await gzip(bytes)
-
   if (compressed) {
     return `gz.${toBase64Url(compressed)}`
   }
-
   return `raw.${toBase64Url(bytes)}`
 }
 
 export async function decodeSharePayload(token: string): Promise<SharePayload> {
   const [kind, data] = token.split('.', 2)
   if (!kind || !data) throw new Error('Invalid embedded share link')
-
   const bytes = fromBase64Url(data)
   let decoded: Uint8Array | undefined
-
   if (kind === 'gz') {
     decoded = (await gunzip(bytes)) ?? undefined
     if (!decoded)
@@ -74,7 +69,6 @@ export async function decodeSharePayload(token: string): Promise<SharePayload> {
   } else {
     throw new Error('Unknown embedded share format')
   }
-
   const json = new TextDecoder().decode(decoded)
   return JSON.parse(json) as SharePayload
 }

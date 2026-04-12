@@ -1,16 +1,18 @@
 {
   "extends": "@sindresorhus/tsconfig",
   "compilerOptions": {
+    "erasableSyntaxOnly": false,
     "target": "es2023",
-    "lib": ["ESNext", "WebWorker"],
+    "lib": ["ESNext", "DOM", "DOM.Iterable", "WebWorker"],
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "incremental": true,
+    "jsx": "react-jsx",
     "paths": {
       "@/*": ["./src/*"]
     }
   },
-  "include": ["**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

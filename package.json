@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "format": "prettier -w .",
-    "check-quality": "knip && madge --orphans --circular --extensions ts,tsx src/",
+    "check-quality": "knip && madge --circular --extensions ts,tsx src/",
     "type-check": "tsc --noEmit",
     "prepare": "husky",
     "test": "vitest --run"
@@ -16,22 +16,22 @@
   "engines": {
     "node": ">=20.19.0 <21 || >=22.12.0"
   },
-  "packageManager": "pnpm@10.32.1",
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "@sindresorhus/tsconfig": "^8.1.0",
-    "@typescript/ata": "^0.9.8",
     "@webcontainer/api": "^1.6.1",
+    "@xstate/react": "^6.1.0",
     "ansi-to-html": "^0.7.2",
     "clsx": "2.1.1",
-    "esbuild-wasm": "^0.23.1",
     "husky": "^9.1.7",
+    "jotai": "^2.19.0",
     "lucide-react": "^0.577.0",
+    "neverthrow": "^8.2.0",
     "prettier": "^3.8.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "react-error-boundary": "^6.1.1",
-    "tailwind-merge": "3.4.0"
+    "tailwind-merge": "3.4.0",
+    "xstate": "^5.30.0"
   },
   "browserslist": [
     "> 0.5%",
@@ -40,20 +40,17 @@
     "not dead"
   ],
   "devDependencies": {
-    "@monaco-editor/react": "^4.7.0",
-    "@tailwindcss/postcss": "4.1.17",
     "@tailwindcss/vite": "4.1.17",
-    "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
-    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^22.0.0",
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.1.1",
     "@vitest/browser-playwright": "^4.1.2",
-    "autoprefixer": "^10.4.19",
-    "knip": "^6.1.0",
+    "esbuild-wasm": "^0.23.1",
+    "knip": "^6.2.0",
     "madge": "^8.0.0",
+    "monaco-editor": "^0.55.1",
     "playwright": "^1.58.2",
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3",

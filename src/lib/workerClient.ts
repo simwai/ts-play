@@ -1,101 +1,121 @@
-import type { TSDiagnostic, TypeInfo } from './types'
+import { ok, err, type Result } from 'neverthrow'
+import { type TSDiagnostic, type TypeInfo } from './types'
 
 class WorkerClient {
-  private worker: Worker | undefined
-  private readonly resolves = new Map<
-    number,
-    {
-      resolve: Function
-      reject: Function
-      timeoutId: ReturnType<typeof setTimeout>
-    }
-  >()
+  private worker: Worker | null = null
+  private pendingRequests: Map<
+    string,
+    { resolve: (val: any) => void; reject: (err: Error) => void }
+  > = new Map()
 
-  private msgId = 0
-
-  private getWorker() {
-    if (!this.worker) {
-      this.worker = new Worker(new URL('worker.ts', import.meta.url), {
+  async init(): Promise<Result<void, Error>> {
+    if (this.worker) return ok(undefined)
+    try {
+      this.worker = new Worker(new URL('./worker.ts', import.meta.url), {
         type: 'module',
       })
       this.worker.onmessage = (e) => {
         const { id, success, payload, error } = e.data
-        const p = this.resolves.get(id)
-        if (p) {
-          clearTimeout(p.timeoutId)
-          this.resolves.delete(id)
-          if (success) p.resolve(payload)
-          else p.reject(new Error(error))
+        const pending = this.pendingRequests.get(id)
+        if (pending) {
+          if (success) pending.resolve(payload)
+          else pending.reject(new Error(error))
+          this.pendingRequests.delete(id)
         }
       }
-
-      this.worker.onerror = (e) => {
-        console.error(
-          'Worker execution error:',
-          e.message || 'Unknown worker error'
-        )
-      }
+      return ok(await this.send('INIT', {}))
+    } catch (e: any) {
+      return err(e)
     }
-
-    return this.worker
   }
 
-  private async send<T>(type: string, payload?: any): Promise<T> {
+  // Justified 'any': Generic worker message request/response payload
+  private async send(type: string, payload: any): Promise<any> {
+    if (!this.worker) throw new Error('Worker not initialized')
+    const id = Math.random().toString(36).slice(2, 11)
     return new Promise((resolve, reject) => {
-      const id = ++this.msgId
-
-      // Timeout to prevent memory leaks if the worker hangs
-      const timeoutId = setTimeout(() => {
-        this.resolves.delete(id)
-        reject(new Error(`Worker request '${type}' timed out after 15s`))
-      }, 15_000)
-
-      this.resolves.set(id, { resolve, reject, timeoutId })
-      this.getWorker().postMessage({ id, type, payload })
+      this.pendingRequests.set(id, { resolve, reject })
+      this.worker!.postMessage({ id, type, payload })
     })
   }
 
-  async init() {
-    return this.send<void>('INIT')
-  }
-
-  async updateFile(filename: string, content: string) {
-    return this.send<void>('UPDATE_FILE', { filename, content })
+  async updateFile(content: string, filename: string = '/main.ts') {
+    try {
+      return ok(await this.send('UPDATE_FILE', { content, filename }))
+    } catch (e: any) {
+      return err(e)
+    }
   }
 
   async updateExtraLibs(libs: Record<string, string>) {
-    return this.send<void>('UPDATE_EXTRA_LIBS', { libs })
+    try {
+      return ok(await this.send('UPDATE_EXTRA_LIBS', { libs }))
+    } catch (e: any) {
+      return err(e)
+    }
   }
 
   async updateConfig(tsconfig: string) {
-    return this.send<void>('UPDATE_CONFIG', { tsconfig })
+    try {
+      return ok(await this.send('UPDATE_CONFIG', { tsconfig }))
+    } catch (e: any) {
+      return err(e)
+    }
+  }
+
+  async getDiagnostics(): Promise<Result<TSDiagnostic[], Error>> {
+    try {
+      return ok(await this.send('GET_DIAGNOSTICS', {}))
+    } catch (e: any) {
+      return err(e)
+    }
+  }
+
+  async compile(
+    code: string
+  ): Promise<Result<{ js: string; dts: string }, Error>> {
+    try {
+      return ok(await this.send('COMPILE', { code }))
+    } catch (e: any) {
+      return err(e)
+    }
+  }
+
+  async generateDts(code: string): Promise<Result<string, Error>> {
+    try {
+      const res = await this.send('COMPILE', { code })
+      return ok(res.dts)
+    } catch (e: any) {
+      return err(e)
+    }
+  }
+
+  async getTypeInfo(
+    path: string,
+    offset: number
+  ): Promise<Result<TypeInfo | null, Error>> {
+    try {
+      // Worker currently expects '/main.ts' but we can expand this
+      return ok(await this.send('GET_TYPE_INFO', { path, offset }))
+    } catch (e: any) {
+      return err(e)
+    }
   }
 
   async validateConfig(tsconfig: string) {
-    return this.send<{ valid: boolean; error?: string }>('VALIDATE_CONFIG', {
-      tsconfig,
-    })
-  }
-
-  async getDiagnostics() {
-    return this.send<TSDiagnostic[]>('GET_DIAGNOSTICS')
-  }
-
-  async getTypeInfo(offset: number) {
-    return this.send<TypeInfo | undefined>('GET_TYPE_INFO', { offset })
-  }
-
-  async getCompletions(offset: number) {
-    return this.send<any[]>('GET_COMPLETIONS', { offset })
-  }
-
-  async compile(code: string) {
-    return this.send<{ js: string; dts: string }>('COMPILE', { code })
+    try {
+      return ok(await this.send('VALIDATE_CONFIG', { tsconfig }))
+    } catch (e: any) {
+      return err(e)
+    }
   }
 
   async detectImports(code: string) {
-    return this.send<string[]>('DETECT_IMPORTS', { code })
+    try {
+      return ok(await this.send('DETECT_IMPORTS', { code }))
+    } catch (e: any) {
+      return err(e)
+    }
   }
 }
-
 export const workerClient = new WorkerClient()

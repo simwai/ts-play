@@ -1,28 +1,32 @@
+import "./lib/polyfill"
+import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ErrorBoundary } from 'react-error-boundary'
-import './index.css'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { App } from './App'
+import './index.css'
 
 const root = document.querySelector('#root')
 if (!root) throw new Error('#root element missing from index.html')
 
+window.onerror = function (message, source, lineno, colno, error) {
+  console.error(
+    'GLOBAL ERROR:',
+    message,
+    'AT',
+    source,
+    lineno,
+    colno,
+    'STACK:',
+    error?.stack
+  )
+}
+window.onunhandledrejection = function (event) {
+  console.error('UNHANDLED REJECTION:', event.reason)
+}
+
 createRoot(root).render(
   <StrictMode>
-    <ErrorBoundary
-      fallback={
-        <div
-          style={{
-            padding: 24,
-            color: '#cdd6f4',
-            background: '#1e1e2e',
-            fontFamily: 'monospace',
-            height: '100dvh',
-          }}
-        >
-          Something went wrong. Please reload the page.
-        </div>
-      }
-    >
+    <ErrorBoundary>
       <App />
     </ErrorBoundary>
   </StrictMode>

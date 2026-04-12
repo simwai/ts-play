@@ -2,33 +2,25 @@ import React, { useEffect, useState } from 'react'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import { useMonaco } from '@monaco-editor/react'
-import { RegexPatterns, toRegExp } from '../../lib/regex'
+import { RegexPatterns } from '../../lib/regex'
+import { type TypeInfo } from '../../lib/types'
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
-}
-
-export type TypeInfo = {
-  name: string
-  kind: string
-  typeAnnotation: string
-  jsDoc?: string
-  signature?: string
 }
 
 type TypeInfoBarProps = {
   typeInfo: TypeInfo | null
   cursorPos: { line: number; col: number } | null
   language: 'typescript' | 'javascript'
-  themeMode?: string
 }
 
 function renderWithLinksAndHighlight(text: string) {
-  const regex = toRegExp(RegexPatterns.MARKDOWN_LINKS_OR_CODE)
+  const regex = RegexPatterns.MARKDOWN_LINKS_OR_CODE
   const parts = text.split(regex)
 
   return parts.map((part, i) => {
-    const mdMatch = toRegExp(RegexPatterns.MARKDOWN_LINK).exec(part)
+    const mdMatch = RegexPatterns.MARKDOWN_LINK.exec(part)
     if (mdMatch) {
       return (
         <a
@@ -44,7 +36,7 @@ function renderWithLinksAndHighlight(text: string) {
       )
     }
 
-    const urlMatch = toRegExp(RegexPatterns.URL).exec(part)
+    const urlMatch = RegexPatterns.URL.exec(part)
     if (urlMatch) {
       return (
         <a
@@ -79,7 +71,6 @@ export function TypeInfoBar({
   typeInfo,
   cursorPos,
   language,
-  themeMode = 'mocha',
 }: TypeInfoBarProps) {
   const monaco = useMonaco()
   const [highlightedType, setHighlightedType] = useState('')
@@ -255,7 +246,9 @@ function kindColorClass(kind: string): string {
     case 'parameter':
       return 'text-maroon'
     case 'property':
+      return 'text-sapphire'
     case 'getter':
+      return 'text-sapphire'
     case 'setter':
       return 'text-sapphire'
     case 'keyword':

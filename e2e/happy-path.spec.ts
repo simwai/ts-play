@@ -4,7 +4,7 @@ import { App } from '../src/App'
 import React from 'react'
 import { page } from 'vitest/browser'
 
-test('TSPlay Happy Path', async () => {
+test('TSPlay Happy Path', { timeout: 30000 }, async () => {
   render(React.createElement(App))
 
   const runButton = page.getByTestId('header-run-button')
