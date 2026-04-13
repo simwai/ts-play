@@ -58,6 +58,7 @@ export function usePackageManager(
   const pendingTypings = useRef<Record<string, string>>({})
   const typingUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const containerTypePaths = useRef<Set<string>>(new Set())
+  const checkImportsTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const syncTypingsFromContainer = useCallback(async () => {
     try {
@@ -78,6 +79,46 @@ export function usePackageManager(
     }
   }, [])
 
+  const checkImports = useCallback(() => {
+    if (checkImportsTimeout.current) clearTimeout(checkImportsTimeout.current)
+    checkImportsTimeout.current = setTimeout(async () => {
+      try {
+        const detectRes = await workerClient.detectImports(tsCode)
+        if (detectRes.isErr()) {
+            console.error('Failed to detect imports:', detectRes.error)
+            return
+        }
+        const detected = detectRes.value
+        const filtered = [...detected].filter((pkg) => {
+          if (pkg.startsWith('node:')) return false
+          if (BUILTIN_MODULES.has(pkg)) return false
+          return true
+        })
+        const detectedSorted = filtered.sort()
+
+        setInstalledPackages((previous) => {
+          const previousNamesSorted = previous.map((p) => p.name).sort()
+          if (JSON.stringify(previousNamesSorted) === JSON.stringify(detectedSorted)) {
+            return previous
+          }
+          return detectedSorted.map((name) => ({ name, version: 'latest' }))
+        })
+      } catch (error) {
+        console.error('Failed to detect imports:', error)
+      }
+    }, 1000)
+  }, [tsCode])
+
+  useEffect(() => {
+    checkImports()
+  }, [tsCode, checkImports])
+
+  const flushTypings = useCallback(() => {
+    if (Object.keys(pendingTypings.current).length === 0) return
+    setPackageTypings((prev) => ({ ...prev, ...pendingTypings.current }))
+    pendingTypings.current = {}
+  }, [])
+
   useEffect(() => {
     if (!ataRef.current) {
       ataRef.current = setupTypeAcquisition({
@@ -90,18 +131,14 @@ export function usePackageManager(
             if (!path.startsWith('/node_modules/')) {
               pendingTypings.current[path] = code
               if (typingUpdateTimer.current) clearTimeout(typingUpdateTimer.current)
-              typingUpdateTimer.current = setTimeout(() => {
-                 setPackageTypings(prev => ({ ...prev, ...pendingTypings.current }))
-                 pendingTypings.current = {}
-              }, 500)
+              typingUpdateTimer.current = setTimeout(() => flushTypings(), 500)
             }
           },
           errorMessage: (userFacingMessage, error) => {
             console.warn('ATA Warning:', userFacingMessage, error)
           },
           finished: () => {
-            setPackageTypings(prev => ({ ...prev, ...pendingTypings.current }))
-            pendingTypings.current = {}
+            flushTypings()
             send({ type: 'SUCCESS' })
           },
           started: () => {
@@ -110,7 +147,7 @@ export function usePackageManager(
         },
       })
     }
-  }, [send])
+  }, [send, flushTypings])
 
   useEffect(() => {
     if (ataRef.current && tsCode) {
@@ -189,6 +226,7 @@ export function usePackageManager(
   return {
     installedPackages,
     packageTypings,
+    checkImports,
     installQueue,
     status,
   }

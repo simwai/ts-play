@@ -25,8 +25,15 @@ class WorkerClient {
         if (p) {
           clearTimeout(p.timeoutId)
           this.resolves.delete(id)
-          if (success) p.resolve(payload)
-          else p.reject(new Error(error))
+          if (success) {
+              p.resolve(payload)
+          } else {
+              // Ensure error is always an Error object
+              const errorObj = typeof error === 'string'
+                ? new Error(error)
+                : new Error(error?.message || error?.msg || JSON.stringify(error) || 'Unknown worker error')
+              p.reject(errorObj)
+          }
         }
       }
 
@@ -93,8 +100,8 @@ class WorkerClient {
     return this.send<any[]>('GET_COMPLETIONS', { offset })
   }
 
-  generateDts(code: string): ResultAsync<string, Error> {
-    return this.send<string>('GENERATE_DTS', { code })
+  compile(code: string): ResultAsync<{ js: string; dts: string }, Error> {
+    return this.send<{ js: string; dts: string }>('COMPILE', { code })
   }
 
   detectImports(code: string): ResultAsync<string[], Error> {

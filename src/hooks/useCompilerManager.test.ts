@@ -3,6 +3,7 @@ import { renderHook, act } from '@testing-library/react'
 import { useCompilerManager } from './useCompilerManager'
 import * as webContainerModule from '../lib/webcontainer'
 import { workerClient } from '../lib/workerClient'
+import { ok, err } from 'neverthrow'
 
 vi.mock('../lib/webcontainer', () => ({
   webContainerService: {
@@ -27,7 +28,7 @@ vi.mock('../lib/webcontainer', () => ({
 vi.mock('../lib/workerClient', () => ({
   workerClient: {
     init: vi.fn(),
-    compile: vi.fn().mockResolvedValue({ js: 'console.log("hello")', dts: '' }),
+    compile: vi.fn(),
   },
 }))
 
@@ -41,14 +42,14 @@ describe('useCompilerManager', () => {
   it('should initialize with loading status', async () => {
     let resolveInit: any;
     const initPromise = new Promise((resolve) => { resolveInit = resolve; });
-    vi.mocked(workerClient.init).mockReturnValue(initPromise as any);
+    vi.mocked(workerClient.init).mockResolvedValue(initPromise as any);
 
     const { result } = renderHook(() => useCompilerManager('code', addMessage))
 
     expect(result.current.compilerStatus).toBe('loading')
 
     await act(async () => {
-        resolveInit();
+        resolveInit(ok(undefined));
         await new Promise(r => setTimeout(r, 0));
     })
 
@@ -56,7 +57,8 @@ describe('useCompilerManager', () => {
   })
 
   it('should run code and update status', async () => {
-    vi.mocked(workerClient.init).mockResolvedValue(undefined);
+    vi.mocked(workerClient.init).mockResolvedValue(ok(undefined) as any);
+    vi.mocked(workerClient.compile).mockResolvedValue(ok({ js: 'console.log("hello")', dts: '' }) as any);
 
     const { result } = renderHook(() =>
       useCompilerManager('console.log("hi")', addMessage)
@@ -84,9 +86,9 @@ describe('useCompilerManager', () => {
   })
 
   it('should handle compilation errors', async () => {
-    vi.mocked(workerClient.init).mockResolvedValue(undefined);
+    vi.mocked(workerClient.init).mockResolvedValue(ok(undefined) as any);
     const error = new Error('Compile failed')
-    vi.mocked(workerClient.compile).mockRejectedValueOnce(error)
+    vi.mocked(workerClient.compile).mockResolvedValue(err(error) as any);
 
     const { result } = renderHook(() =>
       useCompilerManager('invalid', addMessage)

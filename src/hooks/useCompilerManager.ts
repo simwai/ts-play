@@ -25,12 +25,14 @@ export function useCompilerManager(
   useEffect(() => {
     workerClient
       .init()
-      .then(() => {
-        send({ type: 'BOOT_SUCCESS' })
-      })
-      .catch((error) => {
-        console.error('Worker init failed:', error)
-        send({ type: 'BOOT_FAILURE', error: error.message })
+      .then(res => {
+          res.match(
+            () => send({ type: 'BOOT_SUCCESS' }),
+            (error) => {
+                console.error('Worker init failed:', error)
+                send({ type: 'BOOT_FAILURE', error: error.message })
+            }
+          )
       })
   }, [send])
 
@@ -59,7 +61,11 @@ export function useCompilerManager(
       send({ type: 'START' })
 
       try {
-        const compiled = await workerClient.compile(tsCode)
+        const compileRes = await workerClient.compile(tsCode)
+        if (compileRes.isErr()) {
+            throw compileRes.error
+        }
+        const compiled = compileRes.value
         onSuccess(compiled.js, compiled.dts)
 
         await writeFiles({

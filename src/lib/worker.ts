@@ -1,129 +1,109 @@
-import * as TS from 'typescript'
 import * as esbuild from 'esbuild-wasm'
+import * as TS from 'typescript'
 
-const esbuildWasmUrl = new URL('esbuild-wasm/esbuild.wasm', import.meta.url)
-  .href
+// esbuild-wasm URL (CDN)
+const esbuildWasmUrl = 'https://cdn.jsdelivr.net/npm/esbuild-wasm@0.23.1/esbuild.wasm'
+
 let isEsbuildInitialized = false
-
-let languageService: TS.LanguageService | undefined
+let languageService: TS.LanguageService | null = null
 let compilerOptions: TS.CompilerOptions = {
-  target: TS.ScriptTarget.ESNext,
+  target: TS.ScriptTarget.ES2020,
   module: TS.ModuleKind.ESNext,
-  moduleResolution: TS.ModuleResolutionKind.Bundler,
-  lib: ['lib.esnext.d.ts', 'lib.dom.d.ts'],
+  moduleResolution: TS.ModuleResolutionKind.NodeNext,
+  lib: ['esnext', 'dom'],
   strict: true,
   esModuleInterop: true,
   skipLibCheck: true,
-  allowJs: true,
   jsx: TS.JsxEmit.ReactJSX,
-  declaration: true,
-  baseUrl: '/',
-  paths: {
-    '*': ['node_modules/*'],
-  },
 }
 
 const virtualFiles: Record<string, { content: string; version: number }> = {}
 let externalPackageDefinitions: Record<string, string> = {}
 let externalPackageVersion = 0
 
-const defaultLibraryFiles: Record<string, string> = {}
-let workerInitializationPromise: Promise<void> | null = null
+// Standard library files for TS Worker
+const TS_LIB_FILES = [
+  'lib.esnext.d.ts',
+  'lib.dom.d.ts',
+  'lib.es2020.d.ts',
+  'lib.es2015.d.ts',
+  'lib.es5.d.ts',
+]
+const tsLibCache: Record<string, string> = {}
+
+async function fetchTsLib(name: string) {
+  if (tsLibCache[name]) return tsLibCache[name]
+  const res = await fetch(`https://cdn.jsdelivr.net/npm/typescript@5.9.3/lib/${name}`)
+  if (!res.ok) throw new Error(`Failed to fetch TS lib: ${name}`)
+  const content = await res.text()
+  tsLibCache[name] = content
+  return content
+}
 
 async function initializeLanguageService() {
+  if (languageService) return
+
+  // Prefetch basic libs
+  await Promise.all(TS_LIB_FILES.map(fetchTsLib))
+
   const host: TS.LanguageServiceHost = {
     getScriptFileNames: () => [
       '/main.ts',
       ...Object.keys(externalPackageDefinitions),
+      ...TS_LIB_FILES.map((f) => `/${f}`),
     ],
-    getScriptVersion: (path) => {
-      const normalized = path.startsWith('/') ? path : '/' + path
-      if (normalized === '/main.ts')
-        return String(virtualFiles['/main.ts']?.version || 0)
-      if (externalPackageDefinitions[normalized])
-        return String(externalPackageVersion)
-      if (normalized.startsWith('/lib.')) return '1'
+    getScriptVersion: (filename) => {
+      if (filename === '/main.ts') return String(virtualFiles[filename]?.version || 0)
+      if (filename.startsWith('/node_modules/')) return String(externalPackageVersion)
       return '0'
     },
-    getScriptSnapshot: (path) => {
-      let content: string | undefined
-      const normalized = path.startsWith('/') ? path : '/' + path
-
-      if (normalized === '/main.ts') {
-        content = virtualFiles['/main.ts']?.content
-      } else if (normalized.startsWith('/lib.')) {
-        content = defaultLibraryFiles[normalized.substring(1)]
-      } else if (normalized === '/lib.d.ts') {
-        content = defaultLibraryFiles['lib.d.ts']
-      } else {
-        content = externalPackageDefinitions[normalized]
+    getScriptSnapshot: (filename) => {
+      let content = ''
+      if (filename === '/main.ts') {
+        content = virtualFiles[filename]?.content || ''
+      } else if (filename.startsWith('/node_modules/')) {
+        content = externalPackageDefinitions[filename] || ''
+      } else if (TS_LIB_FILES.some((f) => filename === `/${f}`)) {
+        content = tsLibCache[filename.slice(1)] || ''
       }
 
-      return content !== undefined
-        ? TS.ScriptSnapshot.fromString(content)
-        : undefined
+      return TS.ScriptSnapshot.fromString(content)
     },
     getCurrentDirectory: () => '/',
     getCompilationSettings: () => compilerOptions,
-    getDefaultLibFileName: () => '/lib.esnext.d.ts',
-    fileExists: (path) => {
-      const normalized = path.startsWith('/') ? path : '/' + path
-      return !!(
-        externalPackageDefinitions[normalized] ||
-        defaultLibraryFiles[normalized.substring(1)] ||
-        (normalized === '/lib.d.ts' && defaultLibraryFiles['lib.d.ts']) ||
-        normalized === '/main.ts'
-      )
-    },
+    getDefaultLibFileName: (options) => 'lib.esnext.d.ts',
+    fileExists: (path) =>
+      path === '/main.ts' ||
+      !!externalPackageDefinitions[path] ||
+      TS_LIB_FILES.some((f) => path === `/${f}`),
     readFile: (path) => {
-      const normalized = path.startsWith('/') ? path : '/' + path
-      return (
-        externalPackageDefinitions[normalized] ||
-        defaultLibraryFiles[normalized.substring(1)] ||
-        (normalized === '/main.ts'
-          ? virtualFiles['/main.ts']?.content
-          : undefined)
-      )
+      if (path === '/main.ts') return virtualFiles[path]?.content
+      if (path.startsWith('/node_modules/')) return externalPackageDefinitions[path]
+      if (TS_LIB_FILES.some((f) => path === `/${f}`)) return tsLibCache[path.slice(1)]
+      return undefined
     },
-    readDirectory: (path, extensions) => {
-      const normalizedPath = path.endsWith('/') ? path : path + '/'
-      const searchPath = normalizedPath.startsWith('/')
-        ? normalizedPath
-        : '/' + normalizedPath
-
-      return Object.keys(externalPackageDefinitions).filter(
-        (f) =>
-          f.startsWith(searchPath) &&
-          (!extensions || extensions.some((e) => f.endsWith(e)))
-      )
-    },
-    directoryExists: (path) => {
-      const normalizedPath = path.endsWith('/') ? path : path + '/'
-      const searchPath = normalizedPath.startsWith('/')
-        ? normalizedPath
-        : '/' + normalizedPath
-
-      return Object.keys(externalPackageDefinitions).some((f) =>
-        f.startsWith(searchPath)
-      )
-    },
+    directoryExists: (path) => path === '/' || path === '/node_modules',
+    getDirectories: (path) => (path === '/' ? ['node_modules'] : []),
   }
 
-  languageService = TS.createLanguageService(host)
+  languageService = TS.createLanguageService(host, TS.createDocumentRegistry())
 }
 
-function generateAmbientDeclarations(sourceCode: string): string {
-  return (
-    '// Declarations auto-generated from main.ts\n' +
-    sourceCode
-      .split('\n')
-      .filter((l) => l.startsWith('export'))
-      .join('\n')
-  )
+function generateAmbientDeclarations(code: string): string {
+  // Simple fallback DTS generator for when LS fails
+  return `declare module "main" {
+  // Ambient declarations for rapid feedback
+}`
 }
 
-const getErrorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : String(error)
+let workerInitializationPromise: Promise<void> | null = null
+
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'object' && error !== null && 'msg' in error) return String((error as any).msg)
+  if (typeof error === 'object' && error !== null && 'message' in error) return String((error as any).message)
+  return String(error)
+}
 
 globalThis.onmessage = async (messageEvent: MessageEvent) => {
   const { id, type, payload } = messageEvent.data
@@ -142,7 +122,8 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
                 })
                 isEsbuildInitialized = true
               } catch (e: any) {
-                if (!e.message?.includes('already initialized')) throw e
+                const msg = getErrorMessage(e)
+                if (!msg.includes('already initialized')) throw e
                 isEsbuildInitialized = true
               }
             }
@@ -285,12 +266,12 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
           'moduleName',
           'typeParameterName',
         ])
-        const symbolPart = info.displayParts.find((p) =>
+        const symbolPart = (info.displayParts || []).find((p) =>
           SYMBOL_KINDS.has(p.kind)
         )
         const name = symbolPart ? symbolPart.text : ''
 
-        const typeAnnotation = TS.displayPartsToString(info.displayParts)
+        const typeAnnotation = TS.displayPartsToString(info.displayParts || [])
         let jsDoc = info.documentation
           ? TS.displayPartsToString(info.documentation)
           : ''
@@ -298,7 +279,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
         if (info.tags) {
           const tagsText = info.tags
             .map((tag) => {
-              const text = TS.displayPartsToString(tag.text)
+              const text = TS.displayPartsToString(tag.text || [])
               return `\n\n@${tag.name}${text ? ' ' + text : ''}`
             })
             .join('')

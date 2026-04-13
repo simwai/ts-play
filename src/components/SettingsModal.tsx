@@ -72,11 +72,17 @@ export function SettingsModal({
     const timer = setTimeout(async () => {
       try {
         const res = await workerClient.validateConfig(temporaryTsConfig)
-        if (!res.valid) {
+        if (res.isErr()) {
+            setIsValid(false)
+            setErrorMsg(res.error.message)
+            return
+        }
+        const validation = res.value
+        if (!validation.valid) {
           const fixed = fixLooseJson(temporaryTsConfig)
           if (fixed !== temporaryTsConfig) {
             const fixedRes = await workerClient.validateConfig(fixed)
-            if (fixedRes.valid) {
+            if (fixedRes.isOk() && fixedRes.value.valid) {
               setIsValid(true)
               setErrorMsg(
                 'Syntax will be auto-formatted on save (e.g., adding missing quotes).'
@@ -85,8 +91,8 @@ export function SettingsModal({
             }
           }
         }
-        setIsValid(res.valid)
-        setErrorMsg(res.error || null)
+        setIsValid(validation.valid)
+        setErrorMsg(validation.error || null)
       } catch {
         setIsValid(false)
         setErrorMsg('Validation failed')
@@ -105,11 +111,11 @@ export function SettingsModal({
       task: async () => {
         try {
           let toSave = temporaryTsConfig
-          const res = await workerClient.validateConfig(toSave)
-          if (!res.valid) {
+          const valRes = await workerClient.validateConfig(toSave)
+          if (valRes.isOk() && !valRes.value.valid) {
             const fixed = fixLooseJson(toSave)
             const fixedRes = await workerClient.validateConfig(fixed)
-            if (fixedRes.valid) toSave = fixed
+            if (fixedRes.isOk() && fixedRes.value.valid) toSave = fixed
           }
           const formatted = await formatJson(toSave)
           const finalConfig = fixLooseJson(formatted)
