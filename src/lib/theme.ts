@@ -1,4 +1,4 @@
-export type ThemeName =
+export type ThemeMode =
   | 'mocha'
   | 'latte'
   | 'monokai'
@@ -6,25 +6,20 @@ export type ThemeName =
   | 'github-dark'
   | 'github-light'
 
-export const DARK_THEMES: ThemeName[] = [
+export const THEME_LABELS: Record<ThemeMode, string> = {
+  mocha: 'Catppuccin Mocha',
+  latte: 'Catppuccin Latte',
+  monokai: 'Monokai',
+  'shades-of-purple': 'Shades of Purple',
+  'github-dark': 'GitHub Dark',
+  'github-light': 'GitHub Light',
+}
+
+export const DARK_THEMES: ThemeMode[] = [
   'mocha',
   'monokai',
   'shades-of-purple',
   'github-dark',
 ]
 
-export const LIGHT_THEMES: ThemeName[] = [
-  'latte',
-  'github-light',
-]
-
-export type ThemeMode = 'dark' | 'light'
-
-export const THEME_LABELS: Record<ThemeName, string> = {
-  'mocha': 'Mocha (Catppuccin)',
-  'latte': 'Latte (Catppuccin)',
-  'monokai': 'Monokai',
-  'shades-of-purple': 'Shades of Purple',
-  'github-dark': 'GitHub Dark',
-  'github-light': 'GitHub Light',
-}
+export const LIGHT_THEMES: ThemeMode[] = ['latte', 'github-light']

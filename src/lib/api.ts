@@ -1,24 +1,21 @@
-import { encodeSharePayload } from './shareCodec'
-
-export const getShareUrl = async (tsCode: string, jsCode: string) => {
-  const payload = await encodeSharePayload({ tsCode, jsCode, packages: [] })
-  const url = new URL(globalThis.location.href)
-  url.searchParams.set('share', payload)
-  return url.toString()
-}
-
-export const checkNpmPackage = async (name: string): Promise<boolean> => {
+export async function checkNpmPackage(pkgName: string): Promise<boolean> {
   try {
-    const res = await fetch(`https://registry.npmjs.org/${name}/latest`)
+    const res = await fetch(
+      `https://registry.npmjs.org/${encodeURIComponent(pkgName)}/latest`,
+      {
+        method: 'HEAD',
+      }
+    )
     return res.ok
   } catch {
     return false
   }
 }
 
-export const getTypesPackageName = (name: string): string => {
-  if (name.startsWith('@')) {
-    return `@types/${name.slice(1).replace('/', '__')}`
+export function getTypesPackageName(pkgName: string): string {
+  if (pkgName.startsWith('@')) {
+    const [scope, name] = pkgName.slice(1).split('/')
+    return `@types/${scope}__${name}`
   }
-  return `@types/${name}`
+  return `@types/${pkgName}`
 }

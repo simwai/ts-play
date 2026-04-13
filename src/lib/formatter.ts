@@ -1,9 +1,7 @@
 import type { BuiltInParserName } from 'prettier'
 import { webContainerService } from './webcontainer'
 
-// Justified 'any': Prettier standalone has complex dynamic types
 let prettier: any = null
-// Justified 'any': Prettier plugins have varying ESM shapes
 let prettierPlugins: any[] = []
 let prettierPromise: Promise<void> | null = null
 
@@ -84,7 +82,7 @@ export async function formatAllFiles(
     await webContainerService.spawnManaged(
       'npx',
       ['prettier', '--write', 'index.ts', 'index.js'],
-      { onLog: () => {} }
+      { silent: true }
     )
   } catch {
     /* ignore */

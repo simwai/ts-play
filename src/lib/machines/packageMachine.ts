@@ -35,7 +35,7 @@ export const packageMachine = createMachine(
           SUCCESS: 'idle',
           FAILURE: {
             target: 'error',
-            actions: 'setError',
+            actions: assign({ error: ({ event }) => (event as any).error }),
           },
         },
       },
@@ -44,7 +44,7 @@ export const packageMachine = createMachine(
           SUCCESS: 'idle',
           FAILURE: {
             target: 'error',
-            actions: 'setError',
+            actions: assign({ error: ({ event }) => (event as any).error }),
           },
         },
       },
@@ -53,7 +53,7 @@ export const packageMachine = createMachine(
           SUCCESS: 'idle',
           FAILURE: {
             target: 'error',
-            actions: 'setError',
+            actions: assign({ error: ({ event }) => (event as any).error }),
           },
         },
       },
@@ -64,13 +64,6 @@ export const packageMachine = createMachine(
           SYNC: 'syncing',
         },
       },
-    },
-  },
-  {
-    actions: {
-      setError: assign({
-        error: ({ event }) => event.type === 'FAILURE' ? event.error : null
-      }),
     },
   }
 )
