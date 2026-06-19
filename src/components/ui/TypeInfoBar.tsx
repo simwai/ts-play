@@ -79,7 +79,6 @@ export function TypeInfoBar({
   typeInfo,
   cursorPos,
   language,
-  themeMode = 'mocha',
 }: TypeInfoBarProps) {
   const monaco = useMonaco()
   const [highlightedType, setHighlightedType] = useState('')

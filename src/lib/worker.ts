@@ -155,7 +155,10 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       }
 
       case 'UPDATE_FILE': {
-        const { content, filename = '/main.ts' } = payload
+        const { content, filename = '/main.ts' } = payload as {
+          content: string
+          filename?: string
+        }
         const normalized = filename.startsWith('/') ? filename : '/' + filename
         const fileState = virtualFiles[normalized]
         if (!fileState || fileState.content !== content) {
@@ -169,7 +172,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       }
 
       case 'UPDATE_EXTRA_LIBS': {
-        externalPackageDefinitions = payload.libs
+        externalPackageDefinitions = (payload as any).libs
         externalPackageVersion += 1
         if (virtualFiles['/main.ts']) virtualFiles['/main.ts'].version += 1
         result = true
@@ -177,7 +180,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       }
 
       case 'UPDATE_CONFIG': {
-        const { tsconfig } = payload
+        const { tsconfig } = payload as { tsconfig: string }
         const parsed = TS.parseConfigFileTextToJson('tsconfig.json', tsconfig)
         if (parsed.config) {
           const host = {
@@ -200,7 +203,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       }
 
       case 'VALIDATE_CONFIG': {
-        const { tsconfig } = payload
+        const { tsconfig } = payload as { tsconfig: string }
         const parsed = TS.parseConfigFileTextToJson('tsconfig.json', tsconfig)
         if (parsed.error) {
           result = {
@@ -263,7 +266,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
         }
         const info = languageService.getQuickInfoAtPosition(
           '/main.ts',
-          payload.offset
+          (payload as any).offset
         )
         if (!info) {
           result = undefined
@@ -285,15 +288,12 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
           'moduleName',
           'typeParameterName',
         ])
-        const symbolPart = info.displayParts.find((p) =>
-          SYMBOL_KINDS.has(p.kind)
-        )
+        const displayParts = info.displayParts || []
+        const symbolPart = displayParts.find((p) => SYMBOL_KINDS.has(p.kind))
         const name = symbolPart ? symbolPart.text : ''
 
-        const typeAnnotation = TS.displayPartsToString(info.displayParts)
-        let jsDoc = info.documentation
-          ? TS.displayPartsToString(info.documentation)
-          : ''
+        const typeAnnotation = TS.displayPartsToString(displayParts)
+        let jsDoc = TS.displayPartsToString(info.documentation || [])
 
         if (info.tags) {
           const tagsText = info.tags
@@ -321,7 +321,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
         }
         const completions = languageService.getCompletionsAtPosition(
           '/main.ts',
-          payload.offset,
+          (payload as any).offset,
           undefined
         )
         result = completions
@@ -335,10 +335,11 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       }
 
       case 'COMPILE': {
+        const code = (payload as any).code as string
         // Sync virtual file first
         virtualFiles['/main.ts'] = {
           version: (virtualFiles['/main.ts']?.version || 0) + 1,
-          content: payload.code,
+          content: code,
         }
 
         const compiled = await esbuild.build({
@@ -347,7 +348,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
           target: 'es2020',
           write: false,
           stdin: {
-            contents: payload.code,
+            contents: code,
             loader: 'ts',
             sourcefile: '/main.ts',
           },
@@ -363,7 +364,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
         }
 
         if (!dts) {
-          dts = generateAmbientDeclarations(payload.code)
+          dts = generateAmbientDeclarations(code)
         }
 
         result = {
@@ -374,9 +375,10 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       }
 
       case 'DETECT_IMPORTS': {
+        const code = (payload as any).code as string
         const sourceFile = TS.createSourceFile(
           'temp.ts',
-          payload.code,
+          code,
           TS.ScriptTarget.Latest,
           true
         )
@@ -390,7 +392,7 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
             if (!m.startsWith('.') && !m.startsWith('/')) {
               const parts = m.split('/')
               imports.add(
-                m.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0]
+                m.startsWith('@') ? `${parts[0]!}/${parts[1]!}` : parts[0]!
               )
             }
           }

@@ -1,11 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 
 export function useResizePanel(
-  initialHeightRem = 11.25, // 180px
-  minHeightRem = 5, // 80px
-  maxHeightRem = 25 // 400px
+  initialHeight = 300,
+  minHeight = 100,
+  maxHeight = 800
 ) {
-  const [panelHeight, setPanelHeight] = useState(initialHeightRem)
+  const [panelHeight, setPanelHeight] = useState(initialHeight)
   const [isResizing, setIsResizing] = useState(false)
   const resizeStartY = useRef(0)
   const resizeStartHeight = useRef(0)
@@ -14,7 +14,11 @@ export function useResizePanel(
     (e: React.MouseEvent | React.TouchEvent) => {
       e.preventDefault()
       setIsResizing(true)
-      resizeStartY.current = 'touches' in e ? e.touches[0].clientY : e.clientY
+      const clientY =
+        'touches' in e
+          ? (e as React.TouchEvent).touches?.[0]?.clientY
+          : (e as React.MouseEvent).clientY
+      resizeStartY.current = clientY || 0
       resizeStartHeight.current = panelHeight
     },
     [panelHeight]
@@ -23,21 +27,20 @@ export function useResizePanel(
   const handleResizeMove = useCallback(
     (e: MouseEvent | TouchEvent) => {
       if (!isResizing) return
-      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+      const clientY =
+        'touches' in e
+          ? (e as TouchEvent).touches?.[0]?.clientY
+          : (e as MouseEvent).clientY
+      if (clientY === undefined) return
       const deltaY = resizeStartY.current - clientY
 
-      // Convert pixel delta to rem based on root font size
-      const remSize =
-        parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
-      const deltaRem = deltaY / remSize
-
       const newHeight = Math.max(
-        minHeightRem,
-        Math.min(maxHeightRem, resizeStartHeight.current + deltaRem)
+        minHeight,
+        Math.min(maxHeight, resizeStartHeight.current + deltaY)
       )
       setPanelHeight(newHeight)
     },
-    [isResizing, minHeightRem, maxHeightRem]
+    [isResizing, minHeight, maxHeight]
   )
 
   const handleResizeEnd = useCallback(() => {

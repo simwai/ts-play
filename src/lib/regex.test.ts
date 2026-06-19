@@ -11,7 +11,9 @@ describe('RegexPatterns', () => {
   it('CAPITAL_LETTERS should match capital letters for camelCase to space conversion', () => {
     const re = toRegExp(RegexPatterns.CAPITAL_LETTERS)
     expect('camelCase'.replace(re, ' $1')).toBe('camel Case')
-    expect('GitHubDark'.replace(re, ' $1')).toBe(' Git Hub Dark')
+
+    const re2 = toRegExp(RegexPatterns.CAPITAL_LETTERS)
+    expect('GitHubDark'.replace(re2, ' $1')).toBe(' Git Hub Dark')
   })
 
   it('ANSI_ESCAPE should match ANSI escape sequences', () => {
@@ -24,7 +26,7 @@ describe('RegexPatterns', () => {
     const re = toRegExp(RegexPatterns.MARKDOWN_LINKS_OR_CODE)
     const text =
       'Check [this](https://example.com) and `code` here. Also visit https://vitest.dev'
-    const matches = text.match(re)
+    const matches = text.match(re) || []
     expect(matches).toContain('[this](https://example.com)')
     expect(matches).toContain('`code`')
     expect(matches).toContain('https://vitest.dev')
@@ -55,8 +57,7 @@ describe('RegexPatterns', () => {
     const matches = []
     let m
     while ((m = re.exec(code)) !== null) {
-      // Group index: 1 (import), 3 (dynamic import), 5 (require)
-      matches.push(m[1] || m[3] || m[5])
+      matches.push(m[1] || m[2] || m[3])
     }
     expect(matches).toContain('bar')
     expect(matches).toContain('baz')

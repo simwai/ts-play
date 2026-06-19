@@ -225,7 +225,6 @@ export function SettingsModal({
                   fontSizeOverride={12}
                   disableAutocomplete={true}
                   disableDiagnostics={true}
-                  disableShortcuts={true}
                   lineWrap={lineWrap}
                   theme={currentTheme}
                 />

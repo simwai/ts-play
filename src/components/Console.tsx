@@ -2,7 +2,6 @@ import React, { useRef, useEffect, useMemo, useState } from 'react'
 import { Eraser } from 'lucide-react'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
-import { PanelHeader } from './ui/PanelHeader'
 import Ansi from 'ansi-to-html'
 
 export type ConsoleMessage = {
@@ -73,7 +72,7 @@ export const Console = React.memo(function Console({
     () =>
       new Ansi({
         newline: false,
-        escapeHtml: true,
+        escapeXML: true,
         stream: false,
         colors: trueColorEnabled
           ? undefined

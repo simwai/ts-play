@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Header } from './components/Header'
 import { StatusBar } from './components/StatusBar'
 import { CodeEditor, type CodeEditorRef } from './components/CodeEditor'
-import { Console, type ConsoleMessage } from './components/Console'
+import { Console } from './components/Console'
 import { SettingsModal } from './components/SettingsModal'
 import { Problems } from './components/Problems'
 import { PackageManager } from './components/PackageManager'
@@ -20,12 +20,12 @@ import { ToastContainer } from './components/ui/Toast'
 import { workerClient } from './lib/workerClient'
 import { DEFAULT_TS, DEFAULT_TSCONFIG } from './lib/constants'
 import type { ThemeMode } from './lib/theme'
+import type { TabType } from './lib/constants'
 
 const TABS = ['ts', 'js', 'dts'] as const
-type Tab = (typeof TABS)[number]
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('ts')
+  const [activeTab, setActiveTab] = useState<TabType>('ts')
   const [activeBottomTab, setActiveBottomTab] = useState<
     'console' | 'problems' | 'packages'
   >('console')
@@ -62,10 +62,7 @@ export function App() {
     true
   )
   const [lineWrap, setLineWrap] = useLocalStorage('tsplay_line_wrap', false)
-  const [showNodeWarnings, setShowNodeWarnings] = useLocalStorage(
-    'tsplay_show_node_warnings',
-    false
-  )
+  const [showNodeWarnings] = useLocalStorage('tsplay_show_node_warnings', false)
 
   const { messages, addMessage, clearMessages } = useConsoleManager()
   const { compilerStatus, isRunning, runCode, stopCode } = useCompilerManager(
@@ -78,9 +75,9 @@ export function App() {
     tsCursorPos,
     status: pmStatus,
     installQueue,
-  } = usePackageManager(tsCode, addMessage, showNodeWarnings)
+  } = usePackageManager(tsCode, addMessage, !!showNodeWarnings)
 
-  const diagnostics = useTSDiagnostics(tsCode)
+  const diagnostics = useTSDiagnostics(tsCode, true, packageTypings)
 
   const { typeInfo, handleTypeInfoChange, handleCursorPosChange } =
     useTypeInfo(tsCursorPos)
@@ -90,16 +87,7 @@ export function App() {
   const [consoleOpen, setConsoleOpen] = useState(true)
   const toggleConsole = useCallback(() => setConsoleOpen((v) => !v), [])
 
-  const { panelHeight, startResizing } = useResizePanel(300)
-
-  // Combined extra libs for Monaco
-  const extraLibs = useMemo(() => {
-    const libs = []
-    for (const [path, content] of Object.entries(packageTypings)) {
-      libs.push({ content, filePath: path })
-    }
-    return libs
-  }, [packageTypings])
+  const { panelHeight, handleResizeStart } = useResizePanel(300)
 
   const [copied, setCopied] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -139,16 +127,16 @@ export function App() {
     [jsDirty, runCode, installQueue, setJsCode, setDtsCode, addMessage]
   )
 
-  const handleJumpToProblem = useCallback((line: number) => {
+  const handleJumpToProblem = useCallback((line: number, col: number) => {
     setActiveTab('ts')
-    tsEditorRef.current?.revealLine(line)
-    tsEditorRef.current?.focus()
+    tsEditorRef.current?.jumpTo(line, col)
   }, [])
 
   const { onTouchStart, onTouchMove, onTouchEnd } = useSwipeTabs(
     activeTab,
-    (tab) => setActiveTab(tab as Tab),
-    ['ts', 'js', 'dts']
+    (tab) => setActiveTab(tab as TabType),
+    ['ts', 'js', 'dts'],
+    false
   )
 
   // Global Keyboard Shortcuts (Tab Switching)
@@ -164,11 +152,11 @@ export function App() {
       ) {
         e.preventDefault()
         setActiveTab((previous) => {
-          const idx = TABS.indexOf(previous)
+          const idx = TABS.indexOf(previous as any)
           if (e.key === 'ArrowLeft') {
-            return TABS[(idx - 1 + TABS.length) % TABS.length]
+            return TABS[(idx - 1 + TABS.length) % TABS.length] as TabType
           }
-          return TABS[(idx + 1) % TABS.length]
+          return TABS[(idx + 1) % TABS.length] as TabType
         })
       }
     }
@@ -204,10 +192,14 @@ export function App() {
   }, [activeTab, setTsCode, setJsCode, setDtsCode])
 
   const [toasts, setToasts] = useState(playgroundStore.getState().toasts)
-  useEffect(
-    () => playgroundStore.subscribe((state) => setToasts(state.toasts)),
-    []
-  )
+  useEffect(() => {
+    const unsubscribe = playgroundStore.subscribe((state) =>
+      setToasts(state.toasts)
+    )
+    return () => {
+      unsubscribe()
+    }
+  }, [])
 
   return (
     <div
@@ -220,7 +212,7 @@ export function App() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onRun={doRun}
-        onStop={stopCode}
+        stopCode={stopCode}
         isRunning={isRunning}
         compilerStatus={compilerStatus}
         onSettings={() => setShowSettings(true)}
@@ -265,9 +257,8 @@ export function App() {
               language='typescript'
               theme={themeMode}
               onTypeInfoChange={handleTypeInfoChange}
-              onCursorPosChange={handleCursorPosChange}
+              onCursorPosChange={(pos) => handleCursorPosChange(pos.col)}
               extraLibs={packageTypings}
-              diagnostics={diagnostics}
               lineWrap={lineWrap}
             />
           </div>
@@ -333,7 +324,7 @@ export function App() {
         >
           <div
             className='h-1 cursor-row-resize hover:bg-lavender/30 transition-colors absolute top-0 left-0 right-0 z-50'
-            onMouseDown={startResizing}
+            onMouseDown={handleResizeStart}
           />
 
           <Console
@@ -342,7 +333,7 @@ export function App() {
             onToggle={toggleConsole}
             onClear={clearMessages}
             contentHeight={panelHeight}
-            showNodeWarnings={showNodeWarnings}
+            showNodeWarnings={!!showNodeWarnings}
             activeTab={activeBottomTab}
             onTabChange={setActiveBottomTab}
             problemCount={diagnostics.length}

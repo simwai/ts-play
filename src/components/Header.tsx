@@ -5,11 +5,8 @@ import {
   Copy,
   Check,
   Trash2,
-  Wand2,
-  Loader2,
   Play,
   Square,
-  Share2,
   Settings,
 } from 'lucide-react'
 import { IconButton } from './ui/IconButton'

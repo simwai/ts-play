@@ -9,12 +9,14 @@ export type InstalledPackage = {
 type Props = {
   packages: InstalledPackage[]
   isOpen: boolean
+  onToggle: () => void
   contentHeight: number // Now in rem
 }
 
 export const PackageManager = React.memo(function PackageManager({
   packages,
   isOpen,
+  onToggle,
   contentHeight,
 }: Props) {
   if (!isOpen) return null
@@ -24,12 +26,20 @@ export const PackageManager = React.memo(function PackageManager({
       className='overflow-y-auto overflow-x-hidden border-t border-surface0 p-4 flex flex-col gap-4 bg-mantle box-border'
       style={{ height: `${contentHeight}rem` }}
     >
+      <div className='flex items-center justify-between'>
+        <span className='text-xs font-semibold text-overlay1 uppercase tracking-wider'>
+          Detected Imports ({packages.length})
+        </span>
+        <button
+          onClick={onToggle}
+          className='text-xs text-subtext0 hover:text-text'
+        >
+          Close
+        </button>
+      </div>
+
       {packages.length > 0 ? (
         <div className='flex flex-col gap-2'>
-          <span className='text-xs font-semibold text-overlay1 uppercase tracking-wider'>
-            Detected Imports ({packages.length})
-          </span>
-
           {packages.map((pkg) => (
             <div
               key={pkg.name}

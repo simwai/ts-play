@@ -45,7 +45,6 @@ type CodeEditorProps = {
   isMobileLike?: boolean
   hideTypeInfo?: boolean
   disableDiagnostics?: boolean
-  disableShortcuts?: boolean
 }
 
 export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
@@ -68,7 +67,6 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       isMobileLike = false,
       hideTypeInfo = false,
       disableDiagnostics = false,
-      disableShortcuts = false,
     },
     ref
   ) => {
@@ -100,23 +98,25 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       monaco.editor.defineTheme('monokai', monokai as any)
       monaco.editor.defineTheme('shades-of-purple', shadesOfPurple as any)
 
-      monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
-        target: monaco.languages.typescript.ScriptTarget.ESNext,
-        allowNonTsExtensions: true,
-        moduleResolution:
-          monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-        module: monaco.languages.typescript.ModuleKind.ESNext,
-        noEmit: true,
-        esModuleInterop: true,
-        jsx: monaco.languages.typescript.JsxEmit.ReactJSX,
-        allowJs: true,
-        typeRoots: ['node_modules/@types'],
-        baseUrl: 'file:///',
-        resolveJsonModule: true,
-        paths: {
-          '*': ['node_modules/*'],
-        },
-      })
+      const ts = (monaco.languages as any).typescript
+      if (ts) {
+        ts.typescriptDefaults.setCompilerOptions({
+          target: ts.ScriptTarget.ESNext,
+          allowNonTsExtensions: true,
+          moduleResolution: ts.ModuleResolutionKind.NodeJs,
+          module: ts.ModuleKind.ESNext,
+          noEmit: true,
+          esModuleInterop: true,
+          jsx: ts.JsxEmit.ReactJSX,
+          allowJs: true,
+          typeRoots: ['node_modules/@types'],
+          baseUrl: 'file:///',
+          resolveJsonModule: true,
+          paths: {
+            '*': ['node_modules/*'],
+          },
+        })
+      }
     }
 
     const handleEditorMount: OnMount = (editor, monaco) => {
@@ -138,8 +138,8 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         if (typeInfoTimerRef.current) clearTimeout(typeInfoTimerRef.current)
         typeInfoTimerRef.current = setTimeout(async () => {
           try {
-            const worker =
-              await monaco.languages.typescript.getTypeScriptWorker()
+            const ts = (monaco.languages as any).typescript
+            const worker = await ts.getTypeScriptWorker()
             const client = await worker(model.uri)
             const info = await client.getQuickInfoAtPosition(
               model.uri.toString(),
@@ -149,7 +149,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
             if (info) {
               const displayParts = info.displayParts || []
               const documentation = info.documentation || []
-              const text = displayParts.map((p) => p.text).join('')
+              const text = displayParts.map((p: any) => p.text).join('')
 
               const SYMBOL_KINDS = new Set([
                 'localName',
@@ -166,7 +166,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
                 'moduleName',
                 'typeParameterName',
               ])
-              const symbolPart = displayParts.find((p) =>
+              const symbolPart = displayParts.find((p: any) =>
                 SYMBOL_KINDS.has(p.kind)
               )
               const name = symbolPart ? symbolPart.text : ''
@@ -175,7 +175,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
                 name,
                 kind: info.kind,
                 typeAnnotation: text,
-                jsDoc: documentation.map((d) => d.text).join('\n'),
+                jsDoc: documentation.map((d: any) => d.text).join('\n'),
               })
             } else {
               onTypeInfoChange(null)
@@ -188,7 +188,8 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
     }
 
     useEffect(() => {
-      if (monaco) {
+      const ts = (monaco?.languages as any)?.typescript
+      if (ts) {
         const nextKeys = new Set(Object.keys(extraLibs))
         const hasChanges =
           nextKeys.size !== prevLibKeysRef.current.size ||
@@ -208,20 +209,22 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
             return { content, filePath }
           })
           .filter(Boolean)
-        monaco.languages.typescript.typescriptDefaults.setExtraLibs(libs as any)
+        ts.typescriptDefaults.setExtraLibs(libs as any)
       }
     }, [monaco, extraLibs])
 
     useEffect(() => {
       if (!monaco) return
+      const ts = (monaco.languages as any).typescript
+      const json = (monaco.languages as any).json
 
-      if (language === 'typescript') {
-        monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+      if (language === 'typescript' && ts) {
+        ts.typescriptDefaults.setDiagnosticsOptions({
           noSemanticValidation: disableDiagnostics,
           noSyntaxValidation: disableDiagnostics,
         })
-      } else if (language === 'json') {
-        monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+      } else if (language === 'json' && json) {
+        json.jsonDefaults.setDiagnosticsOptions({
           validate: !disableDiagnostics,
           allowComments: true,
         })
@@ -262,7 +265,9 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         fixedOverflowWidgets: true,
         domReadOnly: isMobileLike,
         selectionHighlight: !isMobileLike,
-        occurrencesHighlight: !isMobileLike,
+        occurrencesHighlight: !isMobileLike
+          ? ('singleFile' as const)
+          : ('off' as const),
         links: !isMobileLike,
       }),
       [

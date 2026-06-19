@@ -2,15 +2,16 @@
   "extends": "@sindresorhus/tsconfig",
   "compilerOptions": {
     "target": "es2023",
-    "lib": ["ESNext", "WebWorker"],
+    "lib": ["ESNext", "WebWorker", "DOM", "DOM.Iterable"],
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "incremental": true,
+    "erasableSyntaxOnly": false,
     "paths": {
       "@/*": ["./src/*"]
     }
   },
-  "include": ["**/*.ts"]
+  "include": ["**/*.ts", "**/*.tsx"]
 }

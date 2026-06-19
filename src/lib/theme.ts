@@ -6,6 +6,15 @@ export type ThemeMode =
   | 'github-dark'
   | 'github-light'
 
+export const DARK_THEMES: ThemeMode[] = [
+  'mocha',
+  'monokai',
+  'shades-of-purple',
+  'github-dark',
+]
+
+export const LIGHT_THEMES: ThemeMode[] = ['latte', 'github-light']
+
 export const THEME_LABELS: Record<ThemeMode, string> = {
   mocha: 'Catppuccin Mocha',
   latte: 'Catppuccin Latte',
@@ -16,12 +25,7 @@ export const THEME_LABELS: Record<ThemeMode, string> = {
 }
 
 export function isDarkMode(theme: ThemeMode): boolean {
-  return (
-    theme === 'mocha' ||
-    theme === 'monokai' ||
-    theme === 'shades-of-purple' ||
-    theme === 'github-dark'
-  )
+  return DARK_THEMES.includes(theme)
 }
 
 export const getSyntaxColors = () => ({

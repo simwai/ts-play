@@ -28,9 +28,12 @@ export function useSwipeTabs<T extends string>(
   const onTouchStart = useCallback(
     (e: React.TouchEvent) => {
       if (disabled) return
-      if (!isInteractiveTarget(e.target)) return
-      touchStartX.current = e.touches[0].clientX
-      touchStartY.current = e.touches[0].clientY
+      const target = e.target as HTMLElement
+      if (!isInteractiveTarget(target)) return
+      const touch = e.touches[0]
+      if (!touch) return
+      touchStartX.current = touch.clientX
+      touchStartY.current = touch.clientY
       swiping.current = false
     },
     [disabled]
@@ -39,9 +42,12 @@ export function useSwipeTabs<T extends string>(
   const onTouchMove = useCallback(
     (e: React.TouchEvent) => {
       if (disabled) return
-      if (!isInteractiveTarget(e.target)) return
-      const dx = e.touches[0].clientX - touchStartX.current
-      const dy = e.touches[0].clientY - touchStartY.current
+      const target = e.target as HTMLElement
+      if (!isInteractiveTarget(target)) return
+      const touch = e.touches[0]
+      if (!touch) return
+      const dx = touch.clientX - touchStartX.current
+      const dy = touch.clientY - touchStartY.current
       if (!swiping.current && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) {
         swiping.current = true
       }
@@ -54,10 +60,13 @@ export function useSwipeTabs<T extends string>(
   const onTouchEnd = useCallback(
     (e: React.TouchEvent) => {
       if (disabled) return
-      if (!isInteractiveTarget(e.target)) return
+      const target = e.target as HTMLElement
+      if (!isInteractiveTarget(target)) return
       if (!swiping.current) return
-      const dx = e.changedTouches[0].clientX - touchStartX.current
-      const dy = e.changedTouches[0].clientY - touchStartY.current
+      const touch = e.changedTouches[0]
+      if (!touch) return
+      const dx = touch.clientX - touchStartX.current
+      const dy = touch.clientY - touchStartY.current
       if (Math.abs(dx) < Math.abs(dy) * 1.5) return
       if (Math.abs(dx) < 40) return
 
@@ -65,10 +74,12 @@ export function useSwipeTabs<T extends string>(
 
       if (dx < 0) {
         const nextIndex = (currentIndex + 1) % tabs.length
-        setActiveTab(tabs[nextIndex])
+        const nextTab = tabs[nextIndex]
+        if (nextTab) setActiveTab(nextTab)
       } else {
         const previousIndex = (currentIndex - 1 + tabs.length) % tabs.length
-        setActiveTab(tabs[previousIndex])
+        const prevTab = tabs[previousIndex]
+        if (prevTab) setActiveTab(prevTab)
       }
 
       swiping.current = false
