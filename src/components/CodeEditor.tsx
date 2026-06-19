@@ -3,6 +3,7 @@ import Editor, {
   type OnMount,
   useMonaco,
 } from '@monaco-editor/react'
+import type { editor } from 'monaco-editor'
 import {
   forwardRef,
   useEffect,
@@ -19,21 +20,28 @@ import {
   shadesOfPurple,
 } from '../lib/monaco-themes'
 import { type ThemeMode, isDarkMode } from '../lib/theme'
+import type { TypeInfo } from '../lib/types'
 
 export type CodeEditorHandle = {
   undo: () => void
   redo: () => void
 }
 
+export type CodeEditorRef = CodeEditorHandle
+
 type CodeEditorProps = {
   value: string
   onChange?: (value: string) => void
   onCursorChange?: (offset: number) => void
+  onTypeInfoChange?: (info: TypeInfo | null) => void
   language?: 'typescript' | 'javascript' | 'json'
   readOnly?: boolean
   hideGutter?: boolean
+  hideTypeInfo?: boolean
   fontSizeOverride?: number
   disableAutocomplete?: boolean
+  disableDiagnostics?: boolean
+  disableShortcuts?: boolean
   themeMode?: ThemeMode
   path?: string
   lineWrap?: boolean
@@ -47,11 +55,15 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
       value,
       onChange,
       onCursorChange,
+      onTypeInfoChange,
       language = 'typescript',
       readOnly = false,
       hideGutter = false,
+      hideTypeInfo = false,
       fontSizeOverride,
       disableAutocomplete = false,
+      disableDiagnostics = false,
+      disableShortcuts = false,
       themeMode = 'mocha',
       path = 'file:///index.ts',
       lineWrap = true,
@@ -60,7 +72,7 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
     },
     ref
   ) => {
-    const editorRef = useRef<any>(null)
+    const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
     const monaco = useMonaco()
 
     useImperativeHandle(ref, () => ({
@@ -69,49 +81,49 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
     }))
 
     const handleBeforeMount: BeforeMount = (monaco) => {
-      monaco.editor.defineTheme('github-dark', githubDark as any)
-      monaco.editor.defineTheme('github-light', githubLight as any)
-      monaco.editor.defineTheme('latte', latte as any)
-      monaco.editor.defineTheme('mocha', mocha as any)
-      monaco.editor.defineTheme('monokai', monokai as any)
-      monaco.editor.defineTheme('shades-of-purple', shadesOfPurple as any)
+      monaco.editor.defineTheme('github-dark', githubDark)
+      monaco.editor.defineTheme('github-light', githubLight)
+      monaco.editor.defineTheme('latte', latte)
+      monaco.editor.defineTheme('mocha', mocha)
+      monaco.editor.defineTheme('monokai', monokai)
+      monaco.editor.defineTheme('shades-of-purple', shadesOfPurple)
 
-      monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
-        target: monaco.languages.typescript.ScriptTarget.ESNext,
-        allowNonTsExtensions: true,
-        moduleResolution:
-          monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-        module: monaco.languages.typescript.ModuleKind.CommonJS,
-        noEmit: true,
-        esModuleInterop: true,
-        jsx: monaco.languages.typescript.JsxEmit.React,
-        reactNamespace: 'React',
-        allowJs: true,
-        typeRoots: ['node_modules/@types'],
-      })
+      const ts = (monaco.languages as any).typescript
+      if (ts) {
+        ts.typescriptDefaults.setCompilerOptions({
+          target: ts.ScriptTarget.ESNext,
+          allowNonTsExtensions: true,
+          moduleResolution:
+            ts.ModuleResolutionKind.NodeJs,
+          module: ts.ModuleKind.CommonJS,
+          noEmit: true,
+          esModuleInterop: true,
+          jsx: ts.JsxEmit.React,
+          reactNamespace: 'React',
+          allowJs: true,
+          typeRoots: ['node_modules/@types'],
+        })
+      }
     }
 
     const handleEditorMount: OnMount = (editor, monaco) => {
-      editorRef.current = editor
+      editorRef.current = editor as editor.IStandaloneCodeEditor
 
       editor.onDidChangeCursorPosition((e) => {
         const model = editor.getModel()
         if (model) {
           const offset = model.getOffsetAt(e.position)
           onCursorChange?.(offset)
-          onCursorPosChange?.({
-            line: e.position.lineNumber,
-            col: e.position.column,
-          })
         }
       })
 
       editor.onDidChangeCursorPosition(async (e) => {
         const model = editor.getModel()
-        if (!model || !onTypeInfoChange) return
+        const ts = (monaco.languages as any).typescript
+        if (!model || !onTypeInfoChange || hideTypeInfo || !ts) return
 
         try {
-          const worker = await monaco.languages.typescript.getTypeScriptWorker()
+          const worker = await ts.getTypeScriptWorker()
           const client = await worker(model.uri)
           const offset = model.getOffsetAt(e.position)
 
@@ -120,8 +132,8 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
             offset
           )
           if (info) {
-            const displayParts = info.displayParts || []
-            const documentation = info.documentation || []
+            const displayParts: any[] = info.displayParts || []
+            const documentation: any[] = info.documentation || []
             const text = displayParts.map((p) => p.text).join('')
 
             const nameMatch = text.match(
@@ -146,13 +158,16 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
 
     useEffect(() => {
       if (monaco) {
-        const libs = Object.entries(extraLibs).map(([key, content]) => ({
-          content,
-          filePath: key.startsWith('file://')
-            ? key
-            : `file:///node_modules/@types/${key}/index.d.ts`,
-        }))
-        monaco.languages.typescript.typescriptDefaults.setExtraLibs(libs as any)
+        const ts = (monaco.languages as any).typescript
+        if (ts) {
+          const libs = Object.entries(extraLibs).map(([key, content]) => ({
+            content,
+            filePath: key.startsWith('file://')
+              ? key
+              : `file:///node_modules/@types/${key}/index.d.ts`,
+          }))
+          ts.typescriptDefaults.setExtraLibs(libs)
+        }
       }
     }, [monaco, extraLibs])
 

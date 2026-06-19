@@ -1,59 +1,46 @@
+import * as TS from 'typescript'
 import * as esbuild from 'esbuild-wasm'
 import esbuildWasmUrl from 'esbuild-wasm/esbuild.wasm?url'
-import * as TS from 'typescript'
 
-// Basic libs - core TS
-import lib_es5_d_ts from 'typescript/lib/lib.es5.d.ts?raw'
-import lib_es2020_d_ts from 'typescript/lib/lib.es2020.d.ts?raw'
-import lib_dom_d_ts from 'typescript/lib/lib.dom.d.ts?raw'
+// Type mappings for TS libs (Vite ?raw imports)
+import lib_es5 from 'typescript/lib/lib.es5.d.ts?raw'
+import lib_es2020 from 'typescript/lib/lib.es2020.d.ts?raw'
+import lib_dom from 'typescript/lib/lib.dom.d.ts?raw'
 
-let languageService: TS.LanguageService | undefined
-let isEsbuildInitialized = false
-let workerInitializationPromise: Promise<void> | undefined
-
-const virtualFiles: Record<string, { version: number; content: string }> = {}
 const defaultLibraryFiles: Record<string, string> = {
-  'lib.es5.d.ts': lib_es5_d_ts,
-  'lib.es2020.d.ts': lib_es2020_d_ts,
-  'lib.dom.d.ts': lib_dom_d_ts,
+  'lib.es5.d.ts': lib_es5,
+  'lib.es2020.d.ts': lib_es2020,
+  'lib.dom.d.ts': lib_dom,
 }
 
+let languageService: TS.LanguageService | undefined
 let compilerOptions: TS.CompilerOptions = {
   target: TS.ScriptTarget.ES2020,
   module: TS.ModuleKind.ESNext,
-  moduleResolution: TS.ModuleResolutionKind.NodeNext,
-  resolveJsonModule: true,
-  allowImportingTsExtensions: true,
+  moduleResolution: TS.ModuleResolutionKind.NodeJs,
   esModuleInterop: true,
-  strict: true,
-  skipLibCheck: true,
-  jsx: TS.JsxEmit.ReactJSX,
-  noImplicitAny: false,
-  baseUrl: '/',
-  paths: {
-    '*': ['node_modules/*'],
-  },
+  jsx: TS.JsxEmit.React,
+  allowJs: true,
+  lib: ['lib.es2020.d.ts', 'lib.dom.d.ts'],
 }
 
+const virtualFiles: Record<string, { content: string; version: number }> = {}
 let externalPackageDefinitions: Record<string, string> = {}
 let externalPackageVersion = 0
 
-// Helper to normalize paths for the LS host
-const normalizePath = (p: string) => (p.startsWith('/') ? p : '/' + p)
+let isEsbuildInitialized = false
+let workerInitializationPromise: Promise<void> | null = null
+
+function normalizePath(path: string): string {
+  return path.startsWith('/') ? path : '/' + path
+}
 
 async function initializeLanguageService() {
-  if (languageService) return
-
   const host: TS.LanguageServiceHost = {
-    getScriptFileNames: () => [
-      '/main.ts',
-      ...Object.keys(defaultLibraryFiles).map((f) => '/' + f),
-      ...Object.keys(externalPackageDefinitions).map(normalizePath),
-    ],
+    getScriptFileNames: () => ['main.ts', ...Object.keys(externalPackageDefinitions).map(normalizePath)],
     getScriptVersion: (fileName) => {
-      const normalized = fileName.startsWith('/') ? fileName : '/' + fileName
-      if (normalized === '/main.ts')
-        return String(virtualFiles['main.ts']?.version ?? 0)
+      const normalized = normalizePath(fileName)
+      if (normalized === '/main.ts') return String(virtualFiles['main.ts']?.version ?? 0)
       if (
         externalPackageDefinitions[normalized] ||
         externalPackageDefinitions[normalized.substring(1)]
@@ -63,7 +50,7 @@ async function initializeLanguageService() {
     },
     getScriptSnapshot: (fileName) => {
       let content: string | undefined
-      const normalized = fileName.startsWith('/') ? fileName : '/' + fileName
+      const normalized = normalizePath(fileName)
 
       if (normalized === '/main.ts') {
         content = virtualFiles['main.ts']?.content
@@ -83,7 +70,7 @@ async function initializeLanguageService() {
     getCompilationSettings: () => compilerOptions,
     getDefaultLibFileName: () => '/lib.es2020.d.ts',
     fileExists: (path) => {
-      const normalized = path.startsWith('/') ? path : '/' + path
+      const normalized = normalizePath(path)
       return !!(
         externalPackageDefinitions[normalized] ||
         externalPackageDefinitions[normalized.substring(1)] ||
@@ -92,7 +79,7 @@ async function initializeLanguageService() {
       )
     },
     readFile: (path) => {
-      const normalized = path.startsWith('/') ? path : '/' + path
+      const normalized = normalizePath(path)
       return (
         externalPackageDefinitions[normalized] ||
         externalPackageDefinitions[normalized.substring(1)] ||
@@ -145,7 +132,7 @@ const getErrorMessage = (error: unknown) =>
 globalThis.onmessage = async (messageEvent: MessageEvent) => {
   const { id, type, payload } = messageEvent.data
   try {
-    let result: any
+    let result: unknown
 
     switch (type) {
       case 'INIT': {
@@ -188,9 +175,9 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
         if (parsed.config) {
           const host = {
             useCaseSensitiveFileNames: true,
-            readDirectory: () => [],
+            readDirectory: () => [] as string[],
             fileExists: () => true,
-            readFile: () => tsconfig,
+            readFile: () => tsconfig as string,
             getCurrentDirectory: () => '/',
           }
           const { options } = TS.parseJsonConfigFileContent(
@@ -291,17 +278,17 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
           'moduleName',
           'typeParameterName',
         ])
-        const symbolPart = info.displayParts.find((p) =>
+        const displayParts = info.displayParts || []
+        const documentation = info.documentation || []
+        const symbolPart = displayParts.find((p) =>
           SYMBOL_KINDS.has(p.kind)
         )
         const name = symbolPart
           ? symbolPart.text
-          : TS.displayPartsToString(info.displayParts)
+          : TS.displayPartsToString(displayParts)
 
-        const typeAnnotation = TS.displayPartsToString(info.displayParts)
-        let jsDoc = info.documentation
-          ? TS.displayPartsToString(info.documentation)
-          : ''
+        const typeAnnotation = TS.displayPartsToString(displayParts)
+        let jsDoc = TS.displayPartsToString(documentation)
 
         if (info.tags) {
           const tagsText = info.tags
@@ -378,14 +365,14 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
             if (!m.startsWith('.') && !m.startsWith('/')) {
               const parts = m.split('/')
               imports.add(
-                m.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0]
+                m.startsWith('@') ? `${parts[0]}/${parts[1]}` : (parts[0] || '')
               )
             }
           }
           TS.forEachChild(node, visit)
         }
         visit(sourceFile)
-        result = [...imports]
+        result = [...imports].filter(Boolean)
         break
       }
 

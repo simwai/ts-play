@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { workerClient } from '../lib/workerClient'
 import { loadPrettier } from '../lib/formatter'
-import { writeFiles, runCommand } from '../lib/webcontainer'
-import type { CompilerStatus } from '../lib/types'
+import { writeFiles, webContainerService } from '../lib/webcontainer'
+import type { CompilerStatus, ConsoleMessageType } from '../lib/types'
 import type { WebContainerProcess } from '@webcontainer/api'
 
 export function useCompilerManager(
   tsCode: string,
-  addMessage: (type: any, args: unknown[]) => void
+  addMessage: (type: ConsoleMessageType, args: unknown[]) => void
 ) {
   const [compilerStatus, setCompilerStatus] =
     useState<CompilerStatus>('loading')
@@ -81,16 +81,18 @@ export function useCompilerManager(
 
         setCompilerStatus('running')
         addMessage('info', ['Executing via Node.js...'])
-        const { exit, process } = await runCommand(
+        const proc = await webContainerService.spawnManaged(
           'node',
           ['index.js'],
-          (out) => {
-            const clean = out.trim()
-            if (clean) addMessage('log', [clean])
+          {
+            onLog: (out) => {
+              const clean = out.trim()
+              if (clean) addMessage('log', [clean])
+            }
           }
         )
 
-        currentProcess.current = process
+        currentProcess.current = proc
 
         timeoutRef.current = setTimeout(() => {
           if (currentProcess.current) {
@@ -102,7 +104,7 @@ export function useCompilerManager(
           }
         }, 300000)
 
-        const exitCode = await exit
+        const exitCode = await proc.exit
 
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current)

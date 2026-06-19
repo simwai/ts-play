@@ -1,12 +1,12 @@
-import type { TSDiagnostic, TypeInfo } from './types'
+import type { TSDiagnostic, TypeInfo, CompletionEntry } from './types'
 
 class WorkerClient {
   private worker: Worker | undefined
   private readonly resolves = new Map<
     number,
     {
-      resolve: Function
-      reject: Function
+      resolve: (value: any) => void
+      reject: (reason?: any) => void
       timeoutId: ReturnType<typeof setTimeout>
     }
   >()
@@ -18,7 +18,7 @@ class WorkerClient {
       this.worker = new Worker(new URL('worker.ts', import.meta.url), {
         type: 'module',
       })
-      this.worker.onmessage = (e) => {
+      this.worker.onmessage = (e: MessageEvent) => {
         const { id, success, payload, error } = e.data
         const p = this.resolves.get(id)
         if (p) {
@@ -40,7 +40,7 @@ class WorkerClient {
     return this.worker
   }
 
-  private async send<T>(type: string, payload?: any): Promise<T> {
+  private async send<T>(type: string, payload?: unknown): Promise<T> {
     return new Promise((resolve, reject) => {
       const id = ++this.msgId
 
@@ -86,7 +86,7 @@ class WorkerClient {
   }
 
   async getCompletions(offset: number) {
-    return this.send<any[]>('GET_COMPLETIONS', { offset })
+    return this.send<CompletionEntry[]>('GET_COMPLETIONS', { offset })
   }
 
   async compile(code: string) {

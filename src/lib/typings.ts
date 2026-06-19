@@ -25,11 +25,15 @@ export async function syncNodeModulesToWorker(): Promise<
           let isFileEntry = entry.isFile()
 
           // WebContainer sometimes returns directory/file as false for symlinks
+          // We use type assertion because some properties might not be in the public API types yet
+          const entryAny = entry as any
           const isPotentiallySymlink =
-            (entry as any).isSymbolicLink?.() ||
+            entryAny.isSymbolicLink?.() ||
             (!isDirectoryEntry && !isFileEntry)
+
           if (isPotentiallySymlink) {
             try {
+              // use any for stat as it might be internal or not exposed in current @webcontainer/api version
               const entryStats = await (containerInstance.fs as any).stat(
                 entryPath
               )

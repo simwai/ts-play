@@ -1,4 +1,4 @@
-import type { TSDiagnostic } from '../hooks/useTSDiagnostics'
+import type { TSDiagnostic } from './types'
 import { tokenize, type TokenType } from './tokenizer'
 
 export function escapeHtml(text: string): string {

@@ -52,6 +52,7 @@
     "autoprefixer": "^10.4.19",
     "knip": "^6.1.0",
     "madge": "^8.0.0",
+    "monaco-editor": "^0.55.1",
     "playwright": "^1.58.2",
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3",

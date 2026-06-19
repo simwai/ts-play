@@ -54,37 +54,37 @@ export function useConsoleManager() {
     const origTrace = console.trace
     const origDir = console.dir
 
-    console.log = (...a) => {
+    console.log = (...a: unknown[]) => {
       addMessage('log', a)
       origLog(...a)
     }
 
-    console.error = (...a) => {
+    console.error = (...a: unknown[]) => {
       addMessage('error', a)
       origError(...a)
     }
 
-    console.warn = (...a) => {
+    console.warn = (...a: unknown[]) => {
       addMessage('warn', a)
       origWarn(...a)
     }
 
-    console.info = (...a) => {
+    console.info = (...a: unknown[]) => {
       addMessage('info', a)
       origInfo(...a)
     }
 
-    console.debug = (...a) => {
+    console.debug = (...a: unknown[]) => {
       addMessage('debug', a)
       origDebug(...a)
     }
 
-    console.trace = (...a) => {
+    console.trace = (...a: unknown[]) => {
       addMessage('trace', a)
       origTrace(...a)
     }
 
-    console.dir = (...a) => {
+    console.dir = (...a: unknown[]) => {
       addMessage('dir', a)
       origDir(...a)
     }

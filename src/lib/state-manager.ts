@@ -1,23 +1,13 @@
-export type PackageManagerStatus =
-  | 'idle'
-  | 'installing'
-  | 'uninstalling'
-  | 'syncing'
-  | 'error'
-export type EnvironmentStatus =
-  | 'idle'
-  | 'booting'
-  | 'preparing'
-  | 'ready'
-  | 'error'
-export type CompilerStatus =
-  | 'Idle'
-  | 'Preparing'
-  | 'Running'
-  | 'Compiling'
-  | 'Ready'
-  | 'Error'
 import type { ThemeMode } from './theme'
+import type {
+  CompilerStatus,
+  PackageManagerStatus,
+  ToastMessage,
+  ToastType,
+  EnvironmentStatus,
+} from './types'
+
+export type { CompilerStatus, PackageManagerStatus, ToastMessage, ToastType, EnvironmentStatus }
 
 export interface PlaygroundState {
   theme: ThemeMode
@@ -30,6 +20,7 @@ export interface PlaygroundState {
   compilerStatus: CompilerStatus
   packageManagerStatus: PackageManagerStatus
   toasts: ToastMessage[]
+  lifecycle: EnvironmentStatus
 }
 
 type Listener = (state: PlaygroundState) => void
@@ -46,6 +37,7 @@ class PlaygroundStore {
     compilerStatus: 'loading',
     packageManagerStatus: 'idle',
     toasts: [],
+    lifecycle: 'idle',
   }
 
   private listeners = new Set<Listener>()
@@ -83,7 +75,12 @@ class PlaygroundStore {
     }))
   }
 
-  enqueue(actionName: string, action: () => Promise<void>) {
+  enqueue<T>(actionName: string, action: () => Promise<T>): Promise<T>
+  enqueue<T>(action: () => Promise<T>): Promise<T>
+  enqueue<T>(arg1: string | (() => Promise<T>), arg2?: () => Promise<T>): Promise<T> {
+    const actionName = typeof arg1 === 'string' ? arg1 : 'Action'
+    const action = typeof arg1 === 'function' ? arg1 : arg2!
+
     this.addToast('info', `Action queued: ${actionName}`)
     return action()
   }

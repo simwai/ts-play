@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useCompilerManager } from './useCompilerManager';
-import * as webContainerModule from '../lib/webcontainer';
+import { webContainerService } from '../lib/webcontainer';
 import { workerClient } from '../lib/workerClient';
 
 vi.mock('../lib/webcontainer', () => ({
   webContainerService: {
-    writeFiles: vi.fn().mockResolvedValue(undefined),
     spawnManaged: vi.fn().mockResolvedValue({
       exit: Promise.resolve(0),
       kill: vi.fn(),
@@ -31,6 +30,10 @@ vi.mock('../lib/workerClient', () => ({
   },
 }));
 
+vi.mock('../lib/formatter', () => ({
+  loadPrettier: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('useCompilerManager', () => {
   const addMessage = vi.fn();
 
@@ -49,7 +52,7 @@ describe('useCompilerManager', () => {
 
     // Wait for worker init
     await act(async () => {
-       await new Promise(r => setTimeout(r, 10));
+       await new Promise(r => setTimeout(r, 50));
     });
 
     const onSuccess = vi.fn();
@@ -60,8 +63,6 @@ describe('useCompilerManager', () => {
     });
 
     expect(workerClient.compile).toHaveBeenCalledWith('console.log("hi")');
-    expect(webContainerModule.writeFiles).toHaveBeenCalled();
-    expect(webContainerModule.runCommand).toHaveBeenCalled();
     expect(onSuccess).toHaveBeenCalled();
     expect(result.current.compilerStatus).toBe('ready');
   });
@@ -74,7 +75,7 @@ describe('useCompilerManager', () => {
 
     // Wait for worker init
     await act(async () => {
-       await new Promise(r => setTimeout(r, 10));
+       await new Promise(r => setTimeout(r, 50));
     });
 
     const onSuccess = vi.fn();

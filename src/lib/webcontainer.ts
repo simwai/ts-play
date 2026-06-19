@@ -2,14 +2,7 @@ import { WebContainer, type WebContainerProcess } from '@webcontainer/api'
 import { playgroundStore } from './state-manager'
 import { RegexPatterns, toRegExp } from './regex'
 
-export type EnvironmentStatus = 'idle' | 'booting' | 'preparing' | 'ready' | 'error'
-export type CompilerStatus =
-  | 'Idle'
-  | 'Preparing'
-  | 'Running'
-  | 'Compiling'
-  | 'Ready'
-  | 'Error'
+export type { EnvironmentStatus, CompilerStatus } from './types'
 
 export const SYSTEM_DEPS = [
   'typescript',
@@ -72,7 +65,7 @@ export class WebContainerService {
     })
   }
 
-  async mount(files: any) {
+  async mount(files: Record<string, any>) {
     const instance = await this.getInstance()
     await instance.mount(files)
   }
@@ -163,15 +156,19 @@ export class WebContainerService {
           const { done, value } = await reader.read()
           if (done) break
 
-          let chunk = value as any
-          if (value instanceof Uint8Array) {
-            chunk = decoder.decode(value, { stream: true })
+          let chunk = ''
+          if (value && typeof value === 'object' && 'buffer' in value) {
+            chunk = decoder.decode(value as Uint8Array, { stream: true })
+          } else {
+            chunk = String(value)
           }
 
           currentLineBuffer += chunk
           const lines = currentLineBuffer.split(toRegExp(RegexPatterns.NEWLINE))
 
           const last = lines[lines.length - 1]
+          if (last === undefined) continue
+
           const hasIncompleteAnsi = toRegExp(RegexPatterns.INCOMPLETE_ANSI).test(
             last
           )
@@ -188,7 +185,7 @@ export class WebContainerService {
             }
           } else {
             const completeLines = lines.slice(0, -1)
-            currentLineBuffer = lines[lines.length - 1]
+            currentLineBuffer = lines[lines.length - 1] || ''
             for (const line of completeLines) {
               const simplified = line.replace(
                 toRegExp(RegexPatterns.EXCESSIVE_WHITESPACE),
@@ -203,8 +200,9 @@ export class WebContainerService {
           if (!options.silent) this.emitLog('info', currentLineBuffer)
           options.onLog?.(currentLineBuffer)
         }
-      } catch (err: any) {
-        console.warn('[WC Service] Stream read error:', err.message)
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err)
+        console.warn('[WC Service] Stream read error:', message)
       } finally {
         reader.releaseLock()
       }
@@ -252,5 +250,5 @@ export const webContainerService = new WebContainerService()
 export const getWebContainer = () => webContainerService.getInstance()
 export const writeFiles = (files: Record<string, string>) => webContainerService.writeFiles(files)
 export const readFile = (path: string) => webContainerService.readFile(path)
-export const runCommand = (cmd: string, args: string[], onOutput: (d: string) => void) => webContainerService.spawnManaged(cmd, args, { onLog: onOutput })
+export const runCommand = (cmd: string, args: string[], onOutput: (d: string) => void) => webContainerService.spawnManaged(cmd, args, { onLog: onOutput }).then(p => ({ exit: p.exit, process: p }))
 export const operationQueue = { add: <T>(task: () => Promise<T>) => playgroundStore.enqueue(task) }

@@ -1,17 +1,22 @@
 {
-  "extends": "@sindresorhus/tsconfig",
   "compilerOptions": {
     "target": "es2023",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["es2023", "DOM", "DOM.Iterable"],
     "resolveJsonModule": true,
     "isolatedModules": true,
     "incremental": true,
-    /* Path mapping */
+    "strict": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
-    }
+    },
+    "types": ["node", "vite/client", "react", "react-dom"],
+    "erasableSyntaxOnly": false,
+    "skipLibCheck": true
   },
-  "include": ["**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/vite-env.d.ts"]
 }

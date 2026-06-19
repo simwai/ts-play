@@ -7,22 +7,19 @@ import { PackageManager } from './components/PackageManager'
 import { Header } from './components/Header'
 import { StatusBar } from './components/StatusBar'
 import { SettingsModal } from './components/SettingsModal'
-import { decodeSharePayload } from './lib/shareCodec'
-import { useVirtualKeyboard } from './hooks/useVirtualKeyboard'
 import { formatAllFiles } from './lib/formatter'
 import { workerClient } from './lib/workerClient'
-import { getWebContainer } from './lib/webcontainer'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import { useResizePanel } from './hooks/useResizePanel'
 import { useSwipeTabs } from './hooks/useSwipeTabs'
-import { shareSnippet, loadSharedSnippet } from './lib/api'
+import { shareSnippet } from './lib/api'
 import { useConsoleManager } from './hooks/useConsoleManager'
 import { useCompilerManager } from './hooks/useCompilerManager'
 import { usePackageManager } from './hooks/usePackageManager'
 import { TABS, type TabType, DEFAULT_TSCONFIG } from './lib/constants'
 import { playgroundStore } from './lib/state-manager'
 import { ToastContainer } from './components/ui/Toast'
-import type { ToastMessage } from './lib/types'
+import type { ToastMessage, CompilerStatus } from './lib/types'
 
 const DEFAULT_TS = `// TypeScript Playground
 // Long-press any word on mobile to see type info ✨
@@ -73,9 +70,10 @@ export function App() {
 
   // Sync toasts from store
   useEffect(() => {
-    return playgroundStore.subscribe((state) => {
+    const unsubscribe = playgroundStore.subscribe((state) => {
       setToasts(state.toasts)
     })
+    return () => { unsubscribe() }
   }, [])
 
   // Toggle dark mode class on HTML element
@@ -108,46 +106,29 @@ export function App() {
   const [lineWrap, setLineWrap] = useLocalStorage('tsplay_linewrap', true)
 
   const [activeTab, setActiveTab] = useState<TabType>('ts')
+  const [jsDirty, setJsDirty] = useState(false)
+  const [showModal, setShowModal] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [formatting, setFormatting] = useState(false)
+  const [formatSuccess, setFormatSuccess] = useState(false)
+  const [sharing, setSharing] = useState(false)
+  const [shareSuccess, setShareSuccess] = useState(false)
+  const [consoleOpen, setConsoleOpen] = useState(true)
+  const [packageManagerOpen, setPackageManagerOpen] = useState(false)
 
-  // Editor Refs for Undo/Redo
   const tsEditorRef = useRef<CodeEditorRef>(null)
   const jsEditorRef = useRef<CodeEditorRef>(null)
   const dtsEditorRef = useRef<CodeEditorRef>(null)
 
-  // Send tsconfig to worker whenever it changes
-  useEffect(() => {
-    workerClient.updateConfig(tsConfigString).catch(console.error)
-  }, [tsConfigString])
-
-  const [jsDirty, setJsDirty] = useState(false)
-  const [showModal, setShowModal] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
-
-  const [packageManagerOpen, setPackageManagerOpen] = useState(false)
-  const { keyboardOpen, keyboardHeight, isMobileLike } = useVirtualKeyboard()
-  const compactForKeyboard = keyboardOpen && isMobileLike
-
-  const { panelHeight, isResizing, handleResizeStart } = useResizePanel()
-  const { swipeRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeTabs(
-    activeTab,
-    setActiveTab,
-    TABS,
-    compactForKeyboard
-  )
-
-  const [copied, setCopied] = useState(false)
-  const [sharing, setSharing] = useState(false)
-  const [shareSuccess, setShareSuccess] = useState(false)
-  const [formatting, setFormatting] = useState(false)
-  const [formatSuccess, setFormatSuccess] = useState(false)
-
-  // Custom Hooks
-  const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } =
+  const { messages, addMessage, clearMessages } =
     useConsoleManager()
+
   const { compilerStatus, isRunning, runCode, stopCode } = useCompilerManager(
     tsCode,
     addMessage
   )
+
   const {
     installedPackages,
     packageTypings,
@@ -157,104 +138,23 @@ export function App() {
     status,
   } = usePackageManager(tsCode, addMessage)
 
-  // Global Keyboard Shortcuts (Tab Switching)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isInput =
-        document.activeElement?.tagName === 'TEXTAREA' ||
-        document.activeElement?.tagName === 'INPUT'
+  const isMobileLike = window.innerWidth < 768
+  const { panelHeight, handleResizeStart, isResizing } = useResizePanel(
+    20,
+    10,
+    isMobileLike ? 60 : 80
+  )
 
-      // Switch tabs with ArrowLeft/ArrowRight.
-      // If focused in an editor, require Alt key to prevent breaking text navigation.
-      if (
-        (e.key === 'ArrowLeft' || e.key === 'ArrowRight') &&
-        (!isInput || e.altKey)
-      ) {
-        e.preventDefault()
-        setActiveTab((previous) => {
-          const idx = TABS.indexOf(previous)
-          if (e.key === 'ArrowLeft') {
-            return TABS[(idx - 1 + TABS.length) % TABS.length]
-          }
-
-          return TABS[(idx + 1) % TABS.length]
-        })
-      }
-    }
-
-    globalThis.addEventListener('keydown', handleKeyDown)
-    return () => {
-      globalThis.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [])
-
-  // Initialize base package.json for WebContainer
-  useEffect(() => {
-    getWebContainer().then(async (instance) => {
-      try {
-        await instance.fs.readFile('package.json', 'utf8')
-      } catch {
-        await instance.fs.writeFile(
-          'package.json',
-          JSON.stringify({ name: 'playground', type: 'module' }, null, 2)
-        )
-      }
-    })
-  }, [])
-
-  useEffect(() => {
-    const parameters = new URLSearchParams(globalThis.location.search)
-    const embedded =
-      parameters.get('code') || globalThis.location.hash.replace(/^#code=/, '')
-    if (embedded) {
-      decodeSharePayload(embedded)
-        .then((payload) => {
-          setTsCode(payload.tsCode || '')
-          setJsCode(payload.jsCode || '')
-          playgroundStore.addToast('info', 'Loaded embedded share link.')
-        })
-        .catch((error) => {
-          playgroundStore.addToast(
-            'error',
-            `Failed to load embedded link: ${error.message}`
-          )
-        })
-      return
-    }
-
-    const shareId = parameters.get('share')
-    if (shareId) {
-      loadSharedSnippet(shareId)
-        .then((data) => {
-          if (data.success) {
-            setTsCode(data.tsCode)
-            if (data.jsCode) setJsCode(data.jsCode)
-            playgroundStore.addToast(
-              'success',
-              `Loaded shared snippet (${data.remainingDays} days left)`
-            )
-            const url = new URL(globalThis.location.href)
-            url.searchParams.delete('share')
-            globalThis.history.replaceState({}, '', url.toString())
-            return
-          }
-          playgroundStore.addToast(
-            'error',
-            `Failed to load shared snippet: ${data.error}`
-          )
-        })
-        .catch((error) => {
-          playgroundStore.addToast(
-            'error',
-            `Failed to load shared snippet: ${error.message}`
-          )
-        })
-    }
-  }, [setTsCode, setJsCode])
+  const {
+    swipeRef,
+    onTouchStart,
+    onTouchMove,
+    onTouchEnd,
+    compactForKeyboard,
+  } = useSwipeTabs(activeTab, setActiveTab, TABS as unknown as readonly TabType[], false)
 
   const handleCopyAll = useCallback(() => {
-    const code =
-      activeTab === 'ts' ? tsCode : activeTab === 'js' ? jsCode : dtsCode
+    const code = activeTab === 'ts' ? tsCode : activeTab === 'js' ? jsCode : dtsCode
     navigator.clipboard
       .writeText(code)
       .then(() => {
@@ -437,13 +337,26 @@ export function App() {
     [checkImports]
   )
 
+  const handleSetThemeMode = useCallback((mode: ThemeMode | ((m: ThemeMode) => ThemeMode)) => {
+    if (typeof mode === 'function') {
+      setThemeMode(prev => mode(prev))
+    } else {
+      setThemeMode(mode)
+    }
+  }, [])
+
+  const headerCompilerStatus: 'loading' | 'ready' | 'error' =
+    compilerStatus === 'loading' || compilerStatus === 'error' || compilerStatus === 'ready'
+      ? compilerStatus
+      : 'ready'
+
   return (
     <div className='flex flex-col h-[100dvh] bg-base text-text font-sans overflow-hidden'>
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         themeMode={themeMode}
-        setThemeMode={setThemeMode}
+        setThemeMode={handleSetThemeMode}
         handleCopyAll={handleCopyAll}
         copied={copied}
         handleDeleteAll={handleDeleteAll}
@@ -452,7 +365,7 @@ export function App() {
         formatSuccess={formatSuccess}
         doRun={doRun}
         isRunning={isRunning}
-        compilerStatus={compilerStatus}
+        compilerStatus={headerCompilerStatus}
         handleShare={handleShare}
         sharing={sharing}
         shareSuccess={shareSuccess}
@@ -535,7 +448,7 @@ export function App() {
         <div
           onMouseDown={handleResizeStart}
           onTouchStart={handleResizeStart}
-          className={`h-2 border-b border-surface1 cursor-ns-resize flex items-center justify-center shrink-0 transition-colors duration-160 relative ${isResizing ? 'bg-peach' : 'bg-surface0'}`}
+          className={`h-2 border-b border-surface0 cursor-ns-resize flex items-center justify-center shrink-0 transition-colors duration-160 relative ${isResizing ? 'bg-peach' : 'bg-surface0'}`}
           title='Drag to resize'
         >
           <div className='w-10 h-1 bg-overlay0 rounded-sm opacity-50' />
@@ -550,7 +463,7 @@ export function App() {
             messages={messages}
             onClear={clearMessages}
             isOpen={consoleOpen}
-            onToggle={toggleConsole}
+            onToggle={() => setConsoleOpen(!consoleOpen)}
             contentHeight={panelHeight}
             trueColorEnabled={trueColorEnabled}
           />

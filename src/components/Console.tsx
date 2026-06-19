@@ -58,18 +58,21 @@ export const Console = React.memo(function Console({
 
   // Create Ansi converter with truecolor support if enabled
   const ansiConvert = useMemo(
-    () =>
-      new Ansi({
-        newline: false,
-        escapeHtml: true,
-        stream: false,
-        colors: trueColorEnabled
-          ? undefined
-          : {
-              // Standard 16 colors fallback if needed
-            },
-      }),
-    [trueColorEnabled]
+    () => {
+      try {
+        const Ctor = (Ansi as any).default || Ansi
+        if (typeof Ctor !== 'function') return null
+        return new Ctor({
+          newline: false,
+          escapeHtml: true,
+          stream: false,
+        })
+      } catch (err) {
+        console.error('Failed to initialize Ansi converter', err)
+        return null
+      }
+    },
+    []
   )
 
   useEffect(() => {
@@ -78,6 +81,59 @@ export const Console = React.memo(function Console({
 
   const errors = messages.filter((m) => m.type === 'error').length
   const warns = messages.filter((m) => m.type === 'warn').length
+
+  const renderMessage = (m: ConsoleMessage, idx: number) => {
+    const fullText = m.args.join(' ')
+    const hasAnsi = trueColorEnabled && /[\u001b\u009b]/.test(fullText)
+
+    let content: React.ReactNode
+    if (hasAnsi && ansiConvert && typeof (ansiConvert as any).toHtml === 'function') {
+      try {
+        const html = (ansiConvert as any).toHtml(fullText)
+        content = (
+          <div
+            className='m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono'
+            dangerouslySetInnerHTML={{
+              __html: html,
+            }}
+          />
+        )
+      } catch (err) {
+        content = (
+          <pre className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}>
+            {fullText}
+          </pre>
+        )
+      }
+    } else {
+      content = (
+        <pre className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}>
+          {fullText}
+        </pre>
+      )
+    }
+
+    return (
+      <div
+        key={`${m.ts}-${idx}`}
+        data-testid='console-message'
+        className={`flex items-start gap-2.5 px-3 py-1.5 border-b border-surface0/40 ${
+          m.type === 'error'
+            ? 'bg-red/5'
+            : m.type === 'warn'
+              ? 'bg-yellow/5'
+              : 'bg-transparent'
+        }`}
+      >
+        <Badge
+          label={typeLabel(m.type)}
+          variant={typeVariant(m.type)}
+          className='mt-0.5'
+        />
+        {content}
+      </div>
+    )
+  }
 
   return (
     <div
@@ -135,45 +191,7 @@ export const Console = React.memo(function Console({
               No output yet — press Run to execute
             </div>
           ) : (
-            messages.map((m, idx) => {
-              const fullText = m.args.join(' ')
-              const hasAnsi =
-                trueColorEnabled && /[\u001b\u009b]/.test(fullText)
-
-              return (
-                <div
-                  key={`${m.ts}-${idx}`}
-                  data-testid='console-message'
-                  className={`flex items-start gap-2.5 px-3 py-1.5 border-b border-surface0/40 ${
-                    m.type === 'error'
-                      ? 'bg-red/5'
-                      : m.type === 'warn'
-                        ? 'bg-yellow/5'
-                        : 'bg-transparent'
-                  }`}
-                >
-                  <Badge
-                    label={typeLabel(m.type)}
-                    variant={typeVariant(m.type)}
-                    className='mt-0.5'
-                  />
-                  {hasAnsi ? (
-                    <div
-                      className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono`}
-                      dangerouslySetInnerHTML={{
-                        __html: ansiConvert.toHtml(fullText),
-                      }}
-                    />
-                  ) : (
-                    <pre
-                      className={`m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono ${typeColorClass(m.type)}`}
-                    >
-                      {fullText}
-                    </pre>
-                  )}
-                </div>
-              )
-            })
+            messages.map(renderMessage)
           )}
           <div ref={bottomRef} />
         </div>

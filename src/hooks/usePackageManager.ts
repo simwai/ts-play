@@ -5,7 +5,7 @@ import { runCommand } from '../lib/webcontainer'
 import type { InstalledPackage } from '../components/PackageManager'
 import type { ConsoleMessage } from '../components/Console'
 import * as TS from 'typescript'
-import type { PackageManagerStatus } from '../lib/state-manager'
+import type { PackageManagerStatus } from '../lib/types'
 
 const BUILTIN_MODULES = new Set([
   'assert',
@@ -65,7 +65,7 @@ export function usePackageManager(
 
   const previousPkgsRef = useRef<Set<string>>(new Set())
   const installQueue = useRef<Promise<void>>(Promise.resolve())
-  const ataRef = useRef<any>(null)
+  const ataRef = useRef<ReturnType<typeof setupTypeAcquisition> | null>(null)
 
   const pendingTypings = useRef<Record<string, string>>({})
   const typingUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -136,7 +136,14 @@ export function usePackageManager(
       ataRef.current = setupTypeAcquisition({
         projectName: 'ts-play',
         typescript: TS as any,
-        logger: false,
+        logger: {
+          log: () => {},
+          error: () => {},
+          info: () => {},
+          // ATA might expect 'warn' but the type definition I saw might be different
+          // Let's provide all common methods
+          ...({ warn: () => {} } as any)
+        },
         delegate: {
           receivedFile: (code, path) => {
             pendingTypings.current[path] = code
