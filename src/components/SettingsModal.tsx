@@ -6,7 +6,7 @@ import { formatJson } from '../lib/formatter'
 import { DEFAULT_TSCONFIG } from '../lib/constants'
 import { CodeEditor } from './CodeEditor'
 import { playgroundStore } from '../lib/state-manager'
-import { operationQueue } from '../lib/webcontainer'
+import { webContainerService } from '../lib/webcontainer'
 
 type SettingsModalProps = {
   isOpen: boolean
@@ -38,7 +38,6 @@ export function SettingsModal({
   setTrueColorEnabled,
   lineWrap,
   setLineWrap,
-  packageManagerStatus,
 }: SettingsModalProps) {
   const [temporaryTsConfig, setTemporaryTsConfig] = useState(tsConfigString)
   const [isValid, setIsValid] = useState(true)
@@ -99,9 +98,9 @@ export function SettingsModal({
         const formatted = await formatJson(toSave)
         const finalConfig = fixLooseJson(formatted)
 
-        await operationQueue.add(async () => {
-          onSave(finalConfig)
-        })
+        await webContainerService.writeFile('tsconfig.json', finalConfig)
+        onSave(finalConfig)
+
         playgroundStore.addToast('success', 'TSConfig updated successfully')
       } catch (error) {
         playgroundStore.addToast(

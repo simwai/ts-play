@@ -229,7 +229,7 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
                 : 'github-light'
           }
           options={options}
-          path={path}
+          path={path === 'file:///index.ts' && language === 'javascript' ? 'file:///index.js' : path === 'file:///index.ts' && language === 'json' ? 'file:///tsconfig.json' : path}
         />
       </div>
     )

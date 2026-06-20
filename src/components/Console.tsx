@@ -7,7 +7,7 @@ import Ansi from 'ansi-to-html'
 
 export type ConsoleMessage = {
   type: 'log' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'dir'
-  args: string[]
+  args: any[]
   ts: number
 }
 
@@ -79,11 +79,15 @@ export const Console = React.memo(function Console({
     if (isOpen) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isOpen])
 
-  const errors = messages.filter((m) => m.type === 'error').length
-  const warns = messages.filter((m) => m.type === 'warn').length
+  const safeMessages = Array.isArray(messages) ? messages : []
+  const errors = safeMessages.filter((m) => m && m.type === 'error').length
+  const warns = safeMessages.filter((m) => m && m.type === 'warn').length
 
   const renderMessage = (m: ConsoleMessage, idx: number) => {
-    const fullText = m.args.join(' ')
+    if (!m) return null
+    const rawArgs = m.args
+    const args = Array.isArray(rawArgs) ? rawArgs : [rawArgs]
+    const fullText = args.map(String).join(' ')
     const hasAnsi = trueColorEnabled && /[\u001b\u009b]/.test(fullText)
 
     let content: React.ReactNode
@@ -146,7 +150,7 @@ export const Console = React.memo(function Console({
         onToggle={onToggle}
         left={
           <>
-            {messages.length > 0 && <Badge label={String(messages.length)} />}
+            {safeMessages.length > 0 && <Badge label={String(safeMessages.length)} />}
             {errors > 0 && (
               <Badge
                 label={`${errors} err`}
@@ -162,7 +166,7 @@ export const Console = React.memo(function Console({
           </>
         }
         right={
-          messages.length > 0 ? (
+          safeMessages.length > 0 ? (
             <Button
               onClick={(e) => {
                 e.stopPropagation()
@@ -186,12 +190,12 @@ export const Console = React.memo(function Console({
           className='overflow-y-auto overflow-x-hidden border-t border-surface0'
           style={{ height: `${contentHeight}rem` }}
         >
-          {messages.length === 0 ? (
+          {safeMessages.length === 0 ? (
             <div className='flex items-center justify-center h-full text-overlay0 text-xxs md:text-xs italic font-mono'>
               No output yet — press Run to execute
             </div>
           ) : (
-            messages.map(renderMessage)
+            safeMessages.map(renderMessage)
           )}
           <div ref={bottomRef} />
         </div>
