@@ -144,7 +144,7 @@ export class WebContainerService {
           const { done, value } = await reader.read()
           if (done) break
 
-          let chunk = value as any
+          let chunk = value
           if (value instanceof Uint8Array) {
             chunk = decoder.decode(value, { stream: true })
           }

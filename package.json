@@ -15,6 +15,7 @@
   "engines": {
     "node": ">=20.19.0 <21 || >=22.12.0"
   },
+  "packageManager": "pnpm",
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "@sindresorhus/tsconfig": "^8.1.0",

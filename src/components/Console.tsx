@@ -84,7 +84,8 @@ export const Console = React.memo(function Console({
   )
 
   useEffect(() => {
-    if (isOpen && activeTab === 'console') bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (isOpen && activeTab === 'console')
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isOpen, filter, activeTab])
 
   const errors = messages.filter((m) => m.type === 'error').length
@@ -156,7 +157,11 @@ export const Console = React.memo(function Console({
         {label}
       </span>
       {count !== undefined && count > 0 && (
-        <Badge label={String(count)} variant={variant} className='scale-90 origin-left' />
+        <Badge
+          label={String(count)}
+          variant={variant}
+          className='scale-90 origin-left'
+        />
       )}
     </button>
   )
@@ -171,14 +176,21 @@ export const Console = React.memo(function Console({
         onClick={onToggle}
       >
         <div className='flex items-center gap-1'>
-          <TabButton id='console' label='Console' count={messages.length} />
+          <TabButton
+            id='console'
+            label='Console'
+            count={messages.length}
+          />
           <TabButton
             id='problems'
             label='Problems'
             count={problemCount}
             variant={problemCount > 0 ? 'error' : 'default'}
           />
-          <TabButton id='packages' label='Packages' />
+          <TabButton
+            id='packages'
+            label='Packages'
+          />
         </div>
 
         <div className='flex items-center gap-3 pr-2'>
@@ -212,17 +224,42 @@ export const Console = React.memo(function Console({
       {isOpen && activeTab === 'console' && (
         <>
           <div className='flex items-center gap-2 px-4 py-1.5 bg-base/30 border-b border-surface0/20'>
-             <div className='flex bg-surface0/50 rounded px-1 py-0.5 gap-1 shrink-0'>
-                <FilterButton type='all' label='All' />
-                <FilterButton type='log' label='Log' />
-                <FilterButton type='info' label='Info' />
-                <FilterButton type='warn' label='Warn' />
-                <FilterButton type='error' label='Err' />
-              </div>
-              <div className='flex items-center gap-1.5 ml-auto'>
-                {errors > 0 && <Badge label={`${errors} err`} variant='error' />}
-                {warns > 0 && <Badge label={`${warns} warn`} variant='warn' />}
-              </div>
+            <div className='flex bg-surface0/50 rounded px-1 py-0.5 gap-1 shrink-0'>
+              <FilterButton
+                type='all'
+                label='All'
+              />
+              <FilterButton
+                type='log'
+                label='Log'
+              />
+              <FilterButton
+                type='info'
+                label='Info'
+              />
+              <FilterButton
+                type='warn'
+                label='Warn'
+              />
+              <FilterButton
+                type='error'
+                label='Err'
+              />
+            </div>
+            <div className='flex items-center gap-1.5 ml-auto'>
+              {errors > 0 && (
+                <Badge
+                  label={`${errors} err`}
+                  variant='error'
+                />
+              )}
+              {warns > 0 && (
+                <Badge
+                  label={`${warns} warn`}
+                  variant='warn'
+                />
+              )}
+            </div>
           </div>
           <div
             className='overflow-y-auto overflow-x-hidden'

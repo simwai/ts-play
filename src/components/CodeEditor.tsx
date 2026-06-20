@@ -80,11 +80,14 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       redo: () => editorRef.current?.trigger('keyboard', 'redo', null),
       jumpTo: (line, col) => {
         if (editorRef.current) {
-          editorRef.current.revealPositionInCenter({ lineNumber: line, column: col })
+          editorRef.current.revealPositionInCenter({
+            lineNumber: line,
+            column: col,
+          })
           editorRef.current.setPosition({ lineNumber: line, column: col })
           editorRef.current.focus()
         }
-      }
+      },
     }))
 
     const handleBeforeMount: BeforeMount = (monaco) => {
@@ -180,12 +183,16 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
 
     useEffect(() => {
       if (monaco) {
-        const libs = Object.entries(extraLibs).map(([key, content]) => ({
-          content,
-          filePath: key.startsWith('file://')
-            ? key
-            : `file:///node_modules/@types/${key}/index.d.ts`,
-        }))
+        const libs = Object.entries(extraLibs)
+          .map(([key, content]) => {
+            let filePath = key
+            if (!filePath.startsWith('file://')) {
+              filePath = `file:///${filePath.startsWith('/') ? filePath.slice(1) : filePath}`
+            }
+            if (filePath === 'file:///index.d.ts') return null
+            return { content, filePath }
+          })
+          .filter(Boolean)
         monaco.languages.typescript.typescriptDefaults.setExtraLibs(libs as any)
       }
     }, [monaco, extraLibs])

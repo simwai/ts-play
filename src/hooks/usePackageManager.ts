@@ -91,19 +91,6 @@ export function usePackageManager(
   const checkImports = useCallback(() => {
     if (checkImportsTimeout.current) clearTimeout(checkImportsTimeout.current)
     checkImportsTimeout.current = setTimeout(async () => {
-      const lines = tsCode.split('\n')
-      const cursorLineIdx =
-        tsCode.slice(0, tsCursorPos.current).split('\n').length - 1
-      const currentLine = lines[cursorLineIdx] || ''
-
-      if (
-        /\bimport\b/.test(currentLine) &&
-        !currentLine.includes('from') &&
-        !currentLine.includes('import(')
-      ) {
-        return
-      }
-
       try {
         const detected = await workerClient.detectImports(tsCode)
         const filtered = [...detected].filter((pkg) => {
@@ -137,6 +124,31 @@ export function usePackageManager(
 
   const flushTypings = useCallback(() => {
     if (Object.keys(pendingTypings.current).length === 0) return
+
+    // Synthesize root index.d.ts for bundled-type packages (e.g. colorino)
+    // so Monaco's TS worker can resolve bare imports like `import 'colorino'`
+    const synthetic: Record<string, string> = {}
+    const paths = Object.keys(pendingTypings.current)
+    const pkgRoots = new Set<string>()
+    for (const p of paths) {
+      const m = p.match(/^\/node_modules\/([^/@][^/]*)\//)
+      if (m) pkgRoots.add(m[1])
+    }
+    for (const pkg of pkgRoots) {
+      const rootIndexPath = `/node_modules/${pkg}/index.d.ts`
+      if (pendingTypings.current[rootIndexPath]) continue // already there
+      const pkgFiles = paths.filter((p) =>
+        p.startsWith(`/node_modules/${pkg}/`)
+      )
+      const mainDts =
+        pkgFiles.find((p) => p.endsWith('index.d.ts')) ?? pkgFiles[0]
+      if (mainDts) {
+        const relativePath = mainDts.replace(`/node_modules/${pkg}/`, './')
+        synthetic[rootIndexPath] =
+          `export * from '${relativePath}';\nexport { default } from '${relativePath}';`
+      }
+    }
+
     setPackageTypings((prev) => ({
       ...prev,
       ...pendingTypings.current,
@@ -148,8 +160,7 @@ export function usePackageManager(
     if (!ataRef.current) {
       ataRef.current = setupTypeAcquisition({
         projectName: 'ts-play',
-        typescript: TS as any,
-        logger: false,
+        typescript: TS,
         delegate: {
           receivedFile: (code, path) => {
             pendingTypings.current[path] = code
@@ -173,9 +184,9 @@ export function usePackageManager(
   }, [flushTypings])
 
   useEffect(() => {
-    if (ataRef.current && tsCode) {
-      ataRef.current(tsCode)
-    }
+    if (!ataRef.current || !tsCode) return
+    const t = setTimeout(() => ataRef.current!(tsCode), 1500)
+    return () => clearTimeout(t)
   }, [tsCode])
 
   useEffect(() => {
@@ -186,9 +197,14 @@ export function usePackageManager(
     // Don't uninstall SYSTEM_DEPS
     const systemDepsSet = new Set(SYSTEM_DEPS)
 
-    const toAdd = [...currentTargetNames].filter((x) => !previouslyProcessedNames.has(x))
+    const toAdd = [...currentTargetNames].filter(
+      (x) => !previouslyProcessedNames.has(x)
+    )
     const toRemove = [...previouslyProcessedNames].filter(
-      (x) => !currentTargetNames.has(x) && !systemDepsSet.has(x) && !x.startsWith('@types/')
+      (x) =>
+        !currentTargetNames.has(x) &&
+        !systemDepsSet.has(x) &&
+        !x.startsWith('@types/')
     )
 
     if (toAdd.length === 0 && toRemove.length === 0) return
@@ -203,7 +219,9 @@ export function usePackageManager(
           const pkgExists = await cachedCheckNpmPackage(pkg)
           if (!pkgExists) {
             if (showNodeWarnings) {
-               addMessage('warn', [`Package "${pkg}" not found on npm registry.`]);
+              addMessage('warn', [
+                `Package "${pkg}" not found on npm registry.`,
+              ])
             }
             continue
           }
@@ -214,7 +232,7 @@ export function usePackageManager(
           if (typesExist) {
             finalInstallList.push(typesPkg)
           } else if (showNodeWarnings) {
-             // addMessage('info', [`No @types package found for "${pkg}".`]);
+            // addMessage('info', [`No @types package found for "${pkg}".`]);
           }
         }
 
@@ -235,18 +253,24 @@ export function usePackageManager(
         // 3. Perform Install
         if (finalInstallList.length > 0) {
           setStatus('installing')
-          addMessage('info', ['npm install ' + finalInstallList.join(' ') + '...'])
+          addMessage('info', [
+            'npm install ' + finalInstallList.join(' ') + '...',
+          ])
 
           await runCommand(
             'npm',
             ['install', '--no-progress', ...finalInstallList],
             (out) => {
               const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
-              if (clean && !/^[/\|\-]$/.test(clean))
-                addMessage('info', [clean])
+              if (clean && !/^[/\|\-]$/.test(clean)) addMessage('info', [clean])
             }
           )
+
+          if (ataRef.current && tsCode) {
+            ataRef.current(tsCode)
+          }
         }
+
         setStatus('idle')
       } catch (error) {
         console.error('Package management failed:', error)
