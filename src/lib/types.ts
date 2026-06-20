@@ -10,24 +10,32 @@ export type TSDiagnostic = {
 export type TypeInfo = {
   name: string
   kind: string
-  typeAnnotation: string
+  typeAnnotation?: string
+  type?: string
   signature?: string
   jsDoc?: string
+  documentation?: string
   detail?: string
 }
 
-export type ConsoleMessageType = 'log' | 'info' | 'warn' | 'error'
+export type ConsoleMessageType =
+  | 'log'
+  | 'info'
+  | 'warn'
+  | 'error'
+  | 'debug'
+  | 'trace'
+  | 'dir'
 
 export type ConsoleMessage = {
   id: string
   type: ConsoleMessageType
   timestamp: number
-  args: any[]
+  args: unknown[]
 }
 
 export type CompilerStatus =
   | 'loading'
-  | 'preparing'
   | 'compiling'
   | 'running'
   | 'ready'
@@ -46,4 +54,24 @@ export interface ToastMessage {
   id: string
   type: ToastType
   message: string
+}
+
+export type EnvironmentStatus =
+  | 'idle'
+  | 'booting'
+  | 'preparing'
+  | 'ready'
+  | 'error'
+
+export type Logger = {
+  log: (...args: unknown[]) => void
+  info: (...args: unknown[]) => void
+  warn: (...args: unknown[]) => void
+  error: (...args: unknown[]) => void
+}
+
+export type CompletionEntry = {
+  name: string
+  kind: string
+  insertText?: string
 }

@@ -6,7 +6,6 @@ import { workerClient } from '../lib/workerClient'
 
 vi.mock('../lib/webcontainer', () => ({
   webContainerService: {
-    writeFiles: vi.fn().mockResolvedValue(undefined),
     spawnManaged: vi.fn().mockResolvedValue({
       exit: Promise.resolve(0),
       kill: vi.fn(),
@@ -29,6 +28,10 @@ vi.mock('../lib/workerClient', () => ({
     init: vi.fn().mockResolvedValue(undefined),
     compile: vi.fn().mockResolvedValue({ js: 'console.log("hello")', dts: '' }),
   },
+}))
+
+vi.mock('../lib/formatter', () => ({
+  loadPrettier: vi.fn().mockResolvedValue(undefined),
 }))
 
 describe('useCompilerManager', () => {

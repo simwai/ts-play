@@ -2,6 +2,8 @@ import { WebContainer, type WebContainerProcess } from '@webcontainer/api'
 import { playgroundStore } from './state-manager'
 import { RegexPatterns, toRegExp } from './regex'
 
+export type { EnvironmentStatus, CompilerStatus } from './types'
+
 export const SYSTEM_DEPS = [
   'typescript',
   'esbuild',
@@ -66,7 +68,7 @@ export class WebContainerService {
     })
   }
 
-  async mount(files: any) {
+  async mount(files: Record<string, any>) {
     const instance = await this.getInstance()
     await instance.mount(files)
   }
@@ -135,58 +137,55 @@ export class WebContainerService {
     const proc = await instance.spawn(cmd, args)
 
     const reader = proc.output.getReader()
-    const decoder = new TextDecoder()
     let currentLineBuffer = ''
 
-    ;(async () => {
-      try {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          let chunk = value
-          if (value instanceof Uint8Array) {
-            chunk = decoder.decode(value, { stream: true })
-          }
-
-          currentLineBuffer += chunk
-          const lines = currentLineBuffer.split(toRegExp(RegexPatterns.NEWLINE))
-
-          const last = lines[lines.length - 1]
-          const hasIncompleteAnsi = toRegExp(
-            RegexPatterns.INCOMPLETE_ANSI
-          ).test(last)
-
-          const processLines = (linesToProc: string[]) => {
-            for (const line of linesToProc) {
-              const simplified = line.replace(
-                toRegExp(RegexPatterns.EXCESSIVE_WHITESPACE),
-                '    '
-              )
-              if (!options.silent) this.emitLog('info', simplified)
-              options.onLog?.(simplified)
-            }
-          }
-
-          if (!hasIncompleteAnsi) {
-            currentLineBuffer = lines.pop() || ''
-            processLines(lines)
-          } else {
-            const completeLines = lines.slice(0, -1)
-            currentLineBuffer = lines[lines.length - 1]
-            processLines(completeLines)
-          }
-        }
-        if (currentLineBuffer) {
-          if (!options.silent) this.emitLog('info', currentLineBuffer)
-          options.onLog?.(currentLineBuffer)
-        }
-      } catch (err: any) {
-        console.warn('[WC Service] Stream read error:', err.message)
-      } finally {
-        reader.releaseLock()
+    const processLines = (lines: string[]) => {
+      for (const line of lines) {
+        const simplified = line.replace(
+          toRegExp(RegexPatterns.EXCESSIVE_WHITESPACE),
+          '    '
+        )
+        if (!options.silent) this.emitLog('info', simplified)
+        options.onLog?.(simplified)
       }
-    })()
+    }
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = value as string
+        currentLineBuffer += chunk
+        const lines = currentLineBuffer.split(toRegExp(RegexPatterns.NEWLINE))
+
+        const last = lines[lines.length - 1]
+        if (last === undefined) continue
+
+        const hasIncompleteAnsi = toRegExp(RegexPatterns.INCOMPLETE_ANSI).test(
+          last
+        )
+
+        if (hasIncompleteAnsi) {
+          const completeLines = lines.slice(0, -1)
+          currentLineBuffer = lines[lines.length - 1] || ''
+          processLines(completeLines)
+        } else {
+          currentLineBuffer = lines.pop() || ''
+          processLines(lines)
+        }
+      }
+
+      if (currentLineBuffer) {
+        if (!options.silent) this.emitLog('info', currentLineBuffer)
+        options.onLog?.(currentLineBuffer)
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.warn('[WC Service] Stream read error:', message)
+    } finally {
+      reader.releaseLock()
+    }
 
     return proc
   }
@@ -233,8 +232,10 @@ export const runCommand = (
   cmd: string,
   args: string[],
   onOutput: (d: string) => void
-) => webContainerService.spawnManaged(cmd, args, { onLog: onOutput })
+) =>
+  webContainerService
+    .spawnManaged(cmd, args, { onLog: onOutput })
+    .then((p) => ({ exit: p.exit, process: p }))
 export const operationQueue = {
-  add: <T>(task: () => Promise<T>) =>
-    playgroundStore.enqueue('Background Task', task),
+  add: <T>(task: () => Promise<T>) => playgroundStore.enqueue(task),
 }

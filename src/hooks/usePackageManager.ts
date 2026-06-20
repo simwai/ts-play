@@ -55,9 +55,7 @@ const BUILTIN_MODULES = new Set([
 const PACKAGE_CHECK_CACHE = new Map<string, boolean>()
 
 async function cachedCheckNpmPackage(pkgName: string): Promise<boolean> {
-  if (PACKAGE_CHECK_CACHE.has(pkgName)) {
-    return PACKAGE_CHECK_CACHE.get(pkgName)!
-  }
+  if (PACKAGE_CHECK_CACHE.has(pkgName)) return PACKAGE_CHECK_CACHE.get(pkgName)!
   const exists = await checkNpmPackage(pkgName)
   PACKAGE_CHECK_CACHE.set(pkgName, exists)
   return exists
@@ -75,47 +73,38 @@ export function usePackageManager(
     {}
   )
   const [status, setStatus] = useState<PackageManagerStatus>('idle')
-
   const previousPkgsRef = useRef<Set<string>>(new Set())
   const installQueue = useRef<Promise<void>>(Promise.resolve())
-  const ataRef = useRef<any>(null)
-
+  const generationRef = useRef(0)
+  const ataRef = useRef<ReturnType<typeof setupTypeAcquisition> | null>(null)
   const pendingTypings = useRef<Record<string, string>>({})
-  const typingUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
+  const typingUpdateTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  )
   const tsCursorPos = useRef(0)
   const checkImportsTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined
   )
 
   const checkImports = useCallback(() => {
-    if (checkImportsTimeout.current) clearTimeout(checkImportsTimeout.current)
+    clearTimeout(checkImportsTimeout.current)
     checkImportsTimeout.current = setTimeout(async () => {
       try {
         const detected = await workerClient.detectImports(tsCode)
-        const filtered = [...detected].filter((pkg) => {
-          if (pkg.startsWith('node:')) return false
-          if (BUILTIN_MODULES.has(pkg)) return false
-          return true
-        })
-        const detectedSorted = filtered.sort()
-
-        setInstalledPackages((previous) => {
-          const previousNamesSorted = previous.map((p) => p.name).sort()
-
-          if (
-            JSON.stringify(previousNamesSorted) ===
-            JSON.stringify(detectedSorted)
-          ) {
-            return previous
-          }
-
-          return detectedSorted.map((name) => ({ name, version: 'latest' }))
+        const filtered = [...detected].filter(
+          (pkg) => !pkg.startsWith('node:') && !BUILTIN_MODULES.has(pkg)
+        )
+        const sorted = filtered.sort()
+        setInstalledPackages((prev) => {
+          const prevNames = prev.map((p) => p.name).sort()
+          return JSON.stringify(prevNames) === JSON.stringify(sorted)
+            ? prev
+            : sorted.map((name) => ({ name, version: 'latest' }))
         })
       } catch (error) {
-        console.error('Failed to detect imports:', error)
+        console.error('Import detection failed:', error)
       }
-    }, 2500) // Increased debounce to 2.5s
+    }, 2500)
   }, [tsCode])
 
   useEffect(() => {
@@ -124,9 +113,6 @@ export function usePackageManager(
 
   const flushTypings = useCallback(() => {
     if (Object.keys(pendingTypings.current).length === 0) return
-
-    // Synthesize root index.d.ts for bundled-type packages (e.g. colorino)
-    // so Monaco's TS worker can resolve bare imports like `import 'colorino'`
     const synthetic: Record<string, string> = {}
     const paths = Object.keys(pendingTypings.current)
     const pkgRoots = new Set<string>()
@@ -135,8 +121,8 @@ export function usePackageManager(
       if (m) pkgRoots.add(m[1])
     }
     for (const pkg of pkgRoots) {
-      const rootIndexPath = `/node_modules/${pkg}/index.d.ts`
-      if (pendingTypings.current[rootIndexPath]) continue // already there
+      const rootIndex = `/node_modules/${pkg}/index.d.ts`
+      if (pendingTypings.current[rootIndex]) continue
       const pkgFiles = paths.filter((p) =>
         p.startsWith(`/node_modules/${pkg}/`)
       )
@@ -144,14 +130,14 @@ export function usePackageManager(
         pkgFiles.find((p) => p.endsWith('index.d.ts')) ?? pkgFiles[0]
       if (mainDts) {
         const relativePath = mainDts.replace(`/node_modules/${pkg}/`, './')
-        synthetic[rootIndexPath] =
+        synthetic[rootIndex] =
           `export * from '${relativePath}';\nexport { default } from '${relativePath}';`
       }
     }
-
     setPackageTypings((prev) => ({
       ...prev,
       ...pendingTypings.current,
+      ...synthetic,
     }))
     pendingTypings.current = {}
   }, [])
@@ -160,24 +146,25 @@ export function usePackageManager(
     if (!ataRef.current) {
       ataRef.current = setupTypeAcquisition({
         projectName: 'ts-play',
-        typescript: TS,
+        typescript: TS as any,
+        logger: {
+          log: () => {},
+          error: () => {},
+          groupCollapsed: () => {}, // no-op
+          groupEnd: () => {}, // no-op
+        },
         delegate: {
           receivedFile: (code, path) => {
             pendingTypings.current[path] = code
-            if (typingUpdateTimer.current)
-              clearTimeout(typingUpdateTimer.current)
+            clearTimeout(typingUpdateTimer.current)
             typingUpdateTimer.current = setTimeout(flushTypings, 500)
           },
-          errorMessage: (userFacingMessage, error) => {
-            console.error('ATA Error:', userFacingMessage, error)
-          },
+          errorMessage: (msg, error) => console.error('ATA Error:', msg, error),
           finished: () => {
             flushTypings()
             setStatus('idle')
           },
-          started: () => {
-            setStatus('syncing')
-          },
+          started: () => setStatus('syncing'),
         },
       })
     }
@@ -190,13 +177,9 @@ export function usePackageManager(
   }, [tsCode])
 
   useEffect(() => {
-    // Reconciliation logic
     const currentTargetNames = new Set(installedPackages.map((p) => p.name))
     const previouslyProcessedNames = previousPkgsRef.current
-
-    // Don't uninstall SYSTEM_DEPS
     const systemDepsSet = new Set(SYSTEM_DEPS)
-
     const toAdd = [...currentTargetNames].filter(
       (x) => !previouslyProcessedNames.has(x)
     )
@@ -206,57 +189,49 @@ export function usePackageManager(
         !systemDepsSet.has(x) &&
         !x.startsWith('@types/')
     )
-
     if (toAdd.length === 0 && toRemove.length === 0) return
-
     previousPkgsRef.current = currentTargetNames
+    const currentGeneration = ++generationRef.current
 
     const performChanges = async () => {
+      if (currentGeneration !== generationRef.current) return
       try {
-        // 1. Resolve @types for new packages
         const finalInstallList: string[] = []
         for (const pkg of toAdd) {
-          const pkgExists = await cachedCheckNpmPackage(pkg)
-          if (!pkgExists) {
-            if (showNodeWarnings) {
+          const exists = await cachedCheckNpmPackage(pkg)
+          if (!exists) {
+            if (showNodeWarnings)
               addMessage('warn', [
                 `Package "${pkg}" not found on npm registry.`,
               ])
-            }
             continue
           }
           finalInstallList.push(pkg)
-
           const typesPkg = getTypesPackageName(pkg)
           const typesExist = await cachedCheckNpmPackage(typesPkg)
-          if (typesExist) {
-            finalInstallList.push(typesPkg)
-          } else if (showNodeWarnings) {
-            // addMessage('info', [`No @types package found for "${pkg}".`]);
-          }
+          if (typesExist) finalInstallList.push(typesPkg)
         }
+        if (currentGeneration !== generationRef.current) return
 
-        // 2. Perform Uninstall
         if (toRemove.length > 0) {
-          // Also try to uninstall associated @types if they are not needed by other imports
-          const typesToRemove = toRemove.map(getTypesPackageName)
-          const allToRemove = [...toRemove, ...typesToRemove]
-
           setStatus('uninstalling')
           addMessage('info', ['npm uninstall ' + toRemove.join(' ') + '...'])
+          const allToRemove = [
+            ...toRemove,
+            ...toRemove.map(getTypesPackageName),
+          ]
           await runCommand('npm', ['uninstall', ...allToRemove], (out) => {
             const clean = out.replaceAll(/\u001B\[[\d;]*[a-zA-Z]/g, '').trim()
             if (clean && !/^[/\|\-]$/.test(clean)) addMessage('info', [clean])
           })
         }
+        if (currentGeneration !== generationRef.current) return
 
-        // 3. Perform Install
         if (finalInstallList.length > 0) {
           setStatus('installing')
           addMessage('info', [
             'npm install ' + finalInstallList.join(' ') + '...',
           ])
-
           await runCommand(
             'npm',
             ['install', '--no-progress', ...finalInstallList],
@@ -265,19 +240,17 @@ export function usePackageManager(
               if (clean && !/^[/\|\-]$/.test(clean)) addMessage('info', [clean])
             }
           )
-
-          if (ataRef.current && tsCode) {
-            ataRef.current(tsCode)
-          }
+          if (ataRef.current && tsCode) ataRef.current(tsCode)
         }
-
         setStatus('idle')
       } catch (error) {
-        console.error('Package management failed:', error)
-        setStatus('error')
-        addMessage('error', [
-          'Package manager error: ' + (error as Error).message,
-        ])
+        if (currentGeneration === generationRef.current) {
+          console.error('Package management failed:', error)
+          setStatus('error')
+          addMessage('error', [
+            'Package manager error: ' + (error as Error).message,
+          ])
+        }
       }
     }
 

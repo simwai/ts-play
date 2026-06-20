@@ -1,4 +1,5 @@
 import type { CompilerStatus } from '../lib/types'
+import { type ThemeMode } from '../lib/theme'
 import {
   Sun,
   Moon,
@@ -15,11 +16,12 @@ import { IconButton } from './ui/IconButton'
 import { Button } from './ui/Button'
 import { TABS, type TabType } from '../lib/constants'
 
+import { DARK_THEMES, LIGHT_THEMES } from '../lib/theme'
 type HeaderProps = {
   activeTab: TabType
   setActiveTab: (tab: TabType) => void
-  isDarkMode: boolean
-  setIsDarkMode: (val: boolean) => void
+  themeMode: ThemeMode
+  setThemeMode: (mode: ThemeMode) => void
   handleCopyAll: () => void
   copied: boolean
   handleDeleteAll: () => void
@@ -38,8 +40,8 @@ type HeaderProps = {
 export function Header({
   activeTab,
   setActiveTab,
-  isDarkMode,
-  setIsDarkMode,
+  themeMode,
+  setThemeMode,
   handleCopyAll,
   copied,
   handleDeleteAll,
@@ -54,6 +56,9 @@ export function Header({
   shareSuccess,
   stopCode,
 }: HeaderProps) {
+  const isDarkMode = (DARK_THEMES as readonly string[]).includes(themeMode)
+  const nextTheme = isDarkMode ? LIGHT_THEMES[0] : DARK_THEMES[0]
+
   return (
     <header className='flex items-center justify-between px-1.5 md:px-3 h-9 md:h-12 bg-mantle border-b border-surface0 shrink-0 gap-1.5 md:gap-3 relative z-40'>
       {/* Brand */}
@@ -86,9 +91,7 @@ export function Header({
       <div className='flex items-center gap-1 md:gap-2 shrink-0'>
         {/* Theme toggle */}
         <IconButton
-          onClick={() => {
-            setIsDarkMode(!isDarkMode)
-          }}
+          onClick={() => setThemeMode(nextTheme)}
           title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           tooltipAlign='right'
           variant='surface'

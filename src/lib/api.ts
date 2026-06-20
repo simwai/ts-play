@@ -17,7 +17,19 @@ export function getApiUrl(path: string) {
   return new URL(path.replace(/^\//, ''), document.baseURI).toString()
 }
 
-export async function fetchApiJson(path: string, init?: RequestInit) {
+type ApiResponse = {
+  success?: boolean
+  id?: string
+  ttlDays?: number
+  expires?: number
+  error?: string
+  [key: string]: unknown
+}
+
+export async function fetchApiJson(
+  path: string,
+  init?: RequestInit
+): Promise<ApiResponse> {
   const candidates = getApiCandidates(path)
   let lastError: Error | undefined = undefined
 
@@ -25,7 +37,7 @@ export async function fetchApiJson(path: string, init?: RequestInit) {
     try {
       const res = await fetch(url, init)
       const text = await res.text()
-      let data: any = undefined
+      let data: ApiResponse = {}
       try {
         data = JSON.parse(text)
       } catch {
@@ -64,9 +76,9 @@ export async function fetchApiJson(path: string, init?: RequestInit) {
   )
 }
 
-export async function parseJsonResponse(res: Response) {
+export async function parseJsonResponse(res: Response): Promise<ApiResponse> {
   const text = await res.text()
-  let data: any
+  let data: ApiResponse = {}
   try {
     data = JSON.parse(text)
   } catch {

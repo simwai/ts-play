@@ -1,10 +1,19 @@
 import type { ThemeMode } from './theme'
 import type {
-  ToastType,
-  ToastMessage,
-  PackageManagerStatus,
   CompilerStatus,
+  PackageManagerStatus,
+  ToastMessage,
+  ToastType,
+  EnvironmentStatus,
 } from './types'
+
+export type {
+  CompilerStatus,
+  PackageManagerStatus,
+  ToastMessage,
+  ToastType,
+  EnvironmentStatus,
+}
 
 export interface PlaygroundState {
   theme: ThemeMode
@@ -18,6 +27,7 @@ export interface PlaygroundState {
   compilerStatus: CompilerStatus
   packageManagerStatus: PackageManagerStatus
   toasts: ToastMessage[]
+  lifecycle: EnvironmentStatus
 }
 
 type Listener = (state: PlaygroundState) => void
@@ -35,10 +45,11 @@ class PlaygroundStore {
     compilerStatus: 'loading',
     packageManagerStatus: 'idle',
     toasts: [],
+    lifecycle: 'idle',
   }
 
   private listeners = new Set<Listener>()
-  private queue: Promise<void> = Promise.resolve()
+  private queue: Promise<unknown> = Promise.resolve()
 
   getState() {
     return this.state
@@ -51,7 +62,9 @@ class PlaygroundStore {
   ) {
     const nextState = typeof update === 'function' ? update(this.state) : update
     this.state = { ...this.state, ...nextState }
-    this.listeners.forEach((l) => l(this.state))
+    for (const listener of this.listeners) {
+      listener(this.state)
+    }
   }
 
   subscribe(listener: Listener) {
@@ -73,19 +86,20 @@ class PlaygroundStore {
     }))
   }
 
-  enqueue<T>(actionName: string, action: () => Promise<T>): Promise<T> {
-    const toastId = this.addToast('info', `Action queued: ${actionName}`)
+  enqueue<T>(actionName: string, action: () => Promise<T>): Promise<T>
+  enqueue<T>(action: () => Promise<T>): Promise<T>
+  enqueue<T>(
+    arg1: string | (() => Promise<T>),
+    arg2?: () => Promise<T>
+  ): Promise<T> {
+    const actionName = typeof arg1 === 'string' ? arg1 : 'Action'
+    const action = typeof arg1 === 'function' ? arg1 : arg2!
 
-    const promise = this.queue.then(async () => {
-      try {
-        return await action()
-      } finally {
-        this.removeToast(toastId)
-      }
-    })
+    this.addToast('info', `Action queued: ${actionName}`)
 
-    this.queue = promise.then(() => {}).catch(() => {})
-    return promise
+    const task = this.queue.then(() => action())
+    this.queue = task.catch(() => {})
+    return task
   }
 }
 

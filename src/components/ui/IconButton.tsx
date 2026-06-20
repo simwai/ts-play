@@ -33,7 +33,7 @@ export function IconButton({
   size = 'md',
   style,
   className,
-  'data-testid': testId,
+  'data-testid': dataTestId,
 }: IconButtonProps) {
   const [pressed, setPressed] = useState(false)
   const [showTooltip, setShowTooltip] = useState(false)
@@ -77,7 +77,7 @@ export function IconButton({
       onClick={handleClick}
       disabled={disabled}
       aria-label={title}
-      data-testid={testId}
+      data-testid={dataTestId}
       onMouseLeave={() => setPressed(false)}
       onMouseDown={() => setPressed(true)}
       onMouseUp={() => setPressed(false)}

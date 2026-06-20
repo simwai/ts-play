@@ -11,7 +11,7 @@ function cn(...inputs: ClassValue[]) {
 export type TypeInfo = {
   name: string
   kind: string
-  typeAnnotation: string
+  typeAnnotation?: string
   jsDoc?: string
   signature?: string
 }
@@ -79,14 +79,13 @@ export function TypeInfoBar({
   typeInfo,
   cursorPos,
   language,
-  themeMode = 'mocha',
 }: TypeInfoBarProps) {
   const monaco = useMonaco()
   const [highlightedType, setHighlightedType] = useState('')
   const [highlightedSig, setHighlightedSig] = useState('')
 
   useEffect(() => {
-    if (!monaco || !typeInfo) {
+    if (!monaco || !typeInfo || !typeInfo.typeAnnotation) {
       setHighlightedType('')
       setHighlightedSig('')
       return
@@ -94,7 +93,7 @@ export function TypeInfoBar({
 
     const colorize = async () => {
       const typeHtml = await monaco.editor.colorize(
-        typeInfo.typeAnnotation,
+        typeInfo.typeAnnotation!,
         'typescript',
         { tabSize: 2 }
       )
@@ -168,17 +167,19 @@ export function TypeInfoBar({
 
       <div className='overflow-y-auto min-h-0 flex-1 scrollbar-hide'>
         <div className='flex flex-col gap-1.5'>
-          <div className='flex items-start gap-1'>
-            <span className='text-overlay0 shrink-0 mt-0.5 text-xxs md:text-xs'>
-              :
-            </span>
-            <div
-              className='whitespace-pre-wrap break-all text-xxs md:text-xs leading-relaxed flex-1 text-subtext1'
-              dangerouslySetInnerHTML={{
-                __html: highlightedType || typeInfo.typeAnnotation,
-              }}
-            />
-          </div>
+          {typeInfo.typeAnnotation && (
+            <div className='flex items-start gap-1'>
+              <span className='text-overlay0 shrink-0 mt-0.5 text-xxs md:text-xs'>
+                :
+              </span>
+              <div
+                className='whitespace-pre-wrap break-all text-xxs md:text-xs leading-relaxed flex-1 text-subtext1'
+                dangerouslySetInnerHTML={{
+                  __html: highlightedType || typeInfo.typeAnnotation,
+                }}
+              />
+            </div>
+          )}
 
           {typeInfo.jsDoc && (
             <div className='text-overlay1 italic whitespace-pre-wrap break-all leading-relaxed pl-2 border-l-2 border-surface1 text-[10px] md:text-xxs'>

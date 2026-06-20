@@ -11,7 +11,6 @@ import { SettingsModal } from './components/SettingsModal'
 import { useVirtualKeyboard } from './hooks/useVirtualKeyboard'
 import { formatAllFiles } from './lib/formatter'
 import { workerClient } from './lib/workerClient'
-import { getWebContainer } from './lib/webcontainer'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import { useResizePanel } from './hooks/useResizePanel'
 import { useSwipeTabs } from './hooks/useSwipeTabs'
@@ -19,12 +18,14 @@ import { shareSnippet } from './lib/api'
 import { useConsoleManager } from './hooks/useConsoleManager'
 import { useCompilerManager } from './hooks/useCompilerManager'
 import { usePackageManager } from './hooks/usePackageManager'
-import { useTSDiagnostics } from './hooks/useTSDiagnostics'
 import { TABS, type TabType, DEFAULT_TSCONFIG } from './lib/constants'
 import { playgroundStore } from './lib/state-manager'
 import { ToastContainer } from './components/ui/Toast'
 import { TypeInfoBar } from './components/ui/TypeInfoBar'
 import type { ToastMessage, TypeInfo } from './lib/types'
+import { getWebContainer } from './lib/webcontainer'
+import * as monaco from 'monaco-editor'
+import * as TS from 'typescript'
 
 const DEFAULT_TS = `// TypeScript Playground
 // Long-press any word on mobile to see type info ✨
@@ -72,14 +73,15 @@ console.log("Type:", typeof fetchData);
 export function App() {
   const [toasts, setToasts] = useState<ToastMessage[]>([])
 
-  // Sync toasts from store
   useEffect(() => {
-    return playgroundStore.subscribe((state) => {
+    const unsubscribe = playgroundStore.subscribe((state) => {
       setToasts(state.toasts)
     })
+    return () => {
+      unsubscribe()
+    }
   }, [])
 
-  // Initialize state from localStorage or fallback to defaults
   const [isDarkMode, setIsDarkMode] = useLocalStorage('tsplay_is_dark', true)
   const [preferredDarkTheme, setPreferredDarkTheme] =
     useLocalStorage<ThemeMode>('tsplay_dark_theme', 'mocha')
@@ -88,7 +90,6 @@ export function App() {
 
   const themeMode = isDarkMode ? preferredDarkTheme : preferredLightTheme
 
-  // Toggle dark mode class on HTML element
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark')
@@ -125,22 +126,24 @@ export function App() {
     'console' | 'problems' | 'packages'
   >('console')
 
-  // Editor Refs for Undo/Redo
   const tsEditorRef = useRef<CodeEditorRef>(null)
   const jsEditorRef = useRef<CodeEditorRef>(null)
   const dtsEditorRef = useRef<CodeEditorRef>(null)
 
-  // Send tsconfig to worker whenever it changes
   useEffect(() => {
     workerClient.updateConfig(tsConfigString).catch(console.error)
   }, [tsConfigString])
+
+  useEffect(() => {
+    workerClient.updateFile('/main.ts', tsCode).catch(console.error)
+  }, [tsCode])
 
   const [jsDirty, setJsDirty] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
 
   const [packageManagerOpen, setPackageManagerOpen] = useState(false)
-  const { keyboardOpen, keyboardHeight, isMobileLike } = useVirtualKeyboard()
+  const { keyboardOpen, isMobileLike } = useVirtualKeyboard()
   const compactForKeyboard = keyboardOpen && isMobileLike
 
   const { panelHeight, isResizing, handleResizeStart } = useResizePanel()
@@ -163,13 +166,14 @@ export function App() {
     col: number
   } | null>(null)
 
-  // Custom Hooks
   const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } =
     useConsoleManager()
+
   const { compilerStatus, isRunning, runCode, stopCode } = useCompilerManager(
     tsCode,
     addMessage
   )
+
   const {
     installedPackages,
     packageTypings,
@@ -179,21 +183,42 @@ export function App() {
     status,
   } = usePackageManager(tsCode, addMessage, showNodeWarnings)
 
-  const diagnostics = useTSDiagnostics(
-    tsCode,
-    activeTab === 'ts',
-    packageTypings
-  )
+  const [monacoDiagnostics, setMonacoDiagnostics] = useState<any[]>([])
 
-  // Global Keyboard Shortcuts (Tab Switching)
+  // Sync Monaco compiler options directly from tsConfigString
+  useEffect(() => {
+    try {
+      const parsed = TS.parseConfigFileTextToJson(
+        'tsconfig.json',
+        tsConfigString
+      )
+      if (parsed.error) return
+      const config = TS.parseJsonConfigFileContent(
+        parsed.config,
+        {
+          useCaseSensitiveFileNames: true,
+          readDirectory: () => [],
+          fileExists: () => true,
+          readFile: () => tsConfigString,
+        },
+        '/'
+      )
+      // Cast to any to avoid type mismatch between TS and Monaco compiler option enums
+      monaco.typescript.typescriptDefaults.setCompilerOptions(
+        config.options as any
+      )
+    } catch {
+      // Ignore parse errors
+    }
+  }, [tsConfigString])
+
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isInput =
-        document.activeElement?.tagName === 'TEXTAREA' ||
-        document.activeElement?.tagName === 'INPUT'
+      const isInput = /^(INPUT|TEXTAREA)$/.test(
+        (e.target as HTMLElement)?.tagName || ''
+      )
 
-      // Switch tabs with ArrowLeft/ArrowRight.
-      // If focused in an editor, require Alt key to prevent breaking text navigation.
       if (
         (e.key === 'ArrowLeft' || e.key === 'ArrowRight') &&
         (!isInput || e.altKey)
@@ -204,7 +229,6 @@ export function App() {
           if (e.key === 'ArrowLeft') {
             return TABS[(idx - 1 + TABS.length) % TABS.length]
           }
-
           return TABS[(idx + 1) % TABS.length]
         })
       }
@@ -216,7 +240,6 @@ export function App() {
     }
   }, [])
 
-  // Initialize base package.json for WebContainer
   useEffect(() => {
     getWebContainer().then(async (instance) => {
       try {
@@ -242,25 +265,23 @@ export function App() {
 
     try {
       await navigator.clipboard.writeText(content)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-      playgroundStore.addToast(
-        'success',
-        `Copied ${activeTab.toUpperCase()} to clipboard`
-      )
-    } catch (err) {
-      playgroundStore.addToast('error', 'Failed to copy to clipboard')
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = content
+      document.body.append(ta)
+      ta.select()
+      document.execCommand('copy')
+      ta.remove()
     }
+    setCopied(true)
+    playgroundStore.addToast('info', 'Copied to clipboard')
+    setTimeout(() => setCopied(false), 1500)
   }, [activeTab, tsCode, jsCode, dtsCode])
 
   const handleDeleteAll = useCallback(() => {
-    if (activeTab === 'ts') {
-      setTsCode('')
-    } else if (activeTab === 'js') {
-      setJsCode('')
-    } else {
-      setDtsCode('')
-    }
+    if (activeTab === 'ts') setTsCode('')
+    else if (activeTab === 'js') setJsCode('')
+    else setDtsCode('')
     playgroundStore.addToast('info', 'Cleared current editor')
   }, [activeTab, setTsCode, setJsCode, setDtsCode])
 
@@ -288,9 +309,7 @@ export function App() {
             'success',
             'All files formatted with Prettier'
           )
-          setTimeout(() => {
-            setFormatSuccess(false)
-          }, 1500)
+          setTimeout(() => setFormatSuccess(false), 1500)
         }
       } catch (error) {
         playgroundStore.addToast(
@@ -317,10 +336,8 @@ export function App() {
         setShowModal(true)
         return
       }
-
       setShowModal(false)
       clearMessages()
-
       playgroundStore.enqueue('Run', async () => {
         runCode(
           installQueue.current,
@@ -351,7 +368,6 @@ export function App() {
           jsCode,
           packages: installedPackages,
         })
-
         if (result.type === 'server') {
           const url = new URL(globalThis.location.href)
           url.searchParams.set('share', result.id)
@@ -375,10 +391,7 @@ export function App() {
             'Copied embedded compressed link (PHP share unavailable)'
           )
         }
-
-        setTimeout(() => {
-          setShareSuccess(false)
-        }, 2000)
+        setTimeout(() => setShareSuccess(false), 2000)
       } catch (error) {
         playgroundStore.addToast(
           'error',
@@ -417,19 +430,34 @@ export function App() {
     }, 100)
   }, [])
 
+  const handleSetThemeMode = useCallback(
+    (mode: ThemeMode) => {
+      if (isDarkMode) setPreferredDarkTheme(mode)
+      else setPreferredLightTheme(mode)
+    },
+    [isDarkMode, setPreferredDarkTheme, setPreferredLightTheme]
+  )
+
+  const headerCompilerStatus: 'loading' | 'ready' | 'error' =
+    compilerStatus === 'loading' ||
+    compilerStatus === 'error' ||
+    compilerStatus === 'ready'
+      ? compilerStatus
+      : 'ready'
+
   return (
     <div
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
       ref={swipeRef}
-      className='flex flex-col h-[100dvh] bg-base text-text font-sans overflow-hidden'
+      className='flex flex-col h-dvh bg-base text-text font-sans overflow-hidden'
     >
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        isDarkMode={isDarkMode}
-        setIsDarkMode={setIsDarkMode}
+        themeMode={themeMode}
+        setThemeMode={handleSetThemeMode}
         handleCopyAll={handleCopyAll}
         copied={copied}
         handleDeleteAll={handleDeleteAll}
@@ -438,7 +466,7 @@ export function App() {
         formatSuccess={formatSuccess}
         doRun={doRun}
         isRunning={isRunning}
-        compilerStatus={compilerStatus}
+        compilerStatus={headerCompilerStatus}
         handleShare={handleShare}
         sharing={sharing}
         shareSuccess={shareSuccess}
@@ -451,21 +479,17 @@ export function App() {
         jsDirty={jsDirty}
         handleUndo={handleUndo}
         handleRedo={handleRedo}
-        onOpenSettings={() => {
-          setShowSettings(true)
-        }}
+        onOpenSettings={() => setShowSettings(true)}
         compactForKeyboard={compactForKeyboard}
         lineWrap={lineWrap}
         setLineWrap={setLineWrap}
         packageManagerStatus={status}
       />
 
-      {/* ── Editors ── */}
       <div
         data-testid='swipe-container'
         className='flex-1 overflow-hidden relative min-h-0'
       >
-        {/* Slider track */}
         <div
           className='flex w-[300%] h-full transition-[left] duration-300 ease-in-out relative'
           style={{
@@ -473,26 +497,25 @@ export function App() {
               activeTab === 'ts' ? '0' : activeTab === 'js' ? '-100%' : '-200%',
           }}
         >
-          {/* TS Editor */}
           <div className='w-[33.333%] h-full shrink-0'>
             <CodeEditor
-              path='file:///index.ts'
+              path='file:///main.ts'
               ref={tsEditorRef}
               value={tsCode}
               onChange={setTsCode}
               onCursorChange={onTsCursorChange}
               onCursorPosChange={setCursorPos}
               onTypeInfoChange={setTypeInfo}
+              onDiagnosticsChange={setMonacoDiagnostics}
               language='typescript'
               extraLibs={packageTypings}
               isMobileLike={isMobileLike}
               themeMode={themeMode}
             />
           </div>
-          {/* JS Editor */}
           <div className='w-[33.333%] h-full shrink-0'>
             <CodeEditor
-              path='file:///index.js'
+              path='file:///main.js'
               ref={jsEditorRef}
               value={jsCode}
               onChange={handleJsChange}
@@ -502,10 +525,9 @@ export function App() {
               themeMode={themeMode}
             />
           </div>
-          {/* DTS Editor */}
           <div className='w-[33.333%] h-full shrink-0'>
             <CodeEditor
-              path='file:///index.d.ts'
+              path='file:///main.d.ts'
               ref={dtsEditorRef}
               value={dtsCode}
               onChange={setDtsCode}
@@ -519,43 +541,42 @@ export function App() {
         </div>
       </div>
 
-      {/* ── Type Info Bar ── */}
+      {/* TypeInfoBar: typeAnnotation may be undefined, but the component currently expects string.
+          Fix: update TypeInfoBar to accept typeAnnotation?: string */}
       <TypeInfoBar
         typeInfo={typeInfo}
         cursorPos={cursorPos}
         language={activeTab === 'js' ? 'javascript' : 'typescript'}
       />
 
-      {/* ── Resize Divider ── */}
       {!compactForKeyboard && (consoleOpen || packageManagerOpen) && (
         <div
           onMouseDown={handleResizeStart}
           onTouchStart={handleResizeStart}
-          className={`h-2 border-b border-surface1 cursor-ns-resize flex items-center justify-center shrink-0 transition-colors duration-160 relative ${isResizing ? 'bg-peach' : 'bg-surface0'}`}
+          className={`h-2 border-b border-surface0 cursor-ns-resize flex items-center justify-center shrink-0 transition-colors duration-160 relative ${isResizing ? 'bg-peach' : 'bg-surface0'}`}
           title='Drag to resize'
         >
           <div className='w-10 h-1 bg-overlay0 rounded-sm opacity-50' />
         </div>
       )}
 
-      {/* ── Console & Package Manager Section ── */}
       {!compactForKeyboard && (
         <div className='overflow-hidden flex flex-col shrink-0 bg-base'>
           <Console
             messages={messages}
             onClear={clearMessages}
             isOpen={consoleOpen}
-            onToggle={toggleConsole}
+            onToggle={() => setPackageManagerOpen(false)}
             contentHeight={panelHeight}
             trueColorEnabled={trueColorEnabled}
             showNodeWarnings={showNodeWarnings}
             activeTab={activeBottomTab}
             onTabChange={setActiveBottomTab}
-            problemCount={diagnostics.length}
+            problemCount={monacoDiagnostics.length}
           />
 
           <Problems
-            diagnostics={diagnostics}
+            diagnostics={monacoDiagnostics}
             isOpen={consoleOpen && activeBottomTab === 'problems'}
             contentHeight={panelHeight}
             onJumpToProblem={handleJumpToProblem}
@@ -563,36 +584,30 @@ export function App() {
 
           <PackageManager
             packages={installedPackages}
-            isOpen={consoleOpen && activeBottomTab === 'packages'}
-            onToggle={() => {
-              toggleConsole()
-            }}
+            isOpen={consoleOpen && activeBottomTab === 'packages'} // ← added
             contentHeight={panelHeight}
           />
         </div>
       )}
 
-      {/* ── Override modal ── */}
       {showModal && (
         <OverrideModal
           onConfirm={async () => doRun(true)}
-          onCancel={() => {
-            setShowModal(false)
-          }}
+          onCancel={() => setShowModal(false)}
         />
       )}
 
       <SettingsModal
         isOpen={showSettings}
-        onClose={() => {
-          setShowSettings(false)
-        }}
+        onClose={() => setShowSettings(false)}
         tsConfigString={tsConfigString}
         onSave={setTsConfigString}
         trueColorEnabled={trueColorEnabled}
         setTrueColorEnabled={setTrueColorEnabled}
         lineWrap={lineWrap}
         setLineWrap={setLineWrap}
+        showNodeWarnings={showNodeWarnings}
+        setShowNodeWarnings={setShowNodeWarnings}
         packageManagerStatus={status}
         isDarkMode={isDarkMode}
         preferredDarkTheme={preferredDarkTheme}

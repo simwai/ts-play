@@ -1,8 +1,7 @@
 {
-  "extends": "@sindresorhus/tsconfig",
   "compilerOptions": {
     "target": "es2023",
-    "lib": ["ESNext", "DOM", "WebWorker"],
+    "lib": ["ESNext", "DOM", "DOM.Iterable", "WebWorker"],
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
@@ -10,9 +9,18 @@
     "incremental": true,
     /* Path mapping */
     "rootDir": ".",
+    "strict": true,
+    "noEmit": true,
+    "sourceMap": true,
+    "sourceRoot": "./src",
+    "jsx": "react-jsx",
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
-    }
+      "@/*": ["src/*"]
+    },
+    "types": ["node", "vite/client", "react", "react-dom"],
+    "erasableSyntaxOnly": false,
+    "skipLibCheck": true
   },
-  "include": ["**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/vite-env.d.ts"]
 }

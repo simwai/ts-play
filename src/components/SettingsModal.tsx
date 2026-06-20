@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { IconButton } from './ui/IconButton'
 import { Button } from './ui/Button'
 import { CodeEditor } from './CodeEditor'
@@ -13,6 +13,8 @@ import {
   DARK_THEMES,
   LIGHT_THEMES,
 } from '../lib/theme'
+import { webContainerService } from '../lib/webcontainer'
+import { cn } from '../lib/utils' // ← use shared cn utility
 
 type SettingsModalProps = {
   isOpen: boolean
@@ -25,7 +27,7 @@ type SettingsModalProps = {
   setLineWrap: (val: boolean) => void
   showNodeWarnings: boolean
   setShowNodeWarnings: (val: boolean) => void
-  packageManagerStatus: string
+  packageManagerStatus: string // unused, consider removing
   isDarkMode: boolean
   preferredDarkTheme: ThemeMode
   setPreferredDarkTheme: (theme: ThemeMode) => void
@@ -53,7 +55,7 @@ export function SettingsModal({
   setLineWrap,
   showNodeWarnings,
   setShowNodeWarnings,
-  packageManagerStatus,
+  packageManagerStatus, // not used
   isDarkMode,
   preferredDarkTheme,
   setPreferredDarkTheme,
@@ -100,9 +102,8 @@ export function SettingsModal({
     return () => clearTimeout(timer)
   }, [temporaryTsConfig, isOpen])
 
-  const handleSave = async () => {
-    if (!isValid) return
-
+  const handleSave = useCallback(async () => {
+    // No early exit based on debounced isValid – we will re-validate inside the queue.
     onClose()
 
     playgroundStore.enqueue('Update TSConfig', async () => {
@@ -113,11 +114,12 @@ export function SettingsModal({
           const fixed = fixLooseJson(toSave)
           const fixedRes = await workerClient.validateConfig(fixed)
           if (fixedRes.valid) toSave = fixed
+          else throw new Error(res.error || 'Invalid configuration')
         }
         const formatted = await formatJson(toSave)
-        const finalConfig = fixLooseJson(formatted)
-
-        onSave(finalConfig)
+        // At this point formatted is already valid JSON; the second fixLooseJson is unnecessary.
+        await webContainerService.writeFile('tsconfig.json', formatted)
+        onSave(formatted)
         playgroundStore.addToast('success', 'TSConfig updated successfully')
       } catch (error) {
         playgroundStore.addToast(
@@ -126,7 +128,7 @@ export function SettingsModal({
         )
       }
     })
-  }
+  }, [temporaryTsConfig, onClose, onSave])
 
   if (!isOpen) return null
 
@@ -153,7 +155,6 @@ export function SettingsModal({
           </IconButton>
         </div>
 
-        {/* Scrollable content container */}
         <div className='flex-1 overflow-y-auto min-h-0'>
           <div className='px-5 py-6 flex flex-col gap-6'>
             <div className='flex flex-col gap-4'>
@@ -274,7 +275,6 @@ export function SettingsModal({
           </div>
         </div>
 
-        {/* Fixed Footer with Buttons and Credits */}
         <div className='flex flex-col shrink-0'>
           <div className='flex items-center justify-between gap-3 px-5 py-3 border-t border-surface0 bg-base'>
             <Button
@@ -332,8 +332,4 @@ export function SettingsModal({
       </div>
     </div>
   )
-}
-
-function cn(...classes: (string | boolean | undefined)[]) {
-  return classes.filter(Boolean).join(' ')
 }

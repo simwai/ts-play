@@ -9,7 +9,7 @@ export function useConsoleManager() {
     (type: ConsoleMessage['type'], args: unknown[]) => {
       if (
         type === 'error' &&
-        args.some(
+        args?.some(
           (a) =>
             typeof a === 'string' && a.includes('Maximum update depth exceeded')
         )
@@ -17,7 +17,7 @@ export function useConsoleManager() {
         return
       }
 
-      const formatted = args.map((a) => {
+      const formatted = (args || []).map((a) => {
         if (a instanceof Error) return a.stack || a.message
         if (typeof a === 'string') return a
         try {
@@ -26,8 +26,8 @@ export function useConsoleManager() {
           return String(a)
         }
       })
-      setMessages((previous) =>
-        [...previous, { type, args: formatted, ts: Date.now() }].slice(-500)
+      setMessages((prev) =>
+        [...prev, { type, args: formatted, ts: Date.now() }].slice(-500)
       )
     },
     []
@@ -38,13 +38,10 @@ export function useConsoleManager() {
   }, [])
 
   const toggleConsole = useCallback(() => {
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur()
-    }
-
     setConsoleOpen((o) => !o)
   }, [])
 
+  // Capture all console output
   useEffect(() => {
     const origLog = console.log
     const origError = console.error
@@ -58,32 +55,26 @@ export function useConsoleManager() {
       addMessage('log', a)
       origLog(...a)
     }
-
     console.error = (...a) => {
       addMessage('error', a)
       origError(...a)
     }
-
     console.warn = (...a) => {
       addMessage('warn', a)
       origWarn(...a)
     }
-
     console.info = (...a) => {
       addMessage('info', a)
       origInfo(...a)
     }
-
     console.debug = (...a) => {
       addMessage('debug', a)
       origDebug(...a)
     }
-
     console.trace = (...a) => {
       addMessage('trace', a)
       origTrace(...a)
     }
-
     console.dir = (...a) => {
       addMessage('dir', a)
       origDir(...a)

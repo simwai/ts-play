@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "format": "prettier -w .",
+    "type-check": "tsc --noEmit",
     "check-quality": "knip && madge --circular --extensions ts,tsx src/",
     "prepare": "husky",
     "test": "vitest --run"
@@ -15,7 +16,6 @@
   "engines": {
     "node": ">=20.19.0 <21 || >=22.12.0"
   },
-  "packageManager": "pnpm",
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "@sindresorhus/tsconfig": "^8.1.0",
@@ -23,7 +23,7 @@
     "@webcontainer/api": "^1.6.1",
     "ansi-to-html": "^0.7.2",
     "clsx": "2.1.1",
-    "esbuild-wasm": "^0.23.1",
+    "esbuild-wasm": "^0.25.0",
     "husky": "^9.1.7",
     "lucide-react": "^0.577.0",
     "prettier": "^3.8.1",
@@ -52,6 +52,7 @@
     "autoprefixer": "^10.4.19",
     "knip": "^6.1.0",
     "madge": "^8.0.0",
+    "monaco-editor": "^0.55.1",
     "playwright": "^1.58.2",
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3",

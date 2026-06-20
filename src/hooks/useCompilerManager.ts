@@ -1,39 +1,49 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { workerClient } from '../lib/workerClient'
 import { loadPrettier } from '../lib/formatter'
-import { writeFiles, runCommand } from '../lib/webcontainer'
-import type { CompilerStatus } from '../lib/types'
+import { writeFiles, webContainerService } from '../lib/webcontainer'
+import type { CompilerStatus, ConsoleMessageType } from '../lib/types'
 import type { WebContainerProcess } from '@webcontainer/api'
 
 export function useCompilerManager(
   tsCode: string,
-  addMessage: (type: any, args: unknown[]) => void
+  addMessage: (type: ConsoleMessageType, args: unknown[]) => void
 ) {
   const [compilerStatus, setCompilerStatus] =
     useState<CompilerStatus>('loading')
   const [isRunning, setIsRunning] = useState(false)
   const currentProcess = useRef<WebContainerProcess | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const runningRef = useRef(false) // more robust gate
 
+  // Initialization
   useEffect(() => {
     workerClient
       .init()
-      .then(() => {
-        setCompilerStatus('ready')
-      })
+      .then(() => setCompilerStatus('ready'))
       .catch((error) => {
         console.error('Worker init failed:', error)
         setCompilerStatus('error')
       })
   }, [])
 
+  // Load Prettier in the background
   useEffect(() => {
     if (compilerStatus === 'ready') {
-      loadPrettier().catch(() => {
-        /* Silent */
-      })
+      loadPrettier().catch(() => {})
     }
   }, [compilerStatus])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      if (currentProcess.current) {
+        currentProcess.current.kill()
+        currentProcess.current = null
+      }
+    }
+  }, [])
 
   const stopCode = useCallback(() => {
     if (currentProcess.current) {
@@ -46,6 +56,7 @@ export function useCompilerManager(
       timeoutRef.current = null
     }
     setIsRunning(false)
+    setCompilerStatus('ready') // reset status
   }, [addMessage])
 
   const runCode = useCallback(
@@ -54,44 +65,54 @@ export function useCompilerManager(
       onSuccess: (js: string, dts: string) => void,
       onError: (error: Error) => void
     ) => {
-      if (isRunning) return
+      if (runningRef.current) return
+      runningRef.current = true
       setIsRunning(true)
       setCompilerStatus('compiling')
 
       try {
+        // Compile TypeScript
         const compiled = await workerClient.compile(tsCode)
         onSuccess(compiled.js, compiled.dts)
 
-        await writeFiles({
-          'index.js': compiled.js,
-        })
+        // Write the resulting JS to the WebContainer
+        await writeFiles({ 'index.js': compiled.js })
 
-        // Wait for background tasks if any
-        await Promise.race([
-          pendingInstalls,
-          new Promise((_, reject) =>
-            setTimeout(
-              () => reject(new Error('Background tasks timed out')),
-              10000
-            )
-          ),
-        ]).catch((e) => {
-          console.warn('Proceeding despite background task warning:', e.message)
-        })
+        // Wait for pending package installs (or timeout)
+        try {
+          await Promise.race([
+            pendingInstalls,
+            new Promise((_, reject) =>
+              setTimeout(
+                () => reject(new Error('Background tasks timed out')),
+                10000
+              )
+            ),
+          ])
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err)
+          addMessage('warn', [
+            `Proceeding despite background task warning: ${msg}`,
+          ])
+        }
 
+        // Launch Node.js
         setCompilerStatus('running')
         addMessage('info', ['Executing via Node.js...'])
-        const { exit, process } = await runCommand(
+        const proc = await webContainerService.spawnManaged(
           'node',
           ['index.js'],
-          (out) => {
-            const clean = out.trim()
-            if (clean) addMessage('log', [clean])
+          {
+            onLog: (out) => {
+              const clean = out.trim()
+              if (clean) addMessage('log', [clean])
+            },
           }
         )
 
-        currentProcess.current = process
+        currentProcess.current = proc
 
+        // 5‑minute timeout
         timeoutRef.current = setTimeout(() => {
           if (currentProcess.current) {
             currentProcess.current.kill()
@@ -102,8 +123,9 @@ export function useCompilerManager(
           }
         }, 300000)
 
-        const exitCode = await exit
+        const exitCode = await proc.exit
 
+        // Clear timeout if process finishes on its own
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current)
           timeoutRef.current = null
@@ -119,9 +141,10 @@ export function useCompilerManager(
       } finally {
         setIsRunning(false)
         setCompilerStatus('ready')
+        runningRef.current = false
       }
     },
-    [tsCode, addMessage, isRunning]
+    [tsCode, addMessage]
   )
 
   return { compilerStatus, isRunning, runCode, stopCode }
