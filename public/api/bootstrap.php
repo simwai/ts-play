@@ -27,15 +27,16 @@ function ensure_snippets_dir(): void
 
 function cleanup_expired_snippets(): void
 {
+    // Führe das Aufräumen nur in ca. 1% der Aufrufe durch, um I/O-Last zu minimieren
+    if (random_int(1, 100) !== 1) {
+        return;
+    }
+
     ensure_snippets_dir();
+    $now = time();
     foreach (glob(SNIPPETS_DIR . '/*.json') ?: [] as $file) {
-        $raw = @file_get_contents($file);
-        if ($raw === false) {
-            continue;
-        }
-        $data = json_decode($raw, true);
-        $expiresAt = is_array($data) && isset($data['expiresAt']) ? (int) $data['expiresAt'] : ((int) @filemtime($file) + TTL_SECONDS);
-        if ($expiresAt <= time()) {
+        // Nur das Dateidatum prüfen, NICHT den Inhalt lesen!
+        if (@filemtime($file) + TTL_SECONDS <= $now) {
             @unlink($file);
         }
     }

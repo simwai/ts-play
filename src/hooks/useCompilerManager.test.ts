@@ -66,7 +66,7 @@ describe('useCompilerManager', () => {
 
     expect(workerClient.compile).toHaveBeenCalledWith('console.log("hi")')
     expect(webContainerModule.writeFiles).toHaveBeenCalled()
-    expect(webContainerModule.runCommand).toHaveBeenCalled()
+    expect(webContainerModule.webContainerService.spawnManaged).toHaveBeenCalled()
     expect(onSuccess).toHaveBeenCalled()
     expect(result.current.compilerStatus).toBe('ready')
   })
