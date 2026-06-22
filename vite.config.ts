@@ -50,4 +50,10 @@ export default defineConfig({
   optimizeDeps: {
     include: ['monaco-editor'],
   },
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+    sourcemap: false,
+    chunkSizeWarningLimit: 1000,
+  },
 })
