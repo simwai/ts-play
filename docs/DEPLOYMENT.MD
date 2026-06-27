@@ -10,11 +10,11 @@ The application is a static React site that can be deployed to any static site h
 
 1.  **Install Dependencies**:
     ```bash
-    npm install
+    pnpm install
     ```
 2.  **Build**:
     ```bash
-    npm run build
+    pnpm run build
     ```
 3.  **Output**: The build artifacts will be in the `dist/` directory.
 
