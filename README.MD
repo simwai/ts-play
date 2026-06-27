@@ -16,13 +16,14 @@ A powerful, browser-based TypeScript development environment.
 
 ```bash
 npm install
-npm run d""ev
+npm run dev
 ```
 
 ## Documentation
 
-- [Project Specification](./docs/PROJECT_SPEC.md)
-- [Bug Log](./docs/BUG_LOG.md)
+- [Project Specification](https://github.com/simwai/ts-play/blob/main/docs/PROJECT_SPEC.MD)
+- [Bug Log](https://github.com/simwai/ts-play/blob/main/docs/BUG_LOG.MD)
+- [Deployment Guide](https://github.com/simwai/ts-play/blob/main/DEPLOYMENT.md)
 
 ## License
 
