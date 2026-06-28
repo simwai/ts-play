@@ -310,7 +310,7 @@ export function SettingsModal({
             <div className='flex items-center gap-2'>
               <p className='text-xs text-subtext0'>
                 Made with 💜 by
-                <span className='ml-1 font-graffonti text-xl bg-lit-gradient animate-lit-gradient leading-relaxed'>
+                <span className='ml-1 font-graffonti text-xl bg-lit-gradient animate-lit-gradient leading-none'>
                   simwai
                 </span>
               </p>
