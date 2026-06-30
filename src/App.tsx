@@ -515,7 +515,7 @@ export function App() {
           </div>
           <div className='w-[33.333%] h-full shrink-0'>
             <CodeEditor
-              path='file:///main.js'
+              path='output:///main.js'
               ref={jsEditorRef}
               value={jsCode}
               onChange={handleJsChange}
@@ -527,7 +527,7 @@ export function App() {
           </div>
           <div className='w-[33.333%] h-full shrink-0'>
             <CodeEditor
-              path='file:///main.d.ts'
+              path='output:///main.d.ts'
               ref={dtsEditorRef}
               value={dtsCode}
               onChange={setDtsCode}

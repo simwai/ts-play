@@ -1,17 +1,14 @@
 import * as TS from 'typescript'
 import * as esbuild from 'esbuild-wasm'
 import esbuildWasmUrl from 'esbuild-wasm/esbuild.wasm?url'
-
 import lib_es5 from 'typescript/lib/lib.es5.d.ts?raw'
 import lib_es2020 from 'typescript/lib/lib.es2020.d.ts?raw'
 import lib_dom from 'typescript/lib/lib.dom.d.ts?raw'
-
 const defaultLibraryFiles: Record<string, string> = {
   'lib.es5.d.ts': lib_es5,
   'lib.es2020.d.ts': lib_es2020,
   'lib.dom.d.ts': lib_dom,
 }
-
 let languageService: TS.LanguageService | undefined
 let compilerOptions: TS.CompilerOptions = {
   target: TS.ScriptTarget.ES2020,
@@ -26,18 +23,15 @@ let compilerOptions: TS.CompilerOptions = {
   baseUrl: '/',
   paths: { '*': ['node_modules/*'] },
 }
-
 const virtualFiles: Record<string, { content: string; version: number }> = {}
 let externalPackageDefinitions: Record<string, string> = {}
 let externalPackageVersion = 0
 let isEsbuildInitialized = false
 let initPromise: Promise<void> | null = null
-
 function normalizePath(path: string): string {
   const cleaned = path.replace(/^file:\/\/\//, '/')
   return cleaned.startsWith('/') ? cleaned : '/' + cleaned
 }
-
 function createConfigHost(): TS.ParseConfigHost {
   return {
     useCaseSensitiveFileNames: true,
@@ -79,7 +73,6 @@ function createConfigHost(): TS.ParseConfigHost {
     },
   }
 }
-
 async function ensureInitialized(): Promise<void> {
   if (initPromise) return initPromise
   initPromise = (async () => {
@@ -96,7 +89,6 @@ async function ensureInitialized(): Promise<void> {
   })()
   return initPromise
 }
-
 async function initializeLanguageService() {
   const host: TS.LanguageServiceHost = {
     getScriptFileNames: () => {
@@ -185,7 +177,6 @@ async function initializeLanguageService() {
   }
   languageService = TS.createLanguageService(host)
 }
-
 function generateAmbientDeclarations(sourceCode: string): string {
   return (
     '// Declarations auto-generated from main.ts\n' +
@@ -195,10 +186,8 @@ function generateAmbientDeclarations(sourceCode: string): string {
       .join('\n')
   )
 }
-
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error)
-
 // ── Custom messages ──
 async function handleCustomMessage(
   type: string,
@@ -267,12 +256,13 @@ async function handleCustomMessage(
       }
       const host = createConfigHost()
       const { errors } = TS.parseJsonConfigFileContent(parsed.config, host, '/')
-      if (errors.length) {
+      const filteredErrors = errors.filter((e) => e.code !== 18003)
+      if (filteredErrors.length) {
         return {
           valid: false,
-          error: errors
-            .map((e) => TS.flattenDiagnosticMessageText(e.messageText, '\n'))
-            .join('\n'),
+          error: filteredErrors
+            .map((e) => TS.flattenDiagnosticMessageText(e.messageText, "\n"))
+            .join("\n"),
         }
       }
       return { valid: true }
@@ -357,7 +347,6 @@ async function handleCustomMessage(
       throw new Error(`Unknown custom message type: ${type}`)
   }
 }
-
 // ── Monaco worker protocol ──
 async function handleMonacoMethod(
   method: string,
@@ -467,7 +456,6 @@ async function handleMonacoMethod(
       throw new Error(`Unknown Monaco method: ${method}`)
   }
 }
-
 // ─── Main message handler ────────────────────────────────────────
 globalThis.onmessage = async (messageEvent: MessageEvent) => {
   const { id, type, payload, method, args, fileName } = messageEvent.data
