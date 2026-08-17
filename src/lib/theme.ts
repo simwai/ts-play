@@ -22,24 +22,3 @@ export const DARK_THEMES: ThemeMode[] = [
   'github-dark',
 ]
 export const LIGHT_THEMES: ThemeMode[] = ['latte', 'github-light']
-
-export function isDarkMode(theme: ThemeMode): boolean {
-  return DARK_THEMES.includes(theme)
-}
-
-export const getSyntaxColors = () => ({
-  keyword: 'var(--mauve)',
-  string: 'var(--green)',
-  number: 'var(--peach)',
-  comment: 'var(--overlay1)',
-  function: 'var(--blue)',
-  type: 'var(--yellow)',
-  operator: 'var(--sky)',
-  punctuation: 'var(--overlay2)',
-  decorator: 'var(--pink)',
-  variable: 'var(--text)',
-  constant: 'var(--peach)',
-  boolean: 'var(--peach)',
-  property: 'var(--sapphire)',
-  parameter: 'var(--maroon)',
-})

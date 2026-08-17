@@ -7,7 +7,7 @@ export async function loadPrettier(): Promise<void> {
   // Prettier is now bundled locally, no need to load from CDN
 }
 
-export async function formatCode(
+async function formatCode(
   code: string,
   language: 'typescript' | 'javascript' | 'dts'
 ): Promise<string> {

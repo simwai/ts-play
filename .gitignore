@@ -31,6 +31,13 @@ snippets/*.json
 # PHP
 *.php.bak
 
+# Test output
+test-results/
+
+# AI session state
+SESSION_STATE-*.md
+SESSION_STATE.md
+
 # Misc
 tsconfig.tsbuildinfo
 .aider*

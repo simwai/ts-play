@@ -200,13 +200,22 @@ const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error)
 
 // ── Custom messages ──
+type CustomMessagePayload = {
+  content?: string
+  filename?: string
+  libs?: Record<string, string>
+  tsconfig?: string
+  code?: string
+}
+
 async function handleCustomMessage(
   type: string,
-  payload: any
+  payload: unknown
 ): Promise<unknown> {
+  const data = payload as CustomMessagePayload
   switch (type) {
     case 'UPDATE_FILE': {
-      const { content, filename = '/main.ts' } = payload
+      const { content = '', filename = '/main.ts' } = data
       const normalized = filename.startsWith('/') ? filename : '/' + filename
       // Add module marker to avoid global conflicts
       const hasModuleMarker = /^\s*(import|export)\s/m.test(content)
@@ -223,7 +232,7 @@ async function handleCustomMessage(
       return true
     }
     case 'UPDATE_EXTRA_LIBS': {
-      const rawLibs = payload.libs as Record<string, string>
+      const rawLibs = data.libs ?? {}
       const wrappedLibs: Record<string, string> = {}
       for (const [path, content] of Object.entries(rawLibs)) {
         const isDeclarationFile = path.endsWith('.d.ts')
@@ -239,7 +248,7 @@ async function handleCustomMessage(
       return true
     }
     case 'UPDATE_CONFIG': {
-      const { tsconfig } = payload
+      const { tsconfig = '' } = data
       const parsed = TS.parseConfigFileTextToJson('tsconfig.json', tsconfig)
       if (parsed.error) return false
       const host = createConfigHost()
@@ -254,7 +263,7 @@ async function handleCustomMessage(
       return true
     }
     case 'VALIDATE_CONFIG': {
-      const { tsconfig } = payload
+      const { tsconfig = '' } = data
       const parsed = TS.parseConfigFileTextToJson('tsconfig.json', tsconfig)
       if (parsed.error) {
         return {
@@ -309,14 +318,18 @@ async function handleCustomMessage(
     case 'COMPILE': {
       virtualFiles['/main.ts'] = {
         version: (virtualFiles['/main.ts']?.version || 0) + 1,
-        content: payload.code,
+        content: data.code ?? '',
       }
       const compiled = await esbuild.build({
         bundle: false,
         format: 'esm',
         target: 'es2023',
         write: false,
-        stdin: { contents: payload.code, loader: 'ts', sourcefile: '/main.ts' },
+        stdin: {
+          contents: data.code ?? '',
+          loader: 'ts',
+          sourcefile: '/main.ts',
+        },
       })
       let dts = ''
       if (languageService) {
@@ -324,13 +337,13 @@ async function handleCustomMessage(
         const dtsFile = output.outputFiles.find((f) => f.name.endsWith('.d.ts'))
         if (dtsFile) dts = dtsFile.text
       }
-      if (!dts) dts = generateAmbientDeclarations(payload.code)
+      if (!dts) dts = generateAmbientDeclarations(data.code ?? '')
       return { js: compiled.outputFiles?.[0]?.text || '', dts }
     }
     case 'DETECT_IMPORTS': {
       const sourceFile = TS.createSourceFile(
         'temp.ts',
-        payload.code,
+        data.code ?? '',
         TS.ScriptTarget.Latest,
         true
       )
@@ -361,9 +374,9 @@ async function handleCustomMessage(
 // ── Monaco worker protocol ──
 async function handleMonacoMethod(
   method: string,
-  args: any[],
+  args: unknown[],
   fileName?: string
-): Promise<any> {
+): Promise<unknown> {
   switch (method) {
     case 'init':
       // Critical: respond synchronously
@@ -451,13 +464,16 @@ async function handleMonacoMethod(
       if (!languageService) throw new Error('Undefined language service')
       return languageService.getCompletionsAtPosition(
         '/main.ts',
-        args[0],
+        args[0] as number,
         undefined
       )
     }
     case 'getQuickInfoAtPosition': {
       if (!languageService) throw new Error('Undefined language service')
-      return languageService.getQuickInfoAtPosition('/main.ts', args[0])
+      return languageService.getQuickInfoAtPosition(
+        '/main.ts',
+        args[0] as number
+      )
     }
     case 'getEmitOutput': {
       if (!languageService) throw new Error('Undefined language service')

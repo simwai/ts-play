@@ -1,8 +1,9 @@
 import path from 'node:path'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, type PreviewServer, type ViteDevServer } from 'vite'
 import { viteSingleFile } from 'vite-plugin-singlefile'
 
 // @ts-ignore
@@ -12,19 +13,23 @@ const __dirname = path.dirname(__filename)
 // Custom plugin to forcefully set COOP/COEP headers for all requests in dev/preview
 const crossOriginIsolation = () => ({
   name: 'cross-origin-isolation',
-  configureServer(server: any) {
-    server.middlewares.use((_request: any, res: any, next: any) => {
-      res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
-      res.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
-      next()
-    })
+  configureServer(server: ViteDevServer) {
+    server.middlewares.use(
+      (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+        res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
+        res.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
+        next()
+      }
+    )
   },
-  configurePreviewServer(server: any) {
-    server.middlewares.use((_request: any, res: any, next: any) => {
-      res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
-      res.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
-      next()
-    })
+  configurePreviewServer(server: PreviewServer) {
+    server.middlewares.use(
+      (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+        res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
+        res.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
+        next()
+      }
+    )
   },
 })
 
@@ -49,6 +54,6 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['monaco-editor'],
+    include: ['monaco-editor', 'esbuild-wasm'],
   },
 })

@@ -7,15 +7,7 @@ import type {
   EnvironmentStatus,
 } from './types'
 
-export type {
-  CompilerStatus,
-  PackageManagerStatus,
-  ToastMessage,
-  ToastType,
-  EnvironmentStatus,
-}
-
-export interface PlaygroundState {
+interface PlaygroundState {
   theme: ThemeMode
   tsCode: string
   jsCode: string

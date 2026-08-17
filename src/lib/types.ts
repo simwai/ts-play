@@ -27,13 +27,6 @@ export type ConsoleMessageType =
   | 'trace'
   | 'dir'
 
-export type ConsoleMessage = {
-  id: string
-  type: ConsoleMessageType
-  timestamp: number
-  args: unknown[]
-}
-
 export type CompilerStatus =
   | 'loading'
   | 'compiling'
@@ -62,13 +55,6 @@ export type EnvironmentStatus =
   | 'preparing'
   | 'ready'
   | 'error'
-
-export type Logger = {
-  log: (...args: unknown[]) => void
-  info: (...args: unknown[]) => void
-  warn: (...args: unknown[]) => void
-  error: (...args: unknown[]) => void
-}
 
 export type CompletionEntry = {
   name: string

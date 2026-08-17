@@ -7,7 +7,7 @@ interface ToastProps extends ToastMessage {
   onClose: (id: string) => void
 }
 
-export function Toast({ id, type, message, onClose }: ToastProps) {
+function Toast({ id, type, message, onClose }: ToastProps) {
   useEffect(() => {
     const timer = setTimeout(() => onClose(id), 5000)
     return () => clearTimeout(timer)

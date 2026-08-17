@@ -12,15 +12,6 @@ vi.mock('../lib/webcontainer', () => ({
     }),
   },
   writeFiles: vi.fn().mockResolvedValue(undefined),
-  runCommand: vi.fn().mockResolvedValue({
-    exit: Promise.resolve(0),
-    process: {
-      kill: vi.fn(),
-      output: {
-        pipeTo: vi.fn(),
-      },
-    },
-  }),
 }))
 
 vi.mock('../lib/workerClient', () => ({
@@ -41,10 +32,16 @@ describe('useCompilerManager', () => {
     vi.clearAllMocks()
   })
 
-  it('should initialize with loading status', () => {
+  it('should initialize with loading status', async () => {
     const { result } = renderHook(() => useCompilerManager('code', addMessage))
     expect(result.current.compilerStatus).toBe('loading')
     expect(result.current.isRunning).toBe(false)
+
+    // Flush the async worker init within act()
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10))
+    })
+    expect(result.current.compilerStatus).toBe('ready')
   })
 
   it('should run code and update status', async () => {
@@ -66,7 +63,9 @@ describe('useCompilerManager', () => {
 
     expect(workerClient.compile).toHaveBeenCalledWith('console.log("hi")')
     expect(webContainerModule.writeFiles).toHaveBeenCalled()
-    expect(webContainerModule.runCommand).toHaveBeenCalled()
+    expect(
+      webContainerModule.webContainerService.spawnManaged
+    ).toHaveBeenCalledWith('node', ['index.js'], expect.anything())
     expect(onSuccess).toHaveBeenCalled()
     expect(result.current.compilerStatus).toBe('ready')
   })

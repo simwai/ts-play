@@ -5,8 +5,8 @@ class WorkerClient {
   private readonly resolves = new Map<
     number,
     {
-      resolve: (value: any) => void
-      reject: (reason?: any) => void
+      resolve: (value: unknown) => void
+      reject: (reason?: unknown) => void
       timeoutId: ReturnType<typeof setTimeout>
     }
   >()
@@ -52,7 +52,11 @@ class WorkerClient {
         reject(new Error(`Worker request '${type}' timed out after 15s`))
       }, 15_000)
 
-      this.resolves.set(id, { resolve, reject, timeoutId })
+      this.resolves.set(id, {
+        resolve: (value) => resolve(value as T),
+        reject,
+        timeoutId,
+      })
       this.getWorker().postMessage({ id, type, payload })
     })
   }

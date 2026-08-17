@@ -1,4 +1,4 @@
-import { type TypeInfo } from '../lib/types'
+import { type TSDiagnostic, type TypeInfo } from '../lib/types'
 import Editor, {
   type BeforeMount,
   type OnMount,
@@ -28,13 +28,15 @@ export type CodeEditorRef = {
   jumpTo: (line: number, col: number) => void
 }
 
+type DisplayPart = { text: string; kind: string }
+
 type CodeEditorProps = {
   value: string
   onChange?: (value: string) => void
   onCursorChange?: (offset: number) => void
   onCursorPosChange?: (pos: { line: number; col: number }) => void
   onTypeInfoChange?: (info: TypeInfo | null) => void
-  onDiagnosticsChange?: (diagnostics: any[]) => void
+  onDiagnosticsChange?: (diagnostics: TSDiagnostic[]) => void
   language?: 'typescript' | 'javascript' | 'json'
   readOnly?: boolean
   hideGutter?: boolean
@@ -145,8 +147,8 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
             offset
           )
           if (info) {
-            const displayParts: any[] = info.displayParts || []
-            const documentation: any[] = info.documentation || []
+            const displayParts = (info.displayParts || []) as DisplayPart[]
+            const documentation = (info.documentation || []) as DisplayPart[]
             const text = displayParts.map((p) => p.text).join('')
 
             const SYMBOL_KINDS = new Set([
@@ -186,7 +188,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       // Diagnostics reporting (uses Monaco's markers)
       const reportDiagnostics = () => {
         const markers = monaco.editor.getModelMarkers({ resource: model.uri })
-        const diags = markers.map((m) => ({
+        const diags: TSDiagnostic[] = markers.map((m) => ({
           start: m.startColumn,
           length: m.endColumn - m.startColumn,
           message: m.message,
@@ -227,7 +229,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
             ? key
             : `file:///${key.startsWith('/') ? key.slice(1) : key}`,
         }))
-        monaco.typescript.typescriptDefaults.setExtraLibs(libs as any)
+        monaco.typescript.typescriptDefaults.setExtraLibs(libs)
       }
     }, [monaco, extraLibs])
 

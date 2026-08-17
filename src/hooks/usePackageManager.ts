@@ -146,7 +146,7 @@ export function usePackageManager(
     if (!ataRef.current) {
       ataRef.current = setupTypeAcquisition({
         projectName: 'ts-play',
-        typescript: TS as any,
+        typescript: TS,
         logger: {
           log: () => {},
           error: () => {},

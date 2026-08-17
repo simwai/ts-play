@@ -22,7 +22,7 @@ import { TABS, type TabType, DEFAULT_TSCONFIG } from './lib/constants'
 import { playgroundStore } from './lib/state-manager'
 import { ToastContainer } from './components/ui/Toast'
 import { TypeInfoBar } from './components/ui/TypeInfoBar'
-import type { ToastMessage, TypeInfo } from './lib/types'
+import type { TSDiagnostic, ToastMessage, TypeInfo } from './lib/types'
 import { getWebContainer } from './lib/webcontainer'
 import * as monaco from 'monaco-editor'
 import * as TS from 'typescript'
@@ -183,7 +183,7 @@ export function App() {
     status,
   } = usePackageManager(tsCode, addMessage, showNodeWarnings)
 
-  const [monacoDiagnostics, setMonacoDiagnostics] = useState<any[]>([])
+  const [monacoDiagnostics, setMonacoDiagnostics] = useState<TSDiagnostic[]>([])
 
   // Sync Monaco compiler options directly from tsConfigString
   useEffect(() => {
@@ -203,9 +203,12 @@ export function App() {
         },
         '/'
       )
-      // Cast to any to avoid type mismatch between TS and Monaco compiler option enums
+      // Compiler option enums differ between the bundled TS and Monaco;
+      // bridge the two typed worlds instead of escaping to `any`.
       monaco.typescript.typescriptDefaults.setCompilerOptions(
-        config.options as any
+        config.options as unknown as Parameters<
+          typeof monaco.typescript.typescriptDefaults.setCompilerOptions
+        >[0]
       )
     } catch {
       // Ignore parse errors

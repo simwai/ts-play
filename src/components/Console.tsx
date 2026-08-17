@@ -5,9 +5,11 @@ import { Button } from './ui/Button'
 import { PanelHeader } from './ui/PanelHeader'
 import Ansi from 'ansi-to-html'
 
+type AnsiConverter = { toHtml: (text: string) => string }
+
 export type ConsoleMessage = {
   type: 'log' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'dir'
-  args: any[]
+  args: unknown[]
   ts: number
 }
 
@@ -145,7 +147,7 @@ const MessageRow = React.memo(function MessageRow({
   trueColorEnabled,
 }: {
   message: ConsoleMessage
-  ansiConvert: any
+  ansiConvert: AnsiConverter | null
   trueColorEnabled: boolean
 }) {
   const rawArgs = message.args
@@ -154,13 +156,9 @@ const MessageRow = React.memo(function MessageRow({
   const hasAnsi = trueColorEnabled && /[\u001b\u009b]/.test(fullText)
 
   let content: React.ReactNode
-  if (
-    hasAnsi &&
-    ansiConvert &&
-    typeof (ansiConvert as any).toHtml === 'function'
-  ) {
+  if (hasAnsi && ansiConvert) {
     try {
-      const html = (ansiConvert as any).toHtml(fullText)
+      const html = ansiConvert.toHtml(fullText)
       content = (
         <div
           className='m-0 p-0 text-xxs md:text-xs leading-relaxed whitespace-pre-wrap wrap-break-word flex-1 font-mono'
@@ -223,11 +221,16 @@ export const Console = React.memo(function Console({
   const bottomRef = useRef<HTMLDivElement>(null)
   const [filter, setFilter] = useState<FilterType>('all')
 
-  const ansiConvert = useMemo(() => {
+  const ansiConvert = useMemo<AnsiConverter | null>(() => {
     try {
-      const Ctor = (Ansi as any).default || Ansi
+      const Ctor =
+        (Ansi as unknown as { default?: typeof Ansi }).default ?? Ansi
       if (typeof Ctor !== 'function') return null
-      return new Ctor({ newline: false, escapeHtml: true, stream: false })
+      return new Ctor({
+        newline: false,
+        escapeXML: true,
+        stream: false,
+      }) as AnsiConverter
     } catch {
       return null
     }
@@ -247,7 +250,9 @@ export const Console = React.memo(function Console({
     return safeMessages.filter((m) => {
       if (
         !showNodeWarnings &&
-        m.args.some((arg: string) => arg.startsWith('(node:'))
+        m.args.some(
+          (arg) => typeof arg === 'string' && arg.startsWith('(node:')
+        )
       )
         return false
       if (filter === 'all') return true

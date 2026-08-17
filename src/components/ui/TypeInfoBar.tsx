@@ -3,17 +3,10 @@ import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import { useMonaco } from '@monaco-editor/react'
 import { RegexPatterns, toRegExp } from '../../lib/regex'
+import type { TypeInfo } from '../../lib/types'
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
-}
-
-export type TypeInfo = {
-  name: string
-  kind: string
-  typeAnnotation?: string
-  jsDoc?: string
-  signature?: string
 }
 
 type TypeInfoBarProps = {

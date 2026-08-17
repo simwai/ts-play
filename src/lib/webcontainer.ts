@@ -1,8 +1,10 @@
-import { WebContainer, type WebContainerProcess } from '@webcontainer/api'
+import {
+  WebContainer,
+  type FileSystemTree,
+  type WebContainerProcess,
+} from '@webcontainer/api'
 import { playgroundStore } from './state-manager'
 import { RegexPatterns, toRegExp } from './regex'
-
-export type { EnvironmentStatus, CompilerStatus } from './types'
 
 export const SYSTEM_DEPS = [
   'typescript',
@@ -68,7 +70,7 @@ export class WebContainerService {
     })
   }
 
-  async mount(files: Record<string, any>) {
+  async mount(files: FileSystemTree) {
     const instance = await this.getInstance()
     await instance.mount(files)
   }
@@ -227,7 +229,6 @@ export const webContainerService = new WebContainerService()
 export const getWebContainer = () => webContainerService.getInstance()
 export const writeFiles = (files: Record<string, string>) =>
   webContainerService.writeFiles(files)
-export const readFile = (path: string) => webContainerService.readFile(path)
 export const runCommand = (
   cmd: string,
   args: string[],
@@ -236,6 +237,3 @@ export const runCommand = (
   webContainerService
     .spawnManaged(cmd, args, { onLog: onOutput })
     .then((p) => ({ exit: p.exit, process: p }))
-export const operationQueue = {
-  add: <T>(task: () => Promise<T>) => playgroundStore.enqueue(task),
-}

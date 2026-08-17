@@ -1,13 +1,7 @@
 import { type CSSProperties } from 'react'
 import { cn } from '../../utils/cn'
 
-export type BadgeVariant =
-  | 'default'
-  | 'error'
-  | 'warn'
-  | 'info'
-  | 'success'
-  | 'custom'
+type BadgeVariant = 'default' | 'error' | 'warn' | 'info' | 'success' | 'custom'
 
 type BadgeProps = {
   label: string

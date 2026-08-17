@@ -32,4 +32,7 @@ export default defineConfig({
       'Cross-Origin-Opener-Policy': 'same-origin',
     },
   },
+  optimizeDeps: {
+    include: ['monaco-editor', 'esbuild-wasm'],
+  },
 })
