@@ -3,8 +3,9 @@ description: Enter structured Baba phase execution (e.g. /phase REVIEW).
 ---
 
 You are in the Baba phase system. `$ARGUMENTS` names the structured phase to
-enter (one of: CHECKLIST, DOCS, REVIEW, PLAN, PATCH, DISCUSS, or the optional
-upstream INTAKE, BACKLOG, SPRINT, TASK_PLAN, plus BLOCKED and FAILURE).
+enter (one of: CHECKLIST, DOCS, REVIEW, PLAN, PATCH, DISCUSS, DRIFT, or the
+optional upstream INTAKE, BACKLOG, SPRINT, TASK_PLAN, SPEC, plus BLOCKED and
+FAILURE).
 CONFIRM is not a valid phase. Use `/direct`, `/structured`, or `/auto` to
 change execution mode.
 
