@@ -12,6 +12,10 @@ const defaultLibraryFiles: Record<string, string> = {
   'lib.dom.d.ts': lib_dom,
 }
 
+// "No inputs were found in config file" — expected in the playground when the
+// config host has no files on disk; not a user-facing config error.
+const TS18003_NO_INPUTS = 18003
+
 let languageService: TS.LanguageService | undefined
 let compilerOptions: TS.CompilerOptions = {
   target: TS.ScriptTarget.ES2020,
@@ -257,7 +261,7 @@ async function handleCustomMessage(
         host,
         '/'
       )
-      if (errors.length) return false
+      if (errors.some((e) => e.code !== TS18003_NO_INPUTS)) return false
       compilerOptions = { ...compilerOptions, ...options }
       if (virtualFiles['/main.ts']) virtualFiles['/main.ts'].version += 1
       return true
@@ -276,10 +280,11 @@ async function handleCustomMessage(
       }
       const host = createConfigHost()
       const { errors } = TS.parseJsonConfigFileContent(parsed.config, host, '/')
-      if (errors.length) {
+      const fatal = errors.filter((e) => e.code !== TS18003_NO_INPUTS)
+      if (fatal.length) {
         return {
           valid: false,
-          error: errors
+          error: fatal
             .map((e) => TS.flattenDiagnosticMessageText(e.messageText, '\n'))
             .join('\n'),
         }

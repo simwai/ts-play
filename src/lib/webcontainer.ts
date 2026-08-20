@@ -31,16 +31,23 @@ export class WebContainerService {
     this.bootPromise = (async () => {
       playgroundStore.setState({ compilerStatus: 'loading' })
       this.emitLog('info', 'Booting WebContainer...')
-      const instance = await WebContainer.boot()
-      this.instance = instance
-      this.emitLog('info', 'WebContainer booted.')
+      try {
+        const instance = await WebContainer.boot()
+        this.instance = instance
+        this.emitLog('info', 'WebContainer booted.')
 
-      instance.on('server-ready', (port, url) => {
-        this.serverUrl = url
-        this.emitLog('info', 'Server ready: ' + url + ' (port ' + port + ')')
-      })
+        instance.on('server-ready', (port, url) => {
+          this.serverUrl = url
+          this.emitLog('info', 'Server ready: ' + url + ' (port ' + port + ')')
+        })
 
-      return instance
+        return instance
+      } catch (error) {
+        // A cancelled boot (e.g. StrictMode double-mount or HMR teardown)
+        // must not poison the singleton: reset so the next call can retry.
+        this.bootPromise = null
+        throw error
+      }
     })()
 
     return this.bootPromise

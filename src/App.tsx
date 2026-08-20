@@ -14,7 +14,8 @@ import { workerClient } from './lib/workerClient'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import { useResizePanel } from './hooks/useResizePanel'
 import { useSwipeTabs } from './hooks/useSwipeTabs'
-import { shareSnippet } from './lib/api'
+import { shareSnippet, loadSharedSnippet } from './lib/api'
+import { decodeSharePayload } from './lib/shareCodec'
 import { useConsoleManager } from './hooks/useConsoleManager'
 import { useCompilerManager } from './hooks/useCompilerManager'
 import { usePackageManager } from './hooks/usePackageManager'
@@ -244,21 +245,77 @@ export function App() {
   }, [])
 
   useEffect(() => {
-    getWebContainer().then(async (instance) => {
-      try {
-        await instance.fs.readFile('package.json', 'utf8')
-      } catch {
-        await instance.fs.writeFile(
-          'package.json',
-          JSON.stringify(
-            { name: 'playground-project', dependencies: {} },
-            null,
-            2
+    getWebContainer()
+      .then(async (instance) => {
+        try {
+          await instance.fs.readFile('package.json', 'utf8')
+        } catch {
+          await instance.fs.writeFile(
+            'package.json',
+            JSON.stringify(
+              { name: 'playground-project', dependencies: {} },
+              null,
+              2
+            )
           )
-        )
-      }
-    })
+        }
+      })
+      .catch((error) => {
+        // Boot can be cancelled during StrictMode double-mount or HMR teardown.
+        console.warn('WebContainer boot interrupted:', error)
+      })
   }, [])
+
+  // Restore a shared snippet from the URL: embedded (#code=) or server (?share=)
+  useEffect(() => {
+    const parameters = new URLSearchParams(globalThis.location.search)
+    const embedded =
+      parameters.get('code') || globalThis.location.hash.replace(/^#code=/, '')
+    if (embedded) {
+      decodeSharePayload(embedded)
+        .then((payload) => {
+          setTsCode(payload.tsCode || '')
+          setJsCode(payload.jsCode || '')
+          addMessage('info', [
+            'Loaded embedded share link (client-side, no server storage).',
+          ])
+        })
+        .catch((error) => {
+          addMessage('error', [
+            `Failed to load embedded share link: ${error.message}`,
+          ])
+        })
+      return
+    }
+
+    const shareId = parameters.get('share')
+    if (shareId) {
+      loadSharedSnippet(shareId)
+        .then((data) => {
+          if (data.success) {
+            if (typeof data.tsCode === 'string') setTsCode(data.tsCode)
+            if (typeof data.jsCode === 'string') setJsCode(data.jsCode)
+            addMessage('info', [
+              `✓ Loaded shared snippet (${data.remainingDays} days remaining)`,
+            ])
+            const url = new URL(globalThis.location.href)
+            url.searchParams.delete('share')
+            globalThis.history.replaceState({}, '', url.toString())
+            return
+          }
+          addMessage('error', [
+            `Failed to load shared snippet: ${
+              typeof data.error === 'string' ? data.error : 'Unknown error'
+            }`,
+          ])
+        })
+        .catch((error) => {
+          addMessage('error', [
+            `Failed to load shared snippet: ${error.message}`,
+          ])
+        })
+    }
+  }, [addMessage, setTsCode, setJsCode])
 
   const handleCopyAll = useCallback(async () => {
     let content = ''
@@ -433,14 +490,6 @@ export function App() {
     }, 100)
   }, [])
 
-  const handleSetThemeMode = useCallback(
-    (mode: ThemeMode) => {
-      if (isDarkMode) setPreferredDarkTheme(mode)
-      else setPreferredLightTheme(mode)
-    },
-    [isDarkMode, setPreferredDarkTheme, setPreferredLightTheme]
-  )
-
   const headerCompilerStatus: 'loading' | 'ready' | 'error' =
     compilerStatus === 'loading' ||
     compilerStatus === 'error' ||
@@ -459,8 +508,8 @@ export function App() {
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        themeMode={themeMode}
-        setThemeMode={handleSetThemeMode}
+        isDarkMode={isDarkMode}
+        setIsDarkMode={setIsDarkMode}
         handleCopyAll={handleCopyAll}
         copied={copied}
         handleDeleteAll={handleDeleteAll}
@@ -513,6 +562,7 @@ export function App() {
               language='typescript'
               extraLibs={packageTypings}
               isMobileLike={isMobileLike}
+              lineWrap={lineWrap}
               themeMode={themeMode}
             />
           </div>
@@ -525,6 +575,7 @@ export function App() {
               onCursorPosChange={setCursorPos}
               language='javascript'
               isMobileLike={isMobileLike}
+              lineWrap={lineWrap}
               themeMode={themeMode}
             />
           </div>
@@ -538,6 +589,7 @@ export function App() {
               language='typescript'
               readOnly={true}
               isMobileLike={isMobileLike}
+              lineWrap={lineWrap}
               themeMode={themeMode}
             />
           </div>

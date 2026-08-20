@@ -13,6 +13,10 @@ function getApiCandidates(path: string) {
   return [...new Set(candidates)]
 }
 
+function getApiUrl(path: string) {
+  return new URL(path.replace(/^\//, ''), document.baseURI).toString()
+}
+
 type ApiResponse = {
   success?: boolean
   id?: string
@@ -98,6 +102,26 @@ export async function shareSnippet(payload: SharePayload) {
     const token = await encodeSharePayload(payload)
     return { type: 'embedded' as const, token, error: error as Error }
   }
+}
+
+export async function loadSharedSnippet(id: string) {
+  const res = await fetch(getApiUrl(`api/get.php?id=${encodeURIComponent(id)}`))
+  const text = await res.text()
+  let data: ApiResponse = {}
+  try {
+    data = JSON.parse(text)
+  } catch {
+    const preview = text.slice(0, 300).replaceAll('\n', ' ')
+    throw new Error(
+      res.ok
+        ? `Share API returned invalid JSON. Raw response: ${preview}...`
+        : `Share API failed (${res.status}). Raw response: ${preview}...`
+    )
+  }
+  if (!res.ok) {
+    throw new Error(data?.error || `Request failed with status ${res.status}`)
+  }
+  return data
 }
 
 export async function checkNpmPackage(pkgName: string): Promise<boolean> {
