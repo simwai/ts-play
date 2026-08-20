@@ -30,6 +30,9 @@ export type CodeEditorRef = {
 
 type DisplayPart = { text: string; kind: string }
 
+// Stable default so the extraLibs effect does not re-run on every render.
+const EMPTY_EXTRA_LIBS: Record<string, string> = {}
+
 type CodeEditorProps = {
   value: string
   onChange?: (value: string) => void
@@ -71,7 +74,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       themeMode = 'mocha',
       path = 'file:///main.ts',
       lineWrap = true,
-      extraLibs = {},
+      extraLibs = EMPTY_EXTRA_LIBS,
       isMobileLike = false,
     },
     ref
@@ -221,6 +224,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
     }
 
     // Inject extra libs (e.g. ATA typings)
+    const lastLibsRef = useRef('')
     useEffect(() => {
       if (monaco) {
         const libs = Object.entries(extraLibs).map(([key, content]) => ({
@@ -229,6 +233,9 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
             ? key
             : `file:///${key.startsWith('/') ? key.slice(1) : key}`,
         }))
+        const signature = JSON.stringify(libs)
+        if (signature === lastLibsRef.current) return
+        lastLibsRef.current = signature
         monaco.typescript.typescriptDefaults.setExtraLibs(libs)
       }
     }, [monaco, extraLibs])

@@ -71,14 +71,14 @@
   }
 
   /* Added Lit Gradient for Graffonti text */
-  --animate-lit-gradient: lit-gradient 3s linear infinite;
+  --animate-lit-gradient: lit-gradient 3s linear infinite alternate;
 
   @keyframes lit-gradient {
     0% {
       background-position: 0% 50%;
     }
     100% {
-      background-position: 200% 50%;
+      background-position: 100% 50%;
     }
   }
 }
@@ -92,6 +92,7 @@
     var(--color-mauve)
   );
   background-size: 200% auto;
+  background-position: 0% 50%;
   -webkit-background-clip: text !important;
   background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
