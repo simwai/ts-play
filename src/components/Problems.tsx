@@ -31,9 +31,7 @@ export const Problems = React.memo(function Problems({
           {diagnostics.map((diag, idx) => (
             <button
               key={`${diag.line}-${diag.character}-${idx}`}
-              onClick={() =>
-                onJumpToProblem?.(diag.line + 1, diag.character + 1)
-              }
+              onClick={() => onJumpToProblem?.(diag.line, diag.character)}
               className='flex items-start gap-3 px-4 py-2 border-b border-surface0/40 hover:bg-surface0/30 transition-colors text-left group select-text'
             >
               <div className='mt-0.5 shrink-0'>
@@ -49,7 +47,7 @@ export const Problems = React.memo(function Problems({
                     main.ts
                   </span>
                   <span className='text-[10px] font-mono text-mauve/70'>
-                    {diag.line + 1}:{diag.character + 1}
+                    {diag.line}:{diag.character}
                   </span>
                 </div>
                 <div className='text-xxs md:text-xs font-mono text-text leading-snug break-words'>

@@ -596,8 +596,6 @@ export function App() {
         </div>
       </div>
 
-      {/* TypeInfoBar: typeAnnotation may be undefined, but the component currently expects string.
-          Fix: update TypeInfoBar to accept typeAnnotation?: string */}
       <TypeInfoBar
         typeInfo={typeInfo}
         cursorPos={cursorPos}
@@ -663,7 +661,6 @@ export function App() {
         setLineWrap={setLineWrap}
         showNodeWarnings={showNodeWarnings}
         setShowNodeWarnings={setShowNodeWarnings}
-        packageManagerStatus={status}
         isDarkMode={isDarkMode}
         preferredDarkTheme={preferredDarkTheme}
         setPreferredDarkTheme={setPreferredDarkTheme}

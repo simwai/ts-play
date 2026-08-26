@@ -1,19 +1,13 @@
 import React, { useEffect, useState } from 'react'
-import { clsx, type ClassValue } from 'clsx'
-import { twMerge } from 'tailwind-merge'
 import { useMonaco } from '@monaco-editor/react'
 import { RegexPatterns, toRegExp } from '../../lib/regex'
+import { cn } from '../../utils/cn'
 import type { TypeInfo } from '../../lib/types'
-
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
-}
 
 type TypeInfoBarProps = {
   typeInfo: TypeInfo | null
   cursorPos: { line: number; col: number } | null
   language: 'typescript' | 'javascript'
-  themeMode?: string
 }
 
 function renderWithLinksAndHighlight(text: string) {

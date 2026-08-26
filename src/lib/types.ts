@@ -48,16 +48,3 @@ export interface ToastMessage {
   type: ToastType
   message: string
 }
-
-export type EnvironmentStatus =
-  | 'idle'
-  | 'booting'
-  | 'preparing'
-  | 'ready'
-  | 'error'
-
-export type CompletionEntry = {
-  name: string
-  kind: string
-  insertText?: string
-}

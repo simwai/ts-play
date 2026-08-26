@@ -1,5 +1,3 @@
-import type { TSDiagnostic, TypeInfo, CompletionEntry } from './types'
-
 class WorkerClient {
   private worker: Worker | undefined
   private readonly resolves = new Map<
@@ -15,7 +13,6 @@ class WorkerClient {
 
   private getWorker() {
     if (!this.worker) {
-      console.log('Monaco is asking for a worker!')
       this.worker = new Worker(new URL('worker.ts', import.meta.url), {
         type: 'module',
       })
@@ -69,10 +66,6 @@ class WorkerClient {
     return this.send<void>('UPDATE_FILE', { filename, content })
   }
 
-  async updateExtraLibs(libs: Record<string, string>) {
-    return this.send<void>('UPDATE_EXTRA_LIBS', { libs })
-  }
-
   async updateConfig(tsconfig: string) {
     return this.send<void>('UPDATE_CONFIG', { tsconfig })
   }
@@ -81,14 +74,6 @@ class WorkerClient {
     return this.send<{ valid: boolean; error?: string }>('VALIDATE_CONFIG', {
       tsconfig,
     })
-  }
-
-  async getTypeInfo(offset: number) {
-    return this.send<TypeInfo | undefined>('GET_TYPE_INFO', { offset })
-  }
-
-  async getCompletions(offset: number) {
-    return this.send<CompletionEntry[]>('GET_COMPLETIONS', { offset })
   }
 
   async compile(code: string) {

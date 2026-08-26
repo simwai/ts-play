@@ -3,10 +3,6 @@ import * as prettierPluginBabel from 'prettier/plugins/babel'
 import * as prettierPluginEstree from 'prettier/plugins/estree'
 import * as prettierPluginTypescript from 'prettier/plugins/typescript'
 
-export async function loadPrettier(): Promise<void> {
-  // Prettier is now bundled locally, no need to load from CDN
-}
-
 async function formatCode(
   code: string,
   language: 'typescript' | 'javascript' | 'dts'

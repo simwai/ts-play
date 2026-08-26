@@ -42,45 +42,92 @@ function normalizePath(path: string): string {
   return cleaned.startsWith('/') ? cleaned : '/' + cleaned
 }
 
+// Shared virtual-filesystem lookups backing the config host, the language
+// service host, and the Monaco method surface – one source of truth each.
+function isKnownSourceFile(path: string): boolean {
+  const normalized = normalizePath(path)
+  return !!(
+    externalPackageDefinitions[normalized] ||
+    externalPackageDefinitions[normalized.substring(1)] ||
+    defaultLibraryFiles[normalized.substring(1)] ||
+    normalized === '/main.ts'
+  )
+}
+
+function readVirtualFile(path: string): string | undefined {
+  const normalized = normalizePath(path)
+  if (normalized === '/main.d.ts') return undefined
+  return (
+    externalPackageDefinitions[normalized] ||
+    externalPackageDefinitions[normalized.substring(1)] ||
+    defaultLibraryFiles[normalized.substring(1)] ||
+    (normalized === '/main.ts' ? virtualFiles['/main.ts']?.content : undefined)
+  )
+}
+
+function readVirtualDirectory(
+  path: string,
+  extensions?: readonly string[]
+): string[] {
+  const normalizedPath = path.endsWith('/') ? path : path + '/'
+  const searchPath = normalizedPath.startsWith('/')
+    ? normalizedPath.substring(1)
+    : normalizedPath
+  return Object.keys(externalPackageDefinitions)
+    .filter(
+      (f) =>
+        f.startsWith(searchPath) &&
+        (!extensions || extensions.some((e) => f.endsWith(e)))
+    )
+    .map(normalizePath)
+}
+
+function getScriptFileNames(): string[] {
+  const libFiles = Object.keys(defaultLibraryFiles).map((f) => '/' + f)
+  const externalFiles = Object.keys(externalPackageDefinitions).map(
+    normalizePath
+  )
+  const filtered = externalFiles.filter(
+    (f) => f !== '/main.ts' && f !== '/main.d.ts'
+  )
+  return ['/main.ts', ...libFiles, ...filtered]
+}
+
+function scriptVersionFor(fileName: string): string {
+  const normalized = normalizePath(fileName)
+  if (normalized === '/main.ts')
+    return String(virtualFiles['/main.ts']?.version ?? 0)
+  if (
+    externalPackageDefinitions[normalized] ||
+    externalPackageDefinitions[normalized.substring(1)]
+  )
+    return String(externalPackageVersion)
+  return '0'
+}
+
+function snapshotFor(fileName: string): TS.IScriptSnapshot | undefined {
+  const normalized = normalizePath(fileName)
+  if (normalized === '/main.d.ts') return undefined
+  let content: string | undefined
+  if (normalized === '/main.ts') content = virtualFiles['/main.ts']?.content
+  else if (defaultLibraryFiles[normalized.substring(1)])
+    content = defaultLibraryFiles[normalized.substring(1)]
+  else
+    content =
+      externalPackageDefinitions[normalized] ||
+      externalPackageDefinitions[normalized.substring(1)]
+  return content !== undefined
+    ? TS.ScriptSnapshot.fromString(content)
+    : undefined
+}
+
 function createConfigHost(): TS.ParseConfigHost {
   return {
     useCaseSensitiveFileNames: true,
-    readDirectory: (path, extensions) => {
-      const normalizedPath = path.endsWith('/') ? path : path + '/'
-      const searchPath = normalizedPath.startsWith('/')
-        ? normalizedPath.substring(1)
-        : normalizedPath
-      return Object.keys(externalPackageDefinitions)
-        .filter(
-          (f) =>
-            f.startsWith(searchPath) &&
-            (!extensions || extensions.some((e) => f.endsWith(e)))
-        )
-        .map(normalizePath)
-    },
-    fileExists: (path) => {
-      const normalized = normalizePath(path)
-      if (normalized === '/main.d.ts') return false
-      return !!(
-        externalPackageDefinitions[normalized] ||
-        externalPackageDefinitions[normalized.substring(1)] ||
-        defaultLibraryFiles[normalized.substring(1)] ||
-        normalized === '/main.ts' ||
-        normalized === '/tsconfig.json'
-      )
-    },
-    readFile: (path) => {
-      const normalized = normalizePath(path)
-      if (normalized === '/main.d.ts') return undefined
-      return (
-        externalPackageDefinitions[normalized] ||
-        externalPackageDefinitions[normalized.substring(1)] ||
-        defaultLibraryFiles[normalized.substring(1)] ||
-        (normalized === '/main.ts'
-          ? virtualFiles['/main.ts']?.content
-          : undefined)
-      )
-    },
+    readDirectory: (path, extensions) => readVirtualDirectory(path, extensions),
+    fileExists: (path) =>
+      isKnownSourceFile(path) || normalizePath(path) === '/tsconfig.json',
+    readFile: readVirtualFile,
   }
 }
 
@@ -103,80 +150,15 @@ async function ensureInitialized(): Promise<void> {
 
 async function initializeLanguageService() {
   const host: TS.LanguageServiceHost = {
-    getScriptFileNames: () => {
-      const libFiles = Object.keys(defaultLibraryFiles).map((f) => '/' + f)
-      const externalFiles = Object.keys(externalPackageDefinitions).map(
-        normalizePath
-      )
-      const filtered = externalFiles.filter(
-        (f) => f !== '/main.ts' && f !== '/main.d.ts'
-      )
-      return ['/main.ts', ...libFiles, ...filtered]
-    },
-    getScriptVersion: (fileName) => {
-      const normalized = normalizePath(fileName)
-      if (normalized === '/main.ts')
-        return String(virtualFiles['/main.ts']?.version ?? 0)
-      if (
-        externalPackageDefinitions[normalized] ||
-        externalPackageDefinitions[normalized.substring(1)]
-      )
-        return String(externalPackageVersion)
-      return '0'
-    },
-    getScriptSnapshot: (fileName) => {
-      const normalized = normalizePath(fileName)
-      if (normalized === '/main.d.ts') return undefined
-      let content: string | undefined
-      if (normalized === '/main.ts') content = virtualFiles['/main.ts']?.content
-      else if (defaultLibraryFiles[normalized.substring(1)])
-        content = defaultLibraryFiles[normalized.substring(1)]
-      else
-        content =
-          externalPackageDefinitions[normalized] ||
-          externalPackageDefinitions[normalized.substring(1)]
-      return content !== undefined
-        ? TS.ScriptSnapshot.fromString(content)
-        : undefined
-    },
+    getScriptFileNames,
+    getScriptVersion: scriptVersionFor,
+    getScriptSnapshot: snapshotFor,
     getCurrentDirectory: () => '/',
     getCompilationSettings: () => compilerOptions,
     getDefaultLibFileName: () => '/lib.es2020.d.ts',
-    fileExists: (path) => {
-      const normalized = normalizePath(path)
-      if (normalized === '/main.d.ts') return false
-      return !!(
-        externalPackageDefinitions[normalized] ||
-        externalPackageDefinitions[normalized.substring(1)] ||
-        defaultLibraryFiles[normalized.substring(1)] ||
-        normalized === '/main.ts'
-      )
-    },
-    readFile: (path) => {
-      const normalized = normalizePath(path)
-      if (normalized === '/main.d.ts') return undefined
-      return (
-        externalPackageDefinitions[normalized] ||
-        externalPackageDefinitions[normalized.substring(1)] ||
-        defaultLibraryFiles[normalized.substring(1)] ||
-        (normalized === '/main.ts'
-          ? virtualFiles['/main.ts']?.content
-          : undefined)
-      )
-    },
-    readDirectory: (path, extensions) => {
-      const normalizedPath = path.endsWith('/') ? path : path + '/'
-      const searchPath = normalizedPath.startsWith('/')
-        ? normalizedPath.substring(1)
-        : normalizedPath
-      return Object.keys(externalPackageDefinitions)
-        .filter(
-          (f) =>
-            f.startsWith(searchPath) &&
-            (!extensions || extensions.some((e) => f.endsWith(e)))
-        )
-        .map(normalizePath)
-    },
+    fileExists: isKnownSourceFile,
+    readFile: readVirtualFile,
+    readDirectory: (path, extensions) => readVirtualDirectory(path, extensions),
     directoryExists: (path) => {
       const normalizedPath = path.endsWith('/') ? path : path + '/'
       const searchPath = normalizedPath.startsWith('/')
@@ -291,35 +273,6 @@ async function handleCustomMessage(
       }
       return { valid: true }
     }
-    case 'GET_DIAGNOSTICS': {
-      if (!languageService) return []
-      const syntactic = languageService.getSyntacticDiagnostics('/main.ts')
-      const semantic = languageService.getSemanticDiagnostics('/main.ts')
-      return [...syntactic, ...semantic].map((d) => ({
-        start: d.start || 0,
-        length: d.length || 0,
-        message:
-          typeof d.messageText === 'string'
-            ? d.messageText
-            : TS.flattenDiagnosticMessageText(d.messageText, '\n'),
-        category:
-          d.category === TS.DiagnosticCategory.Warning
-            ? 'warning'
-            : d.category === TS.DiagnosticCategory.Error
-              ? 'error'
-              : d.category === TS.DiagnosticCategory.Suggestion
-                ? 'suggestion'
-                : 'message',
-        line:
-          d.file && d.start !== undefined
-            ? TS.getLineAndCharacterOfPosition(d.file, d.start).line
-            : 0,
-        character:
-          d.file && d.start !== undefined
-            ? TS.getLineAndCharacterOfPosition(d.file, d.start).character
-            : 0,
-      }))
-    }
     case 'COMPILE': {
       virtualFiles['/main.ts'] = {
         version: (virtualFiles['/main.ts']?.version || 0) + 1,
@@ -388,42 +341,12 @@ async function handleMonacoMethod(
       return { success: true }
     case 'getDefaultLibFileName':
       return '/lib.es2020.d.ts'
-    case 'getScriptFileNames': {
-      const libFiles = Object.keys(defaultLibraryFiles).map((f) => '/' + f)
-      const externalFiles = Object.keys(externalPackageDefinitions).map(
-        normalizePath
-      )
-      const filtered = externalFiles.filter(
-        (f) => f !== '/main.ts' && f !== '/main.d.ts'
-      )
-      return ['/main.ts', ...libFiles, ...filtered]
-    }
-    case 'getScriptVersion': {
-      const normalized = normalizePath(fileName!)
-      if (normalized === '/main.ts')
-        return String(virtualFiles['/main.ts']?.version ?? 0)
-      if (
-        externalPackageDefinitions[normalized] ||
-        externalPackageDefinitions[normalized.substring(1)]
-      )
-        return String(externalPackageVersion)
-      return '0'
-    }
-    case 'getScriptSnapshot': {
-      const path = normalizePath(fileName!)
-      if (path === '/main.d.ts') return undefined
-      let content: string | undefined
-      if (path === '/main.ts') content = virtualFiles['/main.ts']?.content
-      else if (defaultLibraryFiles[path.substring(1)])
-        content = defaultLibraryFiles[path.substring(1)]
-      else
-        content =
-          externalPackageDefinitions[path] ||
-          externalPackageDefinitions[path.substring(1)]
-      return content !== undefined
-        ? TS.ScriptSnapshot.fromString(content)
-        : undefined
-    }
+    case 'getScriptFileNames':
+      return getScriptFileNames()
+    case 'getScriptVersion':
+      return scriptVersionFor(fileName!)
+    case 'getScriptSnapshot':
+      return snapshotFor(fileName!)
     case 'getDiagnostics': {
       if (!languageService) throw new Error('Undefined language service')
       const diags = [

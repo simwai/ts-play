@@ -33,6 +33,7 @@ snippets/*.json
 
 # Test output
 test-results/
+.playwright-mcp/
 
 # AI session state
 SESSION_STATE-*.md

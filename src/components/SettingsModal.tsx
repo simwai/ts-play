@@ -14,7 +14,7 @@ import {
   LIGHT_THEMES,
 } from '../lib/theme'
 import { webContainerService } from '../lib/webcontainer'
-import { cn } from '../lib/utils' // ← use shared cn utility
+import { cn } from '../utils/cn'
 
 type SettingsModalProps = {
   isOpen: boolean
@@ -27,7 +27,6 @@ type SettingsModalProps = {
   setLineWrap: (val: boolean) => void
   showNodeWarnings: boolean
   setShowNodeWarnings: (val: boolean) => void
-  packageManagerStatus: string // unused, consider removing
   isDarkMode: boolean
   preferredDarkTheme: ThemeMode
   setPreferredDarkTheme: (theme: ThemeMode) => void
@@ -55,7 +54,6 @@ export function SettingsModal({
   setLineWrap,
   showNodeWarnings,
   setShowNodeWarnings,
-  packageManagerStatus, // not used
   isDarkMode,
   preferredDarkTheme,
   setPreferredDarkTheme,
@@ -251,7 +249,6 @@ export function SettingsModal({
                   fontSizeOverride={12}
                   disableAutocomplete={true}
                   disableDiagnostics={true}
-                  disableShortcuts={true}
                   lineWrap={lineWrap}
                   themeMode={currentTheme}
                 />

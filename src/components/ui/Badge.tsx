@@ -1,12 +1,11 @@
 import { type CSSProperties } from 'react'
 import { cn } from '../../utils/cn'
 
-type BadgeVariant = 'default' | 'error' | 'warn' | 'info' | 'success' | 'custom'
+type BadgeVariant = 'default' | 'error' | 'warn' | 'info'
 
 type BadgeProps = {
   label: string
   variant?: BadgeVariant
-  color?: string // Used when variant === 'custom'
   style?: CSSProperties
   className?: string
 }
@@ -14,7 +13,6 @@ type BadgeProps = {
 export function Badge({
   label,
   variant = 'default',
-  color,
   style,
   className,
 }: BadgeProps) {
@@ -28,20 +26,10 @@ export function Badge({
           'bg-red/20 text-red border-red/40': variant === 'error',
           'bg-yellow/20 text-yellow border-yellow/40': variant === 'warn',
           'bg-blue/20 text-blue border-blue/40': variant === 'info',
-          'bg-green/20 text-green border-green/40': variant === 'success',
         },
         className
       )}
-      style={
-        variant === 'custom' && color
-          ? {
-              color,
-              background: `${color}20`,
-              borderColor: `${color}40`,
-              ...style,
-            }
-          : style
-      }
+      style={style}
     >
       {label}
     </span>

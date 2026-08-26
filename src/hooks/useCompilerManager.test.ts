@@ -21,10 +21,6 @@ vi.mock('../lib/workerClient', () => ({
   },
 }))
 
-vi.mock('../lib/formatter', () => ({
-  loadPrettier: vi.fn().mockResolvedValue(undefined),
-}))
-
 describe('useCompilerManager', () => {
   const addMessage = vi.fn()
 

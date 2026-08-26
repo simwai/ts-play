@@ -26,7 +26,6 @@ if (typeof self !== 'undefined') {
     // @ts-ignore
     getWorker(_: string, label: string) {
       if (label === 'typescript' || label === 'javascript') {
-        console.log('[MonacoEnvironment] Returning custom worker')
         return new CustomTsWorker()
       }
       // For other languages, return null – Monaco will use its default worker

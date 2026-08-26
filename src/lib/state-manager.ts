@@ -4,7 +4,6 @@ import type {
   PackageManagerStatus,
   ToastMessage,
   ToastType,
-  EnvironmentStatus,
 } from './types'
 
 interface PlaygroundState {
@@ -19,7 +18,6 @@ interface PlaygroundState {
   compilerStatus: CompilerStatus
   packageManagerStatus: PackageManagerStatus
   toasts: ToastMessage[]
-  lifecycle: EnvironmentStatus
 }
 
 type Listener = (state: PlaygroundState) => void
@@ -37,7 +35,6 @@ class PlaygroundStore {
     compilerStatus: 'loading',
     packageManagerStatus: 'idle',
     toasts: [],
-    lifecycle: 'idle',
   }
 
   private listeners = new Set<Listener>()

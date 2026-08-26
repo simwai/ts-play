@@ -17,9 +17,18 @@ export const RegexPatterns = {
 
 export type RegexPatterns = (typeof RegexPatterns)[keyof typeof RegexPatterns]
 
+const compiledCache = new Map<string, RegExp>()
+
 export function toRegExp(pattern: string): RegExp {
   const match = pattern.match(/^\/(.*)\/(.*)$/)
   if (!match) throw new Error(`Invalid regex pattern: ${pattern}`)
   const [, p, flags] = match
-  return new RegExp(p, flags)
+  // Global/sticky regexes carry lastIndex state; sharing instances would
+  // corrupt .test()/.exec() across call sites, so only stateless ones cache.
+  if (/[gy]/.test(flags)) return new RegExp(p, flags)
+  const cached = compiledCache.get(pattern)
+  if (cached) return cached
+  const compiled = new RegExp(p, flags)
+  compiledCache.set(pattern, compiled)
+  return compiled
 }

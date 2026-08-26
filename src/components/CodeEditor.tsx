@@ -33,6 +33,9 @@ type DisplayPart = { text: string; kind: string }
 // Stable default so the extraLibs effect does not re-run on every render.
 const EMPTY_EXTRA_LIBS: Record<string, string> = {}
 
+// Quick-info worker roundtrips are debounced per cursor movement.
+const TYPE_INFO_DEBOUNCE_MS = 150
+
 type CodeEditorProps = {
   value: string
   onChange?: (value: string) => void
@@ -47,7 +50,6 @@ type CodeEditorProps = {
   fontSizeOverride?: number
   disableAutocomplete?: boolean
   disableDiagnostics?: boolean
-  disableShortcuts?: boolean
   themeMode?: ThemeMode
   path?: string
   lineWrap?: boolean
@@ -136,56 +138,60 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       })
 
       // Type info (uses your custom worker via monaco.typescript.getTypeScriptWorker())
-      editor.onDidChangeCursorPosition(async (e) => {
+      let typeInfoTimer: ReturnType<typeof setTimeout> | null = null
+      editor.onDidChangeCursorPosition((e) => {
         const model = editor.getModel()
         if (!model || !onTypeInfoChange || hideTypeInfo) return
 
-        try {
-          const worker = await monaco.typescript.getTypeScriptWorker()
-          const client = await worker(model.uri)
-          const offset = model.getOffsetAt(e.position)
+        if (typeInfoTimer) clearTimeout(typeInfoTimer)
+        typeInfoTimer = setTimeout(async () => {
+          try {
+            const worker = await monaco.typescript.getTypeScriptWorker()
+            const client = await worker(model.uri)
+            const offset = model.getOffsetAt(e.position)
 
-          const info = await client.getQuickInfoAtPosition(
-            model.uri.toString(),
-            offset
-          )
-          if (info) {
-            const displayParts = (info.displayParts || []) as DisplayPart[]
-            const documentation = (info.documentation || []) as DisplayPart[]
-            const text = displayParts.map((p) => p.text).join('')
-
-            const SYMBOL_KINDS = new Set([
-              'localName',
-              'variableName',
-              'parameterName',
-              'methodName',
-              'functionName',
-              'className',
-              'interfaceName',
-              'aliasName',
-              'propertyName',
-              'enumName',
-              'enumMemberName',
-              'moduleName',
-              'typeParameterName',
-            ])
-            const symbolPart = displayParts.find((p) =>
-              SYMBOL_KINDS.has(p.kind)
+            const info = await client.getQuickInfoAtPosition(
+              model.uri.toString(),
+              offset
             )
-            const name = symbolPart ? symbolPart.text : ''
+            if (info) {
+              const displayParts = (info.displayParts || []) as DisplayPart[]
+              const documentation = (info.documentation || []) as DisplayPart[]
+              const text = displayParts.map((p) => p.text).join('')
 
-            onTypeInfoChange({
-              name,
-              kind: info.kind,
-              typeAnnotation: text,
-              jsDoc: documentation.map((d) => d.text).join('\n'),
-            })
-          } else {
+              const SYMBOL_KINDS = new Set([
+                'localName',
+                'variableName',
+                'parameterName',
+                'methodName',
+                'functionName',
+                'className',
+                'interfaceName',
+                'aliasName',
+                'propertyName',
+                'enumName',
+                'enumMemberName',
+                'moduleName',
+                'typeParameterName',
+              ])
+              const symbolPart = displayParts.find((p) =>
+                SYMBOL_KINDS.has(p.kind)
+              )
+              const name = symbolPart ? symbolPart.text : ''
+
+              onTypeInfoChange({
+                name,
+                kind: info.kind,
+                typeAnnotation: text,
+                jsDoc: documentation.map((d) => d.text).join('\n'),
+              })
+            } else {
+              onTypeInfoChange(null)
+            }
+          } catch {
             onTypeInfoChange(null)
           }
-        } catch {
-          onTypeInfoChange(null)
-        }
+        }, TYPE_INFO_DEBOUNCE_MS)
       })
 
       // Diagnostics reporting (uses Monaco's markers)
@@ -220,6 +226,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       editor.onDidDispose(() => {
         disposable.dispose()
         if (throttleTimer) clearTimeout(throttleTimer)
+        if (typeInfoTimer) clearTimeout(typeInfoTimer)
       })
     }
 
@@ -288,7 +295,6 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         wordWrap: lineWrap ? ('on' as const) : ('off' as const),
         padding: { top: 16, bottom: 16 },
         fixedOverflowWidgets: true,
-        domReadOnly: isMobileLike,
       }),
       [
         readOnly,

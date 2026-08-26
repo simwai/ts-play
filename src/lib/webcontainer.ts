@@ -15,7 +15,8 @@ export const SYSTEM_DEPS = [
   '@types/node',
 ]
 
-export class WebContainerService {
+// Exported only through the webContainerService singleton below.
+class WebContainerService {
   private instance: WebContainer | null = null
   private bootPromise: Promise<WebContainer> | null = null
   private logCallbacks: Set<
@@ -82,32 +83,6 @@ export class WebContainerService {
     await instance.mount(files)
   }
 
-  async mountSnapshot(url: string) {
-    this.emitLog('info', 'Fetching snapshot from ' + url + '...')
-    const res = await fetch(url)
-    if (!res.ok) throw new Error('Snapshot fetch failed: ' + res.status)
-    const buffer = await res.arrayBuffer()
-    const instance = await this.getInstance()
-    await instance.mount(new Uint8Array(buffer))
-    this.emitLog('info', 'Snapshot mounted successfully.')
-  }
-
-  async exportSnapshot(): Promise<Uint8Array> {
-    const instance = await this.getInstance()
-    this.emitLog('info', 'Exporting environment snapshot...')
-    const snapshot = (await instance.export('.', {
-      format: 'binary',
-    })) as Uint8Array
-    this.emitLog('info', 'Snapshot exported.')
-    return snapshot
-  }
-
-  async mountRawSnapshot(data: Uint8Array) {
-    const instance = await this.getInstance()
-    await instance.mount(data)
-    this.emitLog('info', 'Local snapshot mounted.')
-  }
-
   async writeFile(path: string, content: string) {
     const instance = await this.getInstance()
     const normalizedPath = path.startsWith('./') ? path.slice(2) : path
@@ -119,7 +94,14 @@ export class WebContainerService {
         currentPath += (currentPath ? '/' : '') + parts[i]
         try {
           await instance.fs.mkdir(currentPath, { recursive: true })
-        } catch {}
+        } catch (err: unknown) {
+          this.emitLog(
+            'warn',
+            `mkdir ${currentPath} failed: ${
+              err instanceof Error ? err.message : String(err)
+            }`
+          )
+        }
       }
     }
 
@@ -197,37 +179,6 @@ export class WebContainerService {
     }
 
     return proc
-  }
-
-  async readDirRecursive(
-    dir: string,
-    filter?: (path: string) => boolean
-  ): Promise<Record<string, string>> {
-    const instance = await this.getInstance()
-    const results: Record<string, string> = {}
-
-    const read = async (currentPath: string) => {
-      try {
-        const entries = await instance.fs.readdir(currentPath, {
-          withFileTypes: true,
-        })
-        for (const entry of entries) {
-          const fullPath = currentPath + '/' + entry.name
-          if (entry.isDirectory()) {
-            await read(fullPath)
-          } else if (!filter || filter(fullPath)) {
-            const content = await instance.fs.readFile(fullPath, 'utf8')
-            const monacoPath = fullPath.startsWith('./')
-              ? fullPath.slice(2)
-              : fullPath
-            results[monacoPath] = content
-          }
-        }
-      } catch {}
-    }
-
-    await read(dir)
-    return results
   }
 }
 

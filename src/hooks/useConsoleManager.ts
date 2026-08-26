@@ -7,16 +7,6 @@ export function useConsoleManager() {
 
   const addMessage = useCallback(
     (type: ConsoleMessage['type'], args: unknown[]) => {
-      if (
-        type === 'error' &&
-        args?.some(
-          (a) =>
-            typeof a === 'string' && a.includes('Maximum update depth exceeded')
-        )
-      ) {
-        return
-      }
-
       const formatted = (args || []).map((a) => {
         if (a instanceof Error) return a.stack || a.message
         if (typeof a === 'string') return a

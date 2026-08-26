@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { workerClient } from '../lib/workerClient'
-import { loadPrettier } from '../lib/formatter'
 import { writeFiles, webContainerService } from '../lib/webcontainer'
 import type { CompilerStatus, ConsoleMessageType } from '../lib/types'
 import type { WebContainerProcess } from '@webcontainer/api'
@@ -26,13 +25,6 @@ export function useCompilerManager(
         setCompilerStatus('error')
       })
   }, [])
-
-  // Load Prettier in the background
-  useEffect(() => {
-    if (compilerStatus === 'ready') {
-      loadPrettier().catch(() => {})
-    }
-  }, [compilerStatus])
 
   // Cleanup on unmount
   useEffect(() => {

@@ -2,7 +2,6 @@ import { useRef, useCallback } from 'react'
 
 function isInteractiveTarget(target: EventTarget | undefined | null) {
   if (!(target instanceof HTMLElement)) return false
-  if (target.closest('[data-testid="code-editor-container"]')) return false
   if (target.closest('.cursor-ns-resize')) return false
   return (
     Boolean(target.closest('header')) ||
@@ -74,6 +73,5 @@ export function useSwipeTabs<T extends string>(
     onTouchStart,
     onTouchMove,
     onTouchEnd,
-    compactForKeyboard: false,
   }
 }
