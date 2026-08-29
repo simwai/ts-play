@@ -83,3 +83,23 @@
   2. Implemented a target-state reconciliation loop that batches all additions and removals into single npm commands.
   3. Added an npm registry check to verify package existence and automatically discover/install @types/ versions.
   4. Added warnings (controllable via settings) for missing packages or types.
+
+## 2026-08-29: Simwai Half-Colored After Custom Font Loads
+
+- **Issue**: The "simwai" text in the settings footer appeared only half-colored once the Graffonti font loaded – the top half showed uncolored/broken glyphs while the bottom half carried the animated lit gradient.
+- **Cause**:
+  1. Graffonti's glyph design contains horizontal scanline stripes (1–1.2px pitch at `text-xl`/20px). At 1× DPR the stripe pattern aliases against the pixel grid, producing phase-dependent coverage – in the footer's subpixel position the top half collapsed into thin/broken lines, so `background-clip: text` left it mostly transparent (dark mantle showing through).
+  2. No font preload – the text first rendered in the fallback sans-serif and flashed on swap, and the 20px size made the aliasing fully visible.
+- **Solution**:
+  1. Added a `<link rel="preload" href="/fonts/graffonti.ttf" as="font" type="font/ttf" crossorigin>` in `index.html` to fetch the font before the modal opens.
+  2. Changed the span in `SettingsModal.tsx` to a double-layer structure: two identical gradient-clipped layers where the hidden-aria clone is offset by `translate-y-[0.3px]`. The interleaved phases close the stripe gaps so the text reads solid while both layers keep the animated gradient. The 0.3px value was tuned live (measured top/bottom ink coverage improving from 0.32× to ~1.0× ratio).
+
+## 2026-08-29: False "Variable Declared Twice" After Prettier Format
+
+- **Issue**: Clicking Format could make the TS editor show TS2451 "Cannot redeclare block-scoped variable" for variables that were not declared twice; the error intermittently appeared in the Problems panel and as squiggles.
+- **Cause**:
+  1. Monaco's default TS worker program includes both `file:///main.ts` and the generated `file:///main.d.ts` models. The `COMPILE` emit for script-scope code produced ambient globals (`declare const foo`) that genuinely collided with `main.ts` declarations. Which file was flagged as the duplicate depended on internal model ordering, which the format-triggered model rewrites flipped, moving the false error into the TS editor.
+  2. `handleFormat` in `App.tsx` captured `tsCode/jsCode/dtsCode` at click time and ran later via the shared action queue – if a Run or an edit landed in between, Format wrote stale content back (adjacent race).
+- **Solution**:
+  1. In `src/lib/worker.ts` `COMPILE`, the generated `.d.ts` now gets `export {};` appended when it has no import/export, making it module-scoped so its declares cannot collide globally. Live verification: after Run + Format, zero TS2451 markers (previously 3 on each file).
+  2. In `src/components/CodeEditor.tsx` added `getValue()` to `CodeEditorRef`; in `src/App.tsx` `handleFormat` now reads live editor values at queue-execution time instead of the stale closure.

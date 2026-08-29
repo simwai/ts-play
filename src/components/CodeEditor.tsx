@@ -26,6 +26,7 @@ export type CodeEditorRef = {
   undo: () => void
   redo: () => void
   jumpTo: (line: number, col: number) => void
+  getValue: () => string
 }
 
 type DisplayPart = { text: string; kind: string }
@@ -87,6 +88,8 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
     useImperativeHandle(ref, () => ({
       undo: () => editorRef.current?.trigger('keyboard', 'undo', null),
       redo: () => editorRef.current?.trigger('keyboard', 'redo', null),
+      // Reads the live model so queued actions never act on stale React state.
+      getValue: () => editorRef.current?.getModel()?.getValue() ?? '',
       jumpTo: (line, col) => {
         if (editorRef.current) {
           editorRef.current.revealPositionInCenter({

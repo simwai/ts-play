@@ -307,8 +307,19 @@ export function SettingsModal({
             <div className='flex items-center gap-2'>
               <p className='text-xs text-subtext0'>
                 Made with 💜 by
-                <span className='ml-1 font-graffonti text-xl bg-lit-gradient animate-lit-gradient leading-relaxed'>
-                  simwai
+                {/* Graffonti's scanline stripes alias at small sizes; the
+                    offset clone interleaves both phases so the glyphs read
+                    solid while both layers keep the animated gradient. */}
+                <span className='relative ml-1 inline-block font-graffonti text-xl leading-relaxed'>
+                  <span
+                    aria-hidden='true'
+                    className='bg-lit-gradient animate-lit-gradient absolute left-0 top-0 translate-y-[0.3px]'
+                  >
+                    simwai
+                  </span>
+                  <span className='bg-lit-gradient animate-lit-gradient relative'>
+                    simwai
+                  </span>
                 </span>
               </p>
               <a

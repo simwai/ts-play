@@ -296,6 +296,11 @@ async function handleCustomMessage(
         if (dtsFile) dts = dtsFile.text
       }
       if (!dts) dts = generateAmbientDeclarations(data.code ?? '')
+      // The d.ts text becomes an editor model inside Monaco's TS program.
+      // Without a module marker its script-scope ambient declarations
+      // collide with the same globals in main.ts (false TS2451 markers).
+      const dtsIsModule = /^\s*(import|export)\s/m.test(dts)
+      if (!dtsIsModule) dts = dts + '\nexport {};\n'
       return { js: compiled.outputFiles?.[0]?.text || '', dts }
     }
     case 'DETECT_IMPORTS': {

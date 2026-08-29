@@ -349,12 +349,17 @@ export function App() {
     setFormatting(true)
     playgroundStore.enqueue('Format', async () => {
       try {
+        // Resolve the current text when the queued action runs — the closure
+        // values can be stale if a Run or an edit completed in the meantime.
+        const currentTs = tsEditorRef.current?.getValue() || tsCode
+        const currentJs = jsEditorRef.current?.getValue() || jsCode
+        const currentDts = dtsEditorRef.current?.getValue() || dtsCode
         const {
           tsCode: fTs,
           jsCode: fJs,
           dtsCode: fDts,
           errors,
-        } = await formatAllFiles(tsCode, jsCode, dtsCode)
+        } = await formatAllFiles(currentTs, currentJs, currentDts)
         setTsCode(fTs)
         setJsCode(fJs)
         setDtsCode(fDts)
