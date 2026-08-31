@@ -42,6 +42,87 @@ Rules:
 - Never emit a decision prompt for a phase skip the model can decide deterministically (e.g., `DOCS` out of scope, upstream pipeline not applicable). Record the skip and its reason; proceed to the next phase.
 - If the answer changes the plan scope, return to PLAN before proceeding.
 
+## Example and anti-pattern
+
+One correct shape, three labeled anti-patterns. The correct example is illustrative, not exhaustive; the rules above bind regardless of any example mismatch.
+
+Correct example (two stacked decision blocks, ordered by impact, leading the response):
+
+```txt
+[PHASE: PLAN]
+
+# Decision Needed
+Question: should the file target be one file or the whole module?
+Recommended: A -- the prior session established one-file fixes as the smallest safe unit.
+
+- A. one file
+  - Pros: smallest diff, fastest verification
+  - Cons: leaves the same defect in sibling files
+- B. whole module
+  - Pros: fixes the defect class, not the instance
+  - Cons: bigger diff, longer verification
+
+Reply with: A or B.
+
+# Decision Needed
+Question: which test suite gates the change?
+Recommended: A -- the project's CI runs A on every PR.
+
+- A. unit
+  - Pros: fast, no external deps
+  - Cons: misses integration regressions
+- B. integration
+  - Pros: catches real cross-module issues
+  - Cons: needs the integration env to be green
+
+Reply with: A or B.
+```
+
+Anti-pattern 1 - prose-only question list, no `# Decision Needed` block (this fails because the user gets no A/B/C shape and no recommendation; the model has to invent prose Q&A in the next turn):
+
+```txt
+[PHASE: PLAN]
+
+# Open questions
+- one file or the whole module?
+- which test suite gates the change?
+- how should the rewrite contract be persisted?
+```
+
+Anti-pattern 2 - mix of `## Open question for you` prose and a `# Decision Needed` block in the same response (this fails because the rules say one response uses either decisions or probes, never both; the user is forced to read the prose first, then the structured block, then the next-turn prose again):
+
+```txt
+[PHASE: PLAN]
+
+# Open question for you
+Should the rewrite contract be persisted inline in the session state or in a separate file?
+
+# Decision Needed
+Question: one file or whole module?
+Recommended: A
+- A. one file
+- B. whole module
+
+Reply with: A or B.
+```
+
+Anti-pattern 3 - over-cap (this fails because the cap is three decisions per response; emitting five forces the user to scan five blocks and increases the chance of a missed question):
+
+```txt
+[PHASE: PLAN]
+
+# Decision Needed
+Question: q1?
+# Decision Needed
+Question: q2?
+# Decision Needed
+Question: q3?
+# Decision Needed
+Question: q4?
+# Decision Needed
+Question: q5?
+```
+
 ## Smallest-request rule
 
 Never ask the user to provide files, paths, versions, or snippets that a filesystem search can find. Search first: `rg` for content, plus file-listing and read tools. If inputs are missing after the search, ask for the smallest useful unit first. Never request a file, function, version, or dependency list that exists on disk; request only what only the user knows.
