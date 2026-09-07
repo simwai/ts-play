@@ -427,6 +427,8 @@ Will change:
   verify: [command -- idempotent read-only check, max 2 KiB]
   expect: [pass|fail|exit:N|regex:<pat>|contains:<s>|silent]
 
+The runner MUST execute each verify command automatically after staging and before the commit/push ask; emitting the command text without running it is a gate FAIL.
+
 Will preserve:
 - [constraint]
 - [constraint]
@@ -582,6 +584,7 @@ The session state file is `SESSION_STATE-<session_id>.md` and is the standing pe
 # Session State
 
 session_id: [YYYYMMDDTHHMMSS-<hash>]
+last_active_at: [ISO-8601 UTC of last session activity or n/a]
 target: [file/module/repo path]
 scope: [in scope / out of scope]
 spec_version: [x.y.z or n/a]
@@ -643,7 +646,9 @@ plan_actual_history: [list of (timestamp, items, verdict) tuples]
 ## Edited Files
 
 - [path] -- [edit summary]
+
 <!-- Per-item records consumed by the Plan-Versus-Actual Gate. -->
+
 - format: pass|fail|exit:N|regex:<pat>|contains:<s>|silent
 
 ## Plan-Actual History
