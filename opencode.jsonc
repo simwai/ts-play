@@ -212,6 +212,7 @@
     "opencode-vibeguard@latest",
     "opencode-adaptive-thinking@latest",
     "opencode-pty",
+    "opencode-scheduler",
   ],
 
   // MCP servers mirror the fallback tiers in AGENTS.md, adapted to opencode's
@@ -226,6 +227,7 @@
     "playwright": {
       "type": "local",
       "command": ["npx", "-y", "@playwright/mcp@0.0.80"],
+      "timeout": 30000,
     },
     "playwright-headless": {
       "type": "local",
