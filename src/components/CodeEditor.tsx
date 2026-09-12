@@ -158,8 +158,13 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
               offset
             )
             if (info) {
-              const displayParts = (info.displayParts || []) as DisplayPart[]
-              const documentation = (info.documentation || []) as DisplayPart[]
+              const displayParts = (info.displayParts || []) as {
+                text: string
+                kind: string
+              }[]
+              const documentation = (info.documentation || []) as {
+                text: string
+              }[]
               const text = displayParts.map((p) => p.text).join('')
 
               const SYMBOL_KINDS = new Set([

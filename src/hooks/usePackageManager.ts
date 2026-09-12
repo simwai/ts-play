@@ -247,9 +247,8 @@ export function usePackageManager(
         if (currentGeneration === generationRef.current) {
           console.error('Package management failed:', error)
           setStatus('error')
-          addMessage('error', [
-            'Package manager error: ' + (error as Error).message,
-          ])
+          const err = error instanceof Error ? error : new Error(String(error))
+          addMessage('error', ['Package manager error: ' + err.message])
         }
       }
     }

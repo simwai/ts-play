@@ -17,13 +17,15 @@ export function useCompilerManager(
 
   // Initialization
   useEffect(() => {
-    workerClient
-      .init()
-      .then(() => setCompilerStatus('ready'))
-      .catch((error) => {
+    ;(async () => {
+      try {
+        await workerClient.init()
+        setCompilerStatus('ready')
+      } catch (error) {
         console.error('Worker init failed:', error)
         setCompilerStatus('error')
-      })
+      }
+    })()
   }, [])
 
   // Cleanup on unmount
@@ -129,7 +131,8 @@ export function useCompilerManager(
           addMessage('error', [`Process exited with code ${exitCode}`])
         }
       } catch (error) {
-        onError(error as Error)
+        const err = error instanceof Error ? error : new Error(String(error))
+        onError(err)
       } finally {
         setIsRunning(false)
         setCompilerStatus('ready')

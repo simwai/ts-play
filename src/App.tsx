@@ -204,8 +204,6 @@ export function App() {
         },
         '/'
       )
-      // Compiler option enums differ between the bundled TS and Monaco;
-      // bridge the two typed worlds instead of escaping to `any`.
       monaco.typescript.typescriptDefaults.setCompilerOptions(
         config.options as unknown as Parameters<
           typeof monaco.typescript.typescriptDefaults.setCompilerOptions
@@ -245,8 +243,9 @@ export function App() {
   }, [])
 
   useEffect(() => {
-    getWebContainer()
-      .then(async (instance) => {
+    ;(async () => {
+      try {
+        const instance = await getWebContainer()
         try {
           await instance.fs.readFile('package.json', 'utf8')
         } catch {
@@ -259,39 +258,39 @@ export function App() {
             )
           )
         }
-      })
-      .catch((error) => {
+      } catch (error) {
         // Boot can be cancelled during StrictMode double-mount or HMR teardown.
         console.warn('WebContainer boot interrupted:', error)
-      })
+      }
+    })()
   }, [])
 
   // Restore a shared snippet from the URL: embedded (#code=) or server (?share=)
   useEffect(() => {
-    const parameters = new URLSearchParams(globalThis.location.search)
-    const embedded =
-      parameters.get('code') || globalThis.location.hash.replace(/^#code=/, '')
-    if (embedded) {
-      decodeSharePayload(embedded)
-        .then((payload) => {
+    ;(async () => {
+      const parameters = new URLSearchParams(globalThis.location.search)
+      const embedded =
+        parameters.get('code') ||
+        globalThis.location.hash.replace(/^#code=/, '')
+      if (embedded) {
+        try {
+          const payload = await decodeSharePayload(embedded)
           setTsCode(payload.tsCode || '')
           setJsCode(payload.jsCode || '')
           addMessage('info', [
             'Loaded embedded share link (client-side, no server storage).',
           ])
-        })
-        .catch((error) => {
-          addMessage('error', [
-            `Failed to load embedded share link: ${error.message}`,
-          ])
-        })
-      return
-    }
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error)
+          addMessage('error', [`Failed to load embedded share link: ${msg}`])
+        }
+        return
+      }
 
-    const shareId = parameters.get('share')
-    if (shareId) {
-      loadSharedSnippet(shareId)
-        .then((data) => {
+      const shareId = parameters.get('share')
+      if (shareId) {
+        try {
+          const data = await loadSharedSnippet(shareId)
           if (data.success) {
             if (typeof data.tsCode === 'string') setTsCode(data.tsCode)
             if (typeof data.jsCode === 'string') setJsCode(data.jsCode)
@@ -308,13 +307,12 @@ export function App() {
               typeof data.error === 'string' ? data.error : 'Unknown error'
             }`,
           ])
-        })
-        .catch((error) => {
-          addMessage('error', [
-            `Failed to load shared snippet: ${error.message}`,
-          ])
-        })
-    }
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error)
+          addMessage('error', [`Failed to load shared snippet: ${msg}`])
+        }
+      }
+    })()
   }, [addMessage, setTsCode, setJsCode])
 
   const handleCopyAll = useCallback(async () => {
@@ -377,10 +375,8 @@ export function App() {
           setTimeout(() => setFormatSuccess(false), 1500)
         }
       } catch (error) {
-        playgroundStore.addToast(
-          'error',
-          `Format failed: ${(error as Error).message}`
-        )
+        const msg = error instanceof Error ? error.message : String(error)
+        playgroundStore.addToast('error', `Format failed: ${msg}`)
       } finally {
         setFormatting(false)
       }
@@ -458,10 +454,8 @@ export function App() {
         }
         setTimeout(() => setShareSuccess(false), 2000)
       } catch (error) {
-        playgroundStore.addToast(
-          'error',
-          `Failed to share: ${(error as Error).message}`
-        )
+        const msg = error instanceof Error ? error.message : String(error)
+        playgroundStore.addToast('error', `Failed to share: ${msg}`)
       } finally {
         setSharing(false)
       }

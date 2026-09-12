@@ -62,23 +62,30 @@ export async function formatAllFiles(
   let formattedDts = dtsCode
 
   await Promise.all([
-    formatCode(tsCode, 'typescript')
-      .then((r) => {
-        formattedTs = r
-      })
-      .catch((error) => errors.push(`TS: ${error.message}`)),
-
-    formatCode(jsCode, 'javascript')
-      .then((r) => {
-        formattedJs = r
-      })
-      .catch((error) => errors.push(`JS: ${error.message}`)),
-
-    formatCode(dtsCode, 'dts')
-      .then((r) => {
-        formattedDts = r
-      })
-      .catch((error) => errors.push(`DTS: ${error.message}`)),
+    (async () => {
+      try {
+        formattedTs = await formatCode(tsCode, 'typescript')
+      } catch (error) {
+        // @ts-expect-error — error is unknown in catch block; accessing .message
+        errors.push(`TS: ${error.message}`)
+      }
+    })(),
+    (async () => {
+      try {
+        formattedJs = await formatCode(jsCode, 'javascript')
+      } catch (error) {
+        // @ts-expect-error — error is unknown in catch block; accessing .message
+        errors.push(`JS: ${error.message}`)
+      }
+    })(),
+    (async () => {
+      try {
+        formattedDts = await formatCode(dtsCode, 'dts')
+      } catch (error) {
+        // @ts-expect-error — error is unknown in catch block; accessing .message
+        errors.push(`DTS: ${error.message}`)
+      }
+    })(),
   ])
 
   return {

@@ -120,10 +120,8 @@ export function SettingsModal({
         onSave(formatted)
         playgroundStore.addToast('success', 'TSConfig updated successfully')
       } catch (error) {
-        playgroundStore.addToast(
-          'error',
-          `Failed to save TSConfig: ${(error as Error).message}`
-        )
+        const msg = error instanceof Error ? error.message : String(error)
+        playgroundStore.addToast('error', `Failed to save TSConfig: ${msg}`)
       }
     })
   }, [temporaryTsConfig, onClose, onSave])
