@@ -5,7 +5,7 @@ This guide explains how to build and deploy the TypeScript Playground.
 ## Prerequisites
 
 - Node.js (>= 20.19.0)
-- npm or pnpm
+- pnpm (recommended, `pnpm@11.8.0`) or npm
 - A web server with PHP support (for the backend API)
 
 ## Build Process
@@ -13,9 +13,9 @@ This guide explains how to build and deploy the TypeScript Playground.
 The project uses Vite for bundling. To generate the production-ready files, run:
 
 ```bash
-npm run build
-# or
 pnpm run build
+# or
+npm run build
 ```
 
 The build process is configured to use increased memory (`NODE_OPTIONS=--max-old-space-size=4096`) to handle the heavy compilation requirements of the Monaco editor and other dependencies.

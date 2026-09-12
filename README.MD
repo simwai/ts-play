@@ -15,15 +15,15 @@ A powerful, browser-based TypeScript development environment.
 ## Development
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 ## Documentation
 
-- [Project Specification](https://github.com/simwai/ts-play/blob/main/docs/PROJECT_SPEC.MD)
-- [Bug Log](https://github.com/simwai/ts-play/blob/main/docs/BUG_LOG.MD)
-- [Deployment Guide](https://github.com/simwai/ts-play/blob/main/DEPLOYMENT.md)
+- [Project Specification](https://github.com/simwai/ts-play/blob/dev/docs/PROJECT_SPEC.MD)
+- [Bug Log](https://github.com/simwai/ts-play/blob/dev/docs/BUG_LOG.MD)
+- [Deployment Guide](https://github.com/simwai/ts-play/blob/dev/DEPLOYMENT.md)
 
 ## License
 
