@@ -82,6 +82,10 @@ type SharePayload = {
   packages: InstalledPackage[]
 }
 
+function errorToError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error))
+}
+
 export async function shareSnippet(payload: SharePayload) {
   try {
     const data = await fetchApiJson('api/share.php', {
@@ -100,7 +104,7 @@ export async function shareSnippet(payload: SharePayload) {
     throw new Error(data.error || 'Share API returned an error')
   } catch (error) {
     const token = await encodeSharePayload(payload)
-    return { type: 'embedded' as const, token, error: error as Error }
+    return { type: 'embedded' as const, token, error: errorToError(error) }
   }
 }
 

@@ -23,7 +23,7 @@ globalThis.addEventListener('unhandledrejection', (event) => {
 
 if (typeof self !== 'undefined') {
   self.MonacoEnvironment = {
-    // @ts-ignore
+    // @ts-expect-error — MonacoEnvironment global typing not yet available
     getWorker(_: string, label: string) {
       if (label === 'typescript' || label === 'javascript') {
         return new CustomTsWorker()
