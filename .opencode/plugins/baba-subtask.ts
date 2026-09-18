@@ -814,7 +814,7 @@ async function handleSessionIdle(sessionID: string) {
 // Plugin entry
 // ============================================================================
 
-export default async ({
+export const babaSubtask = async ({
   client: ctxClient,
   project,
   directory,
