@@ -12,47 +12,18 @@
 
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
+import {
+  tool,
+  type PluginInput,
+  type Hooks,
+  type ProviderContext,
+  type Config,
+} from '@opencode-ai/plugin'
+import type { Part, Message, Event, Model } from '@opencode-ai/sdk'
 
 // ============================================================================
 // Types
 // ============================================================================
-
-interface PluginContext {
-  client: any
-  $: any
-  project: any
-  directory: string
-  worktree: string
-}
-
-interface CommandInput {
-  command: string
-  arguments: string
-  sessionID: string
-}
-
-interface CommandOutput {
-  parts: any[]
-  abort?: boolean
-}
-
-interface ToolInput {
-  name: string
-  arguments: Record<string, unknown>
-}
-
-interface ToolOutput {
-  result?: unknown
-}
-
-interface MessagePart {
-  type: string
-  text?: string
-  prompt?: string
-  agent?: string
-  model?: { providerID: string; modelID: string }
-  as?: string
-}
 
 interface SubtaskConfig {
   return: string[]
@@ -131,72 +102,24 @@ function log(...args: unknown[]) {
   console.log('[baba-subtask]', ...args)
 }
 
-function getConfigs(): Map<string, SubtaskConfig> {
-  return configs
-}
-
-function getClient(): any {
-  return client
-}
-
 function setClient(newClient: any) {
   client = newClient
-}
-
-function getPluginConfig() {
-  return pluginConfig
-}
-
-function setPluginConfig(newConfig: Record<string, unknown>) {
-  pluginConfig = { ...pluginConfig, ...newConfig }
-}
-
-function getPendingReturn(sessionID: string): string[] | undefined {
-  return pendingReturns.get(sessionID)
 }
 
 function setPendingReturn(sessionID: string, returns: string[]) {
   pendingReturns.set(sessionID, returns)
 }
 
-function deletePendingReturn(sessionID: string) {
-  pendingReturns.delete(sessionID)
-}
-
-function getPendingNonSubtaskReturns(sessionID: string): string[] | undefined {
-  return pendingNonSubtaskReturns.get(sessionID)
-}
-
 function setPendingNonSubtaskReturns(sessionID: string, returns: string[]) {
   pendingNonSubtaskReturns.set(sessionID, returns)
-}
-
-function deletePendingNonSubtaskReturns(sessionID: string) {
-  pendingNonSubtaskReturns.delete(sessionID)
-}
-
-function getPipedArgsQueue(sessionID: string): string[] | undefined {
-  return pipedArgsQueue.get(sessionID)
 }
 
 function setPipedArgsQueue(sessionID: string, args: string[]) {
   pipedArgsQueue.set(sessionID, args)
 }
 
-function deletePipedArgsQueue(sessionID: string) {
-  pipedArgsQueue.delete(sessionID)
-}
-
-function getSessionMainCommand(sessionID: string): string | undefined {
-  return sessionMainCommand.get(sessionID)
-}
-
 function setSessionMainCommand(sessionID: string, cmd: string) {
   sessionMainCommand.set(sessionID, cmd)
-}
-
-function getLoopState(sessionID: string): LoopState | undefined {
-  return loopState.get(sessionID)
 }
 
 function startLoop(
@@ -218,6 +141,10 @@ function startLoop(
   })
 }
 
+function getLoopState(sessionID: string): LoopState | undefined {
+  return loopState.get(sessionID)
+}
+
 function clearLoopState(sessionID: string) {
   loopState.delete(sessionID)
 }
@@ -226,23 +153,12 @@ function getPendingModelOverride(sessionID: string) {
   return pendingModelOverride.get(sessionID)
 }
 
-function setPendingModelOverride(
-  sessionID: string,
-  model: { providerID: string; modelID: string }
-) {
-  pendingModelOverride.set(sessionID, model)
-}
-
 function deletePendingModelOverride(sessionID: string) {
   pendingModelOverride.delete(sessionID)
 }
 
 function getPendingAgentOverride(sessionID: string): string | undefined {
   return pendingAgentOverride.get(sessionID)
-}
-
-function setPendingAgentOverride(sessionID: string, agent: string) {
-  pendingAgentOverride.set(sessionID, agent)
 }
 
 function deletePendingAgentOverride(sessionID: string) {
@@ -256,14 +172,6 @@ function registerPendingParentForPrompt(
   pendingParentByPrompt.set(prompt, parentSessionID)
 }
 
-function consumePendingParentForPrompt(prompt: string): string | null {
-  const parent = pendingParentByPrompt.get(prompt)
-  if (parent) {
-    pendingParentByPrompt.delete(prompt)
-  }
-  return parent ?? null
-}
-
 function registerPendingResultCaptureByPrompt(
   prompt: string,
   parentSessionID: string,
@@ -272,50 +180,12 @@ function registerPendingResultCaptureByPrompt(
   pendingResultCaptureByPrompt.set(prompt, { parentSessionID, name })
 }
 
-function consumePendingResultCaptureByPrompt(prompt: string) {
-  const entry = pendingResultCaptureByPrompt.get(prompt)
-  if (entry) {
-    pendingResultCaptureByPrompt.delete(prompt)
-  }
-  return entry ?? null
-}
-
-function getSubtaskResult(sessionID: string, name: string) {
-  return subtaskResults.get(sessionID)?.get(name)
-}
-
-function storeSubtaskResult(sessionID: string, name: string, result: unknown) {
-  if (!subtaskResults.has(sessionID)) {
-    subtaskResults.set(sessionID, new Map())
-  }
-  subtaskResults.get(sessionID)!.set(name, result)
-}
-
-function resolveResultReferences(text: string, sessionID: string): string {
-  const results = subtaskResults.get(sessionID)
-  if (!results || results.size === 0) {
-    return text
-  }
-  return text.replace(/\$RESULT\[([^\]]+)\]/g, (match, name: string) => {
-    const result = results.get(name)
-    return result !== undefined ? String(result) : match
-  })
-}
-
-function setPendingStackedPromptResponse(sessionID: string) {
-  pendingStackedPromptResponse.add(sessionID)
-}
-
 function hasPendingStackedPromptResponse(sessionID: string): boolean {
   return pendingStackedPromptResponse.has(sessionID)
 }
 
 function clearPendingStackedPromptResponse(sessionID: string) {
   pendingStackedPromptResponse.delete(sessionID)
-}
-
-function setPendingPromptReturn(sessionID: string, prompt: string) {
-  pendingPromptReturn.set(sessionID, prompt)
 }
 
 function consumePendingPromptReturn(sessionID: string): string | undefined {
@@ -372,11 +242,11 @@ function parseCommandFile(name: string, content: string): SubtaskConfig | null {
   return {
     return: returnArr,
     parallel: parallelArr,
-    agent: fm?.agent,
-    description: fm?.description,
-    template: fm?.template ?? getTemplateBody(content),
-    loop: fm?.loop,
-    model: fm?.model,
+    agent: fm?.agent as string | undefined,
+    description: fm?.description as string | undefined,
+    template: (fm?.template as string | undefined) ?? getTemplateBody(content),
+    loop: fm?.loop as { max: number; until: string } | undefined,
+    model: fm?.model as string | undefined,
     auto: fm?.subtask2 === 'auto',
   }
 }
@@ -496,24 +366,37 @@ function parseOverridesObject(text: string): InlineSubtask['overrides'] {
   const returnMatch = inner.match(/return:([^}]+)/)
   const parallelMatch = inner.match(/parallel:([^}]+)/)
 
-  if (agentMatch) overrides.agent = agentMatch[1].trim()
-  if (modelMatch) overrides.model = modelMatch[1].trim()
-  if (loopMatch) {
+  const agentCapture = agentMatch ? (agentMatch[1] as string) : undefined
+  const modelCapture = modelMatch ? (modelMatch[1] as string) : undefined
+  const loopCapture = loopMatch ? (loopMatch[1] as string) : undefined
+  const untilCapture = loopMatch
+    ? (loopMatch[2] as string | undefined)
+    : undefined
+  const asCapture = asMatch ? (asMatch[1] as string) : undefined
+  const autoCapture = autoMatch ? (autoMatch[1] as string) : undefined
+  const returnCapture = returnMatch ? (returnMatch[1] as string) : undefined
+  const parallelCapture = parallelMatch
+    ? (parallelMatch[1] as string)
+    : undefined
+
+  if (agentCapture) overrides.agent = agentCapture.trim()
+  if (modelCapture) overrides.model = modelCapture.trim()
+  if (loopCapture) {
     overrides.loop = {
-      max: parseInt(loopMatch[1], 10) || 5,
-      until: loopMatch[2]?.trim() || '',
+      max: parseInt(loopCapture, 10) || 5,
+      until: untilCapture?.trim() || '',
     }
   }
-  if (asMatch) overrides.as = asMatch[1].trim()
-  if (autoMatch && autoMatch[1] === 'true') overrides.auto = true
-  if (returnMatch) {
-    overrides.return = returnMatch[1]
+  if (asCapture) overrides.as = asCapture.trim()
+  if (autoCapture && autoCapture === 'true') overrides.auto = true
+  if (returnCapture) {
+    overrides.return = returnCapture
       .split('||')
       .map((s) => s.trim())
       .filter(Boolean)
   }
-  if (parallelMatch) {
-    overrides.parallel = parallelMatch[1]
+  if (parallelCapture) {
+    overrides.parallel = parallelCapture
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean)
@@ -561,12 +444,21 @@ function splitArgs(args: string): { main: string; piped: string[] } {
 // Subtask part builder
 // ============================================================================
 
+interface SubtaskPartDraft {
+  type: 'subtask'
+  prompt: string
+  description?: string
+  agent?: string
+  model?: { providerID: string; modelID: string }
+  as?: string
+}
+
 async function buildInlineSubtaskPart(
   parsed: InlineSubtask,
   sessionID: string
-): Promise<MessagePart> {
+): Promise<SubtaskPartDraft> {
   const prompt = await resolveTurnReferences(parsed.prompt, sessionID)
-  const part: MessagePart = {
+  const part: SubtaskPartDraft = {
     type: 'subtask',
     prompt,
   }
@@ -590,9 +482,9 @@ async function buildInlineSubtaskPart(
 // ============================================================================
 
 async function commandExecuteBefore(
-  input: CommandInput,
-  output: CommandOutput
-): Promise<CommandOutput> {
+  input: { command: string; sessionID: string; arguments: string },
+  output: { parts: Part[] }
+): Promise<void> {
   const cmd = input.command
   const args = input.arguments ?? ''
 
@@ -610,27 +502,29 @@ async function commandExecuteBefore(
     if (parsed) {
       if (parsed.overrides.auto) {
         log('Auto workflow not yet implemented')
-        return { ...output, abort: true }
+        return
       }
 
       const subtaskPart = await buildInlineSubtaskPart(parsed, input.sessionID)
-      output.parts = [subtaskPart as any]
+      // The runtime accepts subtask parts before id/sessionID/messageID are materialized.
+      // Cast bridges the typed Part boundary with the plugin's internal draft shape.
+      output.parts = [subtaskPart as Part]
       log(`/subtask intercepted: prompt="${parsed.prompt.substring(0, 50)}..."`)
-      return output
+      return
     }
   }
 
   // Existing command handling.
   const commandConfig = configs.get(cmd)
   if (!commandConfig) {
-    return output
+    return
   }
 
   setSessionMainCommand(input.sessionID, cmd)
 
   if (commandConfig.auto) {
     log(`Auto workflow not yet implemented for ${cmd}`)
-    return { ...output, abort: true }
+    return
   }
 
   // Loop handling.
@@ -675,8 +569,11 @@ async function commandExecuteBefore(
 
   if (modelOverride) {
     for (const part of output.parts) {
-      if (part.type === 'subtask' && part.model) {
-        part.model = modelOverride
+      if (part.type === 'subtask') {
+        // Internal subtask parts carry an extended model override not present in the
+        // exported Part union; cast at the mutation site only.
+        ;(part as { model?: { providerID: string; modelID: string } }).model =
+          modelOverride
       }
     }
   }
@@ -713,11 +610,13 @@ async function commandExecuteBefore(
         )
       }
       registerPendingParentForPrompt(part.prompt, input.sessionID)
-      if (part.as) {
+      // `as` is an internal extension on subtask parts; cast through unknown at the read site only.
+      const extended = part as unknown as { as?: string }
+      if (extended.as) {
         registerPendingResultCaptureByPrompt(
           part.prompt,
           input.sessionID,
-          part.as
+          extended.as
         )
       }
     }
@@ -727,8 +626,6 @@ async function commandExecuteBefore(
   if (!hasSubtaskPart && commandConfig.return?.length) {
     setPendingNonSubtaskReturns(input.sessionID, [...commandConfig.return])
   }
-
-  return output
 }
 
 // ============================================================================
@@ -736,19 +633,17 @@ async function commandExecuteBefore(
 // ============================================================================
 
 async function toolExecuteBefore(
-  input: ToolInput,
-  output: ToolOutput
-): Promise<ToolOutput> {
+  input: { tool: string; sessionID: string; callID: string },
+  output: { args: any }
+): Promise<void> {
   // Placeholder restoration would go here.
-  return output
 }
 
 async function toolExecuteAfter(
-  input: ToolInput,
-  output: ToolOutput
-): Promise<ToolOutput> {
+  input: { tool: string; sessionID: string; callID: string; args: any },
+  output: { title: string; output: string; metadata: any }
+): Promise<void> {
   // Desensitization would go here.
-  return output
 }
 
 // ============================================================================
@@ -756,24 +651,24 @@ async function toolExecuteAfter(
 // ============================================================================
 
 async function chatMessagesTransform(
-  messages: any[],
-  sessionID: string
-): Promise<any[]> {
+  input: {},
+  output: { messages: { info: Message; parts: Part[] }[] }
+): Promise<void> {
   // Replace generic subtask completion prompt when configured.
   if (!pluginConfig.replace_generic) {
-    return messages
+    return
   }
 
-  return messages.map((message) => {
+  output.messages = output.messages.map((message) => {
     if (!message.parts) {
       return message
     }
-    const updatedParts = message.parts.map((part: MessagePart) => {
+    const updatedParts = message.parts.map((part: Part) => {
       if (
         part.type === 'text' &&
         part.text?.includes('Summarize the task tool output')
       ) {
-        const custom = getPendingPromptReturn(sessionID)
+        const custom = consumePendingPromptReturn(message.info.sessionID)
         if (custom) {
           return { ...part, text: custom }
         }
@@ -814,17 +709,12 @@ async function handleSessionIdle(sessionID: string) {
 // Plugin entry
 // ============================================================================
 
-export const babaSubtask = async ({
-  client: ctxClient,
-  project,
-  directory,
-  worktree,
-}: PluginContext) => {
-  setClient(ctxClient)
+export const babaSubtask = async (input: PluginInput): Promise<Hooks> => {
+  setClient(input.client)
 
   const commandDirs = [
     join(process.env.HOME ?? '', '.config', 'opencode', 'commands'),
-    join(directory, '.opencode', 'commands'),
+    join(input.directory, '.opencode', 'commands'),
   ]
 
   for (const dir of commandDirs) {
@@ -861,7 +751,7 @@ export const babaSubtask = async ({
   log(`Registered commands: ${[...configs.keys()].join(', ')}`)
 
   return {
-    config: async (input: { command?: Record<string, SubtaskConfig> }) => {
+    config: async (input: Config) => {
       input.command ??= {}
       input.command.subtask = {
         description: 'Run a command on the fly, supports subtask features',
@@ -869,6 +759,47 @@ export const babaSubtask = async ({
         subtask: true,
       }
       log('Registered /subtask command')
+    },
+
+    tool: {
+      task: tool({
+        description:
+          'Delegate a task to a Baba subagent. Routes through baba-sensei, baba-dev, baba-tester, baba-reviewer, or baba-scrummaster.',
+        args: {
+          prompt: tool.schema.string().describe('The task prompt to delegate'),
+          agent: tool.schema
+            .string()
+            .optional()
+            .describe('Baba agent to delegate to (default: baba-sensei)'),
+        },
+        async execute(args, context) {
+          const agent = args.agent ?? 'baba-sensei'
+          if (!BABA_AGENTS.includes(agent)) {
+            return `Error: unknown agent "${agent}". Available: ${BABA_AGENTS.join(', ')}`
+          }
+          try {
+            const child = await (input.client as any).session.create({
+              body: {
+                title: args.prompt.slice(0, 80),
+                agent,
+              },
+            })
+            const result = await (input.client as any).session.prompt({
+              path: { id: child.id },
+              body: {
+                parts: [{ type: 'text', text: args.prompt }],
+              },
+            })
+            const text = (result.parts ?? [])
+              .filter((p: any) => p.type === 'text')
+              .map((p: any) => p.text)
+              .join('\n')
+            return text || '(no response)'
+          } catch (err) {
+            return `Error: ${err instanceof Error ? err.message : String(err)}`
+          }
+        },
+      }),
     },
 
     'command.execute.before': commandExecuteBefore,
@@ -879,12 +810,12 @@ export const babaSubtask = async ({
 
     'experimental.chat.messages.transform': chatMessagesTransform,
 
-    event: async ({
-      event,
-    }: {
-      event: { type: string; properties: { sessionID?: string } }
-    }) => {
-      if (event.type === 'session.idle' && event.properties.sessionID) {
+    event: async ({ event }: { event: Event }) => {
+      if (
+        event.type === 'session.idle' &&
+        'properties' in event &&
+        event.properties.sessionID
+      ) {
         await handleSessionIdle(event.properties.sessionID)
       }
     },
