@@ -14,7 +14,10 @@
  * metadata does not carry phase information.
  */
 
-import { getCurrentPhase, updatePhaseFromMessages } from './baba-phase-detect'
+import {
+  getCurrentPhase,
+  updatePhaseFromMessages,
+} from '../lib/baba-phase-detect'
 import { access, readFile } from 'node:fs/promises'
 
 async function fileExists(path: string): Promise<boolean> {
