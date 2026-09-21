@@ -28,9 +28,10 @@ Then:
 3. Categorize each blocker by severity:
    - **Blocking**: story cannot proceed, downstream tasks depend on it
    - **Advisory**: risk or potential delay, but work can continue around it
+
 4. Emit a blocker report:
 
-```
+```text
 Blocker Report
 ==============
 
@@ -51,7 +52,7 @@ Blocker Report
 - Unsized stories: <count>
 ```
 
-5. If no blockers found, emit: "No blockers found. All sprints are clear."
+1. If no blockers found, emit: "No blockers found. All sprints are clear."
 
 ## Trello backend (`backend: trello`)
 

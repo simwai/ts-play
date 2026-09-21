@@ -1,4 +1,4 @@
-{
+﻿{
   // opencode-native config for the Baba prompt system.
   // Inert for other agents (Claude Code, Cursor, Codex) — AGENTS.md + prompt-system/
   // remain the portable copy-paste unit. This file only affects opencode.
@@ -45,15 +45,21 @@
     "opencode-adaptive-thinking@latest",
     "opencode-pty",
     "opencode-scheduler",
-    ".opencode/plugins/startup-gate.ts",
+    ".opencode/plugins/baba-startup-gate.ts",
+    ".opencode/plugins/baba-reading-protocol.ts",
+    ".opencode/plugins/baba-protocol-enforce.ts",
+    ".opencode/plugins/baba-prompt-system-loader.ts",
+    ".opencode/plugins/memory-worth",
     ".opencode/plugins/baba-subtask.ts",
+    ".opencode/plugins/baba-goal-detect.ts",
     ".opencode/plugins/baba-bootstrap.ts",
-    ".opencode/plugins/protocol-enforce.ts",
+    ".opencode/plugins/baba-drift.ts",
+    ".opencode/plugins/adaptive-temperature.ts",
   ],
 
   // MCP servers mirror the fallback tiers in AGENTS.md, adapted to opencode's
   // schema. Note: opencode interpolates {env:VAR}, NOT ${VAR}.
-  // Exa removed - agent uses Google curl fallback when EXA_API_KEY not set.
+  // Web search stack: exa (preferred when keyed), g-search (no-key Google MCP), curl (last resort).
   "mcp": {
     // Tier 1 — no keys required
     "context7": {
@@ -68,6 +74,20 @@
     "playwright-headless": {
       "type": "local",
       "command": ["npx", "-y", "@playwright/mcp@0.0.80", "--headless"],
+    },
+    "g-search": {
+      "type": "local",
+      "command": ["npx", "-y", "g-search-mcp"],
+    },
+    "arxiv": {
+      "type": "local",
+      "command": ["uvx", "arxiv-mcp-server"],
+    },
+    // Tier 2 — requires env key; omit if key is not set
+    "exa": {
+      "type": "remote",
+      "url": "https://mcp.exa.ai/mcp",
+      "headers": { "x-api-key": "{env:EXA_API_KEY}" },
     },
     // Remote OAuth — no key, one-time browser consent via `opencode mcp auth trello`
     "trello": {

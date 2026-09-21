@@ -81,13 +81,78 @@ The `prompt-system/` folder and its files are the core system and must be protec
 
 ### Enforcement
 
-- `07-protocols.md` rule detection (H13-H39) must not fire against `prompt-system/` files. The system reads `STYLE_POLICY.md` for project-level exceptions and treats `prompt-system/` as an always-excluded directory.
+- `07-protocols.md` rule detection (H14-H40) must not fire against `prompt-system/` files. The system reads `STYLE_POLICY.md` for project-level exceptions and treats `prompt-system/` as an always-excluded directory.
 - Pre-commit hooks must not include `prompt-system/` in their staged-file patterns.
 - Discovery Protocol searches must exclude `prompt-system/` from the project source tree.
 
 ### Exception
 
 - Updates to the prompt-system itself (new rules, rubric changes, style updates) are performed in a dedicated governance session and deployed via the sync mechanism (`sync.ps1`), not through normal project PATCH flows.
+
+## Reading Protocol
+
+Trigger: any session with a concrete target that requires analysis, review, plan, docs judgment, or discussion. Applies in every phase where analysis output is emitted, not only at phase transitions.
+
+Relevance is defined mechanically. The agent does not decide what to read. The system computes a dependency closure and the agent must read every file in that closure before emitting analysis.
+
+### Relevance = dependency closure to depth 3
+
+A file IS in scope if ANY of:
+
+- It is the target file
+- It is imported by the target file (forward dependency)
+- It imports the target file (reverse dependency)
+- It is a transitive forward or reverse dependency to depth 3
+- It is a test file for any file in the closure (matches `*.test.*`, `*.spec.*`, `test_*.*`)
+
+Excluded by default: `node_modules/`, `vendor/`, `prompt-system/`, `dist/`, `build/`, `.git/`, `__pycache__/`, `.venv/`, `venv/`, and other artifact directories per `## Artifact handling`.
+
+Greenfield targets (no existing source files): Reading Protocol is skipped. Record `reading_plan: skipped (greenfield)` in session state and proceed.
+
+### Reading Plan artifact
+
+The Reading Plan is computed and written to session state before any analysis output. The agent cannot add or remove files from the plan.
+
+Format:
+
+```yaml
+reading_plan:
+  scope: <target path>
+  created_at: <ISO-8601 UTC>
+  status: <in_progress | complete | partial-approved | skipped-greenfield>
+  files:
+    - path: <file path>
+      status: <pending | complete | deferred>
+```
+
+### Reading Verification block
+
+Every analysis output must include a Reading Verification section:
+
+```text
+# Reading Verification
+Planned: N | Completed: M | Status: [complete | incomplete]
+Pending: [specific file paths or "none"]
+```
+
+In DIRECT mode, Reading Verification is reported as inline text before stating results, not as a template section.
+
+### Enforcement rules
+
+1. No analysis output in any phase without Reading Verification showing 100% completion.
+2. Incomplete Reading Plan produces `[PHASE: BLOCKED]`, not analysis.
+3. The only exits from BLOCKED are: finish all pending reads, or obtain explicit user approval for partial scope.
+4. Partial scope approval must be recorded in session state before analysis may proceed.
+5. The agent cannot mark files complete without an actual read. The read ledger in session state is the source of truth.
+
+### Partial scope
+
+When the user approves partial scope:
+
+- Record `reading_plan.status: partial-approved` in session state
+- Deferred files are listed explicitly in the Reading Verification block
+- Analysis proceeds only on the read subset
+- Deferred files remain pending and must be addressed before PATCH
 
 ## Discovery Protocol
 
@@ -129,7 +194,7 @@ Search scope excludes `prompt-system/` (core system, never part of project work)
 
 ### Rule detection
 
-For each rule in `rules.md` H13-H39:
+For each rule in `rules.md` H14-H40:
 
 1. Check if rule applies to target file's context
 2. If yes: add to `system_evidence.rule_triggers` with evidence
@@ -170,7 +235,7 @@ system_evidence:
     - <module.method> (<file:line>) [rule: H15]
 
   must_not_duplicate:
-    - <file:lines> -- <pattern> [rule: H13]
+    - <file:lines> -- <pattern> [rule: H14]
 
   must_use_library:
     - <name> (<version>) [rule: H14]
@@ -185,7 +250,7 @@ system_evidence:
     confidence: high|medium|low
 
   rule_triggers:
-    - rule: H13
+    - rule: H14
       active: true|false
       auto_excepted: true|false
       reason: <if auto-excepted>
@@ -215,7 +280,7 @@ system_evidence:
 
 System reads `STYLE_POLICY.md` for project-level rule exceptions:
 
-- `rule_exceptions.H13: disabled|advisory|mandatory`
+- `rule_exceptions.H14: disabled|advisory|mandatory`
 - `rule_exceptions.H14: disabled|advisory|mandatory`
 - etc.
 
@@ -452,6 +517,25 @@ When a session involves starting, stopping, or smoke-testing a long-running proc
 - `app_lifecycle.stop`: send the documented shutdown signal; wait for exit; record the exit code. On a `READ_ONLY` host, every step reports `SKIPPED -- <reason>`.
 
 Smoke runs once per PATCH at the Verification gate. It is not retried per edit.
+
+### Close-session protocol
+
+A session ends in one of three ways:
+
+1. **Explicit command**: user types `/close`.
+2. **Natural language**: user says "close the session", "end session", or "close session".
+3. **Automatic**: the commit/push gate completes in PATCH and the user makes a commit/push decision (A/B/C). This is the default close trigger for sessions that made edits.
+
+When any close trigger fires:
+
+- Record `closed_at`, `closed_by`, `mode_at_close`, `final_commit`, `working_tree`, and `note` in the session state file `## Session Close` section.
+- If the session made edits and a commit was recorded, the close is automatic after the commit/push gate outcome is written.
+- If the session made no edits, or the user invoked `/close` or natural-language close explicitly, evaluate whether a close-session evaluation is warranted:
+  - Structured sessions with phase artifacts (CHECKLIST onward) -> run evaluation.
+  - Trivial exploratory sessions with no phase artifacts -> skip evaluation; record `evaluation_skipped_reason`.
+- Run the close-session evaluation by spawning a `/subtask` to `baba-reviewer` with the evaluation prompt from `prompt-system/03-output-and-state.md` `## Session evaluation prompt`.
+- Append the evaluation result to the session state file `## Session Close` section.
+- Announce close to the user: session ID, final commit (if any), evaluation verdict (PASS/FAIL/SKIPPED), and one-line summary.
 
 ### Startup validation
 

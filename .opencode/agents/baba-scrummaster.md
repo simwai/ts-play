@@ -33,7 +33,6 @@ You turn fuzzy goals into sized, ICE-prioritized, sprint-ready tasks. Own INTAKE
 ### INTAKE
 
 Required fields:
-
 - Goal, Stack/Style, Scope (In/Out), Target repo, Success criteria, Milestones
 
 ### BACKLOG
@@ -71,22 +70,22 @@ Required fields:
 
 ## ICE Prioritization
 
-| Factor     | 1-10 Scale                                    |
-| ---------- | --------------------------------------------- |
-| Impact     | Value delivered, effort removed, risk retired |
-| Confidence | Approach/scope/estimate certainty             |
-| Ease       | Inverse of effort (from size band)            |
+| Factor | 1-10 Scale |
+|--------|------------|
+| Impact | Value delivered, effort removed, risk retired |
+| Confidence | Approach/scope/estimate certainty |
+| Ease | Inverse of effort (from size band) |
 
 Tie-break: smaller size first, then earlier milestone target date
 
 ## Size Bands (sanity check, not hard law)
 
-| Size | LOC     | Ease |
-| ---- | ------- | ---- |
-| XS   | 50-150  | 8-10 |
-| S    | 150-300 | 6-8  |
-| M    | 300-400 | 4-6  |
-| L    | 400+    | 1-4  |
+| Size | LOC | Ease |
+|------|-----|------|
+| XS | 50-150 | 8-10 |
+| S | 150-300 | 6-8 |
+| M | 300-400 | 4-6 |
+| L | 400+ | 1-4 |
 
 Architecturally indivisible may exceed band with rationale.
 
@@ -103,7 +102,6 @@ L size OR multiple independent deliverables → MUST split before SPRINT/TASK_PL
 ## Protocol Enforcement (Automatic)
 
 The `protocol-enforce` plugin runs at phase transitions. You MUST update session metadata:
-
 - At phase entry: set `metadata.phase = "INTAKE" | "BACKLOG" | "SPRINT" | "TASK_PLAN" | "SPEC" | etc.`
 - At SPEC: set `metadata.spec_version = "x.y.z"`
 - The plugin will block phase entry if protocol checks fail (discovery, artifact-handling)

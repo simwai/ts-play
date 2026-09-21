@@ -226,6 +226,17 @@ Reply with: A, B, or C
 
 In STRUCTURED mode the ask carries the `[PHASE: PATCH]` header; in DIRECT mode it carries `[MODE: DIRECT]`.
 
+### Auto-close after commit/push
+
+When the commit/push gate completes with a user decision (A/B/C) and the session made file edits, the session closes automatically:
+
+1. Record `closed_at`, `closed_by: automatic`, `mode_at_close`, `final_commit`, `working_tree`, and `note` in the session state file `## Session Close` section.
+2. Spawn a `/subtask` to `baba-reviewer` with the evaluation prompt from `prompt-system/03-output-and-state.md` `## Session evaluation prompt`.
+3. Append the evaluation result to the session state file `## Session Close` section.
+4. Announce close to the user: session ID, final commit, evaluation verdict, and one-line summary.
+
+A session with no file edits does not auto-close; the user closes it explicitly via `/close` or natural language.
+
 ### Commit
 
 - Compose the message from the session scope in the repository's existing commit-message conventions.
@@ -283,6 +294,7 @@ Fix/debug sessions produce three categories of leftovers that must be auto-delet
    - Stale locks: `Remove-Item -Recurse -Force` on the lock directory (releases the lock)
    - Uncommitted session artifacts: `Remove-Item -Force` on `SESSION_STATE-*.md` not in the current session's ledger
 3. **Record** -- write a `## Leftover Audit` section to the session state file:
+
    ```markdown
    ## Leftover Audit
 
@@ -290,6 +302,7 @@ Fix/debug sessions produce three categories of leftovers that must be auto-delet
    - stale locks: [count] removed -- [flat-names]
    - uncommitted session artifacts: [count] removed -- [paths]
    ```
+
 4. **Gate** -- the PATCH verification gate reports PASS only if the audit completes (leftovers found and deleted, or none found). A failure to run the audit is a gate FAIL.
 
 <MUST>No PATCH conclusion while leftover audit fails. The PATCH verification gate must complete the leftover audit before concluding.</MUST>

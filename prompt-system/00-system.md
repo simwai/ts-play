@@ -43,9 +43,11 @@ Before ANY phase transition (including `START -> CHECKLIST`, `START -> INTAKE`, 
 
 1. **Read `prompt-system/00-system.md` in full with NO chunking** — single read, largest window. Partial reads are a protocol breach.
 2. **Emit the bootstrap fingerprint**:
-   ```
+
+   ```text
    00-system.md fingerprint: <line_count> lines, first_100_chars="<first 100 chars>", last_100_chars="<last 100 chars>", sha256_first_1kb="<hash or N/A>"
    ```
+
 3. **Load every file in the load order below** in full with NO chunking. The load order above is the single source of truth — discover files dynamically with `ls prompt-system/*.md`.
 4. **Record completion** in the session state file's `## Startup Verification` section. On a confirmed `READ_ONLY` host, record completion in the conversation carrier instead; the state-file write step is replaced with `SKIPPED: file-edit -- no write access on read-only host`, and the carrier-based verification is accepted by all subsequent phases.
 
@@ -286,7 +288,7 @@ On user response:
 
 Scope: infrastructure and storage only. Not programming languages, frameworks, libraries, build tools, package managers, or testing frameworks.
 
-### START routing (STRUCTURED mode)
+### START routing details (STRUCTURED mode)
 
 Route on the first input:
 
@@ -539,6 +541,7 @@ Skip: CHECKLIST, DOCS, BLOCKED, FAILURE, INTAKE, BACKLOG, SPRINT, TASK_PLAN, SPE
 <MUST>No aggregate report from incomplete, skipped, or unrecorded review units.</MUST>
 <MUST>No provisional finding may be treated as user-accepted before REVIEW confirmation.</MUST>
 <MUST>No docs-dependent judgment before docs evidence.</MUST>
+<MUST>No analysis output in any phase without Reading Verification showing 100% reading completion. Incomplete Reading Plan -> output BLOCKED with specific unread file list. The only exits are: complete all pending reads, or obtain explicit user approval for partial scope.</MUST>
 <MUST>No plan before user-confirmed REVIEW decision, except the greenfield branch or when SPEC phase produced approved spec.</MUST>
 <MUST>No standalone CONFIRM phase; confirmation lives inside REVIEW.</MUST>
 <MUST>Phase skips decided by model judgment transition automatically, no user confirmation.</MUST>
@@ -897,21 +900,23 @@ The full filesystem-first rules live in this file's `## Loop protection` and `##
 
 Tool selection is per-response: built-in tools first, MCP only to fill an evidence gap. Signal-to-tool matrix:
 
-| Signal                                                                             | Tool                                      |
-| ---------------------------------------------------------------------------------- | ----------------------------------------- |
-| Official/versioned library, framework, SDK, or API docs needed                     | `context7` (no key)                       |
-| Current web info beyond docs (news, RFCs, pricing)                                 | `exa` (env key) or direct `curl` (no key) |
-| Unknown dependency/API name or version discovery                                   | `exa` or direct `curl`                    |
-| Work tracking: cards, boards, lists, tasks, PR/issue/CI status                     | `trello` (remote OAuth)                   |
-| Live browser: navigate, click, fill, screenshot, UI verification, e2e walk-through | `playwright` (no key)                     |
+| Signal                                                                             | Tool                                                                  |
+| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Official/versioned library, framework, SDK, or API docs needed                     | `context7` (no key)                                                   |
+| Current web info beyond docs (news, RFCs, pricing)                                 | `exa` (env key) or `g-search` (no key)                                |
+| Unknown dependency/API name or version discovery                                   | `exa` or `g-search`                                                   |
+| Work tracking: cards, boards, lists, tasks, PR/issue/CI status                     | `trello` (remote OAuth)                                               |
+| Live browser: navigate, click, fill, screenshot, UI verification, e2e walk-through | `playwright` (no key)                                                 |
+| Academic paper search and local literature management                              | `arxiv` (no key; requires `uvx`; bootstrap: `scripts/ensure-uvx.ps1`) |
 
 Phase pairing:
 
 - `CHECKLIST`: no MCP unless the task references Trello cards.
-- `DOCS`: `context7` primary; `exa`/`curl` for discovery. Output is evidence input only.
+- `DOCS`: `context7` primary; `exa`/`g-search` for discovery. Output is evidence input only.
 - `REVIEW`: `playwright` for web app UI checks; `trello` for tracked work.
 - `TEST_STRATEGY`: `playwright` for e2e/UI exploration.
 - `PLAN` / `PATCH`: `trello` for tracked-task status; `playwright` for verification.
+- `DOCS` / research: `arxiv` for academic paper search and local literature management.
 
 No-go rules:
 
@@ -922,13 +927,19 @@ No-go rules:
 - `playwright` `browser_run_code_unsafe` is RCE-equivalent; trusted sessions only.
 - The pre-commit gate smoke uses safe browser tools only.
 
-Web search without keys: `curl -s "https://www.google.com/search?q=<url-encoded-query>"`.
+Web search without keys: `g-search` MCP server when available, with direct `curl` to Google's URL format as the last resort: `curl -s "https://www.google.com/search?q=<url-encoded-query>"`.
 
 Fallback ladder:
 
 1. MCP setup or preflight fails -> fall back, do not stall.
 2. Deep-read ladder for official docs: TOC -> section -> anchor.
 3. If evidence still cannot be verified -> `BLOCKED` with specific reason.
+
+Web search fallback ladder:
+
+1. `exa` MCP when `EXA_API_KEY` is set.
+2. `g-search` MCP when available.
+3. Direct `curl` to Google's URL format.
 
 ## File read requirement
 
