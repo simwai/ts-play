@@ -39,3 +39,9 @@ export function isErr<T, E>(
 ): result is { ok: false; error: E } {
   return !result.ok
 }
+
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' || typeof value === 'function'
+    ? value !== null
+    : false
+}

@@ -189,7 +189,7 @@ export default async ({
               .slice(0, 10)
           }
 
-          // Check version drift: spec header Version vs SPECS/index.md registry
+          // Check version drift: spec header Version vs SPECS/INDEX.md registry
           async function checkVersionDrift(
             specPath: string,
             specContent: string
@@ -205,7 +205,7 @@ export default async ({
 
             // Read registry
             const registryContent = await readFile(
-              `${directory}/SPECS/index.md`
+              `${directory}/SPECS/INDEX.md`
             )
             const escapedPath = specPath.replace(/[/\\]/g, '\\\\')
             const registryMatch = registryContent.match(
