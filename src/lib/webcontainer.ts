@@ -6,7 +6,7 @@ import {
 import { playgroundStore } from './state-manager'
 import { RegexPatterns, toRegExp } from './regex'
 
-export const SYSTEM_DEPS = [
+export const WEB_CONTAINER_SYSTEM_DEPENDENCIES = [
   'typescript',
   'esbuild',
   'prettier',
@@ -173,7 +173,7 @@ class WebContainerService {
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
-      console.warn('[WC Service] Stream read error:', message)
+      this.emitLog('warn', `[WC Service] Stream read error: ${message}`)
     } finally {
       reader.releaseLock()
     }

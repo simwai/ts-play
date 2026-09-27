@@ -1,30 +1,35 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { type ThemeMode } from './lib/theme'
 import { CodeEditor, type CodeEditorRef } from './components/CodeEditor'
-import { Console } from './components/Console'
-import { Problems } from './components/Problems'
 import { OverrideModal } from './components/Modal'
-import { PackageManager } from './components/PackageManager'
 import { Header } from './components/Header'
 import { StatusBar } from './components/StatusBar'
 import { SettingsModal } from './components/SettingsModal'
+import { BottomPanel } from './components/BottomPanel'
+import { Toolbar } from './components/Toolbar'
 import { useVirtualKeyboard } from './hooks/useVirtualKeyboard'
 import { formatAllFiles } from './lib/formatter'
 import { workerClient } from './lib/workerClient'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import { useResizePanel } from './hooks/useResizePanel'
 import { useSwipeTabs } from './hooks/useSwipeTabs'
-import { shareSnippet, loadSharedSnippet } from './lib/api'
-import { decodeSharePayload } from './lib/shareCodec'
 import { useConsoleManager } from './hooks/useConsoleManager'
 import { useCompilerManager } from './hooks/useCompilerManager'
 import { usePackageManager } from './hooks/usePackageManager'
+import { useShareFlow } from './hooks/useShareFlow'
+import { useClipboardActions } from './hooks/useClipboardActions'
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { useWebContainerBoot } from './hooks/useWebContainerBoot'
 import { TABS, type TabType, DEFAULT_TSCONFIG } from './lib/constants'
 import { playgroundStore } from './lib/state-manager'
 import { ToastContainer } from './components/ui/Toast'
 import { TypeInfoBar } from './components/ui/TypeInfoBar'
 import type { TSDiagnostic, ToastMessage, TypeInfo } from './lib/types'
 import { getWebContainer } from './lib/webcontainer'
+import { toErrorMessage } from './lib/errors'
+import { decodeSharePayload } from './lib/shareCodec'
+import { loadSharedSnippet } from './lib/api'
+import { writeTextWithFallback } from './lib/clipboard'
 import * as monaco from 'monaco-editor'
 import * as TS from 'typescript'
 
@@ -132,11 +137,15 @@ export function App() {
   const dtsEditorRef = useRef<CodeEditorRef>(null)
 
   useEffect(() => {
-    workerClient.updateConfig(tsConfigString).catch(console.error)
+    workerClient.updateConfig(tsConfigString).catch((err) => {
+      playgroundStore.addToast('error', toErrorMessage(err))
+    })
   }, [tsConfigString])
 
   useEffect(() => {
-    workerClient.updateFile('/main.ts', tsCode).catch(console.error)
+    workerClient.updateFile('/main.ts', tsCode).catch((err) => {
+      playgroundStore.addToast('error', toErrorMessage(err))
+    })
   }, [tsCode])
 
   const [jsDirty, setJsDirty] = useState(false)
@@ -155,17 +164,30 @@ export function App() {
     compactForKeyboard
   )
 
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const shareTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const formatTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+      if (shareTimeoutRef.current) clearTimeout(shareTimeoutRef.current)
+      if (formatTimeoutRef.current) clearTimeout(formatTimeoutRef.current)
+    }
+  }, [])
+
   const [copied, setCopied] = useState(false)
   const [sharing, setSharing] = useState(false)
   const [shareSuccess, setShareSuccess] = useState(false)
   const [formatting, setFormatting] = useState(false)
   const [formatSuccess, setFormatSuccess] = useState(false)
 
-  const [typeInfo, setTypeInfo] = useState<TypeInfo | null>(null)
   const [cursorPos, setCursorPos] = useState<{
     line: number
     col: number
   } | null>(null)
+
+  const [monacoDiagnostics, setMonacoDiagnostics] = useState<TSDiagnostic[]>([])
 
   const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } =
     useConsoleManager()
@@ -184,7 +206,52 @@ export function App() {
     status,
   } = usePackageManager(tsCode, addMessage, showNodeWarnings)
 
-  const [monacoDiagnostics, setMonacoDiagnostics] = useState<TSDiagnostic[]>([])
+  // Share flow hook (needs installedPackages)
+  const {
+    sharing: shareFlowSharing,
+    shareSuccess: shareFlowShareSuccess,
+    handleShare,
+  } = useShareFlow({
+    tsCode,
+    jsCode,
+    installedPackages,
+  })
+
+  // Clipboard actions hook
+  const {
+    copied: clipboardCopied,
+    handleCopyAll,
+    handleDeleteAll,
+  } = useClipboardActions({
+    activeTab,
+    tsCode,
+    jsCode,
+    dtsCode,
+    setTsCode,
+    setJsCode,
+    setDtsCode,
+  })
+
+  // Keyboard shortcuts hook
+  useKeyboardShortcuts(activeTab, setActiveTab)
+
+  // WebContainer boot hook
+  useWebContainerBoot()
+
+  // Sync hook state to local state for Header component
+  useEffect(() => {
+    setSharing(shareFlowSharing)
+  }, [shareFlowSharing])
+
+  useEffect(() => {
+    setShareSuccess(shareFlowShareSuccess)
+  }, [shareFlowShareSuccess])
+
+  useEffect(() => {
+    setCopied(clipboardCopied)
+  }, [clipboardCopied])
+
+  const [typeInfo, setTypeInfo] = useState<TypeInfo | null>(null)
 
   // Sync Monaco compiler options directly from tsConfigString
   useEffect(() => {
@@ -214,57 +281,6 @@ export function App() {
     }
   }, [tsConfigString])
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isInput = /^(INPUT|TEXTAREA)$/.test(
-        (e.target as HTMLElement)?.tagName || ''
-      )
-
-      if (
-        (e.key === 'ArrowLeft' || e.key === 'ArrowRight') &&
-        (!isInput || e.altKey)
-      ) {
-        e.preventDefault()
-        setActiveTab((previous) => {
-          const idx = TABS.indexOf(previous)
-          if (e.key === 'ArrowLeft') {
-            return TABS[(idx - 1 + TABS.length) % TABS.length]
-          }
-          return TABS[(idx + 1) % TABS.length]
-        })
-      }
-    }
-
-    globalThis.addEventListener('keydown', handleKeyDown)
-    return () => {
-      globalThis.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [])
-
-  useEffect(() => {
-    ;(async () => {
-      try {
-        const instance = await getWebContainer()
-        try {
-          await instance.fs.readFile('package.json', 'utf8')
-        } catch {
-          await instance.fs.writeFile(
-            'package.json',
-            JSON.stringify(
-              { name: 'playground-project', dependencies: {} },
-              null,
-              2
-            )
-          )
-        }
-      } catch (error) {
-        // Boot can be cancelled during StrictMode double-mount or HMR teardown.
-        console.warn('WebContainer boot interrupted:', error)
-      }
-    })()
-  }, [])
-
   // Restore a shared snippet from the URL: embedded (#code=) or server (?share=)
   useEffect(() => {
     ;(async () => {
@@ -281,8 +297,9 @@ export function App() {
             'Loaded embedded share link (client-side, no server storage).',
           ])
         } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error)
-          addMessage('error', [`Failed to load embedded share link: ${msg}`])
+          addMessage('error', [
+            `Failed to load embedded share link: ${toErrorMessage(error)}`,
+          ])
         }
         return
       }
@@ -308,40 +325,13 @@ export function App() {
             }`,
           ])
         } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error)
-          addMessage('error', [`Failed to load shared snippet: ${msg}`])
+          addMessage('error', [
+            `Failed to load shared snippet: ${toErrorMessage(error)}`,
+          ])
         }
       }
     })()
   }, [addMessage, setTsCode, setJsCode])
-
-  const handleCopyAll = useCallback(async () => {
-    let content = ''
-    if (activeTab === 'ts') content = tsCode
-    else if (activeTab === 'js') content = jsCode
-    else if (activeTab === 'dts') content = dtsCode
-
-    try {
-      await navigator.clipboard.writeText(content)
-    } catch {
-      const ta = document.createElement('textarea')
-      ta.value = content
-      document.body.append(ta)
-      ta.select()
-      document.execCommand('copy')
-      ta.remove()
-    }
-    setCopied(true)
-    playgroundStore.addToast('info', 'Copied to clipboard')
-    setTimeout(() => setCopied(false), 1500)
-  }, [activeTab, tsCode, jsCode, dtsCode])
-
-  const handleDeleteAll = useCallback(() => {
-    if (activeTab === 'ts') setTsCode('')
-    else if (activeTab === 'js') setJsCode('')
-    else setDtsCode('')
-    playgroundStore.addToast('info', 'Cleared current editor')
-  }, [activeTab, setTsCode, setJsCode, setDtsCode])
 
   const handleFormat = useCallback(async () => {
     setFormatting(true)
@@ -372,11 +362,17 @@ export function App() {
             'success',
             'All files formatted with Prettier'
           )
-          setTimeout(() => setFormatSuccess(false), 1500)
+          if (formatTimeoutRef.current) clearTimeout(formatTimeoutRef.current)
+          formatTimeoutRef.current = setTimeout(
+            () => setFormatSuccess(false),
+            1500
+          )
         }
       } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error)
-        playgroundStore.addToast('error', `Format failed: ${msg}`)
+        playgroundStore.addToast(
+          'error',
+          `Format failed: ${toErrorMessage(error)}`
+        )
       } finally {
         setFormatting(false)
       }
@@ -391,7 +387,7 @@ export function App() {
     [setJsCode]
   )
 
-  const doRun = useCallback(
+  const handleRun = useCallback(
     async (skipDirtyCheck = false) => {
       if (!skipDirtyCheck && jsDirty) {
         setShowModal(true)
@@ -411,7 +407,7 @@ export function App() {
           (error) => {
             playgroundStore.addToast(
               'error',
-              `Compilation failed: ${error.message}`
+              `Compilation failed: ${toErrorMessage(error)}`
             )
           }
         )
@@ -419,48 +415,6 @@ export function App() {
     },
     [jsDirty, runCode, clearMessages, setJsCode, setDtsCode, installQueue]
   )
-
-  const handleShare = useCallback(async () => {
-    setSharing(true)
-    playgroundStore.enqueue('Share', async () => {
-      try {
-        const result = await shareSnippet({
-          tsCode,
-          jsCode,
-          packages: installedPackages,
-        })
-        if (result.type === 'server') {
-          const url = new URL(globalThis.location.href)
-          url.searchParams.set('share', result.id)
-          url.searchParams.delete('code')
-          url.hash = ''
-          await navigator.clipboard.writeText(url.toString())
-          setShareSuccess(true)
-          playgroundStore.addToast(
-            'success',
-            `Share link copied! Expires in ${result.ttlDays} days`
-          )
-        } else {
-          const url = new URL(globalThis.location.href)
-          url.searchParams.delete('share')
-          url.searchParams.delete('code')
-          url.hash = `code=${result.token}`
-          await navigator.clipboard.writeText(url.toString())
-          setShareSuccess(true)
-          playgroundStore.addToast(
-            'info',
-            'Copied embedded compressed link (PHP share unavailable)'
-          )
-        }
-        setTimeout(() => setShareSuccess(false), 2000)
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error)
-        playgroundStore.addToast('error', `Failed to share: ${msg}`)
-      } finally {
-        setSharing(false)
-      }
-    })
-  }, [tsCode, jsCode, installedPackages])
 
   const handleUndo = useCallback(() => {
     if (activeTab === 'ts') tsEditorRef.current?.undo()
@@ -489,12 +443,21 @@ export function App() {
     }, 100)
   }, [])
 
-  const headerCompilerStatus: 'loading' | 'ready' | 'error' =
-    compilerStatus === 'loading' ||
-    compilerStatus === 'error' ||
-    compilerStatus === 'ready'
-      ? compilerStatus
-      : 'ready'
+  const headerCompilerStatus:
+    | 'loading'
+    | 'ready'
+    | 'error'
+    | 'compiling'
+    | 'running' =
+    compilerStatus === 'loading'
+      ? 'loading'
+      : compilerStatus === 'error'
+        ? 'error'
+        : compilerStatus === 'compiling'
+          ? 'compiling'
+          : compilerStatus === 'running'
+            ? 'running'
+            : 'ready'
 
   return (
     <div
@@ -507,6 +470,10 @@ export function App() {
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+      />
+
+      <Toolbar
+        activeTab={activeTab}
         isDarkMode={isDarkMode}
         setIsDarkMode={setIsDarkMode}
         handleCopyAll={handleCopyAll}
@@ -515,7 +482,7 @@ export function App() {
         handleFormat={handleFormat}
         formatting={formatting}
         formatSuccess={formatSuccess}
-        doRun={doRun}
+        handleRun={handleRun}
         isRunning={isRunning}
         compilerStatus={headerCompilerStatus}
         handleShare={handleShare}
@@ -601,50 +568,28 @@ export function App() {
         language={activeTab === 'js' ? 'javascript' : 'typescript'}
       />
 
-      {!compactForKeyboard && (consoleOpen || packageManagerOpen) && (
-        <div
-          onMouseDown={handleResizeStart}
-          onTouchStart={handleResizeStart}
-          className={`h-2 border-b border-surface0 cursor-ns-resize flex items-center justify-center shrink-0 transition-colors duration-160 relative ${isResizing ? 'bg-peach' : 'bg-surface0'}`}
-          title='Drag to resize'
-        >
-          <div className='w-10 h-1 bg-overlay0 rounded-sm opacity-50' />
-        </div>
-      )}
-
-      {!compactForKeyboard && (
-        <div className='overflow-hidden flex flex-col shrink-0 bg-base'>
-          <Console
-            messages={messages}
-            onClear={clearMessages}
-            isOpen={consoleOpen}
-            onToggle={() => setPackageManagerOpen(false)}
-            contentHeight={panelHeight}
-            trueColorEnabled={trueColorEnabled}
-            showNodeWarnings={showNodeWarnings}
-            activeTab={activeBottomTab}
-            onTabChange={setActiveBottomTab}
-            problemCount={monacoDiagnostics.length}
-          />
-
-          <Problems
-            diagnostics={monacoDiagnostics}
-            isOpen={consoleOpen && activeBottomTab === 'problems'}
-            contentHeight={panelHeight}
-            onJumpToProblem={handleJumpToProblem}
-          />
-
-          <PackageManager
-            packages={installedPackages}
-            isOpen={consoleOpen && activeBottomTab === 'packages'} // ← added
-            contentHeight={panelHeight}
-          />
-        </div>
-      )}
+      <BottomPanel
+        compactForKeyboard={compactForKeyboard}
+        consoleOpen={consoleOpen}
+        packageManagerOpen={packageManagerOpen}
+        panelHeight={panelHeight}
+        isResizing={isResizing}
+        handleResizeStart={handleResizeStart}
+        messages={messages}
+        clearMessages={clearMessages}
+        onToggle={() => setPackageManagerOpen(false)}
+        trueColorEnabled={trueColorEnabled}
+        showNodeWarnings={showNodeWarnings}
+        activeBottomTab={activeBottomTab}
+        onTabChange={setActiveBottomTab}
+        monacoDiagnostics={monacoDiagnostics}
+        handleJumpToProblem={handleJumpToProblem}
+        installedPackages={installedPackages}
+      />
 
       {showModal && (
         <OverrideModal
-          onConfirm={async () => doRun(true)}
+          onConfirm={async () => handleRun(true)}
           onCancel={() => setShowModal(false)}
         />
       )}

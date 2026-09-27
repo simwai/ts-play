@@ -1,14 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { setupTypeAcquisition } from '@typescript/ata'
 import { workerClient } from '../lib/workerClient'
-import { runCommand, SYSTEM_DEPS } from '../lib/webcontainer'
+import {
+  runCommand,
+  WEB_CONTAINER_SYSTEM_DEPENDENCIES,
+} from '../lib/webcontainer'
 import type { InstalledPackage } from '../components/PackageManager'
 import type { ConsoleMessage } from '../components/Console'
 import * as TS from 'typescript'
 import type { PackageManagerStatus } from '../lib/types'
 import { checkNpmPackage, getTypesPackageName } from '../lib/api'
+import { computePackageDiff } from '../lib/packageDiff'
+import { toErrorMessage } from '../lib/errors'
 
-const BUILTIN_MODULES = new Set([
+const NODE_BUILTIN_MODULES = new Set([
   'assert',
   'async_hooks',
   'buffer',
@@ -92,7 +97,7 @@ export function usePackageManager(
       try {
         const detected = await workerClient.detectImports(tsCode)
         const filtered = [...detected].filter(
-          (pkg) => !pkg.startsWith('node:') && !BUILTIN_MODULES.has(pkg)
+          (pkg) => !pkg.startsWith('node:') && !NODE_BUILTIN_MODULES.has(pkg)
         )
         const sorted = filtered.sort()
         setInstalledPackages((prev) => {
@@ -102,7 +107,9 @@ export function usePackageManager(
             : sorted.map((name) => ({ name, version: 'latest' }))
         })
       } catch (error) {
-        console.error('Import detection failed:', error)
+        addMessage('error', [
+          `Import detection failed: ${toErrorMessage(error)}`,
+        ])
       }
     }, 2500)
   }, [tsCode])
@@ -159,7 +166,8 @@ export function usePackageManager(
             clearTimeout(typingUpdateTimer.current)
             typingUpdateTimer.current = setTimeout(flushTypings, 500)
           },
-          errorMessage: (msg, error) => console.error('ATA Error:', msg, error),
+          errorMessage: (msg, error) =>
+            addMessage('error', [`ATA Error: ${toErrorMessage(error)}`]),
           finished: () => {
             flushTypings()
             setStatus('idle')
@@ -179,16 +187,14 @@ export function usePackageManager(
   useEffect(() => {
     const currentTargetNames = new Set(installedPackages.map((p) => p.name))
     const previouslyProcessedNames = previousPkgsRef.current
-    const systemDepsSet = new Set(SYSTEM_DEPS)
-    const toAdd = [...currentTargetNames].filter(
-      (x) => !previouslyProcessedNames.has(x)
+    const systemDepsSet = new Set(WEB_CONTAINER_SYSTEM_DEPENDENCIES)
+
+    const { toAdd, toRemove } = computePackageDiff(
+      currentTargetNames,
+      previouslyProcessedNames,
+      systemDepsSet
     )
-    const toRemove = [...previouslyProcessedNames].filter(
-      (x) =>
-        !currentTargetNames.has(x) &&
-        !systemDepsSet.has(x) &&
-        !x.startsWith('@types/')
-    )
+
     if (toAdd.length === 0 && toRemove.length === 0) return
     previousPkgsRef.current = currentTargetNames
     const currentGeneration = ++generationRef.current
@@ -245,7 +251,9 @@ export function usePackageManager(
         setStatus('idle')
       } catch (error) {
         if (currentGeneration === generationRef.current) {
-          console.error('Package management failed:', error)
+          addMessage('error', [
+            `Package management failed: ${toErrorMessage(error)}`,
+          ])
           setStatus('error')
           const err = error instanceof Error ? error : new Error(String(error))
           addMessage('error', ['Package manager error: ' + err.message])

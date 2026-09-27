@@ -3,6 +3,7 @@ import { workerClient } from '../lib/workerClient'
 import { writeFiles, webContainerService } from '../lib/webcontainer'
 import type { CompilerStatus, ConsoleMessageType } from '../lib/types'
 import type { WebContainerProcess } from '@webcontainer/api'
+import { toErrorMessage } from '../lib/errors'
 
 export function useCompilerManager(
   tsCode: string,
@@ -22,7 +23,7 @@ export function useCompilerManager(
         await workerClient.init()
         setCompilerStatus('ready')
       } catch (error) {
-        console.error('Worker init failed:', error)
+        addMessage('error', [`Worker init failed: ${toErrorMessage(error)}`])
         setCompilerStatus('error')
       }
     })()

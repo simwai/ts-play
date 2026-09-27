@@ -2,6 +2,7 @@ import { type CSSProperties, type ReactNode } from 'react'
 import { cn } from '../../utils/cn'
 import { useLongPressTooltip } from '../../hooks/useLongPressTooltip'
 import { Tooltip } from './Tooltip'
+import { sizeClasses } from '../../lib/sizeClasses'
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost'
 type Size = 'xs' | 'sm' | 'md' | 'lg'
@@ -18,13 +19,6 @@ type ButtonProps = {
   type?: 'button' | 'submit' | 'reset'
   className?: string
   'data-testid'?: string
-}
-
-const sizeClasses: Record<Size, string> = {
-  xs: 'h-5 md:h-7 px-1.5 md:px-2.5 text-4xs md:text-xs',
-  sm: 'h-6 md:h-8 px-2 md:px-3 text-3xs md:text-sm',
-  md: 'h-8 md:h-10 px-3 md:px-4 text-xs md:text-base',
-  lg: 'h-10 md:h-12 px-4 md:px-5 text-sm md:text-lg',
 }
 
 export function Button({

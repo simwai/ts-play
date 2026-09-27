@@ -2,6 +2,7 @@ import { type CSSProperties, type ReactNode } from 'react'
 import { cn } from '../../utils/cn'
 import { useLongPressTooltip } from '../../hooks/useLongPressTooltip'
 import { Tooltip } from './Tooltip'
+import { sizeClasses } from '../../lib/sizeClasses'
 
 type Size = 'xs' | 'sm' | 'md' | 'lg'
 
@@ -16,13 +17,6 @@ type IconButtonProps = {
   style?: CSSProperties
   className?: string
   'data-testid'?: string
-}
-
-const sizeClasses: Record<Size, string> = {
-  xs: 'w-5 h-5 md:w-7 md:h-7 text-xs',
-  sm: 'w-6 h-6 md:w-8 md:h-8 text-sm',
-  md: 'w-8 h-8 md:w-10 md:h-10 text-base',
-  lg: 'w-10 h-10 md:w-12 md:h-12 text-lg',
 }
 
 export function IconButton({
