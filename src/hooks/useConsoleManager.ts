@@ -1,23 +1,38 @@
 import { useState, useCallback, useEffect } from 'react'
 import type { ConsoleMessage } from '../components/Console'
 
+const MAX_CONSOLE_MESSAGES = 500
+
+function formatConsoleArg(arg: unknown): string {
+  const isErrorInstance = arg instanceof Error
+  if (isErrorInstance) return arg.stack || arg.message
+
+  const isString = typeof arg === 'string'
+  if (isString) return arg
+
+  try {
+    return JSON.stringify(arg, null, 2)
+  } catch {
+    return String(arg)
+  }
+}
+
 export function useConsoleManager() {
   const [messages, setMessages] = useState<ConsoleMessage[]>([])
   const [consoleOpen, setConsoleOpen] = useState(true)
 
   const addMessage = useCallback(
     (type: ConsoleMessage['type'], args: unknown[]) => {
-      const formatted = (args || []).map((a) => {
-        if (a instanceof Error) return a.stack || a.message
-        if (typeof a === 'string') return a
-        try {
-          return JSON.stringify(a, null, 2)
-        } catch {
-          return String(a)
-        }
-      })
+      const safeArgs = args || []
+      const formattedArgs = safeArgs.map(formatConsoleArg)
+      const newMessage: ConsoleMessage = {
+        type,
+        args: formattedArgs,
+        ts: Date.now(),
+      }
+
       setMessages((prev) =>
-        [...prev, { type, args: formatted, ts: Date.now() }].slice(-500)
+        [...prev, newMessage].slice(-MAX_CONSOLE_MESSAGES)
       )
     },
     []
@@ -28,10 +43,9 @@ export function useConsoleManager() {
   }, [])
 
   const toggleConsole = useCallback(() => {
-    setConsoleOpen((o) => !o)
+    setConsoleOpen((isOpen) => !isOpen)
   }, [])
 
-  // Capture all console output
   useEffect(() => {
     const origLog = console.log
     const origError = console.error

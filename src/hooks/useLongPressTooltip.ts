@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react'
 
-// Shared long-press tooltip and press-feedback state for button controls:
-// a 400 ms touch hold reveals the tooltip and swallows the resulting click.
+const LONG_PRESS_DELAY_MS = 400
+const TOOLTIP_HIDE_DELAY_MS = 2000
+
 export function useLongPressTooltip(
   onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
 ) {
@@ -12,29 +13,36 @@ export function useLongPressTooltip(
   )
   const isLongPress = useRef(false)
 
+  const clearTimer = () => {
+    if (touchTimer.current) {
+      clearTimeout(touchTimer.current)
+    }
+  }
+
   const handleTouchStart = () => {
     isLongPress.current = false
-    if (touchTimer.current) clearTimeout(touchTimer.current)
+    clearTimer()
     touchTimer.current = setTimeout(() => {
       isLongPress.current = true
       setShowTooltip(true)
-    }, 400)
+    }, LONG_PRESS_DELAY_MS)
   }
 
   const handleTouchEnd = () => {
-    if (touchTimer.current) clearTimeout(touchTimer.current)
+    clearTimer()
     setTimeout(() => {
       setShowTooltip(false)
-    }, 2000)
+    }, TOOLTIP_HIDE_DELAY_MS)
   }
 
   const handleTouchMove = () => {
-    if (touchTimer.current) clearTimeout(touchTimer.current)
+    clearTimer()
     setShowTooltip(false)
   }
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (isLongPress.current) {
+    const isHoldAction = isLongPress.current
+    if (isHoldAction) {
       e.preventDefault()
       isLongPress.current = false
       return

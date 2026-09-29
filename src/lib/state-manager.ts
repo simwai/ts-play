@@ -49,8 +49,9 @@ class PlaygroundStore {
       | Partial<PlaygroundState>
       | ((prev: PlaygroundState) => Partial<PlaygroundState>)
   ) {
-    const nextState = typeof update === 'function' ? update(this.state) : update
-    this.state = { ...this.state, ...nextState }
+    const isFunctionalUpdate = typeof update === 'function'
+    const nextPartialState = isFunctionalUpdate ? update(this.state) : update
+    this.state = { ...this.state, ...nextPartialState }
     for (const listener of this.listeners) {
       listener(this.state)
     }
@@ -71,7 +72,7 @@ class PlaygroundStore {
 
   removeToast(id: string) {
     this.setState((prev) => ({
-      toasts: prev.toasts.filter((t) => t.id !== id),
+      toasts: prev.toasts.filter((toast) => toast.id !== id),
     }))
   }
 
@@ -81,12 +82,13 @@ class PlaygroundStore {
     arg1: string | (() => Promise<T>),
     arg2?: () => Promise<T>
   ): Promise<T> {
-    const actionName = typeof arg1 === 'string' ? arg1 : 'Action'
-    const action = typeof arg1 === 'function' ? arg1 : arg2!
+    const isNamedAction = typeof arg1 === 'string'
+    const actionName = isNamedAction ? arg1 : 'Action'
+    const actionFn = isNamedAction ? arg2! : arg1
 
     this.addToast('info', `Action queued: ${actionName}`)
 
-    const task = this.queue.then(() => action())
+    const task = this.queue.then(() => actionFn())
     this.queue = task.catch(() => {})
     return task
   }

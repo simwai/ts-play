@@ -14,7 +14,8 @@ export function useResizePanel(
     (e: React.MouseEvent | React.TouchEvent) => {
       e.preventDefault()
       setIsResizing(true)
-      resizeStartY.current = 'touches' in e ? e.touches[0].clientY : e.clientY
+      const isTouchEvent = 'touches' in e
+      resizeStartY.current = isTouchEvent ? e.touches[0].clientY : e.clientY
       resizeStartHeight.current = panelHeight
     },
     [panelHeight]
@@ -23,17 +24,18 @@ export function useResizePanel(
   const handleResizeMove = useCallback(
     (e: MouseEvent | TouchEvent) => {
       if (!isResizing) return
-      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+      const isTouchEvent = 'touches' in e
+      const clientY = isTouchEvent ? e.touches[0].clientY : e.clientY
       const deltaY = resizeStartY.current - clientY
 
-      // Convert pixel delta to rem based on root font size
-      const remSize =
+      const rootFontSizePx =
         parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
-      const deltaRem = deltaY / remSize
+      const deltaRem = deltaY / rootFontSizePx
 
+      const calculatedHeight = resizeStartHeight.current + deltaRem
       const newHeight = Math.max(
         minHeightRem,
-        Math.min(maxHeightRem, resizeStartHeight.current + deltaRem)
+        Math.min(maxHeightRem, calculatedHeight)
       )
       setPanelHeight(newHeight)
     },

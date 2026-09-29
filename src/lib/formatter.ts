@@ -3,6 +3,10 @@ import * as prettierPluginBabel from 'prettier/plugins/babel'
 import * as prettierPluginEstree from 'prettier/plugins/estree'
 import * as prettierPluginTypescript from 'prettier/plugins/typescript'
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 async function formatCode(
   code: string,
   language: 'typescript' | 'javascript' | 'dts'
@@ -66,24 +70,21 @@ export async function formatAllFiles(
       try {
         formattedTs = await formatCode(tsCode, 'typescript')
       } catch (error) {
-        // @ts-expect-error — error is unknown in catch block; accessing .message
-        errors.push(`TS: ${error.message}`)
+        errors.push(`TS: ${getErrorMessage(error)}`)
       }
     })(),
     (async () => {
       try {
         formattedJs = await formatCode(jsCode, 'javascript')
       } catch (error) {
-        // @ts-expect-error — error is unknown in catch block; accessing .message
-        errors.push(`JS: ${error.message}`)
+        errors.push(`JS: ${getErrorMessage(error)}`)
       }
     })(),
     (async () => {
       try {
         formattedDts = await formatCode(dtsCode, 'dts')
       } catch (error) {
-        // @ts-expect-error — error is unknown in catch block; accessing .message
-        errors.push(`DTS: ${error.message}`)
+        errors.push(`DTS: ${getErrorMessage(error)}`)
       }
     })(),
   ])

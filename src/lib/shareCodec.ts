@@ -1,3 +1,5 @@
+import { RegexPatterns, toRegExp } from './regex'
+
 type SharePayload = {
   tsCode: string
   jsCode: string
@@ -6,30 +8,35 @@ type SharePayload = {
 
 function toBase64Url(bytes: Uint8Array) {
   let binary = ''
-  const chunk = 0x80_00
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+  const chunkSize = 0x80_00
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
   }
 
+  const base64PaddingRegex = toRegExp(RegexPatterns.BASE64_PADDING)
   return btoa(binary)
     .replaceAll('+', '-')
     .replaceAll('/', '_')
-    .replaceAll(/=+$/g, '')
+    .replaceAll(base64PaddingRegex, '')
 }
 
 function fromBase64Url(input: string) {
+  const targetLength = Math.ceil(input.length / 4) * 4
   const padded = input
     .replaceAll('-', '+')
     .replaceAll('_', '/')
-    .padEnd(Math.ceil(input.length / 4) * 4, '=')
+    .padEnd(targetLength, '=')
   const binary = atob(padded)
   const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
   return bytes
 }
 
 async function gzip(input: Uint8Array) {
-  if (typeof CompressionStream !== 'function') return null
+  const hasCompressionStream = typeof CompressionStream === 'function'
+  if (!hasCompressionStream) return null
   const stream = new Blob([Uint8Array.from(input)])
     .stream()
     .pipeThrough(new CompressionStream('gzip'))
@@ -38,7 +45,8 @@ async function gzip(input: Uint8Array) {
 }
 
 async function gunzip(input: Uint8Array) {
-  if (typeof DecompressionStream !== 'function') return null
+  const hasDecompressionStream = typeof DecompressionStream === 'function'
+  if (!hasDecompressionStream) return null
   const stream = new Blob([Uint8Array.from(input)])
     .stream()
     .pipeThrough(new DecompressionStream('gzip'))
@@ -60,15 +68,18 @@ export async function encodeSharePayload(payload: SharePayload) {
 
 export async function decodeSharePayload(token: string): Promise<SharePayload> {
   const [kind, data] = token.split('.', 2)
-  if (!kind || !data) throw new Error('Invalid embedded share link')
+  const isInvalidToken = !kind || !data
+  if (isInvalidToken) throw new Error('Invalid embedded share link')
 
   const bytes = fromBase64Url(data)
   let decoded: Uint8Array | undefined
 
   if (kind === 'gz') {
     decoded = (await gunzip(bytes)) ?? undefined
-    if (!decoded)
+    const isDecodingSupported = Boolean(decoded)
+    if (!isDecodingSupported) {
       throw new Error('This browser cannot decode compressed share links')
+    }
   } else if (kind === 'raw') {
     decoded = bytes
   } else {

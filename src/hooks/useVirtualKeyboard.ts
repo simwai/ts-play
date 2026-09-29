@@ -1,74 +1,79 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 
-type VKState = {
+type VirtualKeyboardState = {
   keyboardOpen: boolean
   keyboardHeight: number
   isMobileLike: boolean
 }
 
-function activeTextTarget() {
-  const element = document.activeElement as HTMLElement | undefined
-  if (!element) return false
-  if (element instanceof HTMLTextAreaElement) return true
-  if (element instanceof HTMLInputElement) return true
-  return Boolean(element.closest('[contenteditable="true"]'))
+function isActiveTextTarget(): boolean {
+  const activeElement = document.activeElement as HTMLElement | undefined
+  if (!activeElement) return false
+
+  const isTextArea = activeElement instanceof HTMLTextAreaElement
+  const isInput = activeElement instanceof HTMLInputElement
+  const isContentEditable = Boolean(activeElement.closest('[contenteditable="true"]'))
+
+  return isTextArea || isInput || isContentEditable
 }
 
-export function useVirtualKeyboard(): VKState {
+export function useVirtualKeyboard(): VirtualKeyboardState {
   const [keyboardHeight, setKeyboardHeight] = useState(0)
   const baselineHeight = useRef(0)
 
   useEffect(() => {
-    const vv = window.visualViewport
+    const visualViewport = window.visualViewport
+
     const handleOrientation = () => {
       setKeyboardHeight(0)
-      baselineHeight.current = vv?.height ?? window.innerHeight
+      baselineHeight.current = visualViewport?.height ?? window.innerHeight
     }
 
     const handleFocusOut = () => {
       setKeyboardHeight(0)
-      baselineHeight.current = vv?.height ?? window.innerHeight
+      baselineHeight.current = visualViewport?.height ?? window.innerHeight
     }
 
-    const measure = () => {
-      const viewportHeight = vv?.height ?? window.innerHeight
+    const measureKeyboard = () => {
+      const currentViewportHeight = visualViewport?.height ?? window.innerHeight
 
-      if (!baselineHeight.current) {
-        baselineHeight.current = viewportHeight
-      } else if (
-        !activeTextTarget() &&
-        viewportHeight > baselineHeight.current
-      ) {
-        baselineHeight.current = viewportHeight
+      const isBaselineUnset = !baselineHeight.current
+      const isExpandedWithoutFocus =
+        !isActiveTextTarget() && currentViewportHeight > baselineHeight.current
+
+      if (isBaselineUnset) {
+        baselineHeight.current = currentViewportHeight
+      } else if (isExpandedWithoutFocus) {
+        baselineHeight.current = currentViewportHeight
       }
 
-      const base = baselineHeight.current || viewportHeight
-      const delta = Math.max(0, Math.round(base - viewportHeight))
-      const open = activeTextTarget() && delta > 120
-      setKeyboardHeight(open ? delta : 0)
+      const effectiveBaseHeight = baselineHeight.current || currentViewportHeight
+      const heightDeltaPx = Math.max(0, Math.round(effectiveBaseHeight - currentViewportHeight))
+      const isKeyboardActive = isActiveTextTarget() && heightDeltaPx > 120
+
+      setKeyboardHeight(isKeyboardActive ? heightDeltaPx : 0)
     }
 
-    measure()
-    vv?.addEventListener('resize', measure)
-    vv?.addEventListener('scroll', measure)
-    globalThis.addEventListener('focusin', measure)
+    measureKeyboard()
+    visualViewport?.addEventListener('resize', measureKeyboard)
+    visualViewport?.addEventListener('scroll', measureKeyboard)
+    globalThis.addEventListener('focusin', measureKeyboard)
     globalThis.addEventListener('focusout', handleFocusOut)
     globalThis.addEventListener('orientationchange', handleOrientation)
 
     return () => {
-      vv?.removeEventListener('resize', measure)
-      vv?.removeEventListener('scroll', measure)
-      globalThis.removeEventListener('focusin', measure)
+      visualViewport?.removeEventListener('resize', measureKeyboard)
+      visualViewport?.removeEventListener('scroll', measureKeyboard)
+      globalThis.removeEventListener('focusin', measureKeyboard)
       globalThis.removeEventListener('focusout', handleFocusOut)
       globalThis.removeEventListener('orientationchange', handleOrientation)
     }
   }, [])
 
   const isMobileLike = useMemo(() => {
-    return (
-      globalThis.matchMedia?.('(max-width: 820px)').matches ??
-      window.innerWidth <= 820
-    )
+    const hasMediaMatch = globalThis.matchMedia?.('(max-width: 820px)').matches
+    const isNarrowWidth = window.innerWidth <= 820
+    return hasMediaMatch ?? isNarrowWidth
   }, [])
 
   return {

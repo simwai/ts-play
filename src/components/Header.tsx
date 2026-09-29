@@ -54,37 +54,69 @@ export function Header({
   shareSuccess,
   stopCode,
 }: HeaderProps) {
+  const isCompilerReady = compilerStatus === 'ready'
+  const isRunDisabled = !isCompilerReady
+
+  const copyButtonClass = copied
+    ? 'text-green border-green bg-green/15 hover:bg-green/20'
+    : ''
+
+  const formatButtonClass = formatSuccess
+    ? 'text-green border-green bg-green/15 hover:bg-green/20'
+    : ''
+
+  const shareButtonClass = shareSuccess
+    ? 'text-green border-green bg-green/15 hover:bg-green/20'
+    : ''
+
+  const getFormatIcon = () => {
+    if (formatting) {
+      return <Loader2 className='w-3 h-3 md:w-4 md:h-4 animate-spin' />
+    }
+    if (formatSuccess) {
+      return <Check className='w-3 h-3 md:w-4 md:h-4' />
+    }
+    return <Wand2 className='w-3 h-3 md:w-4 md:h-4' />
+  }
+
+  const getShareIcon = () => {
+    if (sharing) {
+      return <Loader2 className='w-3 h-3 md:w-4 md:h-4 animate-spin' />
+    }
+    if (shareSuccess) {
+      return <Check className='w-3 h-3 md:w-4 md:h-4' />
+    }
+    return <Share2 className='w-3 h-3 md:w-4 md:h-4' />
+  }
+
   return (
     <header className='flex items-center justify-between px-1.5 md:px-3 h-9 md:h-12 bg-mantle border-b border-surface0 shrink-0 gap-1.5 md:gap-3 relative z-40'>
-      {/* Brand */}
       <div className='flex items-center gap-1.5 md:gap-2'>
         <span className='text-xs md:text-sm font-bold tracking-tight font-mono'>
           TS<span className='text-mauve'>Play</span>
         </span>
       </div>
 
-      {/* Tabs */}
       <div className='flex bg-surface0 rounded-md p-0.5 gap-0.5 shrink'>
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => {
-              setActiveTab(tab)
-            }}
-            className={`px-1.5 py-0.5 md:px-3 md:py-1.5 rounded border-none text-4xs md:text-xs font-semibold font-mono cursor-pointer tracking-wide uppercase transition-all duration-150 ${
-              activeTab === tab
-                ? 'bg-mauve/20 text-mauve shadow-sm'
-                : 'bg-transparent text-overlay1 hover:text-text'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+        {TABS.map((tab) => {
+          const isTabActive = activeTab === tab
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-1.5 py-0.5 md:px-3 md:py-1.5 rounded border-none text-4xs md:text-xs font-semibold font-mono cursor-pointer tracking-wide uppercase transition-all duration-150 ${
+                isTabActive
+                  ? 'bg-mauve/20 text-mauve shadow-sm'
+                  : 'bg-transparent text-overlay1 hover:text-text'
+              }`}
+            >
+              {tab}
+            </button>
+          )
+        })}
       </div>
 
-      {/* Actions */}
       <div className='flex items-center gap-1 md:gap-2 shrink-0'>
-        {/* Theme toggle */}
         <IconButton
           onClick={() => setIsDarkMode(!isDarkMode)}
           title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -99,21 +131,15 @@ export function Header({
           )}
         </IconButton>
 
-        {/* Separator */}
         <div className='w-px h-3.5 md:h-5 bg-surface1 shrink-0 mx-0.5 md:mx-1' />
 
-        {/* Copy all */}
         <IconButton
           onClick={handleCopyAll}
           title={`Copy all ${activeTab}`}
           tooltipAlign='right'
           variant='surface'
           size='sm'
-          className={
-            copied
-              ? 'text-green border-green bg-green/15 hover:bg-green/20'
-              : ''
-          }
+          className={copyButtonClass}
         >
           {copied ? (
             <Check className='w-3 h-3 md:w-4 md:h-4' />
@@ -122,7 +148,6 @@ export function Header({
           )}
         </IconButton>
 
-        {/* Delete all */}
         <IconButton
           onClick={handleDeleteAll}
           title={`Clear ${activeTab} editor`}
@@ -134,7 +159,6 @@ export function Header({
           <Trash2 className='w-3 h-3 md:w-4 md:h-4' />
         </IconButton>
 
-        {/* Format */}
         <IconButton
           onClick={handleFormat}
           disabled={formatting}
@@ -142,25 +166,13 @@ export function Header({
           tooltipAlign='right'
           variant='surface'
           size='sm'
-          className={
-            formatSuccess
-              ? 'text-green border-green bg-green/15 hover:bg-green/20'
-              : ''
-          }
+          className={formatButtonClass}
         >
-          {formatting ? (
-            <Loader2 className='w-3 h-3 md:w-4 md:h-4 animate-spin' />
-          ) : formatSuccess ? (
-            <Check className='w-3 h-3 md:w-4 md:h-4' />
-          ) : (
-            <Wand2 className='w-3 h-3 md:w-4 md:h-4' />
-          )}
+          {getFormatIcon()}
         </IconButton>
 
-        {/* Separator */}
         <div className='w-px h-3.5 md:h-5 bg-surface1 shrink-0 mx-0.5 md:mx-1' />
 
-        {/* Run / Stop */}
         {isRunning ? (
           <Button
             onClick={() => stopCode?.()}
@@ -181,7 +193,7 @@ export function Header({
           <Button
             onClick={async () => doRun(false)}
             data-testid='header-run-button'
-            disabled={compilerStatus !== 'ready'}
+            disabled={isRunDisabled}
             variant='primary'
             size='sm'
             title='Run (compile + execute)'
@@ -196,10 +208,8 @@ export function Header({
           </Button>
         )}
 
-        {/* Separator */}
         <div className='w-px h-3.5 md:h-5 bg-surface1 shrink-0 mx-0.5 md:mx-1' />
 
-        {/* Share */}
         <IconButton
           onClick={handleShare}
           title={sharing ? 'Sharing...' : 'Share snippet (expires in 7 days)'}
@@ -207,19 +217,9 @@ export function Header({
           variant='surface'
           size='sm'
           disabled={sharing}
-          className={
-            shareSuccess
-              ? 'text-green border-green bg-green/15 hover:bg-green/20'
-              : ''
-          }
+          className={shareButtonClass}
         >
-          {sharing ? (
-            <Loader2 className='w-3 h-3 md:w-4 md:h-4 animate-spin' />
-          ) : shareSuccess ? (
-            <Check className='w-3 h-3 md:w-4 md:h-4' />
-          ) : (
-            <Share2 className='w-3 h-3 md:w-4 md:h-4' />
-          )}
+          {getShareIcon()}
         </IconButton>
       </div>
     </header>

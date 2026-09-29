@@ -4,6 +4,13 @@ import { writeFiles, webContainerService } from '../lib/webcontainer'
 import type { CompilerStatus, ConsoleMessageType } from '../lib/types'
 import type { WebContainerProcess } from '@webcontainer/api'
 
+const EXECUTION_TIMEOUT_MS = 300_000 // 5 minutes
+const BACKGROUND_TASK_TIMEOUT_MS = 10_000
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 export function useCompilerManager(
   tsCode: string,
   addMessage: (type: ConsoleMessageType, args: unknown[]) => void
@@ -13,9 +20,8 @@ export function useCompilerManager(
   const [isRunning, setIsRunning] = useState(false)
   const currentProcess = useRef<WebContainerProcess | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const runningRef = useRef(false) // more robust gate
+  const runningRef = useRef(false)
 
-  // Initialization
   useEffect(() => {
     ;(async () => {
       try {
@@ -28,10 +34,11 @@ export function useCompilerManager(
     })()
   }, [])
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
       if (currentProcess.current) {
         currentProcess.current.kill()
         currentProcess.current = null
@@ -40,8 +47,9 @@ export function useCompilerManager(
   }, [])
 
   const stopCode = useCallback(() => {
-    if (currentProcess.current) {
-      currentProcess.current.kill()
+    const hasActiveProcess = Boolean(currentProcess.current)
+    if (hasActiveProcess) {
+      currentProcess.current?.kill()
       currentProcess.current = null
       addMessage('info', ['Execution stopped by user.'])
     }
@@ -50,7 +58,7 @@ export function useCompilerManager(
       timeoutRef.current = null
     }
     setIsRunning(false)
-    setCompilerStatus('ready') // reset status
+    setCompilerStatus('ready')
   }, [addMessage])
 
   const runCode = useCallback(
@@ -59,38 +67,36 @@ export function useCompilerManager(
       onSuccess: (js: string, dts: string) => void,
       onError: (error: Error) => void
     ) => {
-      if (runningRef.current) return
+      const isAlreadyRunning = runningRef.current
+      if (isAlreadyRunning) return
+
       runningRef.current = true
       setIsRunning(true)
       setCompilerStatus('compiling')
 
       try {
-        // Compile TypeScript
         const compiled = await workerClient.compile(tsCode)
         onSuccess(compiled.js, compiled.dts)
 
-        // Write the resulting JS to the WebContainer
         await writeFiles({ 'index.js': compiled.js })
 
-        // Wait for pending package installs (or timeout)
         try {
           await Promise.race([
             pendingInstalls,
             new Promise((_, reject) =>
               setTimeout(
                 () => reject(new Error('Background tasks timed out')),
-                10000
+                BACKGROUND_TASK_TIMEOUT_MS
               )
             ),
           ])
         } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : String(err)
+          const msg = getErrorMessage(err)
           addMessage('warn', [
             `Proceeding despite background task warning: ${msg}`,
           ])
         }
 
-        // Launch Node.js
         setCompilerStatus('running')
         addMessage('info', ['Executing via Node.js...'])
         const proc = await webContainerService.spawnManaged(
@@ -99,27 +105,27 @@ export function useCompilerManager(
           {
             onLog: (out) => {
               const clean = out.trim()
-              if (clean) addMessage('log', [clean])
+              const isNonEmpty = Boolean(clean)
+              if (isNonEmpty) addMessage('log', [clean])
             },
           }
         )
 
         currentProcess.current = proc
 
-        // 5‑minute timeout
         timeoutRef.current = setTimeout(() => {
-          if (currentProcess.current) {
-            currentProcess.current.kill()
+          const isProcessActive = Boolean(currentProcess.current)
+          if (isProcessActive) {
+            currentProcess.current?.kill()
             currentProcess.current = null
             addMessage('error', ['Execution timed out after 5 minutes.'])
             setIsRunning(false)
             setCompilerStatus('ready')
           }
-        }, 300000)
+        }, EXECUTION_TIMEOUT_MS)
 
         const exitCode = await proc.exit
 
-        // Clear timeout if process finishes on its own
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current)
           timeoutRef.current = null
@@ -127,7 +133,8 @@ export function useCompilerManager(
 
         currentProcess.current = null
 
-        if (exitCode !== 0) {
+        const isUnsuccessfulExit = exitCode !== 0
+        if (isUnsuccessfulExit) {
           addMessage('error', [`Process exited with code ${exitCode}`])
         }
       } catch (error) {

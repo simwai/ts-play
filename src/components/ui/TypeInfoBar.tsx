@@ -11,22 +11,22 @@ type TypeInfoBarProps = {
 }
 
 function renderWithLinksAndHighlight(text: string) {
-  const regex = toRegExp(RegexPatterns.MARKDOWN_LINKS_OR_CODE)
-  const parts = text.split(regex)
+  const markdownLinksOrCodeRegex = toRegExp(RegexPatterns.MARKDOWN_LINKS_OR_CODE)
+  const parts = text.split(markdownLinksOrCodeRegex)
 
-  return parts.map((part, i) => {
-    const mdMatch = toRegExp(RegexPatterns.MARKDOWN_LINK).exec(part)
-    if (mdMatch) {
+  return parts.map((part, index) => {
+    const markdownLinkMatch = toRegExp(RegexPatterns.MARKDOWN_LINK).exec(part)
+    if (markdownLinkMatch) {
       return (
         <a
-          key={i}
-          href={mdMatch[2]}
+          key={index}
+          href={markdownLinkMatch[2]}
           target='_blank'
           rel='noopener noreferrer'
           className='text-mauve underline underline-offset-2 hover:text-pink transition-colors'
           onClick={(e) => e.stopPropagation()}
         >
-          {mdMatch[1]}
+          {markdownLinkMatch[1]}
         </a>
       )
     }
@@ -35,7 +35,7 @@ function renderWithLinksAndHighlight(text: string) {
     if (urlMatch) {
       return (
         <a
-          key={i}
+          key={index}
           href={urlMatch[1]}
           target='_blank'
           rel='noopener noreferrer'
@@ -47,10 +47,11 @@ function renderWithLinksAndHighlight(text: string) {
       )
     }
 
-    if (part.startsWith('`') && part.endsWith('`')) {
+    const isInlineCode = part.startsWith('`') && part.endsWith('`')
+    if (isInlineCode) {
       return (
         <code
-          key={i}
+          key={index}
           className='bg-surface0 px-1 rounded-sm text-mauve'
         >
           {part.slice(1, -1)}
@@ -58,7 +59,7 @@ function renderWithLinksAndHighlight(text: string) {
       )
     }
 
-    return <React.Fragment key={i}>{part}</React.Fragment>
+    return <React.Fragment key={index}>{part}</React.Fragment>
   })
 }
 
@@ -72,7 +73,8 @@ export function TypeInfoBar({
   const [highlightedSig, setHighlightedSig] = useState('')
 
   useEffect(() => {
-    if (!monaco || !typeInfo || !typeInfo.typeAnnotation) {
+    const isMissingTypeInfo = !monaco || !typeInfo || !typeInfo.typeAnnotation
+    if (isMissingTypeInfo) {
       setHighlightedType('')
       setHighlightedSig('')
       return
@@ -86,12 +88,13 @@ export function TypeInfoBar({
       )
       setHighlightedType(typeHtml)
 
-      if (
-        typeInfo.signature &&
+      const hasDistinctSignature =
+        Boolean(typeInfo.signature) &&
         typeInfo.signature !== typeInfo.typeAnnotation
-      ) {
+
+      if (hasDistinctSignature) {
         const sigHtml = await monaco.editor.colorize(
-          typeInfo.signature,
+          typeInfo.signature!,
           'typescript',
           { tabSize: 2 }
         )
@@ -127,9 +130,9 @@ export function TypeInfoBar({
   }
 
   const kindLabel = getKindLabel(typeInfo.kind)
-  const kc = kindColorClass(typeInfo.kind)
-  const kcBg = kindBgClass(typeInfo.kind)
-  const kcBorder = kindBorderClass(typeInfo.kind)
+  const kindColor = kindColorClass(typeInfo.kind)
+  const kindBg = kindBgClass(typeInfo.kind)
+  const kindBorder = kindBorderClass(typeInfo.kind)
 
   return (
     <div className='flex flex-col bg-mantle border-t border-surface0/50 px-3 md:px-4 py-1.5 md:py-2 font-mono shrink-0 max-h-48 overflow-hidden animate-in slide-in-from-bottom-2 duration-200'>
@@ -138,9 +141,9 @@ export function TypeInfoBar({
           <span
             className={cn(
               'text-[9px] md:text-[10px] font-bold tracking-wider uppercase rounded px-1.5 py-0.5 leading-tight border transition-colors shrink-0',
-              kc,
-              kcBg,
-              kcBorder
+              kindColor,
+              kindBg,
+              kindBorder
             )}
           >
             {kindLabel}

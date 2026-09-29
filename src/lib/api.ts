@@ -1,8 +1,10 @@
 import { encodeSharePayload } from './shareCodec'
+import { RegexPatterns, toRegExp } from './regex'
 import type { InstalledPackage } from '../components/PackageManager'
 
 function getApiCandidates(path: string) {
-  const normalized = path.replace(/^\/+/, '')
+  const leadingSlashRegex = toRegExp(RegexPatterns.LEADING_SLASH)
+  const normalized = path.replace(leadingSlashRegex, '')
   const base = new URL(document.baseURI || globalThis.location.href)
   const currentDir = new URL('./', globalThis.location.href)
   const candidates = [
@@ -14,7 +16,8 @@ function getApiCandidates(path: string) {
 }
 
 function getApiUrl(path: string) {
-  return new URL(path.replace(/^\//, ''), document.baseURI).toString()
+  const leadingSlashRegex = toRegExp(RegexPatterns.LEADING_SLASH)
+  return new URL(path.replace(leadingSlashRegex, ''), document.baseURI).toString()
 }
 
 type ApiResponse = {
@@ -42,7 +45,8 @@ async function fetchApiJson(
         data = JSON.parse(text)
       } catch {
         const preview = text.slice(0, 300).replaceAll('\n', ' ')
-        if (!res.ok) {
+        const isHttpResponseOk = res.ok
+        if (!isHttpResponseOk) {
           lastError = new Error(
             `Share API failed (${res.status} ${res.statusText}) at ${url}. Raw response: ${preview}...`
           )
@@ -55,7 +59,8 @@ async function fetchApiJson(
         continue
       }
 
-      if (!res.ok) {
+      const isResponseOk = res.ok
+      if (!isResponseOk) {
         lastError = new Error(
           data?.error || `Share API failed (${res.status}).`
         )
@@ -64,7 +69,7 @@ async function fetchApiJson(
 
       return data
     } catch (error) {
-      lastError = error as Error
+      lastError = error instanceof Error ? error : new Error(String(error))
     }
   }
 
@@ -82,7 +87,7 @@ type SharePayload = {
   packages: InstalledPackage[]
 }
 
-function errorToError(error: unknown): Error {
+function ensureErrorInstance(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error))
 }
 
@@ -93,18 +98,20 @@ export async function shareSnippet(payload: SharePayload) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
-    if (data.success) {
+    const isShareSuccessful = Boolean(data.success)
+    if (isShareSuccessful) {
+      const effectiveTtlDays = (data.ttlDays ?? data.expires ?? 7) as number
       return {
         type: 'server' as const,
         id: data.id as string,
-        ttlDays: (data.ttlDays ?? data.expires ?? 7) as number,
+        ttlDays: effectiveTtlDays,
       }
     }
 
     throw new Error(data.error || 'Share API returned an error')
   } catch (error) {
     const token = await encodeSharePayload(payload)
-    return { type: 'embedded' as const, token, error: errorToError(error) }
+    return { type: 'embedded' as const, token, error: ensureErrorInstance(error) }
   }
 }
 
@@ -116,13 +123,13 @@ export async function loadSharedSnippet(id: string) {
     data = JSON.parse(text)
   } catch {
     const preview = text.slice(0, 300).replaceAll('\n', ' ')
-    throw new Error(
-      res.ok
-        ? `Share API returned invalid JSON. Raw response: ${preview}...`
-        : `Share API failed (${res.status}). Raw response: ${preview}...`
-    )
+    const errorMessage = res.ok
+      ? `Share API returned invalid JSON. Raw response: ${preview}...`
+      : `Share API failed (${res.status}). Raw response: ${preview}...`
+    throw new Error(errorMessage)
   }
-  if (!res.ok) {
+  const isResponseOk = res.ok
+  if (!isResponseOk) {
     throw new Error(data?.error || `Request failed with status ${res.status}`)
   }
   return data
@@ -143,7 +150,8 @@ export async function checkNpmPackage(pkgName: string): Promise<boolean> {
 }
 
 export function getTypesPackageName(pkgName: string): string {
-  if (pkgName.startsWith('@')) {
+  const isScopedPackage = pkgName.startsWith('@')
+  if (isScopedPackage) {
     const [scope, name] = pkgName.slice(1).split('/')
     return `@types/${scope}__${name}`
   }

@@ -12,8 +12,7 @@ const defaultLibraryFiles: Record<string, string> = {
   'lib.dom.d.ts': lib_dom,
 }
 
-// "No inputs were found in config file" — expected in the playground when the
-// config host has no files on disk; not a user-facing config error.
+// "No inputs were found in config file" — expected in virtual filesystem
 const TS18003_NO_INPUTS = 18003
 
 let languageService: TS.LanguageService | undefined
@@ -39,29 +38,35 @@ let initPromise: Promise<void> | null = null
 
 function normalizePath(path: string): string {
   const cleaned = path.replace(/^file:\/\/\//, '/')
-  return cleaned.startsWith('/') ? cleaned : '/' + cleaned
+  const isAlreadyAbsolutePath = cleaned.startsWith('/')
+  return isAlreadyAbsolutePath ? cleaned : '/' + cleaned
 }
 
-// Shared virtual-filesystem lookups backing the config host, the language
-// service host, and the Monaco method surface – one source of truth each.
 function isKnownSourceFile(path: string): boolean {
   const normalized = normalizePath(path)
-  return !!(
+  const isExternalPackage = Boolean(
     externalPackageDefinitions[normalized] ||
-    externalPackageDefinitions[normalized.substring(1)] ||
-    defaultLibraryFiles[normalized.substring(1)] ||
-    normalized === '/main.ts'
+      externalPackageDefinitions[normalized.substring(1)]
   )
+  const isDefaultLibrary = Boolean(defaultLibraryFiles[normalized.substring(1)])
+  const isMainFile = normalized === '/main.ts'
+
+  return isExternalPackage || isDefaultLibrary || isMainFile
 }
 
 function readVirtualFile(path: string): string | undefined {
   const normalized = normalizePath(path)
-  if (normalized === '/main.d.ts') return undefined
+  const isDtsFile = normalized === '/main.d.ts'
+  if (isDtsFile) return undefined
+
+  const isMainFile = normalized === '/main.ts'
+  const mainFileContent = isMainFile ? virtualFiles['/main.ts']?.content : undefined
+
   return (
     externalPackageDefinitions[normalized] ||
     externalPackageDefinitions[normalized.substring(1)] ||
     defaultLibraryFiles[normalized.substring(1)] ||
-    (normalized === '/main.ts' ? virtualFiles['/main.ts']?.content : undefined)
+    mainFileContent
   )
 }
 
@@ -75,50 +80,59 @@ function readVirtualDirectory(
     : normalizedPath
   return Object.keys(externalPackageDefinitions)
     .filter(
-      (f) =>
-        f.startsWith(searchPath) &&
-        (!extensions || extensions.some((e) => f.endsWith(e)))
+      (file) =>
+        file.startsWith(searchPath) &&
+        (!extensions || extensions.some((ext) => file.endsWith(ext)))
     )
     .map(normalizePath)
 }
 
 function getScriptFileNames(): string[] {
-  const libFiles = Object.keys(defaultLibraryFiles).map((f) => '/' + f)
+  const libFiles = Object.keys(defaultLibraryFiles).map((file) => '/' + file)
   const externalFiles = Object.keys(externalPackageDefinitions).map(
     normalizePath
   )
-  const filtered = externalFiles.filter(
-    (f) => f !== '/main.ts' && f !== '/main.d.ts'
+  const filteredExternalFiles = externalFiles.filter(
+    (file) => file !== '/main.ts' && file !== '/main.d.ts'
   )
-  return ['/main.ts', ...libFiles, ...filtered]
+  return ['/main.ts', ...libFiles, ...filteredExternalFiles]
 }
 
 function scriptVersionFor(fileName: string): string {
   const normalized = normalizePath(fileName)
-  if (normalized === '/main.ts')
-    return String(virtualFiles['/main.ts']?.version ?? 0)
-  if (
+  const isMainFile = normalized === '/main.ts'
+  if (isMainFile) return String(virtualFiles['/main.ts']?.version ?? 0)
+
+  const isExternalPackage = Boolean(
     externalPackageDefinitions[normalized] ||
-    externalPackageDefinitions[normalized.substring(1)]
+      externalPackageDefinitions[normalized.substring(1)]
   )
-    return String(externalPackageVersion)
+  if (isExternalPackage) return String(externalPackageVersion)
+
   return '0'
 }
 
 function snapshotFor(fileName: string): TS.IScriptSnapshot | undefined {
   const normalized = normalizePath(fileName)
-  if (normalized === '/main.d.ts') return undefined
+  const isDtsFile = normalized === '/main.d.ts'
+  if (isDtsFile) return undefined
+
   let content: string | undefined
-  if (normalized === '/main.ts') content = virtualFiles['/main.ts']?.content
-  else if (defaultLibraryFiles[normalized.substring(1)])
-    content = defaultLibraryFiles[normalized.substring(1)]
-  else
+  const isMainFile = normalized === '/main.ts'
+  const defaultLibContent = defaultLibraryFiles[normalized.substring(1)]
+
+  if (isMainFile) {
+    content = virtualFiles['/main.ts']?.content
+  } else if (defaultLibContent) {
+    content = defaultLibContent
+  } else {
     content =
       externalPackageDefinitions[normalized] ||
       externalPackageDefinitions[normalized.substring(1)]
-  return content !== undefined
-    ? TS.ScriptSnapshot.fromString(content)
-    : undefined
+  }
+
+  const hasContent = content !== undefined
+  return hasContent ? TS.ScriptSnapshot.fromString(content) : undefined
 }
 
 function createConfigHost(): TS.ParseConfigHost {
@@ -177,7 +191,7 @@ function generateAmbientDeclarations(sourceCode: string): string {
     '// Declarations auto-generated from main.ts\n' +
     sourceCode
       .split('\n')
-      .filter((l) => l.startsWith('export'))
+      .filter((line) => line.startsWith('export'))
       .join('\n')
   )
 }
@@ -185,7 +199,6 @@ function generateAmbientDeclarations(sourceCode: string): string {
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error)
 
-// ── Custom messages ──
 type CustomMessagePayload = {
   content?: string
   filename?: string
@@ -203,13 +216,13 @@ async function handleCustomMessage(
     case 'UPDATE_FILE': {
       const { content = '', filename = '/main.ts' } = data
       const normalized = filename.startsWith('/') ? filename : '/' + filename
-      // Add module marker to avoid global conflicts
       const hasModuleMarker = /^\s*(import|export)\s/m.test(content)
       const finalContent = hasModuleMarker
         ? content
         : content + '\nexport {};\n'
       const fileState = virtualFiles[normalized]
-      if (!fileState || fileState.content !== finalContent) {
+      const needsUpdate = !fileState || fileState.content !== finalContent
+      if (needsUpdate) {
         virtualFiles[normalized] = {
           version: (fileState?.version || 0) + 1,
           content: finalContent,
@@ -223,10 +236,8 @@ async function handleCustomMessage(
       for (const [path, content] of Object.entries(rawLibs)) {
         const isDeclarationFile = path.endsWith('.d.ts')
         const hasModuleMarker = /^\s*(import|export)\s/m.test(content)
-        wrappedLibs[path] =
-          isDeclarationFile && !hasModuleMarker
-            ? content + '\nexport {};\n'
-            : content
+        const needsExport = isDeclarationFile && !hasModuleMarker
+        wrappedLibs[path] = needsExport ? content + '\nexport {};\n' : content
       }
       externalPackageDefinitions = wrappedLibs
       externalPackageVersion += 1
@@ -243,7 +254,8 @@ async function handleCustomMessage(
         host,
         '/'
       )
-      if (errors.some((e) => e.code !== TS18003_NO_INPUTS)) return false
+      const hasFatalErrors = errors.some((e) => e.code !== TS18003_NO_INPUTS)
+      if (hasFatalErrors) return false
       compilerOptions = { ...compilerOptions, ...options }
       if (virtualFiles['/main.ts']) virtualFiles['/main.ts'].version += 1
       return true
@@ -262,11 +274,11 @@ async function handleCustomMessage(
       }
       const host = createConfigHost()
       const { errors } = TS.parseJsonConfigFileContent(parsed.config, host, '/')
-      const fatal = errors.filter((e) => e.code !== TS18003_NO_INPUTS)
-      if (fatal.length) {
+      const fatalErrors = errors.filter((e) => e.code !== TS18003_NO_INPUTS)
+      if (fatalErrors.length > 0) {
         return {
           valid: false,
-          error: fatal
+          error: fatalErrors
             .map((e) => TS.flattenDiagnosticMessageText(e.messageText, '\n'))
             .join('\n'),
         }
@@ -296,9 +308,7 @@ async function handleCustomMessage(
         if (dtsFile) dts = dtsFile.text
       }
       if (!dts) dts = generateAmbientDeclarations(data.code ?? '')
-      // The d.ts text becomes an editor model inside Monaco's TS program.
-      // Without a module marker its script-scope ambient declarations
-      // collide with the same globals in main.ts (false TS2451 markers).
+
       const dtsIsModule = /^\s*(import|export)\s/m.test(dts)
       if (!dtsIsModule) dts = dts + '\nexport {};\n'
       return { js: compiled.outputFiles?.[0]?.text || '', dts }
@@ -312,16 +322,19 @@ async function handleCustomMessage(
       )
       const imports = new Set<string>()
       const visit = (node: TS.Node) => {
-        if (
+        const isImportDecl =
           TS.isImportDeclaration(node) &&
           TS.isStringLiteral(node.moduleSpecifier)
-        ) {
-          const m = node.moduleSpecifier.text
-          if (!m.startsWith('.') && !m.startsWith('/')) {
-            const parts = m.split('/')
-            imports.add(
-              m.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0] || ''
-            )
+        if (isImportDecl) {
+          const specifier = (node.moduleSpecifier as TS.StringLiteral).text
+          const isExternalPackage =
+            !specifier.startsWith('.') && !specifier.startsWith('/')
+          if (isExternalPackage) {
+            const parts = specifier.split('/')
+            const pkgName = specifier.startsWith('@')
+              ? `${parts[0]}/${parts[1]}`
+              : parts[0] || ''
+            imports.add(pkgName)
           }
         }
         TS.forEachChild(node, visit)
@@ -334,7 +347,6 @@ async function handleCustomMessage(
   }
 }
 
-// ── Monaco worker protocol ──
 async function handleMonacoMethod(
   method: string,
   args: unknown[],
@@ -342,7 +354,6 @@ async function handleMonacoMethod(
 ): Promise<unknown> {
   switch (method) {
     case 'init':
-      // Critical: respond synchronously
       return { success: true }
     case 'getDefaultLibFileName':
       return '/lib.es2020.d.ts'
@@ -358,40 +369,41 @@ async function handleMonacoMethod(
         ...languageService.getSyntacticDiagnostics('/main.ts'),
         ...languageService.getSemanticDiagnostics('/main.ts'),
       ]
-      return diags.map((d) => ({
-        start: d.start ?? 0,
-        length: d.length ?? 0,
-        severity:
+      return diags.map((d) => {
+        const hasStart = d.file && d.start !== undefined
+        const hasLength = hasStart && d.length !== undefined
+        const startPos = hasStart
+          ? TS.getLineAndCharacterOfPosition(d.file!, d.start!)
+          : null
+        const endPos = hasLength
+          ? TS.getLineAndCharacterOfPosition(d.file!, d.start! + d.length!)
+          : null
+
+        const severity =
           d.category === TS.DiagnosticCategory.Error
             ? 8
             : d.category === TS.DiagnosticCategory.Warning
               ? 4
-              : 2,
-        message:
+              : 2
+
+        const messageText =
           typeof d.messageText === 'string'
             ? d.messageText
-            : TS.flattenDiagnosticMessageText(d.messageText, '\n'),
-        startLineNumber:
-          d.file && d.start !== undefined
-            ? TS.getLineAndCharacterOfPosition(d.file, d.start).line + 1
-            : 1,
-        startColumn:
-          d.file && d.start !== undefined
-            ? TS.getLineAndCharacterOfPosition(d.file, d.start).character + 1
-            : 1,
-        endLineNumber:
-          d.file && d.start !== undefined && d.length !== undefined
-            ? TS.getLineAndCharacterOfPosition(d.file, d.start + d.length)
-                .line + 1
-            : 1,
-        endColumn:
-          d.file && d.start !== undefined && d.length !== undefined
-            ? TS.getLineAndCharacterOfPosition(d.file, d.start + d.length)
-                .character + 1
-            : 1,
-        source: 'typescript',
-        code: d.code,
-      }))
+            : TS.flattenDiagnosticMessageText(d.messageText, '\n')
+
+        return {
+          start: d.start ?? 0,
+          length: d.length ?? 0,
+          severity,
+          message: messageText,
+          startLineNumber: startPos ? startPos.line + 1 : 1,
+          startColumn: startPos ? startPos.character + 1 : 1,
+          endLineNumber: endPos ? endPos.line + 1 : 1,
+          endColumn: endPos ? endPos.character + 1 : 1,
+          source: 'typescript',
+          code: d.code,
+        }
+      })
     }
     case 'getCompletionsAtPosition': {
       if (!languageService) throw new Error('Undefined language service')
@@ -417,13 +429,10 @@ async function handleMonacoMethod(
   }
 }
 
-// ─── Main message handler ────────────────────────────────────────
 globalThis.onmessage = async (messageEvent: MessageEvent) => {
   const { id, type, payload, method, args, fileName } = messageEvent.data
   try {
-    // Monaco method
     if (method) {
-      // For 'init', respond synchronously – no await
       if (method === 'init') {
         const result = await handleMonacoMethod(method, args, fileName)
         self.postMessage({ id, result })
@@ -434,7 +443,6 @@ globalThis.onmessage = async (messageEvent: MessageEvent) => {
       self.postMessage({ id, result })
       return
     }
-    // Custom message
     if (type === 'INIT') {
       await ensureInitialized()
       self.postMessage({ id, success: true, payload: true })

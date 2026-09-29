@@ -36,13 +36,22 @@ function typeVariant(
 }
 
 function typeLabel(type: ConsoleMessage['type']): string {
-  if (type === 'error') return 'ERR'
-  if (type === 'warn') return 'WRN'
-  if (type === 'info') return 'INF'
-  if (type === 'debug') return 'DBG'
-  if (type === 'trace') return 'TRC'
-  if (type === 'dir') return 'DIR'
-  return 'LOG'
+  switch (type) {
+    case 'error':
+      return 'ERR'
+    case 'warn':
+      return 'WRN'
+    case 'info':
+      return 'INF'
+    case 'debug':
+      return 'DBG'
+    case 'trace':
+      return 'TRC'
+    case 'dir':
+      return 'DIR'
+    default:
+      return 'LOG'
+  }
 }
 
 function typeColorClass(type: ConsoleMessage['type']): string {
@@ -54,7 +63,6 @@ function typeColorClass(type: ConsoleMessage['type']): string {
 
 type FilterType = 'all' | 'log' | 'info' | 'warn' | 'error'
 
-// ── Memoised filter button ───────────────────────────────────────
 const FilterButton = React.memo(function FilterButton({
   type,
   label,
@@ -86,7 +94,6 @@ const FilterButton = React.memo(function FilterButton({
   )
 })
 
-// ── Memoised tab button ─────────────────────────────────────────
 type TabButtonProps = {
   id: 'console' | 'problems' | 'packages'
   label: string
@@ -112,16 +119,20 @@ const TabButton = React.memo(function TabButton({
     (e: React.MouseEvent) => {
       e.stopPropagation()
       onTabChange(id)
-      if (!isOpen) onToggle()
+      const isClosed = !isOpen
+      if (isClosed) onToggle()
     },
     [id, onTabChange, isOpen, onToggle]
   )
+
+  const isSelected = activeTab === id
+  const hasCount = count !== undefined && count > 0
 
   return (
     <button
       onClick={handleClick}
       className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-all duration-200 ${
-        activeTab === id
+        isSelected
           ? 'bg-surface0 text-mauve shadow-sm'
           : 'text-overlay1 hover:text-text hover:bg-surface0/50'
       }`}
@@ -129,7 +140,7 @@ const TabButton = React.memo(function TabButton({
       <span className='text-[10px] font-mono font-bold uppercase tracking-wider'>
         {label}
       </span>
-      {count !== undefined && count > 0 && (
+      {hasCount && (
         <Badge
           label={String(count)}
           variant={variant}
@@ -140,7 +151,6 @@ const TabButton = React.memo(function TabButton({
   )
 })
 
-// ── Memoised message row ────────────────────────────────────────
 const MessageRow = React.memo(function MessageRow({
   message,
   ansiConvert,
@@ -153,10 +163,10 @@ const MessageRow = React.memo(function MessageRow({
   const rawArgs = message.args
   const args = Array.isArray(rawArgs) ? rawArgs : [rawArgs]
   const fullText = args.map(String).join(' ')
-  const hasAnsi = trueColorEnabled && /[\u001b\u009b]/.test(fullText)
+  const hasAnsiCode = trueColorEnabled && /[]/.test(fullText)
 
   let content: React.ReactNode
-  if (hasAnsi && ansiConvert) {
+  if (hasAnsiCode && ansiConvert) {
     try {
       const html = ansiConvert.toHtml(fullText)
       content = (
@@ -184,16 +194,18 @@ const MessageRow = React.memo(function MessageRow({
     )
   }
 
+  const isError = message.type === 'error'
+  const isWarn = message.type === 'warn'
+  const rowBackground = isError
+    ? 'bg-red/5'
+    : isWarn
+      ? 'bg-yellow/5'
+      : 'bg-transparent'
+
   return (
     <div
       data-testid='console-message'
-      className={`flex items-start gap-2.5 px-3 py-1.5 border-b border-surface0/40 select-text ${
-        message.type === 'error'
-          ? 'bg-red/5'
-          : message.type === 'warn'
-            ? 'bg-yellow/5'
-            : 'bg-transparent'
-      }`}
+      className={`flex items-start gap-2.5 px-3 py-1.5 border-b border-surface0/40 select-text ${rowBackground}`}
     >
       <Badge
         label={typeLabel(message.type)}
@@ -205,7 +217,6 @@ const MessageRow = React.memo(function MessageRow({
   )
 })
 
-// ── Main Console ─────────────────────────────────────────────────
 export const Console = React.memo(function Console({
   messages,
   onClear,
@@ -225,7 +236,8 @@ export const Console = React.memo(function Console({
     try {
       const Ctor =
         (Ansi as unknown as { default?: typeof Ansi }).default ?? Ansi
-      if (typeof Ctor !== 'function') return null
+      const isValidCtor = typeof Ctor === 'function'
+      if (!isValidCtor) return null
       return new Ctor({
         newline: false,
         escapeXML: true,
@@ -237,7 +249,8 @@ export const Console = React.memo(function Console({
   }, [])
 
   useEffect(() => {
-    if (isOpen && activeTab === 'console') {
+    const isConsoleTabVisible = isOpen && activeTab === 'console'
+    if (isConsoleTabVisible) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
   }, [messages, isOpen, filter, activeTab])
@@ -247,20 +260,20 @@ export const Console = React.memo(function Console({
   const warns = safeMessages.filter((m) => m.type === 'warn').length
 
   const filteredMessages = useMemo(() => {
-    return safeMessages.filter((m) => {
-      if (
-        !showNodeWarnings &&
-        m.args.some(
-          (arg) => typeof arg === 'string' && arg.startsWith('(node:')
-        )
+    return safeMessages.filter((msg) => {
+      const isNodeWarning = msg.args.some(
+        (arg) => typeof arg === 'string' && arg.startsWith('(node:')
       )
-        return false
+      const isFilteredNodeWarning = !showNodeWarnings && isNodeWarning
+      if (isFilteredNodeWarning) return false
+
       if (filter === 'all') return true
-      if (filter === 'log') return m.type === 'log'
-      if (filter === 'info')
-        return m.type === 'info' || m.type === 'debug' || m.type === 'dir'
-      if (filter === 'warn') return m.type === 'warn' || m.type === 'trace'
-      if (filter === 'error') return m.type === 'error'
+      if (filter === 'log') return msg.type === 'log'
+      if (filter === 'info') {
+        return msg.type === 'info' || msg.type === 'debug' || msg.type === 'dir'
+      }
+      if (filter === 'warn') return msg.type === 'warn' || msg.type === 'trace'
+      if (filter === 'error') return msg.type === 'error'
       return true
     })
   }, [safeMessages, filter, showNodeWarnings])
@@ -270,7 +283,6 @@ export const Console = React.memo(function Console({
     []
   )
 
-  // Memoise the tab bar
   const tabBar = useMemo(
     () => (
       <div className='flex items-center gap-1'>
@@ -313,7 +325,6 @@ export const Console = React.memo(function Console({
     ]
   )
 
-  // Memoise the filter bar
   const filterBar = useMemo(
     () => (
       <div className='flex items-center gap-2 px-4 py-1.5 bg-base/30 border-b border-surface0/20'>
@@ -368,6 +379,9 @@ export const Console = React.memo(function Console({
     [filter, handleFilterChange, errors, warns]
   )
 
+  const hasMessages = safeMessages.length > 0
+  const isConsoleActive = isOpen && activeTab === 'console'
+
   return (
     <div
       className='flex flex-col border-t border-surface0 bg-mantle shrink-0'
@@ -379,7 +393,7 @@ export const Console = React.memo(function Console({
         onToggle={onToggle}
         left={tabBar}
         right={
-          safeMessages.length > 0 ? (
+          hasMessages ? (
             <Button
               onClick={(e) => {
                 e.stopPropagation()
@@ -399,7 +413,7 @@ export const Console = React.memo(function Console({
         }
       />
 
-      {isOpen && activeTab === 'console' && (
+      {isConsoleActive && (
         <>
           {filterBar}
           <div

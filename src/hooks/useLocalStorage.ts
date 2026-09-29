@@ -6,7 +6,8 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
   const [value, setValue] = useState<T>(() => {
     try {
       const item = localStorage.getItem(key)
-      return item !== null ? (JSON.parse(item) as T) : initialValue
+      const isItemFound = item !== null
+      return isItemFound ? (JSON.parse(item) as T) : initialValue
     } catch {
       return initialValue
     }
@@ -15,8 +16,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
   const valueRef = useRef(value)
   valueRef.current = value
 
-  // Trailing-debounce persistence – keystroke-heavy editors would otherwise
-  // stringify and write on every change.
+  // Trailing-debounce persistence for performance during fast editing
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
@@ -26,7 +26,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
     return () => clearTimeout(timer)
   }, [key, value])
 
-  // Flush the pending debounce on unmount or key switch so nothing is lost.
+  // Flush the pending debounce on unmount or key switch
   useEffect(() => {
     return () => {
       try {

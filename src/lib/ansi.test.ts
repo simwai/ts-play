@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
+import { RegexPatterns, toRegExp } from './regex'
 
 function stripAnsi(text: string): string {
-  const ansiRegex = /[\u001b\u009b][\[\]()#;?]*[0-9;]*[a-zA-Z]/g
+  const ansiRegex = toRegExp(RegexPatterns.ANSI_ESCAPE)
   return text.replace(ansiRegex, '')
 }
 

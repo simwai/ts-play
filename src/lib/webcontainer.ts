@@ -15,6 +15,10 @@ export const SYSTEM_DEPS = [
   '@types/node',
 ]
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 // Exported only through the webContainerService singleton below.
 class WebContainerService {
   private instance: WebContainer | null = null
@@ -39,7 +43,7 @@ class WebContainerService {
 
         instance.on('server-ready', (port, url) => {
           this.serverUrl = url
-          this.emitLog('info', 'Server ready: ' + url + ' (port ' + port + ')')
+          this.emitLog('info', `Server ready: ${url} (port ${port})`)
         })
 
         return instance
@@ -62,7 +66,8 @@ class WebContainerService {
   }
 
   emitLog(type: string, message: string) {
-    if (!message) return
+    const isMessageEmpty = !message
+    if (isMessageEmpty) return
     this.logCallbacks.forEach((cb) =>
       cb({ type, message, timestamp: Date.now() })
     )
@@ -85,10 +90,12 @@ class WebContainerService {
 
   async writeFile(path: string, content: string) {
     const instance = await this.getInstance()
-    const normalizedPath = path.startsWith('./') ? path.slice(2) : path
+    const isRelativeDotPath = path.startsWith('./')
+    const normalizedPath = isRelativeDotPath ? path.slice(2) : path
     const parts = normalizedPath.split('/')
 
-    if (parts.length > 1) {
+    const isNestedPath = parts.length > 1
+    if (isNestedPath) {
       let currentPath = ''
       for (let i = 0; i < parts.length - 1; i++) {
         currentPath += (currentPath ? '/' : '') + parts[i]
@@ -97,9 +104,7 @@ class WebContainerService {
         } catch (err: unknown) {
           this.emitLog(
             'warn',
-            `mkdir ${currentPath} failed: ${
-              err instanceof Error ? err.message : String(err)
-            }`
+            `mkdir ${currentPath} failed: ${getErrorMessage(err)}`
           )
         }
       }
@@ -131,11 +136,9 @@ class WebContainerService {
     let currentLineBuffer = ''
 
     const processLines = (lines: string[]) => {
+      const whitespacePattern = toRegExp(RegexPatterns.EXCESSIVE_WHITESPACE)
       for (const line of lines) {
-        const simplified = line.replace(
-          toRegExp(RegexPatterns.EXCESSIVE_WHITESPACE),
-          '    '
-        )
+        const simplified = line.replace(whitespacePattern, '    ')
         if (!options.silent) this.emitLog('info', simplified)
         options.onLog?.(simplified)
       }
@@ -148,14 +151,15 @@ class WebContainerService {
 
         const chunk = value as string
         currentLineBuffer += chunk
-        const lines = currentLineBuffer.split(toRegExp(RegexPatterns.NEWLINE))
+        const newlinePattern = toRegExp(RegexPatterns.NEWLINE)
+        const lines = currentLineBuffer.split(newlinePattern)
 
-        const last = lines[lines.length - 1]
-        if (last === undefined) continue
+        const lastLine = lines[lines.length - 1]
+        const isLastLineUndefined = lastLine === undefined
+        if (isLastLineUndefined) continue
 
-        const hasIncompleteAnsi = toRegExp(RegexPatterns.INCOMPLETE_ANSI).test(
-          last
-        )
+        const incompleteAnsiPattern = toRegExp(RegexPatterns.INCOMPLETE_ANSI)
+        const hasIncompleteAnsi = incompleteAnsiPattern.test(lastLine)
 
         if (hasIncompleteAnsi) {
           const completeLines = lines.slice(0, -1)
@@ -167,13 +171,13 @@ class WebContainerService {
         }
       }
 
-      if (currentLineBuffer) {
+      const hasRemainingBuffer = Boolean(currentLineBuffer)
+      if (hasRemainingBuffer) {
         if (!options.silent) this.emitLog('info', currentLineBuffer)
         options.onLog?.(currentLineBuffer)
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err)
-      console.warn('[WC Service] Stream read error:', message)
+      console.warn('[WC Service] Stream read error:', getErrorMessage(err))
     } finally {
       reader.releaseLock()
     }

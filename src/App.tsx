@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { type ThemeMode } from './lib/theme'
-import { CodeEditor, type CodeEditorRef } from './components/CodeEditor'
-import { Console } from './components/Console'
-import { Problems } from './components/Problems'
+import { type CodeEditorRef } from './components/CodeEditor'
+import { EditorPanels } from './components/EditorPanels'
+import { BottomPanels } from './components/BottomPanels'
 import { OverrideModal } from './components/Modal'
-import { PackageManager } from './components/PackageManager'
 import { Header } from './components/Header'
 import { StatusBar } from './components/StatusBar'
 import { SettingsModal } from './components/SettingsModal'
@@ -14,62 +13,24 @@ import { workerClient } from './lib/workerClient'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import { useResizePanel } from './hooks/useResizePanel'
 import { useSwipeTabs } from './hooks/useSwipeTabs'
-import { shareSnippet, loadSharedSnippet } from './lib/api'
-import { decodeSharePayload } from './lib/shareCodec'
+import { shareSnippet } from './lib/api'
 import { useConsoleManager } from './hooks/useConsoleManager'
 import { useCompilerManager } from './hooks/useCompilerManager'
 import { usePackageManager } from './hooks/usePackageManager'
+import { useMonacoCompilerOptions } from './hooks/useMonacoCompilerOptions'
+import { useAppKeyboardShortcuts } from './hooks/useAppKeyboardShortcuts'
+import { useSharedSnippetLoader } from './hooks/useSharedSnippetLoader'
 import { TABS, type TabType, DEFAULT_TSCONFIG } from './lib/constants'
 import { playgroundStore } from './lib/state-manager'
 import { ToastContainer } from './components/ui/Toast'
 import { TypeInfoBar } from './components/ui/TypeInfoBar'
 import type { TSDiagnostic, ToastMessage, TypeInfo } from './lib/types'
 import { getWebContainer } from './lib/webcontainer'
-import * as monaco from 'monaco-editor'
-import * as TS from 'typescript'
+import { DEFAULT_TS } from './lib/defaultSnippet'
 
-const DEFAULT_TS = `// TypeScript Playground
-// Long-press any word on mobile to see type info ✨
-
-interface User {
-  name: string;
-  age: number;
-  email?: string;
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
-
-/**
- * Greets a user with a personalised message.
- * @param user The user to greet
- */
-function greet(user: User): string {
-  return \`Hello, \${user.name}! You are \${user.age} years old.\`;
-}
-
-const alice: User = {
-  name: "Alice",
-  age: 30,
-  email: "alice@example.com",
-};
-
-const message = greet(alice);
-console.log(message);
-
-// Generics
-function identity<T>(value: T): T {
-  return value;
-}
-
-const result = identity<number>(42);
-console.log("Identity:", result);
-
-// Async / await
-async function fetchData(url: string): Promise<string> {
-  const response = await fetch(url);
-  return response.text();
-}
-
-console.log("Type:", typeof fetchData);
-`
 
 export function App() {
   const [toasts, setToasts] = useState<ToastMessage[]>([])
@@ -167,7 +128,7 @@ export function App() {
     col: number
   } | null>(null)
 
-  const { messages, addMessage, clearMessages, consoleOpen, toggleConsole } =
+  const { messages, addMessage, clearMessages, consoleOpen } =
     useConsoleManager()
 
   const { compilerStatus, isRunning, runCode, stopCode } = useCompilerManager(
@@ -186,61 +147,9 @@ export function App() {
 
   const [monacoDiagnostics, setMonacoDiagnostics] = useState<TSDiagnostic[]>([])
 
-  // Sync Monaco compiler options directly from tsConfigString
-  useEffect(() => {
-    try {
-      const parsed = TS.parseConfigFileTextToJson(
-        'tsconfig.json',
-        tsConfigString
-      )
-      if (parsed.error) return
-      const config = TS.parseJsonConfigFileContent(
-        parsed.config,
-        {
-          useCaseSensitiveFileNames: true,
-          readDirectory: () => [],
-          fileExists: () => true,
-          readFile: () => tsConfigString,
-        },
-        '/'
-      )
-      monaco.typescript.typescriptDefaults.setCompilerOptions(
-        config.options as unknown as Parameters<
-          typeof monaco.typescript.typescriptDefaults.setCompilerOptions
-        >[0]
-      )
-    } catch {
-      // Ignore parse errors
-    }
-  }, [tsConfigString])
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isInput = /^(INPUT|TEXTAREA)$/.test(
-        (e.target as HTMLElement)?.tagName || ''
-      )
-
-      if (
-        (e.key === 'ArrowLeft' || e.key === 'ArrowRight') &&
-        (!isInput || e.altKey)
-      ) {
-        e.preventDefault()
-        setActiveTab((previous) => {
-          const idx = TABS.indexOf(previous)
-          if (e.key === 'ArrowLeft') {
-            return TABS[(idx - 1 + TABS.length) % TABS.length]
-          }
-          return TABS[(idx + 1) % TABS.length]
-        })
-      }
-    }
-
-    globalThis.addEventListener('keydown', handleKeyDown)
-    return () => {
-      globalThis.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [])
+  useMonacoCompilerOptions(tsConfigString)
+  useAppKeyboardShortcuts(setActiveTab)
+  useSharedSnippetLoader({ setTsCode, setJsCode, addMessage })
 
   useEffect(() => {
     ;(async () => {
@@ -259,61 +168,10 @@ export function App() {
           )
         }
       } catch (error) {
-        // Boot can be cancelled during StrictMode double-mount or HMR teardown.
         console.warn('WebContainer boot interrupted:', error)
       }
     })()
   }, [])
-
-  // Restore a shared snippet from the URL: embedded (#code=) or server (?share=)
-  useEffect(() => {
-    ;(async () => {
-      const parameters = new URLSearchParams(globalThis.location.search)
-      const embedded =
-        parameters.get('code') ||
-        globalThis.location.hash.replace(/^#code=/, '')
-      if (embedded) {
-        try {
-          const payload = await decodeSharePayload(embedded)
-          setTsCode(payload.tsCode || '')
-          setJsCode(payload.jsCode || '')
-          addMessage('info', [
-            'Loaded embedded share link (client-side, no server storage).',
-          ])
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error)
-          addMessage('error', [`Failed to load embedded share link: ${msg}`])
-        }
-        return
-      }
-
-      const shareId = parameters.get('share')
-      if (shareId) {
-        try {
-          const data = await loadSharedSnippet(shareId)
-          if (data.success) {
-            if (typeof data.tsCode === 'string') setTsCode(data.tsCode)
-            if (typeof data.jsCode === 'string') setJsCode(data.jsCode)
-            addMessage('info', [
-              `✓ Loaded shared snippet (${data.remainingDays} days remaining)`,
-            ])
-            const url = new URL(globalThis.location.href)
-            url.searchParams.delete('share')
-            globalThis.history.replaceState({}, '', url.toString())
-            return
-          }
-          addMessage('error', [
-            `Failed to load shared snippet: ${
-              typeof data.error === 'string' ? data.error : 'Unknown error'
-            }`,
-          ])
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error)
-          addMessage('error', [`Failed to load shared snippet: ${msg}`])
-        }
-      }
-    })()
-  }, [addMessage, setTsCode, setJsCode])
 
   const handleCopyAll = useCallback(async () => {
     let content = ''
@@ -324,12 +182,12 @@ export function App() {
     try {
       await navigator.clipboard.writeText(content)
     } catch {
-      const ta = document.createElement('textarea')
-      ta.value = content
-      document.body.append(ta)
-      ta.select()
+      const textArea = document.createElement('textarea')
+      textArea.value = content
+      document.body.append(textArea)
+      textArea.select()
       document.execCommand('copy')
-      ta.remove()
+      textArea.remove()
     }
     setCopied(true)
     playgroundStore.addToast('info', 'Copied to clipboard')
@@ -347,21 +205,22 @@ export function App() {
     setFormatting(true)
     playgroundStore.enqueue('Format', async () => {
       try {
-        // Resolve the current text when the queued action runs — the closure
-        // values can be stale if a Run or an edit completed in the meantime.
         const currentTs = tsEditorRef.current?.getValue() || tsCode
         const currentJs = jsEditorRef.current?.getValue() || jsCode
         const currentDts = dtsEditorRef.current?.getValue() || dtsCode
         const {
-          tsCode: fTs,
-          jsCode: fJs,
-          dtsCode: fDts,
+          tsCode: formattedTs,
+          jsCode: formattedJs,
+          dtsCode: formattedDts,
           errors,
         } = await formatAllFiles(currentTs, currentJs, currentDts)
-        setTsCode(fTs)
-        setJsCode(fJs)
-        setDtsCode(fDts)
-        if (errors.length > 0) {
+
+        setTsCode(formattedTs)
+        setJsCode(formattedJs)
+        setDtsCode(formattedDts)
+
+        const hasFormatErrors = errors.length > 0
+        if (hasFormatErrors) {
           playgroundStore.addToast(
             'error',
             `Format issues: ${errors.join(', ')}`
@@ -375,7 +234,7 @@ export function App() {
           setTimeout(() => setFormatSuccess(false), 1500)
         }
       } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error)
+        const msg = getErrorMessage(error)
         playgroundStore.addToast('error', `Format failed: ${msg}`)
       } finally {
         setFormatting(false)
@@ -384,8 +243,8 @@ export function App() {
   }, [tsCode, jsCode, dtsCode, setTsCode, setJsCode, setDtsCode])
 
   const handleJsChange = useCallback(
-    (v: string) => {
-      setJsCode(v)
+    (value: string) => {
+      setJsCode(value)
       setJsDirty(true)
     },
     [setJsCode]
@@ -393,7 +252,8 @@ export function App() {
 
   const doRun = useCallback(
     async (skipDirtyCheck = false) => {
-      if (!skipDirtyCheck && jsDirty) {
+      const requiresConfirmation = !skipDirtyCheck && jsDirty
+      if (requiresConfirmation) {
         setShowModal(true)
         return
       }
@@ -429,7 +289,8 @@ export function App() {
           jsCode,
           packages: installedPackages,
         })
-        if (result.type === 'server') {
+        const isServerResult = result.type === 'server'
+        if (isServerResult) {
           const url = new URL(globalThis.location.href)
           url.searchParams.set('share', result.id)
           url.searchParams.delete('code')
@@ -454,7 +315,7 @@ export function App() {
         }
         setTimeout(() => setShareSuccess(false), 2000)
       } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error)
+        const msg = getErrorMessage(error)
         playgroundStore.addToast('error', `Failed to share: ${msg}`)
       } finally {
         setSharing(false)
@@ -479,7 +340,7 @@ export function App() {
       tsCursorPos.current = pos
       checkImports()
     },
-    [checkImports]
+    [checkImports, tsCursorPos]
   )
 
   const handleJumpToProblem = useCallback((line: number, col: number) => {
@@ -495,6 +356,9 @@ export function App() {
     compilerStatus === 'ready'
       ? compilerStatus
       : 'ready'
+
+  const isBottomPanelVisible = !compactForKeyboard && (consoleOpen || packageManagerOpen)
+  const isBottomSectionRendered = !compactForKeyboard
 
   return (
     <div
@@ -537,63 +401,26 @@ export function App() {
         packageManagerStatus={status}
       />
 
-      <div
-        data-testid='swipe-container'
-        className='flex-1 overflow-hidden relative min-h-0'
-      >
-        <div
-          className='flex w-[300%] h-full transition-[left] duration-300 ease-in-out relative'
-          style={{
-            left:
-              activeTab === 'ts' ? '0' : activeTab === 'js' ? '-100%' : '-200%',
-          }}
-        >
-          <div className='w-[33.333%] h-full shrink-0'>
-            <CodeEditor
-              path='file:///main.ts'
-              ref={tsEditorRef}
-              value={tsCode}
-              onChange={setTsCode}
-              onCursorChange={onTsCursorChange}
-              onCursorPosChange={setCursorPos}
-              onTypeInfoChange={setTypeInfo}
-              onDiagnosticsChange={setMonacoDiagnostics}
-              language='typescript'
-              extraLibs={packageTypings}
-              isMobileLike={isMobileLike}
-              lineWrap={lineWrap}
-              themeMode={themeMode}
-            />
-          </div>
-          <div className='w-[33.333%] h-full shrink-0'>
-            <CodeEditor
-              path='file:///main.js'
-              ref={jsEditorRef}
-              value={jsCode}
-              onChange={handleJsChange}
-              onCursorPosChange={setCursorPos}
-              language='javascript'
-              isMobileLike={isMobileLike}
-              lineWrap={lineWrap}
-              themeMode={themeMode}
-            />
-          </div>
-          <div className='w-[33.333%] h-full shrink-0'>
-            <CodeEditor
-              path='file:///main.d.ts'
-              ref={dtsEditorRef}
-              value={dtsCode}
-              onChange={setDtsCode}
-              onCursorPosChange={setCursorPos}
-              language='typescript'
-              readOnly={true}
-              isMobileLike={isMobileLike}
-              lineWrap={lineWrap}
-              themeMode={themeMode}
-            />
-          </div>
-        </div>
-      </div>
+      <EditorPanels
+        activeTab={activeTab}
+        tsEditorRef={tsEditorRef}
+        jsEditorRef={jsEditorRef}
+        dtsEditorRef={dtsEditorRef}
+        tsCode={tsCode}
+        setTsCode={setTsCode}
+        jsCode={jsCode}
+        handleJsChange={handleJsChange}
+        dtsCode={dtsCode}
+        setDtsCode={setDtsCode}
+        onTsCursorChange={onTsCursorChange}
+        setCursorPos={setCursorPos}
+        setTypeInfo={setTypeInfo}
+        setMonacoDiagnostics={setMonacoDiagnostics}
+        packageTypings={packageTypings}
+        isMobileLike={isMobileLike}
+        lineWrap={lineWrap}
+        themeMode={themeMode}
+      />
 
       <TypeInfoBar
         typeInfo={typeInfo}
@@ -601,46 +428,24 @@ export function App() {
         language={activeTab === 'js' ? 'javascript' : 'typescript'}
       />
 
-      {!compactForKeyboard && (consoleOpen || packageManagerOpen) && (
-        <div
-          onMouseDown={handleResizeStart}
-          onTouchStart={handleResizeStart}
-          className={`h-2 border-b border-surface0 cursor-ns-resize flex items-center justify-center shrink-0 transition-colors duration-160 relative ${isResizing ? 'bg-peach' : 'bg-surface0'}`}
-          title='Drag to resize'
-        >
-          <div className='w-10 h-1 bg-overlay0 rounded-sm opacity-50' />
-        </div>
-      )}
-
-      {!compactForKeyboard && (
-        <div className='overflow-hidden flex flex-col shrink-0 bg-base'>
-          <Console
-            messages={messages}
-            onClear={clearMessages}
-            isOpen={consoleOpen}
-            onToggle={() => setPackageManagerOpen(false)}
-            contentHeight={panelHeight}
-            trueColorEnabled={trueColorEnabled}
-            showNodeWarnings={showNodeWarnings}
-            activeTab={activeBottomTab}
-            onTabChange={setActiveBottomTab}
-            problemCount={monacoDiagnostics.length}
-          />
-
-          <Problems
-            diagnostics={monacoDiagnostics}
-            isOpen={consoleOpen && activeBottomTab === 'problems'}
-            contentHeight={panelHeight}
-            onJumpToProblem={handleJumpToProblem}
-          />
-
-          <PackageManager
-            packages={installedPackages}
-            isOpen={consoleOpen && activeBottomTab === 'packages'} // ← added
-            contentHeight={panelHeight}
-          />
-        </div>
-      )}
+      <BottomPanels
+        isBottomSectionRendered={isBottomSectionRendered}
+        isBottomPanelVisible={isBottomPanelVisible}
+        isResizing={isResizing}
+        handleResizeStart={handleResizeStart}
+        panelHeight={panelHeight}
+        messages={messages}
+        clearMessages={clearMessages}
+        consoleOpen={consoleOpen}
+        setPackageManagerOpen={setPackageManagerOpen}
+        trueColorEnabled={trueColorEnabled}
+        showNodeWarnings={showNodeWarnings}
+        activeBottomTab={activeBottomTab}
+        setActiveBottomTab={setActiveBottomTab}
+        monacoDiagnostics={monacoDiagnostics}
+        handleJumpToProblem={handleJumpToProblem}
+        installedPackages={installedPackages}
+      />
 
       {showModal && (
         <OverrideModal

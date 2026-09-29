@@ -18,21 +18,24 @@ class WorkerClient {
       })
       this.worker.onmessage = (e: MessageEvent) => {
         const { id, success, payload, error, protocol } = e.data
-        if (protocol && protocol !== 'custom') return
-        const p = this.resolves.get(id)
-        if (p) {
-          clearTimeout(p.timeoutId)
+        const isUnsupportedProtocol = Boolean(protocol) && protocol !== 'custom'
+        if (isUnsupportedProtocol) return
+
+        const pendingRequest = this.resolves.get(id)
+        if (pendingRequest) {
+          clearTimeout(pendingRequest.timeoutId)
           this.resolves.delete(id)
-          if (success) p.resolve(payload)
-          else p.reject(new Error(error))
+          if (success) {
+            pendingRequest.resolve(payload)
+          } else {
+            pendingRequest.reject(new Error(error))
+          }
         }
       }
 
       this.worker.onerror = (e) => {
-        console.error(
-          'Worker execution error:',
-          e.message || 'Unknown worker error'
-        )
+        const errorMessage = e.message || 'Unknown worker error'
+        console.error('Worker execution error:', errorMessage)
       }
     }
 
@@ -42,12 +45,13 @@ class WorkerClient {
   private async send<T>(type: string, payload?: unknown): Promise<T> {
     return new Promise((resolve, reject) => {
       const id = ++this.msgId
+      const requestTimeoutMs = 15_000
 
       // Timeout to prevent memory leaks if the worker hangs
       const timeoutId = setTimeout(() => {
         this.resolves.delete(id)
         reject(new Error(`Worker request '${type}' timed out after 15s`))
-      }, 15_000)
+      }, requestTimeoutMs)
 
       this.resolves.set(id, {
         resolve: (value) => resolve(value as T),

@@ -36,11 +36,16 @@ type SettingsModalProps = {
 
 function fixLooseJson(code: string): string {
   return code.replace(/([a-zA-Z_$][\w$]*)\s*:/g, (match, key, offset, str) => {
-    let i = offset - 1
-    while (i >= 0 && /\s/.test(str[i])) i--
-    if (str[i] === '"' || str[i] === "'") return match
+    let index = offset - 1
+    while (index >= 0 && /\s/.test(str[index])) index--
+    const isAlreadyQuoted = str[index] === '"' || str[index] === "'"
+    if (isAlreadyQuoted) return match
     return `"${key}":`
   })
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 export function SettingsModal({
@@ -74,12 +79,15 @@ export function SettingsModal({
 
   useEffect(() => {
     if (!isOpen) return
+    const debounceMs = 300
     const timer = setTimeout(async () => {
       try {
         const res = await workerClient.validateConfig(temporaryTsConfig)
-        if (!res.valid) {
+        const isInvalidConfig = !res.valid
+        if (isInvalidConfig) {
           const fixed = fixLooseJson(temporaryTsConfig)
-          if (fixed !== temporaryTsConfig) {
+          const isFixableLooseJson = fixed !== temporaryTsConfig
+          if (isFixableLooseJson) {
             const fixedRes = await workerClient.validateConfig(fixed)
             if (fixedRes.valid) {
               setIsValid(true)
@@ -96,37 +104,40 @@ export function SettingsModal({
         setIsValid(false)
         setErrorMsg('Validation failed')
       }
-    }, 300)
+    }, debounceMs)
     return () => clearTimeout(timer)
   }, [temporaryTsConfig, isOpen])
 
   const handleSave = useCallback(async () => {
-    // No early exit based on debounced isValid – we will re-validate inside the queue.
     onClose()
 
     playgroundStore.enqueue('Update TSConfig', async () => {
       try {
         let toSave = temporaryTsConfig
         const res = await workerClient.validateConfig(toSave)
-        if (!res.valid) {
+        const isInvalidConfig = !res.valid
+        if (isInvalidConfig) {
           const fixed = fixLooseJson(toSave)
           const fixedRes = await workerClient.validateConfig(fixed)
-          if (fixedRes.valid) toSave = fixed
-          else throw new Error(res.error || 'Invalid configuration')
+          if (fixedRes.valid) {
+            toSave = fixed
+          } else {
+            throw new Error(res.error || 'Invalid configuration')
+          }
         }
         const formatted = await formatJson(toSave)
-        // At this point formatted is already valid JSON; the second fixLooseJson is unnecessary.
         await webContainerService.writeFile('tsconfig.json', formatted)
         onSave(formatted)
         playgroundStore.addToast('success', 'TSConfig updated successfully')
       } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error)
+        const msg = getErrorMessage(error)
         playgroundStore.addToast('error', `Failed to save TSConfig: ${msg}`)
       }
     })
   }, [temporaryTsConfig, onClose, onSave])
 
-  if (!isOpen) return null
+  const isModalHidden = !isOpen
+  if (isModalHidden) return null
 
   const availableThemes = isDarkMode ? DARK_THEMES : LIGHT_THEMES
   const currentTheme = isDarkMode ? preferredDarkTheme : preferredLightTheme
@@ -305,9 +316,6 @@ export function SettingsModal({
             <div className='flex items-center gap-2'>
               <p className='text-xs text-subtext0'>
                 Made with 💜 by
-                {/* Graffonti's scanline stripes alias at small sizes; the
-                    offset clone interleaves both phases so the glyphs read
-                    solid while both layers keep the animated gradient. */}
                 <span className='relative ml-1 inline-block font-graffonti text-xl leading-relaxed'>
                   <span
                     aria-hidden='true'

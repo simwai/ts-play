@@ -29,32 +29,53 @@ export function StatusBar({
   packageManagerStatus,
 }: StatusBarProps) {
   const lowerStatus = compilerStatus.toLowerCase()
-  const statusLabel =
-    lowerStatus === 'loading'
-      ? '⏳ Loading…'
-      : lowerStatus === 'error'
-        ? '✗ No compiler'
-        : lowerStatus === 'compiling'
-          ? '⚙️ Compiling...'
-          : lowerStatus === 'running'
-            ? '🚀 Running...'
-            : '✓ TS ready'
 
-  const statusColorClass =
-    lowerStatus === 'ready' || lowerStatus === 'idle'
-      ? 'text-green'
-      : lowerStatus === 'error'
-        ? 'text-red'
-        : 'text-yellow'
+  const getStatusLabel = () => {
+    switch (lowerStatus) {
+      case 'loading':
+        return '⏳ Loading…'
+      case 'error':
+        return '✗ No compiler'
+      case 'compiling':
+        return '⚙️ Compiling...'
+      case 'running':
+        return '🚀 Running...'
+      default:
+        return '✓ TS ready'
+    }
+  }
 
-  const pmLabel =
-    packageManagerStatus === 'installing'
-      ? 'Installing...'
-      : packageManagerStatus === 'syncing'
-        ? 'Syncing...'
-        : packageManagerStatus === 'error'
-          ? 'PM Error'
-          : ''
+  const isReadyOrIdle = lowerStatus === 'ready' || lowerStatus === 'idle'
+  const isErrorStatus = lowerStatus === 'error'
+  const statusColorClass = isReadyOrIdle
+    ? 'text-green'
+    : isErrorStatus
+      ? 'text-red'
+      : 'text-yellow'
+
+  const getPackageManagerLabel = () => {
+    switch (packageManagerStatus) {
+      case 'installing':
+        return 'Installing...'
+      case 'syncing':
+        return 'Syncing...'
+      case 'error':
+        return 'PM Error'
+      default:
+        return ''
+    }
+  }
+
+  const pmLabel = getPackageManagerLabel()
+  const statusLabel = getStatusLabel()
+
+  const getActiveTabLabel = () => {
+    if (activeTab === 'ts') return 'TypeScript'
+    if (activeTab === 'js') return 'JavaScript'
+    return 'Declarations'
+  }
+
+  const isJsModified = activeTab === 'js' && jsDirty
 
   return (
     <div
@@ -77,12 +98,8 @@ export function StatusBar({
 
       <div className='flex items-center justify-center shrink-0 min-w-0'>
         <span className='text-3xs md:text-xs text-overlay0 font-mono truncate'>
-          {activeTab === 'ts'
-            ? 'TypeScript'
-            : activeTab === 'js'
-              ? 'JavaScript'
-              : 'Declarations'}
-          {activeTab === 'js' && jsDirty && (
+          {getActiveTabLabel()}
+          {isJsModified && (
             <span className='ml-2 text-peach'>● modified</span>
           )}
         </span>

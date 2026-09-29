@@ -25,7 +25,8 @@ export function toRegExp(pattern: string): RegExp {
   const [, p, flags] = match
   // Global/sticky regexes carry lastIndex state; sharing instances would
   // corrupt .test()/.exec() across call sites, so only stateless ones cache.
-  if (/[gy]/.test(flags)) return new RegExp(p, flags)
+  const isStatefulRegex = /[gy]/.test(flags)
+  if (isStatefulRegex) return new RegExp(p, flags)
   const cached = compiledCache.get(pattern)
   if (cached) return cached
   const compiled = new RegExp(p, flags)
